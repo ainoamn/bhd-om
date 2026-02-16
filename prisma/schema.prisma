@@ -1,0 +1,412 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum UserRole {
+  ADMIN
+  CLIENT
+  OWNER
+}
+
+enum ProjectStatus {
+  COMPLETED
+  UNDER_DEVELOPMENT
+  UNDER_CONSTRUCTION
+  PLANNING
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DocumentType {
+  CONTRACT
+  INVOICE
+  REPORT
+  CERTIFICATE
+  OTHER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  serialNumber  String    @unique  // USR-A-2025-0001 حسب الدور والسنة
+  email         String    @unique
+  password      String
+  name          String
+  phone         String?
+  role          UserRole  @default(CLIENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  projects      Project[]
+  tasks         Task[]
+  documents     Document[]
+  accounts      Account[]
+}
+
+model Project {
+  id              String          @id @default(cuid())
+  serialNumber    String          @unique  // PRJ-C-2025-0001 حسب الحالة والسنة
+  titleAr         String
+  titleEn         String
+  descriptionAr   String
+  descriptionEn   String
+  status          ProjectStatus
+  locationAr      String
+  locationEn      String
+  area            Float?
+  units           Int?
+  startDate       DateTime?
+  completionDate  DateTime?
+  imageUrl        String?
+  images          String          // JSON array of image URLs
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  tasks           Task[]
+  documents       Document[]
+  accounts        Account[]
+  serialHistory   SerialNumberHistory[]
+}
+
+model Task {
+  id              String      @id @default(cuid())
+  titleAr         String
+  titleEn         String
+  descriptionAr   String
+  descriptionEn   String
+  status          TaskStatus  @default(PENDING)
+  dueDate         DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  projectId       String?
+  project         Project?    @relation(fields: [projectId], references: [id])
+}
+
+model Document {
+  id              String        @id @default(cuid())
+  titleAr         String
+  titleEn         String
+  type            DocumentType
+  fileUrl         String
+  fileName        String
+  fileSize        Int
+  mimeType        String
+  descriptionAr   String?
+  descriptionEn   String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  projectId       String?
+  project         Project?      @relation(fields: [projectId], references: [id])
+}
+
+model Account {
+  id              String    @id @default(cuid())
+  accountNumber   String    @unique
+  balance         Float     @default(0)
+  currency        String    @default("OMR")
+  descriptionAr   String?
+  descriptionEn   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id])
+  transactions    Transaction[]
+}
+
+model Transaction {
+  id              String    @id @default(cuid())
+  amount          Float
+  type            String    // DEBIT or CREDIT
+  descriptionAr   String?
+  descriptionEn   String?
+  date            DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  
+  accountId       String
+  account         Account   @relation(fields: [accountId], references: [id])
+}
+
+model SiteContent {
+  id              String    @id @default(cuid())
+  key             String    @unique
+  contentAr       String
+  contentEn       String
+  type            String    // TEXT, HTML, IMAGE, etc.
+  page            String    // home, about, services, etc.
+  section         String?   // hero, services, etc.
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum PropertyType {
+  RENT
+  SALE
+  INVESTMENT
+}
+
+enum PropertyStatus {
+  ACTIVE
+  FROZEN
+  ARCHIVED
+}
+
+model Property {
+  id              String          @id @default(cuid())
+  serialNumber    String          @unique  // PRP-R-2025-0001 حسب النوع والسنة
+  titleAr         String
+  titleEn         String
+  descriptionAr   String
+  descriptionEn   String
+  type            PropertyType
+  status          PropertyStatus  @default(ACTIVE)
+  propertyTypeAr  String
+  propertyTypeEn  String
+  governorateAr   String
+  governorateEn   String
+  stateAr         String
+  stateEn         String
+  villageAr       String
+  villageEn       String
+  price           Float
+  area            Float
+  bedrooms        Int?
+  bathrooms       Int?
+  livingRooms     Int?
+  majlis         Int?
+  parkingSpaces   Int?
+  floors          Int?
+  balconies       Int?
+  image           String
+  images          String?         // JSON array of image URLs
+  googleMapsUrl   String?
+  lat             Float?
+  lng             Float?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  bookings        PropertyBooking[]
+  serialHistory   SerialNumberHistory[]
+}
+
+model PropertyBooking {
+  id              String    @id @default(cuid())
+  propertyId      String
+  property        Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name            String
+  email           String
+  phone           String
+  message         String?
+  type            String    // BOOKING, VIEWING
+  status          String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// عدادات للأرقام المتسلسلة - مفتاح: entity-type-year (مثل PRP-R-2025)
+model SerialCounter {
+  id        String   @id @default(cuid())
+  key       String   @unique  // PRP-R-2025, PRJ-C-2025, USR-A-2025
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// أرشيف الأرقام المتسلسلة السابقة عند تغيير نوع العقار أو حالة المشروع
+model SerialNumberHistory {
+  id            String    @id @default(cuid())
+  entityType    String    // PROJECT, PROPERTY
+  entityId      String
+  serialNumber  String    // الرقم السابق
+  typeOrStatus  String    // النوع أو الحالة السابقة
+  changedAt     DateTime  @default(now())
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  propertyId    String?
+  property      Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model ContactSubmission {
+  id              String    @id @default(cuid())
+  name            String
+  email           String
+  phone           String?
+  message         String?
+  type            String    // CONTACT, CALLBACK
+  isRead          Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+}
+
+// ========== Global Intelligent Accounting ==========
+enum AccountingAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum AccountingDocType {
+  INVOICE
+  RECEIPT
+  QUOTE
+  DEPOSIT
+  PAYMENT
+  JOURNAL
+  PURCHASE_INV
+  PURCHASE_ORDER
+  OTHER
+}
+
+enum AccountingDocStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+model AccountingAccount {
+  id          String                 @id @default(cuid())
+  code        String                 @unique
+  nameAr      String
+  nameEn      String?
+  type        AccountingAccountType
+  parentId    String?
+  isActive    Boolean                @default(true)
+  sortOrder   Int                    @default(0)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  parent      AccountingAccount?     @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children    AccountingAccount[]    @relation("AccountHierarchy")
+  journalLines AccountingJournalLine[]
+}
+
+model AccountingJournalEntry {
+  id              String    @id @default(cuid())
+  serialNumber    String
+  version         Int       @default(1)
+  date            DateTime
+  totalDebit      Float
+  totalCredit     Float
+  descriptionAr   String?
+  descriptionEn   String?
+  documentType    AccountingDocType?
+  documentId      String?
+  contactId       String?
+  bankAccountId   String?
+  propertyId      Int?
+  projectId       String?
+  status          AccountingDocStatus @default(APPROVED)
+  replacedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  lines           AccountingJournalLine[]
+}
+
+model AccountingJournalLine {
+  id            String    @id @default(cuid())
+  journalId     String
+  accountId     String
+  debit         Float     @default(0)
+  credit        Float     @default(0)
+  descriptionAr String?
+  descriptionEn String?
+
+  journal       AccountingJournalEntry @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  account       AccountingAccount     @relation(fields: [accountId], references: [id])
+}
+
+model AccountingDocument {
+  id              String    @id @default(cuid())
+  serialNumber    String
+  type            AccountingDocType
+  status          AccountingDocStatus
+  date            DateTime
+  dueDate         DateTime?
+  contactId       String?
+  bankAccountId   String?
+  propertyId      Int?
+  projectId       String?
+  amount          Float
+  currency        String    @default("OMR")
+  vatRate         Float?
+  vatAmount       Float?
+  totalAmount     Float
+  descriptionAr   String?
+  descriptionEn   String?
+  itemsJson       String?   // JSON
+  journalEntryId  String?
+  attachmentsJson String?   // JSON [{url, name}]
+  purchaseOrder   String?
+  reference       String?
+  branch          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model AccountingFiscalPeriod {
+  id        String    @id @default(cuid())
+  code      String
+  startDate DateTime
+  endDate   DateTime
+  isLocked  Boolean   @default(false)
+  closedAt  DateTime?
+  closedBy  String?
+}
+
+model AccountingAuditLog {
+  id            String   @id @default(cuid())
+  timestamp     DateTime @default(now())
+  action        String
+  entityType    String
+  entityId      String
+  userId        String?
+  reason        String?
+  previousState String?
+  newState      String?
+}
+
+// RBAC - صلاحيات المحاسبة
+enum AccountingPermission {
+  ACCOUNT_VIEW
+  ACCOUNT_EDIT
+  JOURNAL_CREATE
+  JOURNAL_APPROVE
+  JOURNAL_CANCEL
+  DOCUMENT_CREATE
+  PERIOD_LOCK
+  REPORT_VIEW
+  AUDIT_VIEW
+}
+
+model UserAccountingRole {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String   // ACCOUNTANT, APPROVER, AUDITOR, ADMIN
+  permissions String // JSON array of AccountingPermission
+  createdAt  DateTime @default(now())
+}

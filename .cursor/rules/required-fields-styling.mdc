@@ -1,0 +1,51 @@
+---
+description: تنسيق الحقول الإجبارية - إطار أحمر عند الفراغ وأخضر عند التعبئة
+globs: "**/*.tsx,**/*.ts,**/*.css"
+alwaysApply: false
+---
+
+# تنسيق الحقول الإجبارية (Required Fields Styling)
+
+## المعيار الثابت
+
+عند إنشاء أو تعديل أي نموذج (form) في الموقع، يجب تطبيق التنسيق التالي للحقول الإجبارية:
+
+### 1. الحقل الفارغ (إجباري) - إطار أحمر
+- `border-color: red` أو `border-red-500`
+- أو `ring-2 ring-red-500` للـ focus
+- أو `border-2 border-red-500` للتمييز الواضح
+
+### 2. بعد تعبئة الحقل - يتحول إلى اللون الأخضر
+- `border-green-500` أو `ring-green-500`
+- عند إدخال المستخدم قيمة صالحة، يتحول الإطار إلى الأخضر
+
+### 3. التطبيق
+- جميع النماذج: inputs، selects، textareas، checkboxes
+- في كل صفحات الموقع (الواجهة الأمامية + لوحة الإدارة)
+
+### 4. أمثلة التطبيق
+
+```tsx
+// Tailwind - حقل إجباري مع تنسيق ديناميكي
+<input
+  className={`w-full px-4 py-2.5 rounded-lg border-2 ${
+    !value?.trim() ? 'border-red-500' : 'border-green-500'
+  }`}
+  required
+/>
+
+// أو باستخدام classes
+<input className="border-2 border-red-500 focus:border-green-500 valid:border-green-500" />
+```
+
+```css
+/* CSS - للاستخدام العام */
+.input-required:invalid,
+.input-required:placeholder-shown {
+  border-color: rgb(239 68 68);
+}
+
+.input-required:valid:not(:placeholder-shown) {
+  border-color: rgb(34 197 94);
+}
+```

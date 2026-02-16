@@ -1,0 +1,211 @@
+/* Admin Panel Design System - 8px Grid - Responsive */
+@reference "../globals.css";
+
+/* Layout - Mobile First */
+.admin-root {
+  @apply min-h-screen flex flex-col lg:flex-row bg-gray-50/80;
+}
+.admin-sidebar {
+  @apply w-72 bg-white border-l border-gray-200/80 flex-shrink-0 fixed top-0 bottom-0 z-40 h-full flex flex-col
+    shadow-[0_0_50px_-12px_rgba(0,0,0,0.08)] transform transition-transform duration-300 ease-out;
+}
+.admin-sidebar--closed {
+  @apply -translate-x-full lg:translate-x-0;
+}
+[dir="ltr"] .admin-sidebar--closed {
+  @apply -translate-x-full lg:translate-x-0;
+}
+[dir="rtl"] .admin-sidebar {
+  left: auto;
+  right: 0;
+  border-left: 1px solid rgb(229 231 235 / 0.8);
+  border-right: none;
+}
+[dir="rtl"] .admin-sidebar--closed {
+  @apply translate-x-full lg:translate-x-0;
+}
+[dir="ltr"] .admin-sidebar {
+  left: 0;
+  right: auto;
+  border-right: 1px solid rgb(229 231 235 / 0.8);
+  border-left: none;
+}
+.admin-sidebar-overlay {
+  @apply fixed inset-0 bg-black/40 z-30 lg:hidden;
+}
+.admin-sidebar-brand {
+  @apply p-4 sm:p-6 border-b border-gray-100;
+}
+.admin-sidebar-brand-link {
+  @apply flex items-center gap-3 sm:gap-4;
+}
+.admin-sidebar-brand-link:hover .admin-sidebar-logo {
+  background-color: rgb(139 111 71 / 0.2);
+}
+.admin-sidebar-logo {
+  @apply w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-colors flex-shrink-0;
+  background-color: rgb(139 111 71 / 0.1);
+}
+.admin-sidebar-title {
+  @apply font-bold text-gray-900 text-sm sm:text-base truncate;
+}
+.admin-sidebar-subtitle {
+  @apply text-xs text-gray-500 font-medium mt-0.5;
+}
+.admin-main {
+  @apply flex-1 min-h-screen w-full;
+}
+@media (min-width: 1024px) {
+  .admin-main {
+    margin-inline-start: 18rem;
+  }
+}
+.admin-main-inner {
+  @apply p-4 sm:p-6 md:p-8 lg:p-10 max-w-7xl w-full;
+}
+.admin-mobile-header {
+  @apply lg:hidden sticky top-0 z-20 flex items-center justify-between gap-4 p-4 bg-white border-b border-gray-200 shadow-sm;
+}
+
+/* Navigation */
+.admin-nav {
+  @apply p-4 space-y-6 flex-1 overflow-y-auto;
+}
+.admin-nav-group {
+  @apply space-y-2;
+}
+.admin-nav-group-label {
+  @apply block px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider;
+}
+.admin-nav-list {
+  @apply space-y-1;
+}
+.admin-nav-link {
+  @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
+    text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+}
+.admin-nav-link--active {
+  @apply bg-[#8B6F47] text-white shadow-md shadow-[#8B6F47]/25 hover:bg-[#8B6F47] hover:text-white;
+}
+.admin-nav-link--external {
+  @apply text-gray-500 hover:bg-gray-50 hover:text-gray-900;
+}
+.admin-nav-icon {
+  @apply w-5 h-5 flex-shrink-0;
+}
+.admin-nav-dropdown {
+  @apply space-y-0;
+}
+.admin-nav-link--dropdown {
+  @apply cursor-pointer;
+}
+.admin-nav-link--dropdown svg:last-child {
+  @apply transition-transform duration-200;
+}
+.admin-nav-dropdown--open svg:last-child {
+  transform: rotate(90deg);
+}
+.admin-nav-sublist {
+  @apply mt-1 mr-4 space-y-0.5 border-r-2 border-gray-200/80 pr-2;
+}
+[dir="ltr"] .admin-nav-sublist {
+  @apply mr-0 ml-4 border-r-0 border-l-2 pl-2;
+}
+.admin-nav-sublink {
+  @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors;
+}
+.admin-nav-sublink--active {
+  @apply bg-[#8B6F47]/10 text-[#8B6F47] font-semibold hover:bg-[#8B6F47]/15 hover:text-[#6B5535];
+}
+.admin-nav-sublink--disabled {
+  @apply opacity-60 cursor-not-allowed;
+}
+.admin-sidebar-footer {
+  @apply p-4 border-t border-gray-100 flex-shrink-0 mt-auto;
+}
+
+/* Cards & UI */
+.admin-page-header {
+  @apply mb-8;
+}
+.admin-page-title {
+  @apply text-2xl font-bold text-gray-900 tracking-tight;
+}
+.admin-page-subtitle {
+  @apply text-gray-500 mt-1 text-sm font-medium;
+}
+.admin-card {
+  @apply bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden;
+}
+.admin-card-header {
+  @apply px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100;
+}
+.admin-card-title {
+  @apply text-base sm:text-lg font-semibold text-gray-900;
+}
+.admin-card-body {
+  @apply p-4 sm:p-6;
+}
+.admin-table {
+  @apply w-full text-right min-w-[640px];
+}
+.admin-table th {
+  @apply px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/80;
+}
+.admin-table td {
+  @apply px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-900 border-t border-gray-100;
+}
+.admin-table tr:hover td {
+  @apply bg-gray-50/50;
+}
+.admin-btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl font-semibold text-white
+    bg-[#8B6F47] hover:bg-[#6B5535] transition-all duration-200 shadow-sm hover:shadow-md
+    min-h-[44px] sm:min-h-0 touch-manipulation;
+}
+.admin-btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl font-semibold 
+    bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200
+    min-h-[44px] sm:min-h-0 touch-manipulation;
+}
+.admin-input {
+  @apply w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 
+    focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900 text-base;
+}
+.admin-input-label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+.admin-select {
+  @apply px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700
+    focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all;
+}
+.admin-badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-semibold;
+}
+.admin-badge-success {
+  @apply bg-emerald-50 text-emerald-700;
+}
+.admin-badge-warning {
+  @apply bg-amber-50 text-amber-700;
+}
+.admin-badge-info {
+  @apply bg-blue-50 text-blue-700;
+}
+.admin-badge-neutral {
+  @apply bg-gray-100 text-gray-700;
+}
+
+/* Property Form Steps */
+.property-form-steps .animate-fadeIn {
+  animation: propertyFormFadeIn 0.3s ease-out;
+}
+@keyframes propertyFormFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
