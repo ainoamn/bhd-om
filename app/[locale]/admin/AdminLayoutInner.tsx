@@ -39,13 +39,29 @@ const accountingSubItems: (NavItem & { isHeader?: boolean })[] = [
   { href: '/admin/accounting?tab=documents&action=add', labelKey: 'accountingAddDocument', icon: 'plus' as const },
 ];
 
+const documentTemplatesSubItems: (NavItem & { isHeader?: boolean })[] = [
+  { href: '#', labelKey: 'docTemplatesAccounting', icon: 'documentText' as const, isHeader: true },
+  { href: '/admin/document-templates?section=accounting', labelKey: 'docTemplatesAll', icon: 'archive' as const },
+  { href: '/admin/document-templates?section=accounting&type=invoice', labelKey: 'docTemplatesInvoice', icon: 'documentText' as const },
+  { href: '/admin/document-templates?section=accounting&type=quote', labelKey: 'docTemplatesQuote', icon: 'documentText' as const },
+  { href: '/admin/document-templates?section=accounting&type=creditNote', labelKey: 'docTemplatesCreditNote', icon: 'documentText' as const },
+  { href: '/admin/document-templates?section=accounting&type=purchaseOrder', labelKey: 'docTemplatesPurchaseOrder', icon: 'documentText' as const },
+  { href: '/admin/document-templates?section=accounting&type=deliveryNote', labelKey: 'docTemplatesDeliveryNote', icon: 'documentText' as const },
+  { href: '#', labelKey: 'docTemplatesManagement', icon: 'documentText' as const, isHeader: true },
+  { href: '/admin/document-templates?section=management&type=messages', labelKey: 'docTemplatesMessages', icon: 'mail' as const },
+  { href: '/admin/document-templates?section=management&type=alerts', labelKey: 'docTemplatesAlerts', icon: 'shieldCheck' as const },
+  { href: '/admin/document-templates?section=management&type=notifications', labelKey: 'docTemplatesNotifications', icon: 'inbox' as const },
+];
+
 const navGroupsConfig = [
   { groupKey: 'general', items: [
     { groupKey: 'dashboard', subItems: [
       { href: '/admin/address-book', labelKey: 'addressBook', icon: 'users' as const },
       { href: '/admin/bank-details', labelKey: 'bankDetails', icon: 'archive' as const },
+      { href: '/admin/company-data', labelKey: 'companyData', icon: 'building' as const },
     ]},
     { groupKey: 'accounting', subItems: accountingSubItems },
+    { groupKey: 'documentTemplates', subItems: documentTemplatesSubItems },
     { href: '/admin/site', labelKey: 'site', icon: 'globe' as const },
   ] as ContentItem[]},
   { groupKey: 'content', items: [
@@ -80,6 +96,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(false);
+  const [documentTemplatesOpen, setDocumentTemplatesOpen] = useState(false);
 
   const closeSidebar = () => setSidebarOpen(false);
   const toggleSidebar = () => setSidebarOpen((o) => !o);
@@ -92,6 +109,14 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  useEffect(() => {
+    if (pathname?.includes('/admin/address-book') || pathname?.includes('/admin/bank-details') || pathname?.includes('/admin/company-data')) {
+      setDashboardOpen(true);
+    }
+    if (pathname?.includes('/admin/accounting')) setAccountingOpen(true);
+    if (pathname?.includes('/admin/document-templates')) setDocumentTemplatesOpen(true);
+  }, [pathname]);
 
   return (
     <div className="admin-root" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -135,19 +160,25 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                   if (isSubGroup(item)) {
                     const subHrefs = item.groupKey === 'accounting'
                       ? ['/admin/accounting']
-                      : item.subItems.map((s) => (s as NavItem).href).filter(Boolean);
+                      : item.groupKey === 'documentTemplates'
+                        ? ['/admin/document-templates']
+                        : item.subItems.map((s) => (s as NavItem).href).filter((h) => h && !h.startsWith('#'));
                     const isGroupActive = item.groupKey === 'accounting'
                       ? pathname?.includes('/admin/accounting')
-                      : subHrefs.some((h) => pathname === `/${locale}${h}` || (pathname.startsWith(`/${locale}${h}`) && h !== '/admin'));
+                      : item.groupKey === 'documentTemplates'
+                        ? pathname?.includes('/admin/document-templates')
+                        : subHrefs.some((h) => pathname === `/${locale}${h}` || (pathname.startsWith(`/${locale}${h}`) && h !== '/admin'));
                     const isDashboard = item.groupKey === 'dashboard';
                     const isAccounting = item.groupKey === 'accounting';
-                    const subOpen = isDashboard ? dashboardOpen : isAccounting ? accountingOpen : propertiesOpen;
+                    const isDocumentTemplates = item.groupKey === 'documentTemplates';
+                    const subOpen = isDashboard ? dashboardOpen : isAccounting ? accountingOpen : isDocumentTemplates ? documentTemplatesOpen : propertiesOpen;
                     const toggleOpen = () => {
                       if (isDashboard) setDashboardOpen((o) => !o);
                       else if (isAccounting) setAccountingOpen((o) => !o);
+                      else if (isDocumentTemplates) setDocumentTemplatesOpen((o) => !o);
                       else setPropertiesOpen((o) => !o);
                     };
-                    const groupIcon = isDashboard ? 'dashboard' : isAccounting ? 'archive' : 'building';
+                    const groupIcon = isDashboard ? 'dashboard' : isAccounting ? 'archive' : isDocumentTemplates ? 'documentText' : 'building';
                     return (
                       <li key={item.groupKey} className="admin-nav-dropdown">
                         <button
@@ -163,7 +194,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                           <Icon name={locale === 'ar' ? 'chevronLeft' : 'chevronRight'} className={`admin-nav-icon transition-transform ${subOpen ? 'rotate-90' : ''}`} aria-hidden />
                         </button>
                         {subOpen && (
-                          <ul className={`admin-nav-sublist ${isAccounting ? 'pr-4' : ''}`} role="list">
+                          <ul className={`admin-nav-sublist ${isAccounting || isDocumentTemplates ? 'pr-4' : ''}`} role="list">
                             {item.subItems.map((sub) => {
                               const subItem = sub as NavItem & { isHeader?: boolean };
                               if (subItem.isHeader) {
@@ -182,6 +213,28 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                                 const currentTab = searchParams?.get('tab') || 'dashboard';
                                 const currentAction = searchParams?.get('action');
                                 const isActive = pathname?.includes('/admin/accounting') && currentTab === itemTab && (!itemAction || currentAction === itemAction);
+                                return (
+                                  <li key={subItem.href}>
+                                    <Link
+                                      href={fullHref}
+                                      className={`admin-nav-sublink ${isActive ? 'admin-nav-sublink--active' : ''}`}
+                                      aria-current={isActive ? 'page' : undefined}
+                                      onClick={closeSidebar}
+                                    >
+                                      <Icon name={subItem.icon} className="admin-nav-icon" aria-hidden />
+                                      <span>{t(subItem.labelKey)}</span>
+                                    </Link>
+                                  </li>
+                                );
+                              }
+                              if (isDocumentTemplates) {
+                                const fullHref = `/${locale}${subItem.href}`;
+                                const params = new URLSearchParams(subItem.href.split('?')[1] || '');
+                                const itemSection = params.get('section');
+                                const itemType = params.get('type');
+                                const currentSection = searchParams?.get('section');
+                                const currentType = searchParams?.get('type');
+                                const isActive = pathname?.includes('/admin/document-templates') && currentSection === itemSection && (!itemType || currentType === itemType);
                                 return (
                                   <li key={subItem.href}>
                                     <Link
