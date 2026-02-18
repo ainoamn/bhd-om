@@ -1,6 +1,8 @@
 'use client';
 
 import { useLocale } from 'next-intl';
+import { useEffect, useState } from 'react';
+import { getPropertyOverrides } from '@/lib/data/properties';
 import Image from 'next/image';
 import Link from 'next/link';
 import PageHero from '../shared/PageHero';
@@ -115,7 +117,15 @@ export default function PropertyDetails({ property, locale, similarProperties = 
     ? `https://maps.google.com/maps?q=${property.lat},${property.lng}&hl=${currentLocale === 'ar' ? 'ar' : 'en'}&z=15&output=embed`
     : `https://maps.google.com/maps?q=${locationQuery}&hl=${currentLocale === 'ar' ? 'ar' : 'en'}&z=15&output=embed`;
 
-  const isReserved = (property as { businessStatus?: string }).businessStatus === 'RESERVED';
+  const serverReserved = (property as { businessStatus?: string }).businessStatus === 'RESERVED';
+  const [isReserved, setIsReserved] = useState(serverReserved);
+
+  useEffect(() => {
+    const overrides = getPropertyOverrides();
+    const o = overrides[String(property.id)];
+    const status = o?.businessStatus ?? (property as { businessStatus?: string }).businessStatus;
+    setIsReserved(status === 'RESERVED');
+  }, [property.id]);
 
   return (
     <div className="min-h-screen bg-gray-50" data-page="properties">
@@ -157,7 +167,7 @@ export default function PropertyDetails({ property, locale, similarProperties = 
                     alt={currentLocale === 'ar' ? property.titleAr : property.titleEn}
                     type={property.type as 'RENT' | 'SALE'}
                     locale={currentLocale}
-                    businessStatus={(property as { businessStatus?: string }).businessStatus}
+                    businessStatus={isReserved ? 'RESERVED' : ((property as { businessStatus?: string }).businessStatus)}
                   />
                 ) : (
                   <div className="relative h-80 md:h-[500px] rounded-2xl overflow-hidden shadow-xl">
@@ -186,7 +196,7 @@ export default function PropertyDetails({ property, locale, similarProperties = 
                           ? (currentLocale === 'ar' ? 'للإيجار' : 'FOR RENT')
                           : (currentLocale === 'ar' ? 'للبيع' : 'FOR SALE')}
                       </div>
-                      {(property as { businessStatus?: string }).businessStatus === 'RESERVED' && (
+                      {isReserved && (
                         <div 
                           className="px-8 py-4 rounded-xl font-bold text-xl md:text-2xl shadow-2xl bg-white/95 text-red-600 border-4 border-red-500"
                           style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.3)' }}

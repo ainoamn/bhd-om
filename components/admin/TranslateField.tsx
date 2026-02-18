@@ -17,6 +17,12 @@ interface TranslateFieldProps {
   onTranslateFromSource?: (translatedText: string) => void;
   /** Label for translate button: 'fromAr' = ترجمة من العربي, 'fromEn' = ترجمة من الإنجليزي */
   translateFrom?: 'ar' | 'en';
+  /** 'dark' for client-facing dark theme (contract-terms) */
+  variant?: 'default' | 'dark';
+  /** Optional extra class for input (e.g. error border) */
+  inputErrorClass?: string;
+  onBlur?: () => void;
+  onFocus?: () => void;
 }
 
 export default function TranslateField({
@@ -31,6 +37,10 @@ export default function TranslateField({
   sourceValue = '',
   onTranslateFromSource,
   translateFrom = 'en',
+  variant = 'default',
+  inputErrorClass = '',
+  onBlur,
+  onFocus,
 }: TranslateFieldProps) {
   const [translating, setTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,10 +68,14 @@ export default function TranslateField({
     }
   };
 
+  const isDark = variant === 'dark';
+  const baseInputClass = isDark
+    ? 'w-full px-5 py-3.5 rounded-xl border border-white/20 bg-white/5 text-white placeholder:text-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] outline-none'
+    : 'admin-input w-full';
   const InputComponent = multiline ? 'textarea' : 'input';
   const inputProps = multiline
-    ? { rows, className: 'admin-input w-full min-h-[120px]' }
-    : { type: 'text', className: 'admin-input w-full' };
+    ? { rows, className: `${baseInputClass} ${isDark ? 'min-h-[80px]' : 'min-h-[120px]'} ${inputErrorClass}` }
+    : { type: 'text', className: `${baseInputClass} ${inputErrorClass}` };
 
   const btnLabel = translateFrom === 'ar'
     ? (ar ? 'ترجمة من العربي' : 'Translate from Arabic')
@@ -70,13 +84,13 @@ export default function TranslateField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <label className="admin-input-label">{label} {required && '*'}</label>
+        <label className={isDark ? 'block text-sm font-semibold text-white/90 mb-2' : 'admin-input-label'}>{label} {required && '*'}</label>
         {onTranslateFromSource && (
           <button
             type="button"
             onClick={handleTranslate}
             disabled={translating || !hasSource}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'bg-[#8B6F47]/30 text-[#C9A961] hover:bg-[#8B6F47]/50' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
             title={btnLabel}
           >
             {translating ? (
@@ -96,10 +110,12 @@ export default function TranslateField({
         {...inputProps}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        onFocus={onFocus}
         placeholder={placeholder}
         required={required}
       />
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className={`text-sm ${isDark ? 'text-red-400' : 'text-red-500'}`}>{error}</p>}
     </div>
   );
 }

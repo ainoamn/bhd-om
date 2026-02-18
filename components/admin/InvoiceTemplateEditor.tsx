@@ -10,6 +10,7 @@ import {
   type TemplateType,
 } from '@/lib/data/documentTemplates';
 import { getCompanyData } from '@/lib/data/companyData';
+import { SIGNATURE_SIZE, STAMP_SIZE, TEMPLATE_VARIANT_LABELS, LOGO_SIZE_OPTIONS, LOGO_SIZE_DEFAULT, type TemplateVariant } from '@/lib/data/documentTemplateConstants';
 import { siteConfig } from '@/config/site';
 
 interface InvoiceTemplateEditorProps {
@@ -19,18 +20,36 @@ interface InvoiceTemplateEditorProps {
 
 export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceTemplateEditorProps) {
   const t = useTranslations('documentTemplates');
+  const tc = useTranslations('companyData');
   const ar = locale === 'ar';
 
   const templates = getTemplates(templateType);
   const defaultT = getDefaultTemplate(templateType);
-  const company = getCompanyData();
+  const [company, setCompany] = useState<ReturnType<typeof getCompanyData> | null>(null);
   const [selectedId, setSelectedId] = useState<string>(defaultT?.id || templates[0]?.id || '');
   const [form, setForm] = useState<DocumentTemplateSettings | null>(null);
 
   useEffect(() => {
-    const tpl = templates.find((x) => x.id === selectedId) || templates[0];
+    const list = getTemplates(templateType);
+    const tpl = list.find((x) => x.id === selectedId) || list[0];
     setForm(tpl ? { ...tpl } : null);
-  }, [selectedId, templates]);
+  }, [selectedId, templateType]);
+
+  useEffect(() => {
+    setCompany(getCompanyData());
+    const refresh = () => setCompany(getCompanyData());
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'bhd_company_data') refresh();
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('bhd_company_data_updated', refresh);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('bhd_company_data_updated', refresh);
+    };
+  }, []);
+
+  const companyData = company || (typeof window !== 'undefined' ? getCompanyData() : null);
 
   const handleSave = () => {
     if (!form) return;
@@ -47,6 +66,11 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
     const win = window.open('', '_blank', 'width=800,height=900,scrollbars=yes');
     if (!win) return;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const variant = form.variant || 'classic';
+    const sigW = SIGNATURE_SIZE.width;
+    const sigH = SIGNATURE_SIZE.height;
+    const stampW = STAMP_SIZE.width;
+    const stampH = STAMP_SIZE.height;
     win.document.write(`
       <!DOCTYPE html>
       <html dir="${ar ? 'rtl' : 'ltr'}" lang="${locale}">
@@ -58,13 +82,25 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 24px; color: ${form.textColor}; font-size: ${form.textFontSize}pt; }
           .container { max-width: 700px; margin: 0 auto; }
+          img { max-width: 100%; height: auto; }
+          .doc-signature-box { width: ${sigW}px; height: ${sigH}px; overflow: hidden; }
+          .doc-signature-box img { width: 100%; height: 100%; object-fit: contain; object-position: center; }
+          .doc-stamp-box { width: ${stampW}px; height: ${stampH}px; overflow: hidden; }
+          .doc-stamp-box img { width: 100%; height: 100%; object-fit: contain; object-position: center; }
+          .document-template--professional table { border-collapse: separate; border-spacing: 0; }
+          .document-template--professional thead th { background: #f8fafc; font-weight: 600; }
+          .document-template--modern { letter-spacing: 0.02em; }
+          .document-template--modern thead th { font-weight: 600; text-transform: uppercase; font-size: 0.75em; }
+          .document-template--compact table { font-size: 0.9em; }
+          .document-template--compact th, .document-template--compact td { padding: 0.25rem 0.5rem !important; }
+          @media print { body { padding: 0; } .no-print { display: none !important; } }
         </style>
       </head>
       <body>
         <div class="container" style="margin: ${form.marginTop}px ${form.marginRight}px ${form.marginBottom}px ${form.marginLeft}px;">
           ${previewEl.innerHTML}
         </div>
-        <div style="position:fixed;top:12px;right:12px;display:flex;gap:8px;">
+        <div class="no-print" style="position:fixed;top:12px;right:12px;display:flex;gap:8px;">
           <button onclick="window.print()" style="padding:8px 16px;background:#8B6F47;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">🖨️ ${ar ? 'طباعة' : 'Print'}</button>
           <button onclick="window.close()" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:8px;cursor:pointer;">${ar ? 'إغلاق' : 'Close'}</button>
         </div>
@@ -75,6 +111,8 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
   };
 
   if (!form) return null;
+
+  const logoSize = form.logoSize ?? LOGO_SIZE_DEFAULT;
 
   return (
     <div className="space-y-6">
@@ -130,6 +168,86 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
             <div>
               <label htmlFor="isDefault" className="font-medium text-gray-800 cursor-pointer">{t('default')}</label>
               <p className="text-sm text-gray-500 mt-0.5">{t('defaultNote')}</p>
+            </div>
+          </div>
+
+          {/* نمط القالب */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? 'نمط القالب' : 'Template variant'}</label>
+            <div className="flex flex-wrap gap-3">
+              {(['classic', 'professional', 'modern', 'compact', 'bilingual'] as TemplateVariant[]).map((v) => (
+                <label key={v} className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${form.variant === v ? 'border-[#8B6F47] bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input
+                    type="radio"
+                    name="variant"
+                    checked={(form.variant || 'classic') === v}
+                    onChange={() => setForm({ ...form, variant: v })}
+                    className="rounded-full"
+                  />
+                  <span>{ar ? TEMPLATE_VARIANT_LABELS[v].ar : TEMPLATE_VARIANT_LABELS[v].en}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* تخطيط الرأس */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">{t('headerLayout')}</label>
+            <div className="flex flex-wrap gap-3">
+              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${(form.headerLayout || 'left') === 'left' ? 'border-[#8B6F47] bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                <input
+                  type="radio"
+                  name="headerLayout"
+                  checked={(form.headerLayout || 'left') === 'left'}
+                  onChange={() => setForm({ ...form, headerLayout: 'left' })}
+                  className="rounded-full"
+                />
+                <span>{t('headerLayoutLeft')}</span>
+              </label>
+              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${(form.headerLayout || 'left') === 'centered' ? 'border-[#8B6F47] bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                <input
+                  type="radio"
+                  name="headerLayout"
+                  checked={(form.headerLayout || 'left') === 'centered'}
+                  onChange={() => setForm({ ...form, headerLayout: 'centered' })}
+                  className="rounded-full"
+                />
+                <span>{t('headerLayoutCentered')}</span>
+              </label>
+            </div>
+          </div>
+
+          {/* حجم الشعار */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">{t('logoSize')}</label>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={form.logoSize ?? LOGO_SIZE_DEFAULT}
+                onChange={(e) => setForm({ ...form, logoSize: parseInt(e.target.value, 10) })}
+                className="admin-select w-32"
+              >
+                {LOGO_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size} px
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500">{t('logoSizeNote')}</span>
+            </div>
+          </div>
+
+          {/* ثنائي اللغة */}
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="bilingual"
+              checked={!!form.bilingual}
+              onChange={(e) => setForm({ ...form, bilingual: e.target.checked })}
+              className="mt-1 rounded"
+            />
+            <div>
+              <label htmlFor="bilingual" className="font-medium text-gray-800 cursor-pointer">{t('bilingual')}</label>
+              <p className="text-sm text-gray-500 mt-0.5">{t('bilingualNote')}</p>
             </div>
           </div>
 
@@ -322,8 +440,9 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
         <div className="admin-card-body p-0 overflow-hidden">
           <div
             id="invoice-template-preview"
-            className="bg-white p-6"
+            className={`bg-white p-6 document-template document-template--${form.variant || 'classic'}`}
             dir={ar ? 'rtl' : 'ltr'}
+            data-variant={form.variant || 'classic'}
             style={{
               marginTop: form.marginTop,
               marginBottom: form.marginBottom,
@@ -333,89 +452,177 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
               fontSize: `${form.textFontSize}pt`,
             }}
           >
-            {/* رأس الفاتورة - شعار + ثنائي اللغة */}
-            <div className="border-b-2 pb-4 mb-6" style={{ borderColor: form.titleColor }}>
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex gap-4">
-                  {company.logoUrl && (
-                    <div className="shrink-0">
-                      <img src={company.logoUrl} alt="Logo" className="w-20 h-20 object-contain" />
-                    </div>
+            {/* رأس الفاتورة */}
+            <div className="border-b-2 pb-2 mb-3" style={{ borderColor: form.titleColor }}>
+              {(form.headerLayout || 'left') === 'centered' ? (
+                /* تخطيط: شعار في المنتصف، عربي يمين، إنجليزي يسار (يعمل مع RTL و LTR) */
+                <div className="flex justify-between items-start gap-4">
+                  {ar ? (
+                    <>
+                      <div className="flex-1 text-right min-w-0 order-1" dir="rtl">
+                        <h1 className="font-bold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 2}pt` }}>
+                          {companyData?.nameAr || siteConfig.company.nameAr}
+                        </h1>
+                        <p className="text-[0.7rem] leading-tight mt-0.5" style={{ fontSize: `${form.textFontSize - 1}pt` }}>
+                          {companyData?.addressAr || 'مسقط - المعبيلة الجنوبية - شارع 8401 - مجمع 384 - مبنى 75'}
+                        </p>
+                        <p className="text-[0.65rem] leading-tight" style={{ fontSize: `${form.textFontSize - 2}pt` }}>
+                          نقال: {companyData?.phone || '91115341'} · {companyData?.email || 'info@bhd-om.com'}
+                          {companyData?.crNumber && ` · سجل: ${companyData.crNumber}`}
+                          {companyData?.vatNumber && ` · ضريبة: ${companyData.vatNumber}`}
+                        </p>
+                      </div>
+                      {companyData?.logoUrl && (
+                        <div className="shrink-0 overflow-hidden flex items-center justify-center mx-2 order-2" style={{ width: logoSize, height: logoSize }}>
+                          <img src={companyData.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                      <div className="flex-1 text-left min-w-0 order-3">
+                        <h1 className="font-bold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 2}pt` }}>
+                          {companyData?.nameEn || siteConfig.company.nameEn}
+                        </h1>
+                        <p className="text-[0.7rem] leading-tight mt-0.5" style={{ fontSize: `${form.textFontSize - 1}pt` }}>
+                          {companyData?.addressEn || 'Muscat - South Mabelah - St: 8401 - Complex: 384 - Bldg: 75'}
+                        </p>
+                        <p className="text-[0.65rem] leading-tight" style={{ fontSize: `${form.textFontSize - 2}pt` }}>
+                          GSM: {companyData?.phone || siteConfig.company.phone} · {companyData?.email || 'info@bhd-om.com'}
+                          {companyData?.crNumber && ` · CR: ${companyData.crNumber}`}
+                          {companyData?.vatNumber && ` · VAT: ${companyData.vatNumber}`}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex-1 text-left min-w-0">
+                        <h1 className="font-bold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 2}pt` }}>
+                          {companyData?.nameEn || siteConfig.company.nameEn}
+                        </h1>
+                        <p className="text-[0.7rem] leading-tight mt-0.5" style={{ fontSize: `${form.textFontSize - 1}pt` }}>
+                          {companyData?.addressEn || 'Muscat - South Mabelah - St: 8401 - Complex: 384 - Bldg: 75'}
+                        </p>
+                        <p className="text-[0.65rem] leading-tight" style={{ fontSize: `${form.textFontSize - 2}pt` }}>
+                          GSM: {companyData?.phone || siteConfig.company.phone} · {companyData?.email || 'info@bhd-om.com'}
+                          {companyData?.crNumber && ` · CR: ${companyData.crNumber}`}
+                          {companyData?.vatNumber && ` · VAT: ${companyData.vatNumber}`}
+                        </p>
+                      </div>
+                      {companyData?.logoUrl && (
+                        <div className="shrink-0 overflow-hidden flex items-center justify-center mx-2" style={{ width: logoSize, height: logoSize }}>
+                          <img src={companyData.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                      <div className="flex-1 text-right min-w-0" dir="rtl">
+                        <h1 className="font-bold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 2}pt` }}>
+                          {companyData?.nameAr || siteConfig.company.nameAr}
+                        </h1>
+                        <p className="text-[0.7rem] leading-tight mt-0.5" style={{ fontSize: `${form.textFontSize - 1}pt` }}>
+                          {companyData?.addressAr || 'مسقط - المعبيلة الجنوبية - شارع 8401 - مجمع 384 - مبنى 75'}
+                        </p>
+                        <p className="text-[0.65rem] leading-tight" style={{ fontSize: `${form.textFontSize - 2}pt` }}>
+                          نقال: {companyData?.phone || '91115341'} · {companyData?.email || 'info@bhd-om.com'}
+                          {companyData?.crNumber && ` · سجل: ${companyData.crNumber}`}
+                          {companyData?.vatNumber && ` · ضريبة: ${companyData.vatNumber}`}
+                        </p>
+                      </div>
+                    </>
                   )}
-                  <div>
-                    <div className="flex gap-4 mb-2">
-                      <h1 className="font-bold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 4}pt` }}>
-                        {company.nameEn || siteConfig.company.nameEn}
-                      </h1>
-                      <h1 className="font-bold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 4}pt` }}>
-                        {company.nameAr || siteConfig.company.nameAr}
-                      </h1>
+                </div>
+              ) : (
+                <div className="flex justify-between items-start gap-3">
+                  <div className="flex gap-3 min-w-0">
+                    {companyData?.logoUrl && (
+                      <div className="shrink-0 overflow-hidden flex items-center justify-center" style={{ width: logoSize, height: logoSize }}>
+                        <img src={companyData.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-x-3 gap-y-0 mb-0.5">
+                        <h1 className="font-bold shrink-0" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 2}pt` }}>
+                          {companyData?.nameEn || siteConfig.company.nameEn}
+                        </h1>
+                        <h1 className="font-bold shrink-0" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 2}pt` }}>
+                          {companyData?.nameAr || siteConfig.company.nameAr}
+                        </h1>
+                      </div>
+                      <p className="text-[0.7rem] leading-tight" style={{ fontSize: `${form.textFontSize - 1}pt` }}>
+                        {companyData?.addressEn || 'Muscat - South Mabelah - St: 8401 - Complex: 384 - Bldg: 75'}
+                        {' · '}
+                        GSM: {companyData?.phone || siteConfig.company.phone}
+                        {' · '}
+                        {ar ? 'السيب، عُمان' : 'Al Seeb, Oman'}
+                      </p>
+                      <p className="text-[0.7rem] leading-tight" style={{ fontSize: `${form.textFontSize - 1}pt` }}>
+                        {companyData?.addressAr || 'مسقط - المعبيلة الجنوبية - شارع 8401 - مجمع 384 - مبنى 75'}
+                        {' · '}
+                        {companyData?.phone || '91115341'}
+                        {' · '}
+                        {ar ? 'السيب، عُمان' : 'Al Seeb, Oman'}
+                      </p>
+                      {(companyData?.crNumber || companyData?.vatNumber || companyData?.email) && (
+                        <p className="text-[0.65rem] leading-tight mt-0.5 opacity-90" style={{ fontSize: `${form.textFontSize - 2}pt` }}>
+                          {companyData?.crNumber && (ar ? `سجل: ${companyData.crNumber}` : `CR: ${companyData.crNumber}`)}
+                          {companyData?.crNumber && companyData?.vatNumber && ' · '}
+                          {companyData?.vatNumber && (ar ? `ضريبة: ${companyData.vatNumber}` : `VAT: ${companyData.vatNumber}`)}
+                          {(companyData?.crNumber || companyData?.vatNumber) && companyData?.email && ' · '}
+                          {companyData?.email}
+                        </p>
+                      )}
                     </div>
-                    <p className="text-sm" style={{ fontSize: `${form.textFontSize}pt` }}>
-                      {company.addressEn || 'Muscat - South Mabelah - Street: 8401 - Complex: 384 - Building: 75'}
-                    </p>
-                    <p className="text-sm" style={{ fontSize: `${form.textFontSize}pt` }}>
-                      GSM: {company.phone || siteConfig.company.phone}، {ar ? 'السيب، عُمان' : 'Al Seeb, Oman'}
-                    </p>
-                    <p className="text-sm mt-1" style={{ fontSize: `${form.textFontSize}pt` }}>
-                      {company.addressAr || 'مسقط - المعبيلة الجنوبية - رقم الشارع: 8401 - رقم المجمع: 384 - رقم المبنى: 75'}
-                    </p>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <h2 style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 1}pt` }}>
+                      Tax Invoice فاتورة ضريبية
+                    </h2>
                   </div>
                 </div>
-                <div className="text-end shrink-0">
-                  <h2 style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 2}pt` }}>
-                    Tax Invoice فاتورة ضريبية
-                  </h2>
-                </div>
-              </div>
+              )}
+              {(form.headerLayout || 'left') === 'centered' && (
+                <h2 className="text-center mt-2" style={{ color: form.titleColor, fontSize: `${form.titleFontSize + 1}pt` }}>
+                  Tax Invoice فاتورة ضريبية
+                </h2>
+              )}
             </div>
 
-            {/* بيانات العميل والفاتورة - ثنائي اللغة */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Customer العميل</p>
-                <p>Abdullah M.</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Address العنوان</p>
-                <p className="text-sm">1234، Office 205, Building 1, King Faisal Street، Al Olaya، Riyadh، 12345، المملكة العربية السعودية</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Email البريد الإلكتروني</p>
-                <p>abdullah.m@example.com</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Phone الهاتف</p>
-                <p>+971551234123</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>VAT number رقم التسجيل الضريبي</p>
-                <p>52402393094</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>CR Number رقم السجل التجاري</p>
-                <p>1010123456</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Invoice number رقم الفاتورة</p>
-                <p>INV-001</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Date التاريخ</p>
-                <p>2026-01-10</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Due date تاريخ الاستحقاق</p>
-                <p>2026-02-10</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Reference رقم المرجع</p>
-                <p>ABC101</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold" style={{ color: form.titleColor, fontSize: `${form.titleFontSize - 1}pt` }}>Purchase order رقم الأمر</p>
-                <p>PO-001</p>
-              </div>
+            {/* بيانات العميل والفاتورة - جدول مدمج (ثنائي اللغة عند الطلب) */}
+            <div className="mb-4">
+              <table className="w-full text-[0.75rem]" style={{ fontSize: `${form.textFontSize - 1}pt` }}>
+                <tbody>
+                  <tr>
+                    <td className="py-0.5 pr-4 align-top w-1/2" style={{ color: form.titleColor }}>
+                      <span className="font-semibold">{form.bilingual ? 'العميل Customer' : (ar ? 'العميل' : 'Customer')}</span> Abdullah M.
+                      <span className="mx-2">|</span>
+                      <span className="font-semibold">{form.bilingual ? 'العنوان Address' : (ar ? 'العنوان' : 'Address')}</span> 1234، Office 205, King Faisal St، Al Olaya، Riyadh
+                    </td>
+                    <td className="py-0.5 pl-4 align-top w-1/2" style={{ color: form.titleColor }}>
+                      <span className="font-semibold">{form.bilingual ? 'رقم الفاتورة Invoice' : (ar ? 'رقم الفاتورة' : 'Invoice')}</span> INV-001
+                      <span className="mx-2">|</span>
+                      <span className="font-semibold">{form.bilingual ? 'التاريخ Date' : (ar ? 'التاريخ' : 'Date')}</span> 2026-01-10
+                      <span className="mx-2">|</span>
+                      <span className="font-semibold">{form.bilingual ? 'الاستحقاق Due' : (ar ? 'الاستحقاق' : 'Due')}</span> 2026-02-10
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 pr-4 align-top">
+                      <span className="font-semibold">{form.bilingual ? 'البريد Email' : (ar ? 'البريد' : 'Email')}</span> abdullah.m@example.com
+                      <span className="mx-2">|</span>
+                      <span className="font-semibold">{form.bilingual ? 'الهاتف Phone' : (ar ? 'الهاتف' : 'Phone')}</span> +971551234123
+                    </td>
+                    <td className="py-0.5 pl-4 align-top">
+                      <span className="font-semibold">{form.bilingual ? 'المرجع Ref' : (ar ? 'المرجع' : 'Ref')}</span> ABC101
+                      <span className="mx-2">|</span>
+                      <span className="font-semibold">{form.bilingual ? 'أمر الشراء PO' : (ar ? 'أمر الشراء' : 'PO')}</span> PO-001
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-0.5 pr-4 align-top">
+                      <span className="font-semibold">{form.bilingual ? 'الضريبة VAT' : (ar ? 'الضريبة' : 'VAT')}</span> 52402393094
+                      <span className="mx-2">|</span>
+                      <span className="font-semibold">{form.bilingual ? 'السجل CR' : (ar ? 'السجل' : 'CR')}</span> 1010123456
+                    </td>
+                    <td className="py-0.5 pl-4 align-top"></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             {/* جدول البنود */}
@@ -477,31 +684,54 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
                   ? 'هذا نص تجريبي لحقل الملاحظات، ويتضمن تفاصيل التحويل البنكي التالية: تفاصيل البنك للتحويل: البنك الأهلي السعودي - رقم الحساب: 1234567890123456 - الآيبان: SA0380000000608010167519 - رمز السويفت: NCBKSARI'
                   : 'This is sample text for the notes field, including bank transfer details: Bank: Al Ahli Saudi Bank - Account: 1234567890123456 - IBAN: SA0380000000608010167519 - SWIFT: NCBKSARI'}
               </p>
+              {companyData?.signatureType === 'electronic' && (companyData?.signatoryName || companyData?.signatoryNameEn) && (
+                <p className="text-xs font-medium mt-3 pt-3 border-t border-gray-200 italic" style={{ color: form.titleColor }}>
+                  {form.bilingual ? (
+                    <>
+                      <span className="block" dir="rtl">هذا المستند تم توقيعه إلكترونياً من قبل {companyData.signatoryName || companyData.signatoryNameEn} ({companyData.signatoryPosition || companyData.signatoryPositionEn || 'المفوض بالتوقيع'}) عن الشركة {companyData.nameAr || companyData.nameEn}</span>
+                      <span className="block mt-1" dir="ltr">This document was electronically signed by {companyData.signatoryNameEn || companyData.signatoryName} ({companyData.signatoryPositionEn || companyData.signatoryPosition || 'Authorized signatory'}) on behalf of {companyData.nameEn || companyData.nameAr}</span>
+                    </>
+                  ) : (
+                    tc('electronicSignatureNotice', {
+                      name: ar ? (companyData.signatoryName || companyData.signatoryNameEn) : (companyData.signatoryNameEn || companyData.signatoryName),
+                      position: ar ? (companyData.signatoryPosition || companyData.signatoryPositionEn || 'المفوض بالتوقيع') : (companyData.signatoryPositionEn || companyData.signatoryPosition || 'Authorized signatory'),
+                      company: ar ? (companyData.nameAr || companyData.nameEn) : (companyData.nameEn || companyData.nameAr),
+                    })
+                  )}
+                </p>
+              )}
             </div>
 
-            {/* توقيع وختم */}
+            {/* توقيع وختم - تقليدي أو إلكتروني */}
             <div className="mt-8 pt-6 flex flex-wrap justify-between items-end gap-6">
-              {(company.signatorySignatureUrl || company.signatoryName) && (
-                <div className="text-center">
-                  {company.signatorySignatureUrl && (
-                    <img src={company.signatorySignatureUrl} alt="Signature" className="h-14 object-contain mx-auto mb-1" />
+              {companyData?.signatureType === 'image' && (companyData?.signatorySignatureUrl || companyData?.signatoryName) && (
+                <div className="text-center shrink-0">
+                  {companyData?.signatorySignatureUrl && (
+                    <div className="doc-signature-box mx-auto mb-1 bg-white" style={{ width: SIGNATURE_SIZE.width, height: SIGNATURE_SIZE.height }}>
+                      <img src={companyData.signatorySignatureUrl} alt="Signature" />
+                    </div>
                   )}
                   <p className="text-xs font-medium" style={{ color: form.titleColor }}>
-                    {company.signatoryName || company.signatoryNameEn || (ar ? 'المفوض بالتوقيع' : 'Authorized signatory')}
+                    {companyData?.signatoryName || companyData?.signatoryNameEn || (ar ? 'المفوض بالتوقيع' : 'Authorized signatory')}
                   </p>
                 </div>
               )}
-              {company.companyStampUrl && (
-                <img src={company.companyStampUrl} alt="Stamp" className="w-20 h-20 object-contain" />
+              {companyData?.signatureType === 'image' && companyData?.companyStampUrl && (
+                <div className="doc-stamp-box shrink-0 bg-white" style={{ width: STAMP_SIZE.width, height: STAMP_SIZE.height }}>
+                  <img src={companyData.companyStampUrl} alt="Stamp" />
+                </div>
               )}
-              {!company.signatorySignatureUrl && !company.signatoryName && !company.companyStampUrl && (
+              {companyData?.signatureType === 'electronic' && !(companyData?.signatoryName || companyData?.signatoryNameEn) && (
+                <span className="text-gray-400 text-sm">{ar ? 'أضف اسم المفوض في بيانات الشركة' : 'Add signatory name in company data'}</span>
+              )}
+              {(!companyData?.signatureType || companyData?.signatureType === 'image') && !companyData?.signatorySignatureUrl && !companyData?.signatoryName && !companyData?.companyStampUrl && (
                 <span className="text-gray-400 text-sm">stamp</span>
               )}
             </div>
 
             {/* تذييل */}
             <div className="mt-6 pt-4 text-center text-sm" style={{ color: form.textColor, opacity: 0.8 }}>
-              {company.nameAr} {company.nameEn} - Page 1 of 1 - INV-001
+              {companyData?.nameAr} {companyData?.nameEn} - Page 1 of 1 - INV-001
             </div>
           </div>
         </div>

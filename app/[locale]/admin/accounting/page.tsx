@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import AccountingSection from '@/components/admin/AccountingSection';
 import AccountingHelpGuide from '@/components/admin/AccountingHelpGuide';
 import Icon from '@/components/icons/Icon';
@@ -25,15 +26,24 @@ export default function AdminAccountingPage() {
               {ar ? 'قيود • حسابات • تقارير' : 'Entries • Accounts • Reports'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowHelp(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#8B6F47]/10 text-[#8B6F47] hover:bg-[#8B6F47]/20 transition-colors font-semibold text-sm"
-            aria-label={ar ? 'كيف يعمل النظام' : 'How it works'}
-          >
-            <Icon name="information" className="h-5 w-5" />
-            {ar ? 'كيف يعمل النظام؟' : 'How it works?'}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/${locale}/admin/document-templates`}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors font-semibold text-sm"
+            >
+              <Icon name="documentText" className="h-5 w-5" />
+              {ar ? 'نماذج الوثائق' : 'Document Templates'}
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowHelp(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#8B6F47]/10 text-[#8B6F47] hover:bg-[#8B6F47]/20 transition-colors font-semibold text-sm"
+              aria-label={ar ? 'كيف يعمل النظام' : 'How it works'}
+            >
+              <Icon name="information" className="h-5 w-5" />
+              {ar ? 'كيف يعمل النظام؟' : 'How it works?'}
+            </button>
+          </div>
         </div>
       </header>
 

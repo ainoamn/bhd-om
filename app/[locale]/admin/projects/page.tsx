@@ -89,7 +89,8 @@ export default function ProjectsAdminPage() {
                     <span className="admin-badge admin-badge-info">{statusLabels[project.status] || project.status}</span>
                   </td>
                   <td>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <Link href={`/${locale}/admin/accounting?tab=cheques&action=add&projectId=${project.id}`} className="text-sm font-medium text-amber-600 hover:underline">إضافة شيك</Link>
                       <Link href={`/${locale}/admin/projects/${project.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">تعديل</Link>
                       <button className="text-sm font-medium text-red-600 hover:underline">حذف</button>
                     </div>

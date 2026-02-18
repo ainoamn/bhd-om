@@ -3,9 +3,12 @@
 import { useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getBookingsByProperty, updateBookingStatus, syncPaidBookingsToAccounting, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { getBookingsByProperty, updateBookingStatus, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, hasBookingFinancialLinkage, requestBookingCancellation, hasPendingCancellationRequest, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
 import { hasContractForUnit, getContractsByProperty } from '@/lib/data/contracts';
+import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
+import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
+import BookingDocumentsPanel from '@/components/admin/BookingDocumentsPanel';
 
 const STATUS_LABELS: Record<BookingStatus, { ar: string; en: string }> = {
   PENDING: { ar: 'قيد الانتظار', en: 'Pending' },
@@ -31,6 +34,7 @@ export default function PropertyBookingsPage() {
   const [propertySerial, setPropertySerial] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'BOOKING' | 'VIEWING'>('ALL');
   const [mounted, setMounted] = useState(false);
+  const [documentsPanelBooking, setDocumentsPanelBooking] = useState<PropertyBooking | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -51,7 +55,7 @@ export default function PropertyBookingsPage() {
     // مزامنة تلقائية: إنشاء إيصالات للحجوزات المدفوعة التي لا تملك إيصالاً في المحاسبة
     syncPaidBookingsToAccounting(parseInt(id, 10));
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'bhd_property_bookings' || e.key === 'bhd_rental_contracts') loadData();
+      if (e.key === 'bhd_property_bookings' || e.key === 'bhd_rental_contracts' || e.key === 'bhd_booking_documents' || e.key === 'bhd_booking_cancellation_requests') loadData();
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -84,6 +88,14 @@ export default function PropertyBookingsPage() {
     contracts.find((c) => (c.bookingId === b.id || (c.unitKey === b.unitKey)) && c.status === 'APPROVED');
   const isStatusLocked = (b: PropertyBooking) => hasContractForUnit(parseInt(id, 10), b.unitKey);
 
+  const terms = getPropertyBookingTerms(id);
+  const hasRequiredDocs = (terms.requiredDocTypes || []).some((r) => r.isRequired);
+  const canCreateContract = (b: PropertyBooking) => {
+    if (!hasRequiredDocs) return true;
+    const docs = getDocumentsByBooking(b.id);
+    return docs.length > 0 && areAllRequiredDocumentsApproved(b.id);
+  };
+
   const filteredBookings = bookings.filter((b) => filterType === 'ALL' || b.type === filterType);
   const stats = {
     total: bookings.length,
@@ -97,6 +109,33 @@ export default function PropertyBookingsPage() {
     <div className="space-y-8">
       {/* Page Header */}
       <div className={`transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+            <Link
+              href={`/${locale}/admin/bookings`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all text-gray-600 hover:text-gray-900 hover:bg-white/50"
+            >
+              {ar ? 'إدارة الحجوزات كاملة' : 'All Bookings'}
+            </Link>
+            <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-white text-gray-900 shadow-sm">
+              {ar ? 'إدارة حجز عقار معين' : 'Property Bookings'}
+            </span>
+          </div>
+          <select
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v) window.location.href = `/${locale}/admin/properties/${v}/bookings`;
+            }}
+            value={id}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+          >
+            {properties.map((p: { id: number; titleAr?: string; titleEn?: string }) => (
+              <option key={p.id} value={p.id}>
+                {ar ? p.titleAr : p.titleEn} (#{p.id})
+              </option>
+            ))}
+          </select>
+        </div>
         <Link
           href={`/${locale}/admin/properties`}
           className="inline-flex items-center gap-2 text-[#8B6F47] hover:text-[#6B5535] font-semibold mb-4 transition-colors"
@@ -113,24 +152,6 @@ export default function PropertyBookingsPage() {
             <p className="text-sm font-mono text-[#8B6F47] mt-0.5">
               {ar ? 'رقم العقار:' : 'Property:'} {propertySerial || '—'}
             </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/${locale}/admin/properties/${id}/bookings/terms`}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
-            >
-              <span>📋</span>
-              {ar ? 'شروط الحجز' : 'Booking Terms'}
-            </Link>
-            <Link
-              href={`/${locale}/properties/${id}/book`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
-            >
-              <span>🔗</span>
-              {ar ? 'عرض صفحة الحجز' : 'View Booking Page'}
-            </Link>
           </div>
         </div>
       </div>
@@ -224,7 +245,10 @@ export default function PropertyBookingsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <div className="font-semibold text-gray-900">{b.name}</div>
+                          <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900">{getBookingDisplayName(b, locale)}</span>
+                          {isCompanyBooking(b) && <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{ar ? 'شركة' : 'Company'}</span>}
+                        </div>
                           <div className="text-xs text-gray-500">{b.email}</div>
                           <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] hover:underline font-medium">{b.phone}</a>
                         </div>
@@ -322,43 +346,103 @@ export default function PropertyBookingsPage() {
                               );
                             })()}
                           </div>
+                        ) : b.type === 'BOOKING' ? (
+                          <div className="space-y-1">
+                            <div
+                              className={`inline-flex px-3 py-2 rounded-xl border text-sm font-semibold ${
+                                b.status === 'CONFIRMED'
+                                  ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700'
+                                  : b.status === 'RENTED'
+                                    ? 'border-blue-200 bg-blue-50/50 text-blue-700'
+                                    : b.status === 'SOLD'
+                                      ? 'border-green-200 bg-green-50/50 text-green-700'
+                                      : b.status === 'CANCELLED'
+                                        ? 'border-gray-200 bg-gray-50 text-gray-600'
+                                        : 'border-amber-200 bg-amber-50/50 text-amber-700'
+                              }`}
+                            >
+                              {ar ? STATUS_LABELS[b.status].ar : STATUS_LABELS[b.status].en}
+                            </div>
+                            {b.type === 'BOOKING' && b.paymentConfirmed && !b.accountantConfirmedAt && (
+                              <p className="text-xs text-amber-600" title={ar ? 'انتظر تأكيد المحاسب لاستلام المبلغ من لوحة المحاسبة' : 'Wait for accountant to confirm receipt from accounting dashboard'}>
+                                {ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant confirmation'}
+                              </p>
+                            )}
+                            {b.status === 'CONFIRMED' && b.accountantConfirmedAt && (
+                              <p className="text-xs text-emerald-600 font-medium">
+                                {ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed'}
+                              </p>
+                            )}
+                            {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && (
+                              <p className="text-xs text-amber-600 font-medium" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>
+                                📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}
+                              </p>
+                            )}
+                            {b.status === 'CANCELLED' && b.cancellationNote && (
+                              <p className="text-xs text-gray-600 italic" title={ar ? 'ملاحظة المحاسب' : 'Accountant note'}>{b.cancellationNote}</p>
+                            )}
+                            {!getContractForBooking(b) && b.status !== 'CANCELLED' && (() => {
+                              if (hasBookingFinancialLinkage(b)) {
+                                if (hasPendingCancellationRequest(b.id)) {
+                                  return <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار المحاسبة (استرداد/خصم)' : '⏳ Pending accounting (refund)'}</p>;
+                                }
+                                return (
+                                  <button type="button" onClick={() => { requestBookingCancellation(b.id); setBookings(getBookingsByProperty(parseInt(id, 10))); }} className="text-xs text-red-600 hover:underline font-medium" title={ar ? 'يرسل الطلب للمحاسبة' : 'Sends to accounting'}>
+                                    {ar ? 'إلغاء الحجز' : 'Cancel booking'}
+                                  </button>
+                                );
+                              }
+                              return (
+                                <button type="button" onClick={() => handleStatusChange(b.id, 'CANCELLED')} className="text-xs text-red-600 hover:underline font-medium">
+                                  {ar ? 'إلغاء الحجز' : 'Cancel booking'}
+                                </button>
+                              );
+                            })()}
+                          </div>
                         ) : (
-                          <select
-                            value={b.status}
-                            onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
-                            className={`px-3 py-2 rounded-xl border text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none transition-all ${
-                              b.status === 'CONFIRMED'
-                                ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700'
-                                : b.status === 'RENTED'
-                                  ? 'border-blue-200 bg-blue-50/50 text-blue-700'
-                                  : b.status === 'SOLD'
-                                    ? 'border-green-200 bg-green-50/50 text-green-700'
-                                    : b.status === 'CANCELLED'
-                                      ? 'border-gray-200 bg-gray-50 text-gray-600'
-                                      : 'border-amber-200 bg-amber-50/50 text-amber-700'
-                            }`}
-                          >
-                            <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
-                            <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
-                            <option value="RENTED">{ar ? 'مؤجر' : 'Rented'}</option>
-                            <option value="SOLD">{ar ? 'مباع' : 'Sold'}</option>
-                            <option value="CANCELLED">{ar ? 'ملغى' : 'Cancelled'}</option>
-                          </select>
+                          <div className="space-y-1">
+                            <select
+                              value={b.status}
+                              onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
+                              className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+                            >
+                              <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
+                              <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
+                              <option value="RENTED">{ar ? 'مؤجر' : 'Rented'}</option>
+                              <option value="SOLD">{ar ? 'مباع' : 'Sold'}</option>
+                              <option value="CANCELLED">{ar ? 'ملغى' : 'Cancelled'}</option>
+                            </select>
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-2">
                           {b.type === 'BOOKING' && b.status === 'CONFIRMED' && !getContractForBooking(b) && (
-                            <Link
-                              href={`/${locale}/admin/contracts?createFrom=${b.id}`}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors"
-                            >
-                              <span>📋</span>
-                              {ar ? 'إنشاء عقد' : 'Create Contract'}
-                            </Link>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setDocumentsPanelBooking(b)}
+                                className="relative inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-colors"
+                              >
+                                <span>📄</span>
+                                {ar ? 'المستندات' : 'Documents'}
+                                {hasDocumentsNeedingConfirmation(b.id) && (
+                                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>!</span>
+                                )}
+                              </button>
+                              {canCreateContract(b) && (
+                                <Link
+                                  href={`/${locale}/admin/contracts?createFrom=${b.id}`}
+                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors"
+                                >
+                                  <span>📋</span>
+                                  {ar ? 'إنشاء عقد' : 'Create Contract'}
+                                </Link>
+                              )}
+                            </>
                           )}
                           <a
-                            href={`https://wa.me/9689115341?text=${encodeURIComponent(ar ? `مرحباً، بخصوص طلب ${b.type === 'BOOKING' ? 'الحجز' : 'المعاينة'} من ${b.name}` : `Hi, regarding ${b.type} request from ${b.name}`)}`}
+                            href={`https://wa.me/9689115341?text=${encodeURIComponent(ar ? `مرحباً، بخصوص طلب ${b.type === 'BOOKING' ? 'الحجز' : 'المعاينة'} من ${getBookingDisplayName(b, locale)}` : `Hi, regarding ${b.type} request from ${getBookingDisplayName(b, locale)}`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
@@ -380,7 +464,7 @@ export default function PropertyBookingsPage() {
                 <div key={b.id} className="p-5 space-y-4">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-bold text-gray-900">{b.name}</p>
+                      <p className="font-bold text-gray-900">{getBookingDisplayName(b, locale)}</p>
                       <p className="text-sm text-gray-500">{b.email}</p>
                       <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] font-semibold">{b.phone}</a>
                     </div>
@@ -449,29 +533,76 @@ export default function PropertyBookingsPage() {
                           );
                         })()}
                       </div>
+                    ) : b.type === 'BOOKING' ? (
+                      <div className="flex-1 space-y-1">
+                        <div
+                          className={`inline-flex px-3 py-2 rounded-xl border text-sm font-semibold ${
+                            b.status === 'CONFIRMED' ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700' : b.status === 'RENTED' ? 'border-blue-200 bg-blue-50/50 text-blue-700' : b.status === 'CANCELLED' ? 'border-gray-200 bg-gray-50 text-gray-600' : 'border-amber-200 bg-amber-50/50 text-amber-700'
+                          }`}
+                        >
+                          {ar ? STATUS_LABELS[b.status].ar : STATUS_LABELS[b.status].en}
+                        </div>
+                        {b.type === 'BOOKING' && b.paymentConfirmed && !b.accountantConfirmedAt && (
+                          <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant'}</p>
+                        )}
+                        {b.status === 'CONFIRMED' && b.accountantConfirmedAt && (
+                          <p className="text-xs text-emerald-600 font-medium">{ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed'}</p>
+                        )}
+                        {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && (
+                          <p className="text-xs text-amber-600 font-medium">📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}</p>
+                        )}
+                        {b.status === 'CANCELLED' && b.cancellationNote && <p className="text-xs text-gray-600 italic">{b.cancellationNote}</p>}
+                        {!getContractForBooking(b) && b.status !== 'CANCELLED' && (
+                          hasBookingFinancialLinkage(b) ? (
+                            hasPendingCancellationRequest(b.id) ? (
+                              <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار المحاسبة' : '⏳ Pending accounting'}</p>
+                            ) : (
+                              <button type="button" onClick={() => { requestBookingCancellation(b.id); setBookings(getBookingsByProperty(parseInt(id, 10))); }} className="text-xs text-red-600 hover:underline font-medium">{ar ? 'إلغاء الحجز' : 'Cancel booking'}</button>
+                            )
+                          ) : (
+                            <button type="button" onClick={() => handleStatusChange(b.id, 'CANCELLED')} className="text-xs text-red-600 hover:underline font-medium">{ar ? 'إلغاء الحجز' : 'Cancel booking'}</button>
+                          )
+                        )}
+                      </div>
                     ) : (
-                      <select
-                        value={b.status}
-                        onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
-                        className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20"
-                      >
-                        <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
-                        <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
-                        <option value="RENTED">{ar ? 'مؤجر' : 'Rented'}</option>
-                        <option value="SOLD">{ar ? 'مباع' : 'Sold'}</option>
-                        <option value="CANCELLED">{ar ? 'ملغى' : 'Cancelled'}</option>
-                      </select>
+                      <div className="flex-1 space-y-1">
+                        <select
+                          value={b.status}
+                          onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20"
+                        >
+                          <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
+                          <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
+                          <option value="RENTED">{ar ? 'مؤجر' : 'Rented'}</option>
+                          <option value="SOLD">{ar ? 'مباع' : 'Sold'}</option>
+                          <option value="CANCELLED">{ar ? 'ملغى' : 'Cancelled'}</option>
+                        </select>
+                      </div>
                     )}
                     {b.type === 'BOOKING' && b.status === 'CONFIRMED' && !getContractForBooking(b) && (
-                      <Link
-                        href={`/${locale}/admin/contracts?createFrom=${b.id}`}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47]"
-                      >
-                        📋 {ar ? 'إنشاء عقد' : 'Create Contract'}
-                      </Link>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setDocumentsPanelBooking(b)}
+                          className="relative inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 border border-[#8B6F47]/30"
+                        >
+                          📄 {ar ? 'المستندات' : 'Documents'}
+                          {hasDocumentsNeedingConfirmation(b.id) && (
+                            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">!</span>
+                          )}
+                        </button>
+                        {canCreateContract(b) && (
+                          <Link
+                            href={`/${locale}/admin/contracts?createFrom=${b.id}`}
+                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47]"
+                          >
+                            📋 {ar ? 'إنشاء عقد' : 'Create Contract'}
+                          </Link>
+                        )}
+                      </>
                     )}
                     <a
-                      href={`https://wa.me/9689115341?text=${encodeURIComponent(ar ? `مرحباً، بخصوص طلب ${b.type === 'BOOKING' ? 'الحجز' : 'المعاينة'} من ${b.name}` : `Hi, regarding ${b.type} request from ${b.name}`)}`}
+                      href={`https://wa.me/9689115341?text=${encodeURIComponent(ar ? `مرحباً، بخصوص طلب ${b.type === 'BOOKING' ? 'الحجز' : 'المعاينة'} من ${getBookingDisplayName(b, locale)}` : `Hi, regarding ${b.type} request from ${getBookingDisplayName(b, locale)}`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-emerald-600 bg-emerald-50"
@@ -485,6 +616,20 @@ export default function PropertyBookingsPage() {
           </>
         )}
       </div>
+
+      {documentsPanelBooking && (
+        <BookingDocumentsPanel
+          open={!!documentsPanelBooking}
+          onClose={() => setDocumentsPanelBooking(null)}
+          booking={documentsPanelBooking}
+          propertyId={parseInt(id, 10)}
+          locale={locale}
+          onCreateContract={() => {
+            setDocumentsPanelBooking(null);
+            window.location.href = `/${locale}/admin/contracts?createFrom=${documentsPanelBooking.id}`;
+          }}
+        />
+      )}
     </div>
   );
 }

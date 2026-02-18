@@ -5,6 +5,8 @@
 
 import { siteConfig } from '@/config/site';
 
+export type SignatureType = 'image' | 'electronic';
+
 export interface CompanyData {
   logoUrl: string;
   nameAr: string;
@@ -17,6 +19,9 @@ export interface CompanyData {
   email: string;
   signatoryName: string;
   signatoryNameEn: string;
+  signatoryPosition: string;
+  signatoryPositionEn: string;
+  signatureType: SignatureType;
   signatorySignatureUrl: string;
   companyStampUrl: string;
   updatedAt: string;
@@ -36,6 +41,9 @@ const DEFAULT: CompanyData = {
   email: siteConfig.company.email,
   signatoryName: '',
   signatoryNameEn: '',
+  signatoryPosition: '',
+  signatoryPositionEn: '',
+  signatureType: 'image',
   signatorySignatureUrl: '',
   companyStampUrl: '',
   updatedAt: new Date().toISOString(),
@@ -58,6 +66,7 @@ function saveStored(data: CompanyData): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, updatedAt: new Date().toISOString() }));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
+    window.dispatchEvent(new CustomEvent('bhd_company_data_updated'));
   } catch {}
 }
 

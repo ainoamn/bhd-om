@@ -19,6 +19,9 @@ const emptyForm: CompanyData = {
   email: '',
   signatoryName: '',
   signatoryNameEn: '',
+  signatoryPosition: '',
+  signatoryPositionEn: '',
+  signatureType: 'image',
   signatorySignatureUrl: '',
   companyStampUrl: '',
   updatedAt: '',
@@ -31,11 +34,8 @@ export default function AdminCompanyDataPage() {
   const ar = locale === 'ar';
 
   const [form, setForm] = useState<CompanyData>(emptyForm);
-  const [mounted, setMounted] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     setForm(getCompanyData());
@@ -66,8 +66,6 @@ export default function AdminCompanyDataPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
-
-  if (!mounted) return null;
 
   return (
     <div>
@@ -207,6 +205,36 @@ export default function AdminCompanyDataPage() {
             <h2 className="admin-card-title">{t('signatory')}</h2>
           </div>
           <div className="admin-card-body space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">{t('signatureType')}</label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="signatureType"
+                    checked={form.signatureType === 'image'}
+                    onChange={() => setForm({ ...form, signatureType: 'image' })}
+                    className="rounded-full"
+                  />
+                  <span>{t('signatureTypeImage')}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="signatureType"
+                    checked={form.signatureType === 'electronic'}
+                    onChange={() => setForm({ ...form, signatureType: 'electronic' })}
+                    className="rounded-full"
+                  />
+                  <span>{t('signatureTypeElectronic')}</span>
+                </label>
+              </div>
+              {form.signatureType === 'electronic' && (
+                <p className="text-sm text-gray-600 mt-2 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                  {t('signatureTypeElectronicNote')}
+                </p>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">{t('signatoryName')}</label>
@@ -228,30 +256,52 @@ export default function AdminCompanyDataPage() {
                   placeholder="Authorized signatory name"
                 />
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">{t('signatorySignature')}</label>
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="w-48 h-20 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden">
-                  {form.signatorySignatureUrl ? (
-                    <img src={form.signatorySignatureUrl} alt="Signature" className="max-w-full max-h-full object-contain" />
-                  ) : (
-                    <span className="text-gray-400 text-sm">{ar ? 'لا يوجد توقيع' : 'No signature'}</span>
-                  )}
-                </div>
-                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 cursor-pointer">
-                  <Icon name="archive" className="w-5 h-5" />
-                  {uploading === 'signatorySignatureUrl' ? (ar ? 'جاري الرفع...' : 'Uploading...') : (ar ? 'رفع التوقيع' : 'Upload signature')}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleUpload('signatorySignatureUrl', e)}
-                    disabled={!!uploading}
-                  />
-                </label>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('signatoryPosition')}</label>
+                <input
+                  type="text"
+                  value={form.signatoryPosition}
+                  onChange={(e) => setForm({ ...form, signatoryPosition: e.target.value })}
+                  className="admin-input w-full"
+                  placeholder={ar ? 'المدير العام' : 'General Manager'}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('signatoryPositionEn')}</label>
+                <input
+                  type="text"
+                  value={form.signatoryPositionEn}
+                  onChange={(e) => setForm({ ...form, signatoryPositionEn: e.target.value })}
+                  className="admin-input w-full"
+                  placeholder="General Manager"
+                />
               </div>
             </div>
+            {form.signatureType === 'image' && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">{t('signatorySignature')}</label>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="w-48 h-20 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden">
+                    {form.signatorySignatureUrl ? (
+                      <img src={form.signatorySignatureUrl} alt="Signature" className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <span className="text-gray-400 text-sm">{ar ? 'لا يوجد توقيع' : 'No signature'}</span>
+                    )}
+                  </div>
+                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 cursor-pointer">
+                    <Icon name="archive" className="w-5 h-5" />
+                    {uploading === 'signatorySignatureUrl' ? (ar ? 'جاري الرفع...' : 'Uploading...') : (ar ? 'رفع التوقيع' : 'Upload signature')}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleUpload('signatorySignatureUrl', e)}
+                      disabled={!!uploading}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

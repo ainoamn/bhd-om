@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# uploads (ملفات مرفوعة من المستخدمين - اختياري)
+# public/uploads/

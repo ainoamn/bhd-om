@@ -371,13 +371,21 @@ export default function ContractDetailPage() {
 
           {/* الشيكات */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h3 className="text-sm font-bold text-gray-700 uppercase">{ar ? 'الشيكات' : 'Checks'}</h3>
-              {isDraft && (
-                <button type="button" onClick={addCheck} className="text-sm font-semibold text-[#8B6F47] hover:underline">
-                  + {ar ? 'إضافة شيك' : 'Add check'}
-                </button>
-              )}
+              <div className="flex gap-2">
+                <Link
+                  href={`/${locale}/admin/accounting?tab=cheques&action=add&propertyId=${contract.propertyId}&contractId=${id}`}
+                  className="text-sm font-semibold text-amber-600 hover:underline"
+                >
+                  {ar ? 'إضافة شيك للمحاسبة' : 'Add cheque to accounting'}
+                </Link>
+                {isDraft && (
+                  <button type="button" onClick={addCheck} className="text-sm font-semibold text-[#8B6F47] hover:underline">
+                    + {ar ? 'إضافة شيك' : 'Add check'}
+                  </button>
+                )}
+              </div>
             </div>
             {(form.checks ?? []).length === 0 ? (
               <p className="text-gray-500 text-sm">{ar ? 'لا توجد شيكات' : 'No checks'}</p>

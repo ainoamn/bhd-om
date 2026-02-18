@@ -6,6 +6,7 @@ import {
   createContact,
   updateContact,
   getContactById,
+  findDuplicateContactFields,
   type Contact,
   type ContactCategory,
   type ContactAddress,
@@ -23,6 +24,7 @@ const CATEGORY_KEYS: Record<ContactCategory, string> = {
   SUPPLIER: 'categorySupplier',
   PARTNER: 'categoryPartner',
   GOVERNMENT: 'categoryGovernment',
+  AUTHORIZED_REP: 'categoryAuthorizedRep',
   OTHER: 'categoryOther',
 };
 
@@ -179,6 +181,17 @@ export default function ContactFormModal({
     if (!form.nationality?.trim()) errors.nationality = t('fieldRequired');
     if (!form.phone?.trim()) errors.phone = t('fieldRequired');
     if (!form.address?.fullAddress?.trim()) errors.address = t('fieldRequired');
+
+    const dups = findDuplicateContactFields(
+      form.phone.trim(),
+      form.civilId?.trim(),
+      form.passportNumber?.trim(),
+      editContactId || undefined
+    );
+    if (dups.phone) errors.phone = t('duplicatePhone');
+    if (dups.civilId) errors.civilId = t('duplicateCivilId');
+    if (dups.passportNumber) errors.passportNumber = t('duplicatePassportNumber');
+
     if (isOmaniNationality(form.nationality)) {
       if (!form.civilId?.trim()) errors.civilId = t('fieldRequired');
       if (!form.civilIdExpiry?.trim()) errors.civilIdExpiry = t('fieldRequired');
@@ -231,11 +244,19 @@ export default function ContactFormModal({
       notesEn: form.notesEn?.trim() || undefined,
       tags: form.tags?.length ? form.tags : undefined,
     };
-    const contact = editContactId
-      ? (updateContact(editContactId, payload) || getContactById(editContactId)!)
-      : createContact(payload);
-    onSaved(contact);
-    onClose();
+    try {
+      const contact = editContactId
+        ? (updateContact(editContactId, payload) || getContactById(editContactId)!)
+        : createContact(payload);
+      onSaved(contact);
+      onClose();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'DUPLICATE_PHONE') setFormErrors((e) => ({ ...e, phone: t('duplicatePhone') }));
+      else if (msg === 'DUPLICATE_CIVIL_ID') setFormErrors((e) => ({ ...e, civilId: t('duplicateCivilId') }));
+      else if (msg === 'DUPLICATE_PASSPORT') setFormErrors((e) => ({ ...e, passportNumber: t('duplicatePassportNumber') }));
+      return;
+    }
     setForm({
       firstName: '',
       secondName: '',

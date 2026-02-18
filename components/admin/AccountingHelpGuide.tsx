@@ -33,6 +33,10 @@ const STEPS_AR = [
     title: 'التقارير',
     content: 'ميزان المراجعة: أرصدة كل الحسابات. قائمة الدخل: الإيرادات والمصروفات وصافي الدخل. الميزانية العمومية: الأصول والالتزامات وحقوق الملكية. التدفق النقدي: حركة النقد.',
   },
+  {
+    title: 'الطباعة والنماذج',
+    content: 'المستندات: اضغط «عرض / طباعة / تنزيل» لفتح المستند. اختر ما تريد إظهاره (رأس، تذييل، توقيع) ثم اضغط طباعة أو تنزيل PDF. التقارير: اضغط طباعة أو تنزيل PDF (اختر حفظ كـ PDF في مربع الطباعة). لضبط شكل المستندات: اذهب إلى «نماذج الوثائق» من أعلى الصفحة.',
+  },
 ];
 
 const STEPS_EN = [
@@ -59,6 +63,10 @@ const STEPS_EN = [
   {
     title: 'Reports',
     content: 'Trial Balance: All account balances. Income Statement: Revenue, expenses, net income. Balance Sheet: Assets, liabilities, equity. Cash Flow: Cash movement.',
+  },
+  {
+    title: 'Printing & Templates',
+    content: 'Documents: Click "View / Print / Download" to open the document. Choose what to include (header, footer, signature) then click Print or Download PDF. Reports: Click Print or Download PDF (choose Save as PDF in the print dialog). To customize document appearance: Go to "Document Templates" from the page header.',
   },
 ];
 

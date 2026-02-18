@@ -72,8 +72,26 @@ export function createFiscalPeriod(startDate: string, endDate: string, code?: st
 }
 
 export function ensureDefaultPeriods(): void {
-  const periods = getFiscalPeriods();
-  if (periods.length > 0) return;
-  const year = new Date().getFullYear();
-  createFiscalPeriod(`${year}-01-01`, `${year}-12-31`, `FY-${year}`);
+  let periods = getFiscalPeriods();
+  if (periods.length === 0) {
+    const year = new Date().getFullYear();
+    createFiscalPeriod(`${year}-01-01`, `${year}-12-31`, `FY-${year}`);
+    periods = getFiscalPeriods();
+  }
+  // التأكد من وجود فترة تغطي السنوات التي لها مستندات (من التخزين)
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.DOCUMENTS);
+      if (raw) {
+        const docs: Array<{ date?: string }> = JSON.parse(raw);
+        const years = new Set(docs.map((d) => d.date?.slice(0, 4)).filter(Boolean));
+        for (const y of years) {
+          const yearNum = parseInt(y as string, 10);
+          if (isNaN(yearNum)) continue;
+          const exists = periods.some((p) => p.startDate.startsWith(y as string));
+          if (!exists) createFiscalPeriod(`${y}-01-01`, `${y}-12-31`, `FY-${y}`);
+        }
+      }
+    } catch {}
+  }
 }

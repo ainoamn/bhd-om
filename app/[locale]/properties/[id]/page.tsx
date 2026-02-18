@@ -17,6 +17,8 @@ export function generateStaticParams() {
 }
 
 export const dynamicParams = true;
+/** إجبار التحميل الديناميكي لقراءة الكوكي (حالة المحجوز) في كل طلب */
+export const dynamic = 'force-dynamic';
 
 export default async function PropertyDetailPage({
   params,

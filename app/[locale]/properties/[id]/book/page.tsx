@@ -5,9 +5,12 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import PageHero from '@/components/shared/PageHero';
-import { createBooking } from '@/lib/data/bookings';
+import { createBooking, getUserActiveBookingForProperty, type BookingContactType } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides, getPropertyOverrides } from '@/lib/data/properties';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
+import { isOmaniNationality, validatePhoneWithCountryCode, findContactForBookingSearch, getContactById, getContactDisplayName } from '@/lib/data/addressBook';
+import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
+import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 
 export default function PropertyBookPage() {
   const params = useParams();
@@ -28,15 +31,111 @@ export default function PropertyBookPage() {
     : (o?.businessStatus ?? 'AVAILABLE');
   const isReserved = businessStatus === 'RESERVED';
 
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', message: '' });
+  const [contactType, setContactType] = useState<BookingContactType>('PERSONAL');
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', message: '' });
+  const [companyForm, setCompanyForm] = useState({
+    companyNameAr: '',
+    companyNameEn: '',
+    commercialRegistrationNumber: '',
+    repName: '',
+    repNameEn: '',
+    repPosition: '',
+    repPhone: '',
+    repPhoneCountryCode: '968',
+    repNationality: '',
+    repCivilId: '',
+    repPassportNumber: '',
+  });
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [repPhoneError, setRepPhoneError] = useState<string | null>(null);
   const [cardData, setCardData] = useState({ number: '', expiry: '', cvv: '', name: '' });
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [submitError, setSubmitError] = useState<'ALREADY_BOOKED' | 'MAX_REACHED' | 'OTHER' | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [clientSearchValue, setClientSearchValue] = useState('');
+  const [clientSearchStatus, setClientSearchStatus] = useState<'idle' | 'found' | 'not_found'>('idle');
+  const [userHasExistingBooking, setUserHasExistingBooking] = useState<boolean | null>(null);
+  const [existingBookingForLink, setExistingBookingForLink] = useState<{ id: string; email?: string } | null>(null);
 
   useEffect(() => setMounted(true), []);
+
+  /** التحقق من وجود حجز سابق للمستخدم لهذا العقار (عند تغيير البريد أو الهاتف) */
+  useEffect(() => {
+    if (!property) return;
+    const email = formData.email?.trim() || '';
+    const digits = (formData.phone || '').replace(/\D/g, '').replace(/^0+/, '');
+    const code = formData.phoneCountryCode || '968';
+    const phone = digits ? `+${digits.startsWith(code) ? digits : code + digits}` : '';
+    if (email.length < 3 && digits.length < 8) {
+      setUserHasExistingBooking(null);
+      setExistingBookingForLink(null);
+      return;
+    }
+    const existing = getUserActiveBookingForProperty(property.id, unitKey, email, phone);
+    setUserHasExistingBooking(!!existing);
+    setExistingBookingForLink(existing);
+  }, [formData.email, formData.phone, formData.phoneCountryCode, property?.id, unitKey]);
+
+  const handleClientSearch = () => {
+    const q = clientSearchValue.replace(/\D/g, '').trim();
+    if (q.length < 4) {
+      setClientSearchStatus('idle');
+      return;
+    }
+    // البحث بالهاتف (الرئيسي أو المفوض) أو الرقم المدني أو رقم السجل التجاري
+    const result = findContactForBookingSearch(clientSearchValue);
+    if (result) {
+      const c = result.contact;
+      const { code, number } = parsePhoneToCountryAndNumber(c.phone || '');
+      if (c.contactType === 'COMPANY') {
+        const cd = c.companyData;
+        const rep = cd?.authorizedRepresentatives?.[0];
+        const repContactId = rep && (rep as { contactId?: string }).contactId;
+        const linkedRep = repContactId ? getContactById(repContactId) : undefined;
+        const repName = (rep?.name || (linkedRep ? getContactDisplayName(linkedRep) : '')).trim() || '';
+        const repNameEn = (rep?.nameEn || (linkedRep ? getContactDisplayName(linkedRep, 'en') : '')).trim() || '';
+        const repPhone = rep?.phone || linkedRep?.phone;
+        const parsedRepPhone = repPhone ? parsePhoneToCountryAndNumber(repPhone) : { code: '968', number: '' };
+        setContactType('COMPANY');
+        setFormData({
+          ...formData,
+          email: c.email || '',
+          phone: number || '',
+          phoneCountryCode: code || '968',
+        });
+        setCompanyForm({
+          companyNameAr: cd?.companyNameAr || '',
+          companyNameEn: cd?.companyNameEn || '',
+          commercialRegistrationNumber: cd?.commercialRegistrationNumber || '',
+          repName: repName || '',
+          repNameEn: repNameEn || '',
+          repPosition: rep?.position || '',
+          repPhone: parsedRepPhone.number || '',
+          repPhoneCountryCode: parsedRepPhone.code || '968',
+          repNationality: rep?.nationality || linkedRep?.nationality || '',
+          repCivilId: rep?.civilId || linkedRep?.civilId || '',
+          repPassportNumber: rep?.passportNumber || linkedRep?.passportNumber || '',
+        });
+      } else {
+        setContactType('PERSONAL');
+        setFormData({
+          name: [c.firstName, c.secondName, c.thirdName, c.familyName].filter(Boolean).join(' ') || c.name || '',
+          email: c.email || '',
+          phone: number || '',
+          phoneCountryCode: code || '968',
+          civilId: c.civilId || '',
+          passportNumber: c.passportNumber || '',
+          message: formData.message,
+        });
+      }
+      setClientSearchStatus('found');
+    } else {
+      setClientSearchStatus('not_found');
+    }
+  };
 
   const ar = locale === 'ar';
 
@@ -74,36 +173,96 @@ export default function PropertyBookPage() {
     && /^\d{2}\/\d{2}$/.test(cardData.expiry)
     && cardData.cvv.length >= 3
     && cardData.name.trim().length > 0;
-  const canSubmit = formData.name && formData.email && formData.phone && isCardValid && termsAccepted;
+  const hasCivilOrPassport = !!(formData.civilId.trim() || formData.passportNumber.trim());
+  const repOmani = isOmaniNationality(companyForm.repNationality || '');
+  const repHasId = !!(companyForm.repCivilId.trim() || (companyForm.repNationality?.trim() && !repOmani && companyForm.repPassportNumber.trim()));
+  const companyValid = contactType === 'COMPANY'
+    ? companyForm.companyNameAr.trim() && companyForm.commercialRegistrationNumber.trim()
+      && companyForm.repName.trim() && companyForm.repNameEn.trim() && companyForm.repPosition.trim() && companyForm.repPhone.trim()
+      && companyForm.repNationality.trim() && repHasId
+    : true;
+  const personalValid = contactType === 'PERSONAL'
+    ? formData.name && formData.email && formData.phone && hasCivilOrPassport
+    : companyForm.companyNameAr && formData.email && formData.phone;
+  const getFullPhone = (countryCode: string, num: string) => {
+    const digits = (num || '').replace(/\D/g, '').replace(/^0+/, '');
+    if (!digits) return '';
+    return digits.startsWith(countryCode) ? `+${digits}` : `+${countryCode}${digits}`;
+  };
+
+  const canSubmit = !userHasExistingBooking && personalValid && companyValid && isCardValid && termsAccepted;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!property || !canSubmit) return;
+    setPhoneError(null);
+    setRepPhoneError(null);
+    const mainPhoneVal = validatePhoneWithCountryCode(formData.phone?.trim() || '', formData.phoneCountryCode || '968');
+    if (!mainPhoneVal.valid) {
+      setPhoneError(mainPhoneVal.message || 'invalidPhoneShort');
+      return;
+    }
+    if (contactType === 'COMPANY') {
+      const repPhoneVal = validatePhoneWithCountryCode(companyForm.repPhone?.trim() || '', companyForm.repPhoneCountryCode || '968');
+      if (!repPhoneVal.valid) {
+        setRepPhoneError(repPhoneVal.message || 'invalidPhoneShort');
+        return;
+      }
+    }
     setIsSubmitting(true);
     setIsProcessingPayment(true);
     setSubmitStatus('idle');
+    setSubmitError(null);
     try {
       await new Promise((r) => setTimeout(r, 1500));
       setIsProcessingPayment(false);
-      createBooking({
+      const isCompany = contactType === 'COMPANY';
+      const repId = `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
+      const repPhone = isCompany ? getFullPhone(companyForm.repPhoneCountryCode || '968', companyForm.repPhone) : '';
+      const booking = createBooking({
         propertyId: property.id,
         unitKey,
         propertyTitleAr,
         propertyTitleEn,
-        name: formData.name,
+        contactType,
+        name: isCompany ? companyForm.companyNameAr : formData.name,
         email: formData.email,
-        phone: formData.phone,
+        phone: mainPhone,
+        civilId: isCompany ? undefined : formData.civilId.trim() || undefined,
+        passportNumber: isCompany ? undefined : formData.passportNumber.trim() || undefined,
+        companyData: isCompany ? {
+          companyNameAr: companyForm.companyNameAr.trim(),
+          companyNameEn: companyForm.companyNameEn?.trim() || undefined,
+          commercialRegistrationNumber: companyForm.commercialRegistrationNumber.trim(),
+          authorizedRepresentatives: [{
+            id: repId,
+            name: companyForm.repName.trim(),
+            nameEn: companyForm.repNameEn.trim(),
+            position: companyForm.repPosition.trim(),
+            phone: repPhone,
+            nationality: companyForm.repNationality.trim(),
+            civilId: companyForm.repCivilId?.trim() || undefined,
+            passportNumber: repOmani ? undefined : companyForm.repPassportNumber?.trim() || undefined,
+          }],
+        } : undefined,
         message: formData.message || undefined,
         type: 'BOOKING',
         paymentConfirmed: true,
         priceAtBooking: depositAmount,
+        cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
+        cardExpiry: cardData.expiry,
+        cardholderName: cardData.name.trim(),
       });
       setSubmitStatus('success');
-      setFormData({ name: '', email: '', phone: '', message: '' });
-      setTimeout(() => router.push(`/${locale}/properties/${id}${unitKey ? `?unit=${unitKey}` : ''}`), 3000);
-    } catch {
+      setFormData({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', message: '' });
+      setCompanyForm({ companyNameAr: '', companyNameEn: '', commercialRegistrationNumber: '', repName: '', repNameEn: '', repPosition: '', repPhone: '', repPhoneCountryCode: '968', repNationality: '', repCivilId: '', repPassportNumber: '' });
+      setTimeout(() => router.push(`/${locale}/properties/${id}/receipt?booking=${booking.id}`), 2500);
+    } catch (err) {
       setSubmitStatus('error');
       setIsProcessingPayment(false);
+      const msg = err instanceof Error ? err.message : '';
+      setSubmitError(msg === 'ALREADY_BOOKED' ? 'ALREADY_BOOKED' : msg === 'MAX_REACHED' ? 'MAX_REACHED' : 'OTHER');
     } finally {
       setIsSubmitting(false);
     }
@@ -238,7 +397,28 @@ export default function PropertyBookPage() {
 
             {/* Form Section */}
             <div className="xl:col-span-8 order-1 xl:order-2 space-y-6">
-              {isReserved && (
+              {userHasExistingBooking && (
+                <div className="rounded-2xl border-2 border-emerald-400/60 bg-emerald-500/20 p-6">
+                  <h3 className="font-bold text-emerald-300 flex items-center gap-2 mb-3">
+                    <span className="text-xl">✓</span>
+                    {ar ? 'هذا العقار محجوز لك' : 'This property is already booked by you'}
+                  </h3>
+                  <p className="text-emerald-100/90 text-sm leading-relaxed">
+                    {ar
+                      ? 'لديك حجز نشط لهذا العقار. لا يمكنك تقديم حجز جديد. يمكنك متابعة إجراءات الحجز الحالي من صفحة الشروط والمستندات.'
+                      : 'You have an active booking for this property. You cannot submit a new booking. You can follow up on your current booking from the terms and documents page.'}
+                  </p>
+                  {existingBookingForLink && (
+                    <Link
+                      href={`/${locale}/properties/${id}/contract-terms?bookingId=${existingBookingForLink.id}&email=${encodeURIComponent(existingBookingForLink.email || formData.email || '')}`}
+                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/30 hover:bg-emerald-500/50 text-emerald-200 font-semibold transition-colors"
+                    >
+                      {ar ? 'صفحة الشروط والمستندات' : 'Terms & Documents'}
+                    </Link>
+                  )}
+                </div>
+              )}
+              {isReserved && !userHasExistingBooking && (
                 <div className="rounded-2xl border border-amber-400/50 bg-amber-500/20 p-6">
                   <h3 className="font-bold text-amber-200 flex items-center gap-2 mb-3">
                     <span className="text-xl">⚠️</span>
@@ -285,53 +465,258 @@ export default function PropertyBookPage() {
                     <div className="mb-8 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 p-6 flex items-start gap-4">
                       <div className="w-14 h-14 rounded-full bg-emerald-500/30 flex items-center justify-center text-3xl flex-shrink-0">✓</div>
                       <div>
-                        <p className="font-bold text-emerald-400 text-lg">{ar ? 'تم إرسال طلب الحجز بنجاح!' : 'Booking submitted successfully!'}</p>
-                        <p className="text-white/70 text-sm mt-1">{ar ? 'سيتم تأكيد الحجز من قبل مدير العقار. سنتواصل معك قريباً.' : 'The property manager will confirm. We will contact you soon.'}</p>
+                        <p className="font-bold text-emerald-400 text-lg">{ar ? 'تم إتمام الدفع بنجاح!' : 'Payment completed successfully!'}</p>
+                        <p className="text-white/70 text-sm mt-1">{ar ? 'سيتم تحويلك لصفحة إيصال الاستلام لطباعته أو تنزيله.' : 'You will be redirected to the receipt page to print or download it.'}</p>
                       </div>
                     </div>
                   )}
                   {submitStatus === 'error' && (
                     <div className="mb-8 rounded-2xl bg-red-500/20 border border-red-400/30 p-4 text-red-300">
-                      {ar ? 'حدث خطأ. يرجى المحاولة مرة أخرى.' : 'An error occurred. Please try again.'}
+                      {submitError === 'ALREADY_BOOKED'
+                        ? (ar ? 'هذا العقار محجوز لك بالفعل. لا يمكن إنشاء حجز مكرر.' : 'This property is already booked by you. Duplicate booking not allowed.')
+                        : submitError === 'MAX_REACHED'
+                          ? (ar ? 'تم الوصول للحد الأقصى من الحجوزات لهذا العقار.' : 'Maximum bookings reached for this property.')
+                          : (ar ? 'حدث خطأ. يرجى المحاولة مرة أخرى.' : 'An error occurred. Please try again.')}
                     </div>
                   )}
 
                   <form onSubmit={handleSubmit} className="space-y-8">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'الاسم الكامل *' : 'Full Name *'}</label>
+                    {/* بحث عن عميل مسجل */}
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+                      <label className="block text-sm font-semibold text-white/90 mb-2">
+                        {ar ? 'عميل مسجل؟ أدخل رقم الهاتف أو الرقم المدني أو رقم السجل التجاري' : 'Registered client? Enter phone, Civil ID or Commercial Registration No.'}
+                      </label>
+                      <div className="flex gap-2">
                         <input
                           type="text"
-                          required
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
-                          placeholder={ar ? 'أدخل اسمك الكامل' : 'Enter your full name'}
+                          value={clientSearchValue}
+                          onChange={(e) => { setClientSearchValue(e.target.value); setClientSearchStatus('idle'); }}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleClientSearch())}
+                          className="flex-1 px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                          placeholder={ar ? 'الهاتف أو الرقم المدني أو رقم السجل' : 'Phone, Civil ID or CR number'}
                         />
+                        <button
+                          type="button"
+                          onClick={handleClientSearch}
+                          className="px-6 py-3 rounded-xl bg-[#8B6F47] hover:bg-[#6B5535] text-white font-semibold transition-all"
+                        >
+                          {ar ? 'بحث' : 'Search'}
+                        </button>
                       </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'البريد الإلكتروني *' : 'Email *'}</label>
-                        <input
-                          type="email"
-                          required
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
-                          placeholder="example@email.com"
-                        />
-                      </div>
+                      {clientSearchStatus === 'found' && (
+                        <p className="text-emerald-400 text-sm mt-2 flex items-center gap-2">
+                          <span>✓</span> {ar ? 'تم العثور على البيانات وتعبئتها' : 'Data found and filled'}
+                        </p>
+                      )}
+                      {clientSearchStatus === 'not_found' && (
+                        <p className="text-amber-400 text-sm mt-2 flex items-center gap-2">
+                          <span>!</span> {ar ? 'لم يتم العثور على عميل بهذا الرقم' : 'No client found with this number'}
+                        </p>
+                      )}
                     </div>
+
+                    {/* نوع الحاجز */}
                     <div>
-                      <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'رقم الهاتف *' : 'Phone *'}</label>
-                      <input
-                        type="tel"
-                        required
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
-                        placeholder="+968 XXXX XXXX"
-                      />
+                      <label className="block text-sm font-semibold text-white/90 mb-3">{ar ? 'نوع الحاجز *' : 'Applicant Type *'}</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="contactType"
+                            checked={contactType === 'PERSONAL'}
+                            onChange={() => setContactType('PERSONAL')}
+                            className="w-4 h-4 text-[#8B6F47] focus:ring-[#8B6F47]"
+                          />
+                          <span className="text-white/90">{ar ? 'شخصي' : 'Personal'}</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="contactType"
+                            checked={contactType === 'COMPANY'}
+                            onChange={() => setContactType('COMPANY')}
+                            className="w-4 h-4 text-[#8B6F47] focus:ring-[#8B6F47]"
+                          />
+                          <span className="text-white/90">{ar ? 'شركة' : 'Company'}</span>
+                        </label>
+                      </div>
                     </div>
+
+                    {contactType === 'PERSONAL' ? (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'الاسم الكامل *' : 'Full Name *'}</label>
+                            <input
+                              type="text"
+                              required={contactType === 'PERSONAL'}
+                              value={formData.name}
+                              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                              className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                              placeholder={ar ? 'أدخل اسمك الكامل' : 'Enter your full name'}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'البريد الإلكتروني *' : 'Email *'}</label>
+                            <input
+                              type="email"
+                              required
+                              value={formData.email}
+                              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                              className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                              placeholder="example@email.com"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'رقم الهاتف *' : 'Phone *'}</label>
+                          <div className="flex gap-2">
+                            <PhoneCountryCodeSelect value={formData.phoneCountryCode} onChange={(v) => { setFormData({ ...formData, phoneCountryCode: v }); setPhoneError(null); }} locale={locale as 'ar' | 'en'} variant="dark" />
+                            <input
+                              type="tel"
+                              required
+                              value={formData.phone}
+                              onChange={(e) => { setFormData({ ...formData, phone: e.target.value }); setPhoneError(null); }}
+                              className={`flex-1 px-5 py-4 rounded-xl bg-white/5 border text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all ${phoneError ? 'border-red-400' : 'border-white/10'}`}
+                              placeholder={ar ? '91234567' : '91234567'}
+                            />
+                          </div>
+                          {phoneError && <p className="text-red-400 text-xs mt-1">{ar ? (phoneError === 'invalidPhoneOmanMin8' ? 'رقم عمان يجب أن يكون 8 أرقام على الأقل' : 'رقم الهاتف قصير جداً') : (phoneError === 'invalidPhoneOmanMin8' ? 'Oman number must be at least 8 digits' : 'Phone number is too short')}</p>}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'الرقم المدني *' : 'Civil ID *'}</label>
+                            <input
+                              type="text"
+                              value={formData.civilId}
+                              onChange={(e) => setFormData({ ...formData, civilId: e.target.value })}
+                              className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                              placeholder={ar ? 'أدخل الرقم المدني' : 'Enter civil ID'}
+                            />
+                            <p className="text-white/50 text-xs mt-1">{ar ? 'أو رقم الجواز أدناه' : 'Or passport number below'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'رقم الجواز (اختياري)' : 'Passport (optional)'}</label>
+                            <input
+                              type="text"
+                              value={formData.passportNumber}
+                              onChange={(e) => setFormData({ ...formData, passportNumber: e.target.value })}
+                              className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                              placeholder={ar ? 'للمقيمين بدون رقم مدني' : 'For residents without civil ID'}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'اسم الشركة (عربي) *' : 'Company Name (Ar) *'}</label>
+                            <input
+                              type="text"
+                              value={companyForm.companyNameAr}
+                              onChange={(e) => setCompanyForm({ ...companyForm, companyNameAr: e.target.value })}
+                              className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                              placeholder={ar ? 'اسم الشركة' : 'Company name'}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'اسم الشركة (إنجليزي)' : 'Company Name (En)'}</label>
+                            <input
+                              type="text"
+                              value={companyForm.companyNameEn}
+                              onChange={(e) => setCompanyForm({ ...companyForm, companyNameEn: e.target.value })}
+                              className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                              placeholder="Company name"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'رقم السجل التجاري *' : 'Commercial Registration No. *'}</label>
+                          <input
+                            type="text"
+                            value={companyForm.commercialRegistrationNumber}
+                            onChange={(e) => setCompanyForm({ ...companyForm, commercialRegistrationNumber: e.target.value })}
+                            className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                            placeholder={ar ? 'رقم السجل' : 'CR number'}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'البريد الإلكتروني *' : 'Email *'}</label>
+                            <input
+                              type="email"
+                              required
+                              value={formData.email}
+                              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                              className="w-full px-5 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all"
+                              placeholder="example@email.com"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'رقم هاتف الشركة *' : 'Company Phone *'}</label>
+                            <div className="flex gap-2">
+                              <PhoneCountryCodeSelect value={formData.phoneCountryCode} onChange={(v) => { setFormData({ ...formData, phoneCountryCode: v }); setPhoneError(null); }} locale={locale as 'ar' | 'en'} variant="dark" />
+                              <input
+                                type="tel"
+                                required
+                                value={formData.phone}
+                                onChange={(e) => { setFormData({ ...formData, phone: e.target.value }); setPhoneError(null); }}
+                                className={`flex-1 px-5 py-4 rounded-xl bg-white/5 border text-white placeholder-white/40 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] transition-all ${phoneError ? 'border-red-400' : 'border-white/10'}`}
+                                placeholder={ar ? '91234567' : '91234567'}
+                              />
+                            </div>
+                            {phoneError && <p className="text-red-400 text-xs mt-1">{ar ? (phoneError === 'invalidPhoneOmanMin8' ? 'رقم عمان يجب أن يكون 8 أرقام على الأقل' : 'رقم الهاتف قصير جداً') : (phoneError === 'invalidPhoneOmanMin8' ? 'Oman number must be at least 8 digits' : 'Phone number is too short')}</p>}
+                          </div>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                          <h4 className="text-sm font-bold text-[#C9A961] mb-4">{ar ? 'المفوض بالتوقيع *' : 'Authorized Representative *'}</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'اسم المفوض (عربي) *' : 'Rep Name (Arabic) *'}</label>
+                              <input type="text" value={companyForm.repName} onChange={(e) => setCompanyForm({ ...companyForm, repName: e.target.value })} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm" placeholder={ar ? 'الاسم الكامل' : 'Full name'} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'اسم المفوض (إنجليزي) *' : 'Rep Name (English) *'}</label>
+                              <input type="text" value={companyForm.repNameEn} onChange={(e) => setCompanyForm({ ...companyForm, repNameEn: e.target.value })} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm" placeholder={ar ? 'الترجمة الإنجليزية' : 'English translation'} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'المنصب *' : 'Position *'}</label>
+                              <input type="text" value={companyForm.repPosition} onChange={(e) => setCompanyForm({ ...companyForm, repPosition: e.target.value })} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm" placeholder={ar ? 'مدير، مفوض...' : 'Manager, Authorized...'} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'هاتف المفوض *' : 'Rep Phone *'}</label>
+                              <div className="flex gap-2">
+                                <PhoneCountryCodeSelect value={companyForm.repPhoneCountryCode} onChange={(v) => { setCompanyForm({ ...companyForm, repPhoneCountryCode: v }); setRepPhoneError(null); }} locale={locale as 'ar' | 'en'} variant="dark" size="sm" />
+                                <input type="tel" value={companyForm.repPhone} onChange={(e) => { setCompanyForm({ ...companyForm, repPhone: e.target.value }); setRepPhoneError(null); }} className={`flex-1 px-4 py-3 rounded-lg bg-white/5 border text-white text-sm ${repPhoneError ? 'border-red-400' : 'border-white/10'}`} placeholder={ar ? '91234567' : '91234567'} />
+                              </div>
+                              {repPhoneError && <p className="text-red-400 text-xs mt-1">{ar ? (repPhoneError === 'invalidPhoneOmanMin8' ? 'رقم عمان يجب أن يكون 8 أرقام على الأقل' : 'رقم الهاتف قصير جداً') : (repPhoneError === 'invalidPhoneOmanMin8' ? 'Oman number must be at least 8 digits' : 'Phone number is too short')}</p>}
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'الجنسية *' : 'Nationality *'}</label>
+                              <input type="text" value={companyForm.repNationality} onChange={(e) => setCompanyForm({ ...companyForm, repNationality: e.target.value })} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm" placeholder={ar ? 'عماني، سعودي...' : 'Omani, Saudi...'} />
+                            </div>
+                            {repOmani ? (
+                              <div>
+                                <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'الرقم المدني *' : 'Civil ID *'}</label>
+                                <input type="text" value={companyForm.repCivilId} onChange={(e) => setCompanyForm({ ...companyForm, repCivilId: e.target.value })} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm" placeholder={ar ? 'الرقم المدني' : 'Civil ID'} />
+                              </div>
+                            ) : (
+                              <>
+                                <div>
+                                  <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'الرقم المدني' : 'Civil ID'}</label>
+                                  <input type="text" value={companyForm.repCivilId} onChange={(e) => setCompanyForm({ ...companyForm, repCivilId: e.target.value })} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm" placeholder={ar ? 'إن وجد' : 'If any'} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-white/70 mb-1">{ar ? 'رقم الجواز *' : 'Passport No. *'}</label>
+                                  <input type="text" value={companyForm.repPassportNumber} onChange={(e) => setCompanyForm({ ...companyForm, repPassportNumber: e.target.value })} className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm" placeholder={ar ? 'للوفد' : 'For expats'} />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                     <div>
                       <label className="block text-sm font-semibold text-white/90 mb-2">{ar ? 'ملاحظات' : 'Notes'}</label>
                       <textarea

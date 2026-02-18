@@ -111,6 +111,9 @@ export interface AccountingDocument {
   journalEntryId?: string;
   paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'CHEQUE';
   paymentReference?: string;
+  chequeNumber?: string;
+  chequeDueDate?: string;
+  chequeBankName?: string;
   notes?: string;
   attachments?: { url: string; name: string }[];
   purchaseOrder?: string;

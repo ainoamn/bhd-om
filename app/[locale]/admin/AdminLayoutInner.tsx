@@ -10,6 +10,14 @@ import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import './admin.css';
 
+/** قراءة tab و action من الرابط - useSearchParams يتفاعل مع تغيير query string */
+function useAccountingTab() {
+  const searchParams = useSearchParams();
+  const tab = searchParams?.get('tab') || 'dashboard';
+  const action = searchParams?.get('action') || null;
+  return { tab, action };
+}
+
 type NavItem = {
   href: string;
   labelKey: string;
@@ -29,6 +37,7 @@ const accountingSubItems: (NavItem & { isHeader?: boolean })[] = [
   { href: '/admin/accounting?tab=accounts', labelKey: 'accountingAccounts', icon: 'archive' as const },
   { href: '/admin/accounting?tab=reports', labelKey: 'accountingReports', icon: 'chartBar' as const },
   { href: '/admin/accounting?tab=claims', labelKey: 'accountingClaims', icon: 'inbox' as const },
+  { href: '/admin/accounting?tab=cheques', labelKey: 'accountingCheques', icon: 'archive' as const },
   { href: '/admin/accounting?tab=payments', labelKey: 'accountingPayments', icon: 'archive' as const },
   { href: '/admin/accounting?tab=periods', labelKey: 'accountingPeriods', icon: 'calendar' as const },
   { href: '/admin/accounting?tab=audit', labelKey: 'accountingAudit', icon: 'shieldCheck' as const },
@@ -37,20 +46,7 @@ const accountingSubItems: (NavItem & { isHeader?: boolean })[] = [
   { href: '/admin/accounting?tab=journal&action=add', labelKey: 'accountingAddJournal', icon: 'documentText' as const },
   { href: '/admin/accounting?tab=accounts&action=add', labelKey: 'accountingAddAccount', icon: 'plus' as const },
   { href: '/admin/accounting?tab=documents&action=add', labelKey: 'accountingAddDocument', icon: 'plus' as const },
-];
-
-const documentTemplatesSubItems: (NavItem & { isHeader?: boolean })[] = [
-  { href: '#', labelKey: 'docTemplatesAccounting', icon: 'documentText' as const, isHeader: true },
-  { href: '/admin/document-templates?section=accounting', labelKey: 'docTemplatesAll', icon: 'archive' as const },
-  { href: '/admin/document-templates?section=accounting&type=invoice', labelKey: 'docTemplatesInvoice', icon: 'documentText' as const },
-  { href: '/admin/document-templates?section=accounting&type=quote', labelKey: 'docTemplatesQuote', icon: 'documentText' as const },
-  { href: '/admin/document-templates?section=accounting&type=creditNote', labelKey: 'docTemplatesCreditNote', icon: 'documentText' as const },
-  { href: '/admin/document-templates?section=accounting&type=purchaseOrder', labelKey: 'docTemplatesPurchaseOrder', icon: 'documentText' as const },
-  { href: '/admin/document-templates?section=accounting&type=deliveryNote', labelKey: 'docTemplatesDeliveryNote', icon: 'documentText' as const },
-  { href: '#', labelKey: 'docTemplatesManagement', icon: 'documentText' as const, isHeader: true },
-  { href: '/admin/document-templates?section=management&type=messages', labelKey: 'docTemplatesMessages', icon: 'mail' as const },
-  { href: '/admin/document-templates?section=management&type=alerts', labelKey: 'docTemplatesAlerts', icon: 'shieldCheck' as const },
-  { href: '/admin/document-templates?section=management&type=notifications', labelKey: 'docTemplatesNotifications', icon: 'inbox' as const },
+  { href: '/admin/accounting?tab=cheques&action=add', labelKey: 'accountingAddCheque', icon: 'plus' as const },
 ];
 
 const navGroupsConfig = [
@@ -59,10 +55,10 @@ const navGroupsConfig = [
       { href: '/admin/address-book', labelKey: 'addressBook', icon: 'users' as const },
       { href: '/admin/bank-details', labelKey: 'bankDetails', icon: 'archive' as const },
       { href: '/admin/company-data', labelKey: 'companyData', icon: 'building' as const },
+      { href: '/admin/document-templates', labelKey: 'documentTemplates', icon: 'documentText' as const },
+      { href: '/admin/site', labelKey: 'site', icon: 'globe' as const },
     ]},
     { groupKey: 'accounting', subItems: accountingSubItems },
-    { groupKey: 'documentTemplates', subItems: documentTemplatesSubItems },
-    { href: '/admin/site', labelKey: 'site', icon: 'globe' as const },
   ] as ContentItem[]},
   { groupKey: 'content', items: [
     { groupKey: 'properties', subItems: [
@@ -89,17 +85,34 @@ const navGroupsConfig = [
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams();
-  const searchParams = useSearchParams();
+  const { tab: currentTab, action: currentAction } = useAccountingTab();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('admin.nav');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(false);
-  const [documentTemplatesOpen, setDocumentTemplatesOpen] = useState(false);
 
   const closeSidebar = () => setSidebarOpen(false);
   const toggleSidebar = () => setSidebarOpen((o) => !o);
+  const toggleCollapse = () => {
+    setSidebarCollapsed((c) => !c);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('admin-sidebar-collapsed', String(!sidebarCollapsed));
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('admin-sidebar-collapsed');
+        if (stored === 'true') setSidebarCollapsed(true);
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
@@ -111,15 +124,14 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   }, []);
 
   useEffect(() => {
-    if (pathname?.includes('/admin/address-book') || pathname?.includes('/admin/bank-details') || pathname?.includes('/admin/company-data')) {
+    if (pathname?.includes('/admin/address-book') || pathname?.includes('/admin/bank-details') || pathname?.includes('/admin/company-data') || pathname?.includes('/admin/document-templates') || pathname?.includes('/admin/site')) {
       setDashboardOpen(true);
     }
     if (pathname?.includes('/admin/accounting')) setAccountingOpen(true);
-    if (pathname?.includes('/admin/document-templates')) setDocumentTemplatesOpen(true);
   }, [pathname]);
 
   return (
-    <div className="admin-root" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+    <div className={`admin-root ${sidebarCollapsed ? 'admin-root--sidebar-collapsed' : ''}`} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       {sidebarOpen && (
         <button
           type="button"
@@ -128,9 +140,9 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           aria-label={t('closeMenu')}
         />
       )}
-      <aside className={`admin-sidebar ${!sidebarOpen ? 'admin-sidebar--closed' : ''}`}>
+      <aside className={`admin-sidebar ${!sidebarOpen ? 'admin-sidebar--closed' : ''} ${sidebarCollapsed ? 'admin-sidebar--collapsed' : ''}`} data-collapsed={sidebarCollapsed}>
         <div className="admin-sidebar-brand">
-          <Link href={`/${locale}/admin`} className="admin-sidebar-brand-link">
+          <Link href={`/${locale}/admin`} className="admin-sidebar-brand-link" title={locale === 'ar' ? siteConfig.company.nameAr : siteConfig.company.nameEn}>
             <div className="admin-sidebar-logo">
               <Image
                 src="/logo-bhd.png"
@@ -141,14 +153,16 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                 style={{ filter: 'sepia(30%) saturate(200%) hue-rotate(-10deg)' }}
               />
             </div>
-            <div>
+            <div className="admin-sidebar-brand-text">
               <h1 className="admin-sidebar-title">{locale === 'ar' ? siteConfig.company.nameAr : siteConfig.company.nameEn}</h1>
               <p className="admin-sidebar-subtitle">{t('adminPanel')}</p>
             </div>
           </Link>
-          <div className="mt-3 flex items-center gap-2">
-            <LanguageSwitcher currentLocale={locale} />
-          </div>
+          {!sidebarCollapsed && (
+            <div className="mt-3 flex items-center gap-2">
+              <LanguageSwitcher currentLocale={locale} />
+            </div>
+          )}
         </div>
 
         <nav className="admin-nav" aria-label="Main navigation">
@@ -160,41 +174,49 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                   if (isSubGroup(item)) {
                     const subHrefs = item.groupKey === 'accounting'
                       ? ['/admin/accounting']
-                      : item.groupKey === 'documentTemplates'
-                        ? ['/admin/document-templates']
-                        : item.subItems.map((s) => (s as NavItem).href).filter((h) => h && !h.startsWith('#'));
+                      : item.subItems.map((s) => (s as NavItem).href).filter((h) => h && !h.startsWith('#'));
                     const isGroupActive = item.groupKey === 'accounting'
                       ? pathname?.includes('/admin/accounting')
-                      : item.groupKey === 'documentTemplates'
-                        ? pathname?.includes('/admin/document-templates')
-                        : subHrefs.some((h) => pathname === `/${locale}${h}` || (pathname.startsWith(`/${locale}${h}`) && h !== '/admin'));
+                      : subHrefs.some((h) => pathname === `/${locale}${h}` || (pathname.startsWith(`/${locale}${h}`) && h !== '/admin'));
                     const isDashboard = item.groupKey === 'dashboard';
                     const isAccounting = item.groupKey === 'accounting';
-                    const isDocumentTemplates = item.groupKey === 'documentTemplates';
-                    const subOpen = isDashboard ? dashboardOpen : isAccounting ? accountingOpen : isDocumentTemplates ? documentTemplatesOpen : propertiesOpen;
+                    const subOpen = isDashboard ? dashboardOpen : isAccounting ? accountingOpen : propertiesOpen;
                     const toggleOpen = () => {
                       if (isDashboard) setDashboardOpen((o) => !o);
                       else if (isAccounting) setAccountingOpen((o) => !o);
-                      else if (isDocumentTemplates) setDocumentTemplatesOpen((o) => !o);
                       else setPropertiesOpen((o) => !o);
                     };
-                    const groupIcon = isDashboard ? 'dashboard' : isAccounting ? 'archive' : isDocumentTemplates ? 'documentText' : 'building';
+                    const groupIcon = isDashboard ? 'dashboard' : isAccounting ? 'archive' : 'building';
                     return (
                       <li key={item.groupKey} className="admin-nav-dropdown">
                         <button
                           type="button"
-                          onClick={toggleOpen}
+                          onClick={() => {
+                          if (sidebarCollapsed) {
+                            setSidebarCollapsed(false);
+                            if (!subOpen) {
+                              if (isDashboard) setDashboardOpen(true);
+                              else if (isAccounting) setAccountingOpen(true);
+                              else setPropertiesOpen(true);
+                            }
+                          } else {
+                            toggleOpen();
+                          }
+                        }}
                           className={`admin-nav-link admin-nav-link--dropdown w-full justify-between ${subOpen ? 'admin-nav-dropdown--open' : ''} ${isGroupActive ? 'admin-nav-link--active' : ''}`}
+                          title={sidebarCollapsed ? t(item.groupKey) : undefined}
                           aria-expanded={subOpen}
                         >
                           <span className="flex items-center gap-3">
                             <Icon name={groupIcon} className="admin-nav-icon" aria-hidden />
-                            <span>{t(item.groupKey)}</span>
+                            <span className="admin-nav-link-text">{t(item.groupKey)}</span>
                           </span>
-                          <Icon name={locale === 'ar' ? 'chevronLeft' : 'chevronRight'} className={`admin-nav-icon transition-transform ${subOpen ? 'rotate-90' : ''}`} aria-hidden />
+                          {!sidebarCollapsed && (
+                            <Icon name={locale === 'ar' ? 'chevronLeft' : 'chevronRight'} className={`admin-nav-icon transition-transform ${subOpen ? 'rotate-90' : ''}`} aria-hidden />
+                          )}
                         </button>
-                        {subOpen && (
-                          <ul className={`admin-nav-sublist ${isAccounting || isDocumentTemplates ? 'pr-4' : ''}`} role="list">
+                        {subOpen && !sidebarCollapsed && (
+                          <ul className={`admin-nav-sublist ${isAccounting ? 'pr-4' : ''}`} role="list">
                             {item.subItems.map((sub) => {
                               const subItem = sub as NavItem & { isHeader?: boolean };
                               if (subItem.isHeader) {
@@ -207,11 +229,9 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                               if (isAccounting) {
                                 const accHref = subItem.href.startsWith('/') ? subItem.href : `/admin/accounting?tab=${subItem.href}`;
                                 const fullHref = `/${locale}${accHref}`;
-                                const params = new URLSearchParams(accHref.split('?')[1] || '');
-                                const itemTab = params.get('tab');
-                                const itemAction = params.get('action');
-                                const currentTab = searchParams?.get('tab') || 'dashboard';
-                                const currentAction = searchParams?.get('action');
+                                const accParams = new URLSearchParams(accHref.split('?')[1] || '');
+                                const itemTab = accParams.get('tab');
+                                const itemAction = accParams.get('action');
                                 const isActive = pathname?.includes('/admin/accounting') && currentTab === itemTab && (!itemAction || currentAction === itemAction);
                                 return (
                                   <li key={subItem.href}>
@@ -220,28 +240,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                                       className={`admin-nav-sublink ${isActive ? 'admin-nav-sublink--active' : ''}`}
                                       aria-current={isActive ? 'page' : undefined}
                                       onClick={closeSidebar}
-                                    >
-                                      <Icon name={subItem.icon} className="admin-nav-icon" aria-hidden />
-                                      <span>{t(subItem.labelKey)}</span>
-                                    </Link>
-                                  </li>
-                                );
-                              }
-                              if (isDocumentTemplates) {
-                                const fullHref = `/${locale}${subItem.href}`;
-                                const params = new URLSearchParams(subItem.href.split('?')[1] || '');
-                                const itemSection = params.get('section');
-                                const itemType = params.get('type');
-                                const currentSection = searchParams?.get('section');
-                                const currentType = searchParams?.get('type');
-                                const isActive = pathname?.includes('/admin/document-templates') && currentSection === itemSection && (!itemType || currentType === itemType);
-                                return (
-                                  <li key={subItem.href}>
-                                    <Link
-                                      href={fullHref}
-                                      className={`admin-nav-sublink ${isActive ? 'admin-nav-sublink--active' : ''}`}
-                                      aria-current={isActive ? 'page' : undefined}
-                                      onClick={closeSidebar}
+                                      title={sidebarCollapsed ? t(subItem.labelKey) : undefined}
                                     >
                                       <Icon name={subItem.icon} className="admin-nav-icon" aria-hidden />
                                       <span>{t(subItem.labelKey)}</span>
@@ -257,6 +256,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                                     className={`admin-nav-sublink ${isActive ? 'admin-nav-sublink--active' : ''} ${subItem.comingSoon ? 'opacity-75' : ''}`}
                                     aria-current={isActive ? 'page' : undefined}
                                     onClick={closeSidebar}
+                                    title={sidebarCollapsed ? t(subItem.labelKey) : undefined}
                                   >
                                     <Icon name={subItem.icon} className="admin-nav-icon" aria-hidden />
                                     <span>{t(subItem.labelKey)}</span>
@@ -283,9 +283,10 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                         className={`admin-nav-link ${isActive ? 'admin-nav-link--active' : ''}`}
                         aria-current={isActive ? 'page' : undefined}
                         onClick={closeSidebar}
+                        title={sidebarCollapsed ? t(navItem.labelKey) : undefined}
                       >
                         <Icon name={navItem.icon} className="admin-nav-icon" aria-hidden />
-                        <span>{t(navItem.labelKey)}</span>
+                        <span className="admin-nav-link-text">{t(navItem.labelKey)}</span>
                       </Link>
                     </li>
                   );
@@ -296,14 +297,25 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
         </nav>
 
         <div className="admin-sidebar-footer">
+          <button
+            type="button"
+            onClick={toggleCollapse}
+            className="admin-nav-link admin-nav-link--collapse w-full justify-center hidden lg:flex"
+            title={sidebarCollapsed ? (locale === 'ar' ? 'توسيع القائمة' : 'Expand sidebar') : (locale === 'ar' ? 'طي القائمة' : 'Collapse sidebar')}
+            aria-label={sidebarCollapsed ? (locale === 'ar' ? 'توسيع القائمة' : 'Expand sidebar') : (locale === 'ar' ? 'طي القائمة' : 'Collapse sidebar')}
+          >
+            <Icon name={locale === 'ar' ? (sidebarCollapsed ? 'chevronLeft' : 'chevronRight') : (sidebarCollapsed ? 'chevronRight' : 'chevronLeft')} className="admin-nav-icon" aria-hidden />
+            <span className="admin-nav-link-text">{sidebarCollapsed ? (locale === 'ar' ? 'توسيع' : 'Expand') : (locale === 'ar' ? 'طي' : 'Collapse')}</span>
+          </button>
           <Link
             href={`/${locale}`}
             target="_blank"
             rel="noopener noreferrer"
             className="admin-nav-link admin-nav-link--external"
+            title={t('viewSite')}
           >
             <Icon name="externalLink" className="admin-nav-icon" aria-hidden />
-            <span>{t('viewSite')}</span>
+            <span className="admin-nav-link-text">{t('viewSite')}</span>
           </Link>
         </div>
       </aside>

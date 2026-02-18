@@ -19,10 +19,12 @@ export default function DocumentTemplatesPage() {
   const accountingTypes = [
     { key: '', labelKey: 'docTemplatesAll' },
     { key: 'invoice', labelKey: 'docTemplatesInvoice' },
+    { key: 'receipt', labelKey: 'docTemplatesReceipt' },
     { key: 'quote', labelKey: 'docTemplatesQuote' },
     { key: 'creditNote', labelKey: 'docTemplatesCreditNote' },
     { key: 'purchaseOrder', labelKey: 'docTemplatesPurchaseOrder' },
     { key: 'deliveryNote', labelKey: 'docTemplatesDeliveryNote' },
+    { key: 'report', labelKey: 'docTemplatesReport' },
   ];
 
   const managementTypes = [
@@ -96,7 +98,7 @@ export default function DocumentTemplatesPage() {
         </div>
 
         <div className="lg:col-span-2">
-          {isAccounting && ['invoice', 'quote', 'creditNote', 'purchaseOrder', 'deliveryNote'].includes(currentType) ? (
+          {isAccounting && ['invoice', 'receipt', 'quote', 'creditNote', 'purchaseOrder', 'deliveryNote', 'report'].includes(currentType) ? (
             <InvoiceTemplateEditor templateType={currentType as TemplateType} locale={locale} />
           ) : (
             <div className="admin-card">

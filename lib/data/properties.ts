@@ -420,6 +420,21 @@ export function getPropertyById(id: number | string, dataOverrides?: PropertyDat
   return getMergedProperty(base as Property, data) as Property;
 }
 
+/** عرض العقار حسب المستوى: رقم فقط أو عنوان كامل */
+export function getPropertyDisplayByLevel(
+  p: { id?: number; landParcelNumber?: string; propertyNumber?: string; serialNumber?: string; governorateAr?: string; stateAr?: string; areaAr?: string; villageAr?: string; street?: string; building?: string; fullAddress?: string } | null | undefined,
+  level: 'numberOnly' | 'fullAddress'
+): string {
+  if (!p) return '—';
+  if (level === 'numberOnly') {
+    const num = p.landParcelNumber && p.propertyNumber
+      ? `${p.landParcelNumber} - ${p.propertyNumber}`
+      : (p.landParcelNumber || p.propertyNumber || p.serialNumber || String(p.id ?? ''));
+    return num || '—';
+  }
+  return getPropertyDisplayText(p);
+}
+
 /** عرض العقار: رقم قطعة - رقم عقار | نوع العقار | محافظة - ولاية - منطقة - قرية */
 export function getPropertyDisplayText(p: {
   id?: number;

@@ -12,8 +12,10 @@ import {
   type RentalContract,
   type ContractStatus,
 } from '@/lib/data/contracts';
-import { getAllBookings, updateBooking } from '@/lib/data/bookings';
+import { getAllBookings, updateBooking, getBookingDisplayName } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
+import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
+import { getContactById, getContactDisplayName } from '@/lib/data/addressBook';
 
 const STATUS_LABELS: Record<ContractStatus, { ar: string; en: string }> = {
   DRAFT: { ar: 'مسودة', en: 'Draft' },
@@ -60,16 +62,21 @@ export default function AdminContractsPage() {
     const prop = getPropertyById(b.propertyId, dataOverrides);
     if (!prop) return;
     const monthlyRent = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
+    const landlordContactId = getPropertyLandlordContactId(b.propertyId);
+    const landlordContact = landlordContactId ? getContactById(landlordContactId) : null;
+    const landlordName = landlordContact ? getContactDisplayName(landlordContact, locale) : '';
     const contract = createContract({
       bookingId: b.id,
       propertyId: b.propertyId,
       unitKey: b.unitKey,
       propertyTitleAr: prop.titleAr,
       propertyTitleEn: prop.titleEn,
-      tenantName: b.name,
+      tenantName: getBookingDisplayName(b, locale),
       tenantEmail: b.email,
       tenantPhone: b.phone,
-      landlordName: '',
+      landlordName: landlordName || '',
+      landlordEmail: landlordContact?.email ?? undefined,
+      landlordPhone: landlordContact?.phone ?? undefined,
       monthlyRent,
       annualRent: monthlyRent * 12,
       depositAmount: monthlyRent,
@@ -96,16 +103,21 @@ export default function AdminContractsPage() {
     const prop = getPropertyById(b.propertyId, dataOverrides);
     if (!prop) return;
     const monthlyRent = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
+    const landlordContactId = getPropertyLandlordContactId(b.propertyId);
+    const landlordContact = landlordContactId ? getContactById(landlordContactId) : null;
+    const landlordName = landlordContact ? getContactDisplayName(landlordContact, locale) : '';
     const contract = createContract({
       bookingId: b.id,
       propertyId: b.propertyId,
       unitKey: b.unitKey,
       propertyTitleAr: prop.titleAr,
       propertyTitleEn: prop.titleEn,
-      tenantName: b.name,
+      tenantName: getBookingDisplayName(b, locale),
       tenantEmail: b.email,
       tenantPhone: b.phone,
-      landlordName: '',
+      landlordName: landlordName || '',
+      landlordEmail: landlordContact?.email ?? undefined,
+      landlordPhone: landlordContact?.phone ?? undefined,
       monthlyRent,
       annualRent: monthlyRent * 12,
       depositAmount: monthlyRent,
@@ -171,7 +183,7 @@ export default function AdminContractsPage() {
               return (
                 <div key={b.id} className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white rounded-xl border border-gray-200">
                   <div>
-                    <span className="font-semibold text-gray-900">{b.name}</span>
+                    <span className="font-semibold text-gray-900">{getBookingDisplayName(b, locale)}</span>
                     <span className="text-gray-500 mx-2">•</span>
                     <span className="text-gray-600">{prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}</span>
                     {b.unitKey && <span className="text-sm text-[#8B6F47] mr-2">({b.unitKey})</span>}

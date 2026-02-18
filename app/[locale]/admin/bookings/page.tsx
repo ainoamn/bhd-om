@@ -3,14 +3,16 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getAllBookings, updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { getAllBookings, updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
-import { getContractByBooking, hasContractForUnit, hasActiveContractForUnit } from '@/lib/data/contracts';
-import { searchContacts, getContactDisplayName, getContactById, findContactByPhoneOrEmail, isOmaniNationality } from '@/lib/data/addressBook';
+import { getContractByBooking, hasContractForUnit, hasActiveContractForUnit, getAllContracts } from '@/lib/data/contracts';
+import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
+import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
+import { searchContacts, getContactDisplayName, getContactById, findContactByPhoneOrEmail, isOmaniNationality, isCompanyContact } from '@/lib/data/addressBook';
 import { getActiveBankAccounts, getDefaultBankAccount, getBankAccountById } from '@/lib/data/bankAccounts';
 import ContactFormModal from '@/components/admin/ContactFormModal';
 import AddUnitModal from '@/components/admin/AddUnitModal';
+import BookingDocumentsPanel from '@/components/admin/BookingDocumentsPanel';
 
 /** يطابق النص مع خيارات البحث - يدعم العربية والأرقام */
 function matchesSearch(text: string, search: string): boolean {
@@ -93,6 +95,7 @@ export default function AdminBookingsPage() {
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteBlockedId, setDeleteBlockedId] = useState<string | null>(null);
+  const [documentsPanelBooking, setDocumentsPanelBooking] = useState<PropertyBooking | null>(null);
   const propertyDropdownRef = useRef<HTMLDivElement>(null);
   const unitDropdownRef = useRef<HTMLDivElement>(null);
   const contactDropdownRef = useRef<HTMLDivElement>(null);
@@ -119,7 +122,7 @@ export default function AdminBookingsPage() {
   useEffect(() => {
     loadData();
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'bhd_property_bookings') loadData();
+      if (e.key === 'bhd_property_bookings' || e.key === 'bhd_booking_documents' || e.key === 'bhd_booking_cancellation_requests') loadData();
       if (e.key === 'bhd_bank_accounts') setBankAccountsVersion((v) => v + 1);
     };
     window.addEventListener('storage', onStorage);
@@ -155,8 +158,21 @@ export default function AdminBookingsPage() {
     loadData();
   };
 
+  const allContracts = typeof window !== 'undefined' ? getAllContracts() : [];
+  const getContractForBooking = (b: PropertyBooking) =>
+    allContracts.find((c) => c.bookingId === b.id || (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || '')));
+  const getApprovedContractForBooking = (b: PropertyBooking) =>
+    allContracts.find((c) => (c.bookingId === b.id || (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || ''))) && c.status === 'APPROVED');
   const isStatusLocked = (b: PropertyBooking) => hasContractForUnit(b.propertyId, b.unitKey);
-  const hasContract = (b: PropertyBooking) => !!getContractByBooking(b.id);
+  const hasContract = (b: PropertyBooking) => !!getContractForBooking(b);
+
+  const termsForProperty = (propId: number) => getPropertyBookingTerms(String(propId));
+  const canCreateContract = (b: PropertyBooking) => {
+    const terms = termsForProperty(b.propertyId);
+    const hasRequired = (terms.requiredDocTypes || []).some((r) => r.isRequired);
+    if (!hasRequired) return true;
+    return getDocumentsByBooking(b.id).length > 0 && areAllRequiredDocumentsApproved(b.id);
+  };
 
   const filteredBookings = bookings.filter((b) => {
     const typeMatch = filterType === 'ALL' || b.type === filterType;
@@ -175,40 +191,135 @@ export default function AdminBookingsPage() {
   const propertyIds = [...new Set(bookings.map((b) => b.propertyId))];
   const dataOverrides = getPropertyDataOverrides();
 
+  const selectedPropId = filterProperty !== 'all' ? parseInt(filterProperty, 10) : null;
+  const selectedProp = selectedPropId ? getPropertyById(selectedPropId, dataOverrides) : null;
+
   return (
     <div className="space-y-8">
-      <AdminPageHeader
-        title={ar ? 'إدارة الحجوزات' : 'Bookings Management'}
-        subtitle={ar ? 'جميع حجوزات العقارات وطلبات المعاينة' : 'All property bookings and viewing requests'}
-      />
+      <div className={`transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+            <Link
+              href={`/${locale}/admin/bookings`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all bg-white text-gray-900 shadow-sm"
+            >
+              {ar ? 'إدارة الحجوزات كاملة' : 'All Bookings'}
+            </Link>
+            <Link
+              href={propertyIds.length > 0 ? `/${locale}/admin/properties/${filterProperty !== 'all' ? filterProperty : propertyIds[0]}/bookings` : `/${locale}/admin/properties`}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                false ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+              }`}
+            >
+              {ar ? 'إدارة حجز عقار معين' : 'Property Bookings'}
+            </Link>
+          </div>
+          {propertyIds.length > 0 && (
+            <select
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) window.location.href = `/${locale}/admin/properties/${v}/bookings`;
+              }}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+              value=""
+            >
+              <option value="">{ar ? '— اختر عقار —' : '— Select property —'}</option>
+              {propertyIds.map((pid) => {
+                const p = getPropertyById(pid, dataOverrides);
+                return (
+                  <option key={pid} value={pid}>
+                    {p ? (ar ? p.titleAr : p.titleEn) : `#${pid}`}
+                  </option>
+                );
+              })}
+            </select>
+          )}
+        </div>
+        <Link
+          href={`/${locale}/admin/properties`}
+          className="inline-flex items-center gap-2 text-[#8B6F47] hover:text-[#6B5535] font-semibold mb-4 transition-colors"
+        >
+          <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center">←</span>
+          {ar ? 'العودة للعقارات' : 'Back to Properties'}
+        </Link>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
+              {ar ? 'حجوزات العقارات' : 'Property Bookings'}
+            </h1>
+            <p className="text-gray-500 mt-1 font-medium">
+              {selectedProp ? (ar ? selectedProp.titleAr : selectedProp.titleEn) : (ar ? 'جميع العقارات' : 'All Properties')}
+            </p>
+            {selectedProp && (
+              <p className="text-sm font-mono text-[#8B6F47] mt-0.5">
+                {ar ? 'رقم العقار:' : 'Property:'} {(selectedProp as { serialNumber?: string })?.serialNumber || '—'}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {(selectedPropId || propertyIds[0] || properties[0]?.id) && (
+              <>
+                <Link
+                  href={`/${locale}/admin/accounting?tab=cheques&action=add&propertyId=${selectedPropId || propertyIds[0] || properties[0]?.id}`}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all"
+                >
+                  <span>📝</span>
+                  {ar ? 'إضافة شيك' : 'Add Cheque'}
+                </Link>
+                <Link
+                  href={`/${locale}/admin/properties/${selectedPropId || propertyIds[0] || properties[0]?.id}/bookings/terms`}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
+                >
+                  <span>📋</span>
+                  {ar ? 'الشروط' : 'Terms'}
+                </Link>
+                <Link
+                  href={`/${locale}/properties/${selectedPropId || propertyIds[0] || properties[0]?.id}/book`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
+                >
+                  <span>🔗</span>
+                  {ar ? 'عرض صفحة الحجز' : 'View Booking Page'}
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
-      <div className={`grid grid-cols-2 md:grid-cols-5 gap-4 transition-all duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="admin-card p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase">{ar ? 'الإجمالي' : 'Total'}</p>
+      <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 transition-all duration-500 delay-75 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+        <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-sm hover:shadow-md transition-shadow">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ar ? 'الإجمالي' : 'Total'}</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
         </div>
-        <div className="admin-card p-5 border-amber-200">
-          <p className="text-xs font-semibold text-amber-700 uppercase">{ar ? 'قيد الانتظار' : 'Pending'}</p>
+        <div className="bg-white rounded-2xl border border-amber-200/80 p-5 shadow-sm hover:shadow-md transition-shadow">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">{ar ? 'قيد الانتظار' : 'Pending'}</p>
           <p className="text-2xl font-bold text-amber-700 mt-1">{stats.pending}</p>
         </div>
-        <div className="admin-card p-5 border-emerald-200">
-          <p className="text-xs font-semibold text-emerald-700 uppercase">{ar ? 'مؤكد' : 'Confirmed'}</p>
+        <div className="bg-white rounded-2xl border border-emerald-200/80 p-5 shadow-sm hover:shadow-md transition-shadow">
+          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">{ar ? 'مؤكد' : 'Confirmed'}</p>
           <p className="text-2xl font-bold text-emerald-700 mt-1">{stats.confirmed}</p>
         </div>
-        <div className="admin-card p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase">{ar ? 'ملغى' : 'Cancelled'}</p>
+        <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-sm hover:shadow-md transition-shadow">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ar ? 'ملغى' : 'Cancelled'}</p>
           <p className="text-2xl font-bold text-gray-600 mt-1">{stats.cancelled}</p>
         </div>
-        <div className="admin-card p-5 border-[#8B6F47]/30">
-          <p className="text-xs font-semibold text-[#8B6F47] uppercase">{ar ? 'مدفوع' : 'Paid'}</p>
+        <div className="bg-white rounded-2xl border border-[#8B6F47]/30 p-5 shadow-sm hover:shadow-md transition-shadow col-span-2 md:col-span-1">
+          <p className="text-xs font-semibold text-[#8B6F47] uppercase tracking-wider">{ar ? 'مدفوع' : 'Paid'}</p>
           <p className="text-2xl font-bold text-[#8B6F47] mt-1">{stats.withPayment}</p>
         </div>
       </div>
 
-      <div className="admin-card overflow-hidden">
+      <div className={`bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-500 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
         <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h2 className="text-lg font-bold text-gray-900">{ar ? 'طلبات الحجز والمعاينة' : 'Booking & Viewing Requests'}</h2>
-          <div className="flex flex-wrap gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{ar ? 'طلبات الحجز والمعاينة' : 'Booking & Viewing Requests'}</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {ar ? 'قم بتأكيد الحجز أو تغيير الحالة من القائمة أدناه.' : 'Confirm bookings or update status from the list below.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
             <button
               type="button"
               onClick={() => {
@@ -243,7 +354,7 @@ export default function AdminBookingsPage() {
             <select
               value={filterProperty}
               onChange={(e) => setFilterProperty(e.target.value)}
-              className="admin-select text-sm py-2"
+              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none bg-white"
             >
               <option value="all">{ar ? 'كل العقارات' : 'All Properties'}</option>
               {propertyIds.map((pid) => {
@@ -265,185 +376,330 @@ export default function AdminBookingsPage() {
             <p className="text-gray-400 text-sm mt-1">{ar ? 'ستظهر الطلبات هنا عند وصولها' : 'Requests will appear here when received'}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="admin-table min-w-[800px]">
-              <thead>
-                <tr>
-                  <th>{ar ? 'العقار' : 'Property'}</th>
-                  <th>{ar ? 'التاريخ' : 'Date'}</th>
-                  <th>{ar ? 'العميل' : 'Client'}</th>
-                  <th>{ar ? 'النوع' : 'Type'}</th>
-                  <th>{ar ? 'الوحدة' : 'Unit'}</th>
-                  <th>{ar ? 'الدفع' : 'Payment'}</th>
-                  <th>{ar ? 'الحالة' : 'Status'}</th>
-                  <th>{ar ? 'الإجراءات' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBookings.map((b) => {
-                  const { serial, label } = getUnitDisplay(b.propertyId, b.unitKey);
-                  const prop = getPropertyById(b.propertyId, dataOverrides);
-                  return (
-                    <tr key={b.id}>
-                      <td>
-                        <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="text-[#8B6F47] hover:underline font-medium">
-                          {prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}
-                        </Link>
-                      </td>
-                      <td>
-                        <span className="text-sm text-gray-600">
-                          {new Date(b.createdAt).toLocaleDateString(ar ? 'ar-OM' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </td>
-                      <td>
-                        <div>
-                          <div className="font-semibold text-gray-900">{b.name}</div>
-                          <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] hover:underline">{b.phone}</a>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`admin-badge ${b.type === 'BOOKING' ? 'admin-badge-info' : 'admin-badge-warning'}`}>
-                          {ar ? TYPE_LABELS[b.type]?.ar : TYPE_LABELS[b.type]?.en}
-                        </span>
-                      </td>
-                      <td>
-                        <div>
-                          <div className="font-medium">{label}</div>
-                          {serial && <div className="text-xs font-mono text-[#8B6F47]">{serial}</div>}
-                        </div>
-                      </td>
-                      <td>
-                        {b.type === 'BOOKING' ? (
-                          <div className="space-y-1 text-sm">
-                            <div>
-                              <span className="font-medium text-gray-700">{ar ? 'المبلغ:' : 'Amount:'}</span>{' '}
-                              {b.priceAtBooking != null ? `${b.priceAtBooking.toLocaleString()} ر.ع` : '—'}
-                            </div>
-                            <div>
-                              <span className={`admin-badge ${b.paymentConfirmed ? 'admin-badge-success' : 'admin-badge-warning'}`}>
-                                {b.paymentConfirmed ? (ar ? 'مدفوع' : 'Paid') : (ar ? 'لم يُدفع' : 'Not paid')}
-                              </span>
-                            </div>
-                            {b.paymentConfirmed && b.paymentMethod && (
-                              <div className="text-xs text-gray-600 space-y-0.5">
-                                {b.bankAccountId && typeof window !== 'undefined' && (() => {
-                                  const acc = getBankAccountById(b.bankAccountId);
-                                  return acc ? (
-                                    <div className="font-medium text-[#8B6F47]">
-                                      {ar ? `${acc.nameAr} - ${acc.bankNameAr}` : `${acc.nameEn || acc.nameAr} - ${acc.bankNameEn || acc.bankNameAr}`}
-                                    </div>
-                                  ) : null;
-                                })()}
-                                <div>
-                                  {b.paymentMethod === 'CASH' ? (ar ? 'نقداً' : 'Cash') : b.paymentMethod === 'BANK_TRANSFER' ? (ar ? 'تحويل في حساب البنك' : 'Bank transfer') : (ar ? 'شيك' : 'Cheque')}
-                                </div>
-                                {b.paymentReferenceNo && (
-                                  <div>{ar ? 'رقم الإيصال/الشيك:' : 'Ref:'} {b.paymentReferenceNo}</div>
-                                )}
-                                {b.paymentDate && (
-                                  <div>{ar ? 'التاريخ:' : 'Date:'} {new Date(b.paymentDate + 'T12:00:00').toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td>
-                        {isStatusLocked(b) ? (
-                          <span className="admin-badge admin-badge-success text-xs">
-                            {ar ? 'مؤجر (عقد)' : 'Rented (contract)'}
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-right min-w-[700px]">
+                <thead>
+                  <tr className="bg-gray-50/80">
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'العقار' : 'Property'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'التاريخ' : 'Date'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'العميل' : 'Client'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'النوع' : 'Type'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'الوحدة / الرقم المتسلسل' : 'Unit / Serial'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'الدفع' : 'Payment'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'الحالة' : 'Status'}</th>
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'الإجراءات' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredBookings.map((b) => {
+                    const { serial, label } = getUnitDisplay(b.propertyId, b.unitKey);
+                    const prop = getPropertyById(b.propertyId, dataOverrides);
+                    const propSerial = (prop as { serialNumber?: string })?.serialNumber || '';
+                    return (
+                      <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="text-[#8B6F47] hover:underline font-medium">
+                            {prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}
+                          </Link>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-600 font-medium">
+                            {new Date(b.createdAt).toLocaleDateString(ar ? 'ar-OM' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </span>
-                        ) : (
-                          <select
-                            value={b.status}
-                            onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
-                            className={`admin-select text-sm py-1 px-2 w-28 ${
-                              b.status === 'CONFIRMED' ? 'border-emerald-200 bg-emerald-50' : b.status === 'RENTED' ? 'border-blue-200 bg-blue-50' : b.status === 'SOLD' ? 'border-green-200 bg-green-50' : b.status === 'CANCELLED' ? 'bg-gray-50' : 'border-amber-200 bg-amber-50'
+                        </td>
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-900">{getBookingDisplayName(b, locale)}</span>
+                              {isCompanyBooking(b) && <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{ar ? 'شركة' : 'Company'}</span>}
+                            </div>
+                            <div className="text-xs text-gray-500">{b.email}</div>
+                            <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] hover:underline font-medium">{b.phone}</a>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-3 py-1 rounded-lg text-xs font-semibold ${b.type === 'BOOKING' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                            {ar ? TYPE_LABELS[b.type]?.ar : TYPE_LABELS[b.type]?.en}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {!b.unitKey ? (
+                            <div>
+                              <div className="text-gray-500">{ar ? 'عقار كامل' : 'Full property'}</div>
+                              {propSerial && <div className="text-xs font-mono text-[#8B6F47] mt-0.5">{propSerial}</div>}
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-medium text-gray-900">{label}</div>
+                              <div className="text-xs font-mono text-[#8B6F47] mt-0.5">{serial || b.unitKey}</div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {b.type === 'BOOKING' ? (
+                            <div className="space-y-1 text-sm">
+                              <div>
+                                <span className="font-medium text-gray-700">{ar ? 'المبلغ:' : 'Amount:'}</span>{' '}
+                                {b.priceAtBooking != null ? `${b.priceAtBooking.toLocaleString()} ر.ع` : '—'}
+                              </div>
+                              <div>
+                                <span className={`inline-flex px-3 py-1 rounded-lg text-xs font-semibold ${b.paymentConfirmed ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                  {b.paymentConfirmed ? (ar ? 'مدفوع' : 'Paid') : (ar ? 'لم يُدفع' : 'Not paid')}
+                                </span>
+                              </div>
+                              {b.paymentConfirmed && b.paymentMethod && (
+                                <div className="text-xs text-gray-600 space-y-0.5">
+                                  <div>
+                                    {b.paymentMethod === 'CASH' ? (ar ? 'نقداً' : 'Cash') : b.paymentMethod === 'BANK_TRANSFER' ? (ar ? 'تحويل في حساب البنك' : 'Bank transfer') : (ar ? 'شيك' : 'Cheque')}
+                                  </div>
+                                  {b.paymentReferenceNo && <div>{ar ? 'رقم الإيصال/الشيك:' : 'Ref:'} {b.paymentReferenceNo}</div>}
+                                  {b.paymentDate && <div>{ar ? 'التاريخ:' : 'Date:'} {new Date(b.paymentDate + 'T12:00:00').toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</div>}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {isStatusLocked(b) ? (
+                            <div className="space-y-1">
+                              {(() => {
+                                const c = getContractForBooking(b);
+                                const approved = getApprovedContractForBooking(b);
+                                const isApproved = !!approved;
+                                return (
+                                  <>
+                                    <span className={`inline-flex px-3 py-1 rounded-xl text-sm font-semibold border ${isApproved ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                      {isApproved ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)') : (ar ? 'عقد قيد الإعداد' : 'Contract in progress')}
+                                    </span>
+                                    {approved && (
+                                      <div className="text-xs text-gray-600">
+                                        {approved.monthlyRent.toLocaleString()} ر.ع/شهر • {approved.annualRent.toLocaleString()} ر.ع/سنة • {new Date(approved.startDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')} — {new Date(approved.endDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}
+                                      </div>
+                                    )}
+                                    <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block">
+                                      {ar ? 'تعديل من صفحة العقود' : 'Edit from contracts page'}
+                                    </Link>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          ) : b.type === 'BOOKING' ? (
+                            <div className="space-y-1">
+                              <div
+                                className={`inline-flex px-3 py-2 rounded-xl border text-sm font-semibold ${
+                                  b.status === 'CONFIRMED' ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700' : b.status === 'RENTED' ? 'border-blue-200 bg-blue-50/50 text-blue-700' : b.status === 'SOLD' ? 'border-green-200 bg-green-50/50 text-green-700' : b.status === 'CANCELLED' ? 'border-gray-200 bg-gray-50 text-gray-600' : 'border-amber-200 bg-amber-50/50 text-amber-700'
+                                }`}
+                              >
+                                {ar ? STATUS_LABELS[b.status].ar : STATUS_LABELS[b.status].en}
+                              </div>
+                              {b.type === 'BOOKING' && b.paymentConfirmed && !b.accountantConfirmedAt && (
+                                <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant confirmation'}</p>
+                              )}
+                              {b.status === 'CONFIRMED' && b.accountantConfirmedAt && (
+                                <p className="text-xs text-emerald-600 font-medium">{ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed'}</p>
+                              )}
+                              {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && (
+                                <p className="text-xs text-amber-600 font-medium" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}</p>
+                              )}
+                              {b.status === 'CANCELLED' && b.cancellationNote && (
+                                <p className="text-xs text-gray-600 italic" title={ar ? 'ملاحظة المحاسب' : 'Accountant note'}>{b.cancellationNote}</p>
+                              )}
+                              {!hasContract(b) && b.status !== 'CANCELLED' && (() => {
+                                if (hasBookingFinancialLinkage(b)) {
+                                  if (hasPendingCancellationRequest(b.id)) {
+                                    return <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار المحاسبة (استرداد/خصم)' : '⏳ Pending accounting (refund)'}</p>;
+                                  }
+                                  return (
+                                    <button type="button" onClick={() => { requestBookingCancellation(b.id); loadData(); }} className="text-xs text-red-600 hover:underline font-medium" title={ar ? 'يرسل الطلب للمحاسبة لاسترداد/خصم المبلغ' : 'Sends to accounting for refund/deduction'}>
+                                      {ar ? 'إلغاء الحجز' : 'Cancel booking'}
+                                    </button>
+                                  );
+                                }
+                                return (
+                                  <button type="button" onClick={() => handleStatusChange(b.id, 'CANCELLED')} className="text-xs text-red-600 hover:underline font-medium">
+                                    {ar ? 'إلغاء الحجز' : 'Cancel booking'}
+                                  </button>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <select
+                                value={b.status}
+                                onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
+                                className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+                              >
+                                <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
+                                <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
+                                <option value="RENTED">{ar ? 'مؤجر' : 'Rented'}</option>
+                                <option value="SOLD">{ar ? 'مباع' : 'Sold'}</option>
+                                <option value="CANCELLED">{ar ? 'ملغى' : 'Cancelled'}</option>
+                              </select>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {b.type === 'BOOKING' && b.status === 'CONFIRMED' && !getContractForBooking(b) && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setDocumentsPanelBooking(b)}
+                                  className="relative inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-colors"
+                                >
+                                  <span>📄</span>
+                                  {ar ? 'المستندات' : 'Documents'}
+                                  {hasDocumentsNeedingConfirmation(b.id) && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>!</span>
+                                  )}
+                                </button>
+                                {canCreateContract(b) && (
+                                  <Link href={`/${locale}/admin/contracts?createFrom=${b.id}`} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors">
+                                    <span>📋</span>
+                                    {ar ? 'إنشاء عقد' : 'Create Contract'}
+                                  </Link>
+                                )}
+                              </>
+                            )}
+                            <a href={`https://wa.me/9689115341?text=${encodeURIComponent(ar ? `مرحباً، بخصوص طلب ${b.type === 'BOOKING' ? 'الحجز' : 'المعاينة'} من ${getBookingDisplayName(b, locale)}` : `Hi, regarding ${b.type} request from ${getBookingDisplayName(b, locale)}`)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                              <span>💬</span>
+                              واتساب
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="md:hidden divide-y divide-gray-100">
+              {filteredBookings.map((b) => {
+                const { serial, label } = getUnitDisplay(b.propertyId, b.unitKey);
+                const prop = getPropertyById(b.propertyId, dataOverrides);
+                const propSerial = (prop as { serialNumber?: string })?.serialNumber || '';
+                return (
+                  <div key={b.id} className="p-5 space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-gray-900">{getBookingDisplayName(b, locale)}</p>
+                        <p className="text-sm text-gray-500">{b.email}</p>
+                        <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] font-semibold">{b.phone}</a>
+                      </div>
+                      <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${b.type === 'BOOKING' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {ar ? TYPE_LABELS[b.type]?.ar : TYPE_LABELS[b.type]?.en}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-sm text-gray-600">
+                      <span>{new Date(b.createdAt).toLocaleString(ar ? 'ar-OM' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                      <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="text-[#8B6F47] font-medium">
+                        {prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}
+                      </Link>
+                      {b.unitKey ? (
+                        <span className="font-medium">• {label}<span className="font-mono text-[#8B6F47]"> ({serial || b.unitKey})</span></span>
+                      ) : (
+                        <span className="font-medium">• {ar ? 'عقار كامل' : 'Full property'}{propSerial && <span className="font-mono text-[#8B6F47]"> ({propSerial})</span>}</span>
+                      )}
+                      {b.type === 'BOOKING' && (
+                        <span className={b.paymentConfirmed ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
+                          • {b.paymentConfirmed ? (ar ? 'مدفوع' : 'Paid') : (ar ? 'لم يُدفع' : 'Not paid')} {b.priceAtBooking != null ? ` • ${b.priceAtBooking.toLocaleString()} ر.ع` : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {isStatusLocked(b) ? (
+                        <div className="flex-1 p-3 rounded-xl bg-blue-50 border border-blue-200">
+                          {(() => {
+                            const approved = getApprovedContractForBooking(b);
+                            const isApproved = !!approved;
+                            return (
+                              <>
+                                <span className={`text-sm font-semibold ${isApproved ? 'text-blue-700' : 'text-amber-700'}`}>
+                                  {isApproved ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)') : (ar ? 'عقد قيد الإعداد' : 'Contract in progress')}
+                                </span>
+                                <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block mt-1">{ar ? 'من العقود' : 'From contracts'}</Link>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      ) : b.type === 'BOOKING' ? (
+                        <div className="flex-1 space-y-1">
+                          <div
+                            className={`inline-flex px-3 py-2 rounded-xl border text-sm font-semibold ${
+                              b.status === 'CONFIRMED' ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700' : b.status === 'RENTED' ? 'border-blue-200 bg-blue-50/50 text-blue-700' : b.status === 'CANCELLED' ? 'border-gray-200 bg-gray-50 text-gray-600' : 'border-amber-200 bg-amber-50/50 text-amber-700'
                             }`}
                           >
+                            {ar ? STATUS_LABELS[b.status].ar : STATUS_LABELS[b.status].en}
+                          </div>
+                          {b.type === 'BOOKING' && b.paymentConfirmed && !b.accountantConfirmedAt && <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant'}</p>}
+                          {b.status === 'CONFIRMED' && b.accountantConfirmedAt && <p className="text-xs text-emerald-600 font-medium">{ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed'}</p>}
+                          {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && <p className="text-xs text-amber-600 font-medium">📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}</p>}
+                          {b.status === 'CANCELLED' && b.cancellationNote && <p className="text-xs text-gray-600 italic">{b.cancellationNote}</p>}
+                          {!hasContract(b) && b.status !== 'CANCELLED' && (
+                            hasBookingFinancialLinkage(b) ? (
+                              hasPendingCancellationRequest(b.id) ? (
+                                <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار المحاسبة' : '⏳ Pending accounting'}</p>
+                              ) : (
+                                <button type="button" onClick={() => { requestBookingCancellation(b.id); loadData(); }} className="text-xs text-red-600 hover:underline font-medium">{ar ? 'إلغاء الحجز' : 'Cancel booking'}</button>
+                              )
+                            ) : (
+                              <button type="button" onClick={() => handleStatusChange(b.id, 'CANCELLED')} className="text-xs text-red-600 hover:underline font-medium">{ar ? 'إلغاء الحجز' : 'Cancel booking'}</button>
+                            )
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex-1 space-y-1">
+                          <select value={b.status} onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20">
                             <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
-                            <option value="CONFIRMED">{ar ? 'قيد الإجراءات' : 'In progress'}</option>
+                            <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
                             <option value="RENTED">{ar ? 'مؤجر' : 'Rented'}</option>
                             <option value="SOLD">{ar ? 'مباع' : 'Sold'}</option>
                             <option value="CANCELLED">{ar ? 'ملغى' : 'Cancelled'}</option>
                           </select>
-                        )}
-                      </td>
-                      <td>
-                        <div className="flex flex-wrap gap-2">
-                          {b.status === 'CONFIRMED' && !hasContract(b) && (
-                            <Link href={`/${locale}/admin/contracts?createFrom=${b.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline font-semibold">
-                              {ar ? 'إنشاء عقد' : 'Create contract'}
+                        </div>
+                      )}
+                      {b.type === 'BOOKING' && b.status === 'CONFIRMED' && !getContractForBooking(b) && (
+                        <>
+                          <button type="button" onClick={() => setDocumentsPanelBooking(b)} className="relative inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 border border-[#8B6F47]/30">
+                            📄 {ar ? 'المستندات' : 'Documents'}
+                            {hasDocumentsNeedingConfirmation(b.id) && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">!</span>}
+                          </button>
+                          {canCreateContract(b) && (
+                            <Link href={`/${locale}/admin/contracts?createFrom=${b.id}`} className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47]">
+                              📋 {ar ? 'إنشاء عقد' : 'Create Contract'}
                             </Link>
                           )}
-                          {!isStatusLocked(b) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const contact = findContactByPhoneOrEmail(b.phone, b.email);
-                                setEditingBookingId(b.id);
-                                setShowManualBooking(true);
-                                setPropertySearch('');
-                                setUnitSearch('');
-                                setContactSearch('');
-                                setContactDataConfirmedForBooking(!!contact);
-                                setPropertyDropdownOpen(false);
-                                setUnitDropdownOpen(false);
-                                setContactDropdownOpen(false);
-                                setManualForm({
-                                  propertyId: String(b.propertyId),
-                                  unitKey: b.unitKey || '',
-                                  contactId: contact?.id || '',
-                                  message: b.message || '',
-                                  paymentConfirmed: b.paymentConfirmed ?? false,
-                                  priceAtBooking: b.priceAtBooking != null ? String(b.priceAtBooking) : '',
-                                  paymentMethod: (b.paymentMethod || '') as '' | 'CASH' | 'BANK_TRANSFER' | 'CHEQUE',
-                                  paymentReferenceNo: b.paymentReferenceNo || '',
-                                  paymentDate: b.paymentDate || '',
-                                  bankAccountId: b.bankAccountId || '',
-                                });
-                              }}
-                              className="text-sm font-medium text-[#8B6F47] hover:underline"
-                            >
-                              {ar ? 'تعديل' : 'Edit'}
-                            </button>
-                          )}
-                          <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="text-sm font-medium text-violet-600 hover:underline">
-                            {ar ? 'حجوزات العقار' : 'Property'}
-                          </Link>
-                          <a
-                            href={`https://wa.me/9689115341?text=${encodeURIComponent(ar ? `مرحباً، بخصوص طلب من ${b.name}` : `Hi, regarding request from ${b.name}`)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium text-emerald-600 hover:underline"
-                          >
-                            واتساب
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (hasBookingFinancialLinkage(b)) {
-                                setDeleteBlockedId(b.id);
-                              } else {
-                                setDeleteConfirmId(b.id);
-                              }
-                            }}
-                            className="text-sm font-medium text-red-600 hover:underline"
-                          >
-                            {ar ? 'حذف' : 'Delete'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </>
+                      )}
+                      <a href={`https://wa.me/9689115341?text=${encodeURIComponent(ar ? `مرحباً، بخصوص طلب ${b.type === 'BOOKING' ? 'الحجز' : 'المعاينة'} من ${getBookingDisplayName(b, locale)}` : `Hi, regarding ${b.type} request from ${getBookingDisplayName(b, locale)}`)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-emerald-600 bg-emerald-50">
+                        💬 واتساب
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
+
+      {documentsPanelBooking && (
+        <BookingDocumentsPanel
+          open={!!documentsPanelBooking}
+          onClose={() => setDocumentsPanelBooking(null)}
+          booking={documentsPanelBooking}
+          propertyId={documentsPanelBooking.propertyId}
+          locale={locale}
+          onCreateContract={() => {
+            setDocumentsPanelBooking(null);
+            window.location.href = `/${locale}/admin/contracts?createFrom=${documentsPanelBooking!.id}`;
+          }}
+        />
+      )}
 
       {/* Modal: إضافة حجز يدوي */}
       {showManualBooking && (
@@ -479,6 +735,17 @@ export default function AdminBookingsPage() {
                 if (!isUnitAvailableForBooking(propId, manualForm.unitKey || undefined, bookings, editingBookingId || undefined)) {
                   alert(ar ? 'الوحدة المحددة محجوزة أو مؤجرة. يرجى اختيار وحدة أخرى.' : 'The selected unit is booked or rented. Please select another unit.');
                   return;
+                }
+                const bookCheck = canCreateBooking(propId, manualForm.unitKey || undefined, contact.email || '', contact.phone || '');
+                if (!bookCheck.allowed) {
+                  if (bookCheck.reason === 'ALREADY_BOOKED') {
+                    alert(ar ? 'هذا العميل لديه حجز نشط لهذا العقار بالفعل. لا يمكن إنشاء حجز مكرر.' : 'This client already has an active booking for this property. Duplicate booking not allowed.');
+                    return;
+                  }
+                  if (bookCheck.reason === 'MAX_REACHED') {
+                    alert(ar ? 'تم الوصول للحد الأقصى من الحجوزات لهذا العقار (حجزان من مستخدمين مختلفين).' : 'Maximum bookings reached for this property (2 from different users).');
+                    return;
+                  }
                 }
                 const needsCivilId = isOmaniNationality(contact.nationality);
                 const hasCivilId = !!(contact.civilId?.trim() && contact.civilIdExpiry?.trim());
@@ -532,14 +799,24 @@ export default function AdminBookingsPage() {
                   }
                 }
                 if (editingBookingId) {
+                  const isCompany = isCompanyContact(contact) && contact.companyData?.companyNameAr && contact.companyData.authorizedRepresentatives?.length;
                   updateBooking(editingBookingId, {
                     propertyId: propId,
                     unitKey: manualForm.unitKey || undefined,
                     propertyTitleAr: prop.titleAr,
                     propertyTitleEn: prop.titleEn,
+                    contactType: isCompany ? 'COMPANY' : 'PERSONAL',
                     name: getContactDisplayName(contact, locale),
                     email: contact.email || '',
                     phone: contact.phone,
+                    civilId: contact.civilId?.trim() || undefined,
+                    passportNumber: contact.passportNumber?.trim() || undefined,
+                    companyData: isCompany ? {
+                      companyNameAr: contact.companyData!.companyNameAr,
+                      companyNameEn: contact.companyData!.companyNameEn,
+                      commercialRegistrationNumber: contact.companyData!.commercialRegistrationNumber,
+                      authorizedRepresentatives: contact.companyData!.authorizedRepresentatives,
+                    } : undefined,
                     message: manualForm.message.trim() || undefined,
                     paymentConfirmed: manualForm.paymentConfirmed,
                     priceAtBooking: manualForm.priceAtBooking ? parseFloat(manualForm.priceAtBooking) : undefined,
@@ -549,14 +826,24 @@ export default function AdminBookingsPage() {
                     bankAccountId: manualForm.bankAccountId?.trim() || undefined,
                   });
                 } else {
+                  const isCompany = isCompanyContact(contact) && contact.companyData?.companyNameAr && contact.companyData.authorizedRepresentatives?.length;
                   createBooking({
                     propertyId: propId,
                     unitKey: manualForm.unitKey || undefined,
                     propertyTitleAr: prop.titleAr,
                     propertyTitleEn: prop.titleEn,
+                    contactType: isCompany ? 'COMPANY' : 'PERSONAL',
                     name: getContactDisplayName(contact, locale),
                     email: contact.email || '',
                     phone: contact.phone,
+                    civilId: contact.civilId?.trim() || undefined,
+                    passportNumber: contact.passportNumber?.trim() || undefined,
+                    companyData: isCompany ? {
+                      companyNameAr: contact.companyData!.companyNameAr,
+                      companyNameEn: contact.companyData!.companyNameEn,
+                      commercialRegistrationNumber: contact.companyData!.commercialRegistrationNumber,
+                      authorizedRepresentatives: contact.companyData!.authorizedRepresentatives,
+                    } : undefined,
                     message: manualForm.message.trim() || undefined,
                     type: 'BOOKING',
                     paymentConfirmed: manualForm.paymentConfirmed,
@@ -1080,15 +1367,15 @@ export default function AdminBookingsPage() {
         </div>
       )}
 
-      {/* Modal: لا يمكن الحذف - مرتبط بأمر حسابي، يمكن الإلغاء فقط */}
+      {/* Modal: لا يمكن الحذف - مرتبط بسند مالي، الطلب يذهب للمحاسبة */}
       {deleteBlockedId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setDeleteBlockedId(null)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-amber-700 mb-2">{ar ? 'لا يمكن حذف الحجز' : 'Cannot delete booking'}</h3>
             <p className="text-gray-600 mb-6">
               {ar
-                ? 'هذا الحجز مرتبط بأمر حسابي أو إيصال أو شيك أو عقد. لا يمكن حذفه، ولكن يمكنك إلغاؤه من قائمة الحالة.'
-                : 'This booking is linked to a financial record, receipt, cheque, or contract. It cannot be deleted, but you can cancel it from the status dropdown.'}
+                ? 'هذا الحجز مرتبط بسند مالي أو دفع. لإلغائه يجب إرسال طلب للمحاسبة لاسترداد/خصم المبلغ، ثم إتمام العملية من لوحة المحاسبة.'
+                : 'This booking is linked to a financial document or payment. To cancel, a request must be sent to accounting for refund/deduction, then completed from the accounting dashboard.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -1101,13 +1388,13 @@ export default function AdminBookingsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  updateBookingStatus(deleteBlockedId, 'CANCELLED');
+                  requestBookingCancellation(deleteBlockedId);
                   loadData();
                   setDeleteBlockedId(null);
                 }}
                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-amber-600 hover:bg-amber-700"
               >
-                {ar ? 'إلغاء الحجز' : 'Cancel booking'}
+                {ar ? 'إرسال طلب إلغاء للمحاسبة' : 'Send cancel request to accounting'}
               </button>
             </div>
           </div>

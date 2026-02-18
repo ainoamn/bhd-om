@@ -114,6 +114,12 @@ export interface AccountingDocument {
   journalEntryId?: string;
   paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'CHEQUE';
   paymentReference?: string;
+  /** رقم الشيك - عند الدفع بشيك */
+  chequeNumber?: string;
+  /** تاريخ استحقاق الشيك */
+  chequeDueDate?: string;
+  /** اسم البنك - عند الدفع بشيك */
+  chequeBankName?: string;
   notes?: string;
   /** مرفقات - روابط الملفات المرفقة */
   attachments?: { url: string; name: string }[];
@@ -224,6 +230,21 @@ export function getAccountById(id: string): ChartAccount | null {
   return getChartOfAccounts().find((a) => a.id === id) || null;
 }
 
+/** عرض الحساب حسب المستوى */
+export function getAccountDisplayByLevel(
+  acc: ChartAccount | null,
+  level: 'codeOnly' | 'nameOnly' | 'codeThenName' | 'nameThenCode',
+  ar: boolean
+): string {
+  if (!acc) return '—';
+  const name = ar ? acc.nameAr : (acc.nameEn || acc.nameAr);
+  if (level === 'codeOnly') return acc.code || '—';
+  if (level === 'nameOnly') return name || '—';
+  if (level === 'codeThenName') return [acc.code, name].filter(Boolean).join(' - ') || '—';
+  if (level === 'nameThenCode') return acc.code ? `${name} (${acc.code})` : (name || '—');
+  return `${acc.code} - ${name}`;
+}
+
 /** إعدادات السنة المالية */
 export interface FiscalSettings {
   startMonth: number;   // 1-12
@@ -304,8 +325,9 @@ export function cancelJournalEntry(id: string): JournalEntry | null {
   return engineCancelJournal(id);
 }
 
-/** الحصول على جميع القيود - قراءة مباشرة من نفس التخزين لضمان الاتساق */
+/** الحصول على جميع القيود - يُرحّل المستندات غير المرحّلة تلقائياً ثم يقرأ القيود */
 export function getAllJournalEntries(): JournalEntry[] {
+  if (typeof window !== 'undefined') postUnpostedDocuments();
   const raw = getStored<JournalEntry>(JOURNAL_KEY);
   return raw
     .map((e) => ({ ...e, version: e.version ?? 1 }))
@@ -532,8 +554,13 @@ export function postUnpostedDocuments(): PostUnpostedResult {
   return { posted, failed: errors.length, errors };
 }
 
-/** الحصول على جميع المستندات */
+/** الحصول على جميع المستندات - يُرحّل أي مستندات غير مُرحّلة تلقائياً قبل القراءة */
 export function getAllDocuments(): AccountingDocument[] {
+  if (typeof window !== 'undefined') {
+    ensureDefaultPeriods();
+    getChartOfAccounts();
+    postUnpostedDocuments();
+  }
   return getStored<AccountingDocument>(DOCUMENTS_KEY).sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -548,6 +575,7 @@ export function searchDocuments(filters: {
   propertyId?: number;
   projectId?: number;
   bookingId?: string;
+  contractId?: string;
   type?: DocumentType;
   status?: DocumentStatus;
   query?: string;
@@ -560,6 +588,7 @@ export function searchDocuments(filters: {
   if (filters.propertyId) docs = docs.filter((d) => d.propertyId === filters.propertyId);
   if (filters.projectId) docs = docs.filter((d) => d.projectId === filters.projectId);
   if (filters.bookingId) docs = docs.filter((d) => d.bookingId === filters.bookingId);
+  if (filters.contractId) docs = docs.filter((d) => d.contractId === filters.contractId);
   if (filters.type) docs = docs.filter((d) => d.type === filters.type);
   if (filters.status) docs = docs.filter((d) => d.status === filters.status);
   if (filters.query?.trim()) {
