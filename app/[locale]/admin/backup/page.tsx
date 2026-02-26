@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { downloadBackup, importBackup, resetAllOperationalData } from '@/lib/data/backup';
 import { siteConfig } from '@/config/site';
@@ -122,26 +123,24 @@ export default function BackupAdminPage() {
         </div>
 
         <div className="admin-card p-6 bg-blue-50/50 border-blue-200">
-          <h3 className="font-bold text-blue-900 mb-2">
-            {ar ? '📂 المستودع والمزامنة بين الأجهزة' : '📂 Repository & Multi-Computer Sync'}
-          </h3>
-          <p className="text-blue-800 text-sm leading-relaxed mb-3">
+          <h3 className="font-bold text-blue-900 mb-2">{ar ? 'مستودع الكود والمزامنة بين الأجهزة' : 'Code Repository & Multi-Computer Sync'}</h3>
+          <p className="text-sm text-blue-800 mb-3">
             {ar
-              ? 'الكود المصدري موجود على GitHub. للعمل على أكثر من كمبيوتر بدون انقطاع: ارفع (push) بانتظام قبل الانتقال، وسحِب (pull) عند البدء على الجهاز الآخر. راجع docs/WORKFLOW.md.'
-              : 'Source code is on GitHub. For multi-computer work without interruption: push regularly before switching, and pull when starting on another device. See docs/WORKFLOW.md.'}
+              ? 'تستخدم هذا الموقع على أكثر من كمبيوتر؟ ارفع التغييرات بانتظام (كل 30–60 دقيقة وقبل الانتقال لجهاز آخر) لمواصلة العمل بدون انقطاع.'
+              : 'Using this site on multiple computers? Push changes regularly (every 30–60 min and before switching) to continue sessions without interruption.'}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <a
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
               href={siteConfig.repository.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white bg-gray-800 hover:bg-gray-900 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-gray-800 hover:bg-gray-900 transition-colors"
             >
-              <span>🐙</span>
+              <span>📂</span>
               GitHub: {siteConfig.repository.url.replace('https://', '')}
-            </a>
-            <span className="text-sm text-blue-700 self-center">
-              {ar ? 'أمر سريع: npm run sync' : 'Quick: npm run sync'}
+            </Link>
+            <span className="text-sm text-blue-700">
+              {ar ? 'رفع التغييرات: npm run sync' : 'Push changes: npm run sync'}
             </span>
           </div>
         </div>

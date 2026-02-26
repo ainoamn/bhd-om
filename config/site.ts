@@ -43,7 +43,11 @@ export const siteConfig = {
     enabled: !!process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID,
   },
 
-  /** مستودع الكود المصدري - للتطوير والمزامنة بين الأجهزة والرفع المستقبلي */
+  /**
+   * مستودع الكود المصدري - للتطوير والمزامنة بين الأجهزة والرفع المستقبلي
+   * يُعرض في صفحة النسخ الاحتياطي /admin/backup
+   * رفع التغييرات: npm run sync أو git push origin master
+   */
   repository: {
     url: 'https://github.com/ainoamn/bhd-om',
     cloneUrl: 'https://github.com/ainoamn/bhd-om.git',
