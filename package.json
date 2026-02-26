@@ -4,7 +4,8 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/ainoamn/bhd-om.git"
+    "url": "https://github.com/ainoamn/bhd-om.git",
+    "web": "https://github.com/ainoamn/bhd-om"
   },
   "scripts": {
     "dev": "next dev",

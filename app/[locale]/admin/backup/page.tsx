@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { downloadBackup, importBackup, resetAllOperationalData } from '@/lib/data/backup';
+import { siteConfig } from '@/config/site';
 
 export default function BackupAdminPage() {
   const params = useParams();
@@ -118,6 +119,31 @@ export default function BackupAdminPage() {
               ? '🔄 قبل أي تحديث: صدّر من هنا أولاً، ثم نفّذ السكريبت scripts\\backup-all.ps1 لنسخ قاعدة البيانات، واحفظ الملفات في مكان آمن. راجع docs/UPDATE_GUIDE.md.'
               : '🔄 Before any update: export here first, then run scripts\\backup-all.ps1 to copy the database, and save files somewhere safe. See docs/UPDATE_GUIDE.md.'}
           </p>
+        </div>
+
+        <div className="admin-card p-6 bg-blue-50/50 border-blue-200">
+          <h3 className="font-bold text-blue-900 mb-2">
+            {ar ? '📂 المستودع والمزامنة بين الأجهزة' : '📂 Repository & Multi-Computer Sync'}
+          </h3>
+          <p className="text-blue-800 text-sm leading-relaxed mb-3">
+            {ar
+              ? 'الكود المصدري موجود على GitHub. للعمل على أكثر من كمبيوتر بدون انقطاع: ارفع (push) بانتظام قبل الانتقال، وسحِب (pull) عند البدء على الجهاز الآخر. راجع docs/WORKFLOW.md.'
+              : 'Source code is on GitHub. For multi-computer work without interruption: push regularly before switching, and pull when starting on another device. See docs/WORKFLOW.md.'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={siteConfig.repository.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white bg-gray-800 hover:bg-gray-900 transition-colors"
+            >
+              <span>🐙</span>
+              GitHub: {siteConfig.repository.url.replace('https://', '')}
+            </a>
+            <span className="text-sm text-blue-700 self-center">
+              {ar ? 'أمر سريع: npm run sync' : 'Quick: npm run sync'}
+            </span>
+          </div>
         </div>
 
         <div className="admin-card p-6 border-red-200 bg-red-50/50">
