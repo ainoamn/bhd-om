@@ -43,6 +43,12 @@ export const siteConfig = {
     enabled: !!process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID,
   },
 
+  /** مستودع الكود المصدري - للتطوير والمزامنة بين الأجهزة */
+  repository: {
+    url: 'https://github.com/ainoamn/bhd-om',
+    cloneUrl: 'https://github.com/ainoamn/bhd-om.git',
+  },
+
   /** إعدادات التتبع */
   tracking: {
     /** تفعيل تتبع Web Vitals */

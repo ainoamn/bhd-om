@@ -2,6 +2,10 @@
   "name": "bhd-om",
   "version": "0.1.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ainoamn/bhd-om.git"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:clean": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1",
