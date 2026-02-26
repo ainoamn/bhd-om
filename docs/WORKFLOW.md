@@ -17,10 +17,12 @@ git commit -m "وصف التغييرات"
 git push origin master
 ```
 
-أو اختصاراً بعد التأكد من التغييرات:
+أو باستخدام سكريبت المزامنة:
 
 ```bash
-git add -A && git commit -m "تحديثات الجلسة" && git push origin master
+npm run sync
+# أو مع رسالة مخصصة:
+npm run sync -- "إضافة ميزة جديدة"
 ```
 
 ---

@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:clean": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1",
+    "sync": "powershell -ExecutionPolicy Bypass -File ./scripts/git-sync.ps1",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
