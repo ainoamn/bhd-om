@@ -31,7 +31,7 @@ export default function BookingTermsPage() {
   const [termsSaving, setTermsSaving] = useState(false);
   const [termsSaved, setTermsSaved] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [showAddCustomFor, setShowAddCustomFor] = useState<'individuals' | 'companies' | null>(null);
   const [customLabelAr, setCustomLabelAr] = useState('');
   const [customLabelEn, setCustomLabelEn] = useState('');
   const [customIsRequired, setCustomIsRequired] = useState(true);
@@ -58,16 +58,23 @@ export default function BookingTermsPage() {
     setTimeout(() => setTermsSaved(false), 3000);
   };
 
-  /** المستندات المطلوبة لنوع العقد الحالي */
-  const getCurrentRequiredDocTypes = (): ContractDocRequirement[] => {
+  /** المستندات المطلوبة للأفراد لنوع العقد الحالي */
+  const getCurrentRequiredDocTypesForIndividuals = (): ContractDocRequirement[] => {
     const byType = terms.contractTermsByType?.[activeContractType];
+    if (byType?.requiredDocTypesForIndividuals?.length) return byType.requiredDocTypesForIndividuals;
     if (byType?.requiredDocTypes?.length) return byType.requiredDocTypes;
     if (terms.requiredDocTypes?.length) return terms.requiredDocTypes;
     return DEFAULT_CONTRACT_DOC_REQUIREMENTS;
   };
 
-  const setDocRequirement = (docTypeId: string, isRequired: boolean | null) => {
-    const current = getCurrentRequiredDocTypes();
+  /** المستندات المطلوبة للشركات لنوع العقد الحالي */
+  const getCurrentRequiredDocTypesForCompanies = (): ContractDocRequirement[] => {
+    const byType = terms.contractTermsByType?.[activeContractType];
+    return byType?.requiredDocTypesForCompanies ?? [];
+  };
+
+  const setDocRequirementForIndividuals = (docTypeId: string, isRequired: boolean | null) => {
+    const current = getCurrentRequiredDocTypesForIndividuals();
     const doc = CONTRACT_DOC_TYPES.find((d) => d.id === docTypeId);
     const isCustom = docTypeId.startsWith('CUSTOM_');
     if (!doc && !isCustom) return;
@@ -79,7 +86,7 @@ export default function BookingTermsPage() {
         ...terms,
         contractTermsByType: {
           ...byType,
-          [activeContractType]: { ...existingForType, requiredDocTypes: next.length ? next : undefined },
+          [activeContractType]: { ...existingForType, requiredDocTypesForIndividuals: next.length ? next : undefined },
         },
       });
       return;
@@ -94,24 +101,58 @@ export default function BookingTermsPage() {
       ...terms,
       contractTermsByType: {
         ...byType,
-        [activeContractType]: { ...existingForType, requiredDocTypes: next },
+        [activeContractType]: { ...existingForType, requiredDocTypesForIndividuals: next },
       },
     });
   };
 
-  const isDocRequired = (docTypeId: string) => {
-    return getCurrentRequiredDocTypes().some((r) => r.docTypeId === docTypeId && r.isRequired);
+  const setDocRequirementForCompanies = (docTypeId: string, isRequired: boolean | null) => {
+    const current = getCurrentRequiredDocTypesForCompanies();
+    const doc = CONTRACT_DOC_TYPES.find((d) => d.id === docTypeId);
+    const isCustom = docTypeId.startsWith('CUSTOM_');
+    if (!doc && !isCustom) return;
+    const byType = terms.contractTermsByType ?? {};
+    const existingForType = byType[activeContractType] ?? {};
+    if (isRequired === null) {
+      const next = current.filter((r) => r.docTypeId !== docTypeId);
+      setTerms({
+        ...terms,
+        contractTermsByType: {
+          ...byType,
+          [activeContractType]: { ...existingForType, requiredDocTypesForCompanies: next.length ? next : undefined },
+        },
+      });
+      return;
+    }
+    const existing = current.find((r) => r.docTypeId === docTypeId);
+    const labelAr = doc ? doc.labelAr : (existing?.labelAr || '');
+    const labelEn = doc ? doc.labelEn : (existing?.labelEn || '');
+    const next = existing
+      ? current.map((r) => (r.docTypeId === docTypeId ? { ...r, labelAr, labelEn, isRequired } : r))
+      : [...current, { docTypeId, labelAr, labelEn, isRequired }];
+    setTerms({
+      ...terms,
+      contractTermsByType: {
+        ...byType,
+        [activeContractType]: { ...existingForType, requiredDocTypesForCompanies: next },
+      },
+    });
   };
 
-  const isDocOptional = (docTypeId: string) => {
-    return getCurrentRequiredDocTypes().some((r) => r.docTypeId === docTypeId && !r.isRequired);
-  };
+  const isDocRequiredForIndividuals = (docTypeId: string) =>
+    getCurrentRequiredDocTypesForIndividuals().some((r) => r.docTypeId === docTypeId && r.isRequired);
+  const isDocOptionalForIndividuals = (docTypeId: string) =>
+    getCurrentRequiredDocTypesForIndividuals().some((r) => r.docTypeId === docTypeId && !r.isRequired);
+  const isDocRequiredForCompanies = (docTypeId: string) =>
+    getCurrentRequiredDocTypesForCompanies().some((r) => r.docTypeId === docTypeId && r.isRequired);
+  const isDocOptionalForCompanies = (docTypeId: string) =>
+    getCurrentRequiredDocTypesForCompanies().some((r) => r.docTypeId === docTypeId && !r.isRequired);
 
   const isCustomDoc = (docTypeId: string) => docTypeId.startsWith('CUSTOM_');
 
-  const addCustomDocument = (labelAr: string, labelEn: string, isRequired: boolean) => {
+  const addCustomDocumentForIndividuals = (labelAr: string, labelEn: string, isRequired: boolean) => {
     const customId = `CUSTOM_${Date.now()}`;
-    const current = getCurrentRequiredDocTypes();
+    const current = getCurrentRequiredDocTypesForIndividuals();
     const byType = terms.contractTermsByType ?? {};
     const existingForType = byType[activeContractType] ?? {};
     setTerms({
@@ -120,21 +161,51 @@ export default function BookingTermsPage() {
         ...byType,
         [activeContractType]: {
           ...existingForType,
-          requiredDocTypes: [...current, { docTypeId: customId, labelAr, labelEn, isRequired }],
+          requiredDocTypesForIndividuals: [...current, { docTypeId: customId, labelAr, labelEn, isRequired }],
         },
       },
     });
   };
 
-  const removeDocRequirement = (docTypeId: string) => {
-    const current = getCurrentRequiredDocTypes().filter((r) => r.docTypeId !== docTypeId);
+  const addCustomDocumentForCompanies = (labelAr: string, labelEn: string, isRequired: boolean) => {
+    const customId = `CUSTOM_${Date.now()}`;
+    const current = getCurrentRequiredDocTypesForCompanies();
     const byType = terms.contractTermsByType ?? {};
     const existingForType = byType[activeContractType] ?? {};
     setTerms({
       ...terms,
       contractTermsByType: {
         ...byType,
-        [activeContractType]: { ...existingForType, requiredDocTypes: current.length ? current : undefined },
+        [activeContractType]: {
+          ...existingForType,
+          requiredDocTypesForCompanies: [...current, { docTypeId: customId, labelAr, labelEn, isRequired }],
+        },
+      },
+    });
+  };
+
+  const removeDocRequirementForIndividuals = (docTypeId: string) => {
+    const current = getCurrentRequiredDocTypesForIndividuals().filter((r) => r.docTypeId !== docTypeId);
+    const byType = terms.contractTermsByType ?? {};
+    const existingForType = byType[activeContractType] ?? {};
+    setTerms({
+      ...terms,
+      contractTermsByType: {
+        ...byType,
+        [activeContractType]: { ...existingForType, requiredDocTypesForIndividuals: current.length ? current : undefined },
+      },
+    });
+  };
+
+  const removeDocRequirementForCompanies = (docTypeId: string) => {
+    const current = getCurrentRequiredDocTypesForCompanies().filter((r) => r.docTypeId !== docTypeId);
+    const byType = terms.contractTermsByType ?? {};
+    const existingForType = byType[activeContractType] ?? {};
+    setTerms({
+      ...terms,
+      contractTermsByType: {
+        ...byType,
+        [activeContractType]: { ...existingForType, requiredDocTypesForCompanies: current.length ? current : undefined },
       },
     });
   };
@@ -160,6 +231,30 @@ export default function BookingTermsPage() {
       contractTermsByType: {
         ...byType,
         [activeContractType]: { ...(byType[activeContractType] ?? {}), contractDocTermsEn: v },
+      },
+    });
+  };
+  const getEntryNoticeAr = () => terms.contractTermsByType?.[activeContractType]?.entryNoticeAr ?? '';
+  const getEntryNoticeEn = () => terms.contractTermsByType?.[activeContractType]?.entryNoticeEn ?? '';
+  const setEntryNotice = (ar: string, en: string) => {
+    const byType = terms.contractTermsByType ?? {};
+    setTerms({
+      ...terms,
+      contractTermsByType: {
+        ...byType,
+        [activeContractType]: { ...(byType[activeContractType] ?? {}), entryNoticeAr: ar || undefined, entryNoticeEn: en || undefined },
+      },
+    });
+  };
+  const getCompletionNoteAr = () => terms.contractTermsByType?.[activeContractType]?.completionNoteAr ?? '';
+  const getCompletionNoteEn = () => terms.contractTermsByType?.[activeContractType]?.completionNoteEn ?? '';
+  const setCompletionNote = (ar: string, en: string) => {
+    const byType = terms.contractTermsByType ?? {};
+    setTerms({
+      ...terms,
+      contractTermsByType: {
+        ...byType,
+        [activeContractType]: { ...(byType[activeContractType] ?? {}), completionNoteAr: ar || undefined, completionNoteEn: en || undefined },
       },
     });
   };
@@ -309,139 +404,152 @@ export default function BookingTermsPage() {
                 <textarea value={getContractTypeTermsEn()} onChange={(e) => setContractTypeTermsEn(e.target.value)} rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900 resize-none" placeholder="e.g. Tenant must provide the following documents..." />
               </div>
             </div>
+            <div className="p-5 rounded-2xl border-2 border-amber-200 bg-amber-50/30">
+              <h3 className="text-base font-bold text-gray-900 mb-2">📢 {ar ? 'ملاحظة عند الدخول للصفحة' : 'Entry notice'}</h3>
+              <p className="text-sm text-gray-600 mb-4">{ar ? 'تظهر عند دخول المستأجر لصفحة شروط العقد (استرجاع للطلب، مطلوب تحديث، طلب جديد...)' : 'Shown when tenant enters contract-terms page (e.g. request retrieval, update required, new request)'}</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الدخول (عربي)' : 'Entry notice (Arabic)'}</label>
+                  <textarea value={getEntryNoticeAr()} onChange={(e) => setEntryNotice(e.target.value, getEntryNoticeEn())} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder={ar ? 'مثال: مطلوب تحديث البيانات' : 'e.g. Update required'} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الدخول (إنجليزي)' : 'Entry notice (English)'}</label>
+                  <textarea value={getEntryNoticeEn()} onChange={(e) => setEntryNotice(getEntryNoticeAr(), e.target.value)} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder="e.g. Update required" />
+                </div>
+              </div>
+            </div>
+            <div className="p-5 rounded-2xl border-2 border-emerald-200 bg-emerald-50/30">
+              <h3 className="text-base font-bold text-gray-900 mb-2">✅ {ar ? 'ملاحظة عند اكتمال البيانات' : 'Completion note'}</h3>
+              <p className="text-sm text-gray-600 mb-4">{ar ? 'تظهر عند اكتمال المستأجر تعبئة كل البيانات والمستندات' : 'Shown when tenant completes all required data and documents'}</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الاكتمال (عربي)' : 'Completion note (Arabic)'}</label>
+                  <textarea value={getCompletionNoteAr()} onChange={(e) => setCompletionNote(e.target.value, getCompletionNoteEn())} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder={ar ? 'مثال: سنتواصل معكم قريباً' : 'e.g. We will contact you soon'} />
+            </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">{ar ? `المستندات المطلوبة - ${CONTRACT_TYPES.find((c) => c.id === activeContractType)?.labelAr}` : `Documents required - ${CONTRACT_TYPES.find((c) => c.id === activeContractType)?.labelEn}`}</label>
-              <p className="text-sm text-gray-500 mb-4">{ar ? 'حدد المستندات التي يجب إرفاقها. (مطلوب = إلزامي، اختياري = يمكن إرفاقه)' : 'Select documents to upload. (Required = mandatory, Optional = can be uploaded)'}</p>
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 mb-4">{ar ? 'ملاحظة: جواز السفر لا يُطلب تلقائياً من العمانيين (حسب بيانات دفتر العناوين). الوافدون يُطلب منهم صورة الجواز.' : 'Note: Passport is automatically excluded for Omani nationals (per address book). Expatriates are required to upload passport.'}</p>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الاكتمال (إنجليزي)' : 'Completion note (English)'}</label>
+                  <textarea value={getCompletionNoteEn()} onChange={(e) => setCompletionNote(getCompletionNoteAr(), e.target.value)} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder="e.g. We will contact you soon" />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-8">
+              {/* مستندات الأفراد */}
+              <div className="p-5 rounded-2xl border-2 border-blue-200 bg-blue-50/30">
+                <h3 className="text-base font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-600">👤</span>
+                  {ar ? 'مستندات الأفراد' : 'Individual Documents'}
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">{ar ? 'المستندات المطلوبة من المستأجر الفردي (شخصية). جواز السفر يُستبعد تلقائياً للعمانيين.' : 'Documents required from individual tenants. Passport is auto-excluded for Omani nationals.'}</p>
               <div className="flex flex-wrap gap-3">
-                {CONTRACT_DOC_TYPES.map((doc) => (
-                  <div key={doc.id} className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 bg-gray-50/50">
+                  {CONTRACT_DOC_TYPES.filter((d) => !['COMMERCIAL_REGISTRATION', 'AUTHORIZED_REP_CARD'].includes(d.id)).map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 bg-white">
                     <span className="text-sm font-medium text-gray-900">{ar ? doc.labelAr : doc.labelEn}</span>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDocRequirement(doc.id, true)}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                          isDocRequired(doc.id) ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                        }`}
-                      >
+                        <button type="button" onClick={() => setDocRequirementForIndividuals(doc.id, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocRequiredForIndividuals(doc.id) ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
                         {ar ? 'مطلوب' : 'Required'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setDocRequirement(doc.id, false)}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                          isDocOptional(doc.id) ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                        }`}
-                      >
+                        <button type="button" onClick={() => setDocRequirementForIndividuals(doc.id, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocOptionalForIndividuals(doc.id) ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
                         {ar ? 'اختياري' : 'Optional'}
-                      </button>
-                      {(isDocRequired(doc.id) || isDocOptional(doc.id)) && (
-                        <button type="button" onClick={() => setDocRequirement(doc.id, null)} className="text-xs text-red-600 hover:underline">
-                          {ar ? 'إزالة' : 'Remove'}
                         </button>
+                        {(isDocRequiredForIndividuals(doc.id) || isDocOptionalForIndividuals(doc.id)) && (
+                          <button type="button" onClick={() => setDocRequirementForIndividuals(doc.id, null)} className="text-xs text-red-600 hover:underline">{ar ? 'إزالة' : 'Remove'}</button>
                       )}
                     </div>
                   </div>
                 ))}
-                {getCurrentRequiredDocTypes().filter((r) => isCustomDoc(r.docTypeId)).map((r) => (
+                  {getCurrentRequiredDocTypesForIndividuals().filter((r) => isCustomDoc(r.docTypeId)).map((r) => (
                   <div key={r.docTypeId} className="flex items-center gap-2 p-3 rounded-xl border border-[#8B6F47]/30 bg-amber-50/50">
                     <span className="text-sm font-medium text-gray-900">{ar ? (r.labelAr || r.labelEn) : (r.labelEn || r.labelAr)}</span>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDocRequirement(r.docTypeId, true)}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                          r.isRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                        }`}
-                      >
+                        <button type="button" onClick={() => setDocRequirementForIndividuals(r.docTypeId, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${r.isRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setDocRequirementForIndividuals(r.docTypeId, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${!r.isRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
+                        <button type="button" onClick={() => removeDocRequirementForIndividuals(r.docTypeId)} className="text-xs text-red-600 hover:underline">{ar ? 'إزالة' : 'Remove'}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  {showAddCustomFor === 'individuals' ? (
+                    <div className="p-4 rounded-2xl border border-[#8B6F47]/30 bg-white space-y-4">
+                      <h4 className="font-semibold text-gray-900">{ar ? 'إضافة مستند آخر (أفراد)' : 'Add custom document (Individuals)'}</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <input type="text" value={customLabelAr} onChange={(e) => setCustomLabelAr(e.target.value)} placeholder={ar ? 'اسم المستند (عربي)' : 'Document name (Arabic)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
+                        <input type="text" value={customLabelEn} onChange={(e) => setCustomLabelEn(e.target.value)} placeholder={ar ? 'اسم المستند (إنجليزي)' : 'Document name (English)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button type="button" onClick={() => setCustomIsRequired(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${customIsRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setCustomIsRequired(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!customIsRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
+                        <button type="button" onClick={() => { if (customLabelAr.trim() || customLabelEn.trim()) { addCustomDocumentForIndividuals(customLabelAr.trim() || customLabelEn.trim(), customLabelEn.trim() || customLabelAr.trim(), customIsRequired); setCustomLabelAr(''); setCustomLabelEn(''); setShowAddCustomFor(null); } }} className="px-4 py-2 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535]">{ar ? 'إضافة' : 'Add'}</button>
+                        <button type="button" onClick={() => { setShowAddCustomFor(null); setCustomLabelAr(''); setCustomLabelEn(''); }} className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-500">{ar ? 'إلغاء' : 'Cancel'}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setShowAddCustomFor('individuals')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all">
+                      <span>+</span> {ar ? 'إضافة مستند آخر' : 'Add custom document'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* مستندات الشركات */}
+              <div className="p-5 rounded-2xl border-2 border-emerald-200 bg-emerald-50/30">
+                <h3 className="text-base font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600">🏢</span>
+                  {ar ? 'مستندات الشركات' : 'Company Documents'}
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">{ar ? 'المستندات الإضافية المطلوبة من الشركات. السجل التجاري وبطاقات المفوضين تُضاف تلقائياً من بيانات دفتر العناوين.' : 'Additional documents required from companies. Commercial Registration and rep cards are auto-added from address book.'}</p>
+                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 mb-4">
+                  {ar ? 'ملاحظة: جواز السفر إلزامي للمفوضين بالتوقيع غير العمانيين - يُضاف تلقائياً لكل مفوض وافد.' : 'Note: Passport is mandatory for non-Omani authorized representatives - auto-added for each expat rep.'}
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {CONTRACT_DOC_TYPES.filter((d) => ['COMMERCIAL_REGISTRATION', 'AUTHORIZED_REP_CARD', 'PASSPORT', 'EMPLOYMENT', 'BANK_STATEMENT', 'PREVIOUS_RENT', 'FAMILY_CARD', 'OTHER'].includes(d.id)).map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 bg-white">
+                      <span className="text-sm font-medium text-gray-900">{ar ? doc.labelAr : doc.labelEn}</span>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setDocRequirementForCompanies(doc.id, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocRequiredForCompanies(doc.id) ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
                         {ar ? 'مطلوب' : 'Required'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setDocRequirement(r.docTypeId, false)}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                          !r.isRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                        }`}
-                      >
+                        <button type="button" onClick={() => setDocRequirementForCompanies(doc.id, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocOptionalForCompanies(doc.id) ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
                         {ar ? 'اختياري' : 'Optional'}
                       </button>
-                      <button type="button" onClick={() => removeDocRequirement(r.docTypeId)} className="text-xs text-red-600 hover:underline">
-                        {ar ? 'إزالة' : 'Remove'}
-                      </button>
+                        {(isDocRequiredForCompanies(doc.id) || isDocOptionalForCompanies(doc.id)) && (
+                          <button type="button" onClick={() => setDocRequirementForCompanies(doc.id, null)} className="text-xs text-red-600 hover:underline">{ar ? 'إزالة' : 'Remove'}</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {getCurrentRequiredDocTypesForCompanies().filter((r) => isCustomDoc(r.docTypeId)).map((r) => (
+                    <div key={r.docTypeId} className="flex items-center gap-2 p-3 rounded-xl border border-[#8B6F47]/30 bg-amber-50/50">
+                      <span className="text-sm font-medium text-gray-900">{ar ? (r.labelAr || r.labelEn) : (r.labelEn || r.labelAr)}</span>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setDocRequirementForCompanies(r.docTypeId, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${r.isRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setDocRequirementForCompanies(r.docTypeId, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${!r.isRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
+                        <button type="button" onClick={() => removeDocRequirementForCompanies(r.docTypeId)} className="text-xs text-red-600 hover:underline">{ar ? 'إزالة' : 'Remove'}</button>
                     </div>
                   </div>
                 ))}
               </div>
               <div className="mt-4">
-                {showAddCustom ? (
-                  <div className="p-4 rounded-2xl border border-[#8B6F47]/30 bg-amber-50/30 space-y-4">
-                    <h4 className="font-semibold text-gray-900">{ar ? 'إضافة مستند آخر' : 'Add custom document'}</h4>
+                  {showAddCustomFor === 'companies' ? (
+                    <div className="p-4 rounded-2xl border border-[#8B6F47]/30 bg-white space-y-4">
+                      <h4 className="font-semibold text-gray-900">{ar ? 'إضافة مستند آخر (شركات)' : 'Add custom document (Companies)'}</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input
-                        type="text"
-                        value={customLabelAr}
-                        onChange={(e) => setCustomLabelAr(e.target.value)}
-                        placeholder={ar ? 'اسم المستند (عربي)' : 'Document name (Arabic)'}
-                        className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={customLabelEn}
-                        onChange={(e) => setCustomLabelEn(e.target.value)}
-                        placeholder={ar ? 'اسم المستند (إنجليزي)' : 'Document name (English)'}
-                        className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none"
-                      />
+                        <input type="text" value={customLabelAr} onChange={(e) => setCustomLabelAr(e.target.value)} placeholder={ar ? 'اسم المستند (عربي)' : 'Document name (Arabic)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
+                        <input type="text" value={customLabelEn} onChange={(e) => setCustomLabelEn(e.target.value)} placeholder={ar ? 'اسم المستند (إنجليزي)' : 'Document name (English)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-sm font-medium text-gray-700">{ar ? 'النوع:' : 'Type:'}</span>
-                      <button
-                        type="button"
-                        onClick={() => setCustomIsRequired(true)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${customIsRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
-                      >
-                        {ar ? 'مطلوب' : 'Required'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCustomIsRequired(false)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!customIsRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
-                      >
-                        {ar ? 'اختياري' : 'Optional'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (customLabelAr.trim() || customLabelEn.trim()) {
-                            addCustomDocument(customLabelAr.trim() || customLabelEn.trim(), customLabelEn.trim() || customLabelAr.trim(), customIsRequired);
-                            setCustomLabelAr('');
-                            setCustomLabelEn('');
-                            setShowAddCustom(false);
-                          }
-                        }}
-                        className="px-4 py-2 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535]"
-                      >
-                        {ar ? 'إضافة' : 'Add'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowAddCustom(false); setCustomLabelAr(''); setCustomLabelEn(''); }}
-                        className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-500"
-                      >
-                        {ar ? 'إلغاء' : 'Cancel'}
-                      </button>
-                    </div>
+                        <button type="button" onClick={() => setCustomIsRequired(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${customIsRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setCustomIsRequired(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!customIsRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
+                        <button type="button" onClick={() => { if (customLabelAr.trim() || customLabelEn.trim()) { addCustomDocumentForCompanies(customLabelAr.trim() || customLabelEn.trim(), customLabelEn.trim() || customLabelAr.trim(), customIsRequired); setCustomLabelAr(''); setCustomLabelEn(''); setShowAddCustomFor(null); } }} className="px-4 py-2 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535]">{ar ? 'إضافة' : 'Add'}</button>
+                        <button type="button" onClick={() => { setShowAddCustomFor(null); setCustomLabelAr(''); setCustomLabelEn(''); }} className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-500">{ar ? 'إلغاء' : 'Cancel'}</button>
+                      </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCustom(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
-                  >
-                    <span>+</span>
-                    {ar ? 'إضافة مستند آخر' : 'Add custom document'}
+                    <button type="button" onClick={() => setShowAddCustomFor('companies')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all">
+                      <span>+</span> {ar ? 'إضافة مستند آخر' : 'Add custom document'}
                   </button>
                 )}
+                </div>
               </div>
             </div>
           </div>

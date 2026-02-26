@@ -23,6 +23,7 @@ export default function PropertyReceiptPage() {
   const [contact, setContact] = useState<Contact | null>(null);
   const [contactFallback, setContactFallback] = useState<string>('');
   const [mounted, setMounted] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -41,6 +42,7 @@ export default function PropertyReceiptPage() {
         setContactFallback('');
       }
     }
+    setLoaded(true);
   }, [mounted, bookingId]);
 
   if (!mounted) return null;
@@ -54,6 +56,17 @@ export default function PropertyReceiptPage() {
           <Link href={`/${locale}/properties/${id}`} className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-all">
             {ar ? 'العودة للعقار' : 'Back to Property'}
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!loaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f0f0f]">
+        <div className="text-center p-12">
+          <div className="animate-spin w-12 h-12 border-2 border-[#8B6F47] border-t-transparent rounded-full mx-auto mb-6" />
+          <p className="text-white/70">{ar ? 'جاري تحميل الإيصال...' : 'Loading receipt...'}</p>
         </div>
       </div>
     );

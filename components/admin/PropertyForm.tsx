@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/icons/Icon';
 import ImagePicker from './ImagePicker';
@@ -12,6 +12,8 @@ import PropertyFormReviewPreview from './PropertyFormReviewPreview';
 import type { Property } from '@/lib/data/properties';
 import { generatePropertyDescription } from '@/lib/propertyDescriptionGenerator';
 import { omanLocations } from '@/lib/data/omanLocations';
+import { getRequiredFieldClass } from '@/lib/utils/requiredFields';
+import { loadDraft } from '@/lib/utils/draftStorage';
 
 const PROPERTY_TYPES: { ar: string; en: string }[] = [
   { ar: 'فيلا', en: 'Villa' },
@@ -172,7 +174,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
         typeAr = 'مبنى';
         typeEn = 'Building';
       }
-      setForm({
+      const baseForm: PropertyFormData = {
         titleAr: property.titleAr,
         titleEn: property.titleEn,
         landParcelNumber: (property as { landParcelNumber?: string }).landParcelNumber || '',
@@ -221,7 +223,9 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
           images: u.images ?? [],
         })) ?? [],
         villaApartment: { ...emptyVillaApartment, ...(property as { villaApartment?: VillaApartmentFormData }).villaApartment },
-      });
+      };
+      const draft = loadDraft<Partial<PropertyFormData>>(`property_${property.id}`);
+      setForm((draft && typeof draft === 'object' ? { ...baseForm, ...draft } : baseForm) as PropertyFormData);
     } else {
       setForm({ ...emptyForm });
     }
@@ -295,9 +299,37 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
     return false;
   };
 
+  /** الحقول المطلوبة في الخطوة الحالية - للون الأحمر/الأخضر */
+  const requiredFieldIdsForStep = useMemo(() => {
+    const ids = new Set<string>();
+    if (step === 1) {
+      ids.add('titleAr'); ids.add('titleEn'); ids.add('landParcelNumber');
+      if (['شقة', 'أرض', 'مبنى'].includes(form.propertyTypeAr)) ids.add('propertySubTypeAr');
+      if (form.propertyTypeAr === 'مبنى' && form.propertySubTypeAr === 'متعدد الوحدات') ids.add('unitCounts');
+    }
+    if (step === 2) {
+      ids.add('governorateAr'); ids.add('stateAr'); ids.add('areaAr');
+      if (isMultiUnit) {
+        ids.add('multiUnitTotalArea');
+        form.multiUnitShops.forEach((_, i) => { ids.add(`shop-${i}`); });
+        form.multiUnitShowrooms.forEach((_, i) => { ids.add(`showroom-${i}`); });
+        form.multiUnitApartments.forEach((_, i) => { ids.add(`apartment-${i}`); });
+      } else {
+        ids.add('price');
+        if (form.propertyTypeAr !== 'مزارع وشاليهات') ids.add('area');
+        if (form.propertyTypeAr !== 'مزارع وشاليهات' && form.propertyTypeAr !== 'أرض') {
+          ids.add('bedrooms'); ids.add('bathrooms'); ids.add('livingRooms'); ids.add('majlis'); ids.add('parkingSpaces');
+        }
+      }
+      ids.add('descriptionAr'); ids.add('descriptionEn');
+    }
+    if (step === 3) ids.add('images');
+    return ids;
+  }, [step, form.propertyTypeAr, form.propertySubTypeAr, isMultiUnit, form.multiUnitShops, form.multiUnitShowrooms, form.multiUnitApartments]);
+
   const fieldHighlight = (fieldId: string) => {
-    if (!highlightedFields.has(fieldId)) return '';
-    return isFieldValid(fieldId) ? 'ring-2 ring-green-500 border-green-500 bg-green-50' : 'ring-2 ring-red-500 border-red-500 bg-red-50';
+    if (!requiredFieldIdsForStep.has(fieldId)) return '';
+    return getRequiredFieldClass(true, isFieldValid(fieldId) ? 'x' : '');
   };
 
   const labelsToFieldIds = (labels: string[]): Set<string> => {
@@ -625,7 +657,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
               </div>
               <div className="admin-card-body space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className={highlightedFields.has('titleAr') ? `rounded-lg p-3 -m-3 ${isFieldValid('titleAr') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
+                  <div className={requiredFieldIdsForStep.has('titleAr') ? `rounded-lg p-3 -m-3 ${getRequiredFieldClass(true, form.titleAr) === 'input-required-valid' ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
                     <TranslateField
                       value={form.titleAr}
                       onChange={(v) => setForm({ ...form, titleAr: v })}
@@ -638,7 +670,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                       translateFrom="en"
                     />
                   </div>
-                  <div className={highlightedFields.has('titleEn') ? `rounded-lg p-3 -m-3 ${isFieldValid('titleEn') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
+                  <div className={requiredFieldIdsForStep.has('titleEn') ? `rounded-lg p-3 -m-3 ${getRequiredFieldClass(true, form.titleEn) === 'input-required-valid' ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
                     <TranslateField
                       value={form.titleEn}
                       onChange={(v) => setForm({ ...form, titleEn: v })}
@@ -653,7 +685,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className={highlightedFields.has('landParcelNumber') ? `rounded-lg p-3 -m-3 ${isFieldValid('landParcelNumber') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
+                  <div className={requiredFieldIdsForStep.has('landParcelNumber') ? `rounded-lg p-3 -m-3 ${isFieldValid('landParcelNumber') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
                     <label className="admin-input-label">
                       {ar ? 'رقم قطعة الأرض' : 'Land Parcel Number'}
                       <span className="text-red-500"> *</span>
@@ -767,7 +799,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                   {form.propertyTypeAr === 'مبنى' && form.propertySubTypeAr === 'متعدد الوحدات' && (
                     <div
                       className={`md:col-span-2 p-4 rounded-xl border ${
-                        highlightedFields.has('unitCounts')
+                        requiredFieldIdsForStep.has('unitCounts')
                           ? isFieldValid('unitCounts') ? 'bg-green-50 border-green-400 ring-2 ring-green-300' : 'bg-red-50 border-red-400 ring-2 ring-red-300'
                           : 'bg-primary/5 border-primary/20'
                       }`}
@@ -950,7 +982,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                     <div
                       className={`p-4 rounded-xl border transition-colors ${
                         (() => {
-                          const unitIds = [...highlightedFields].filter((id) => id.startsWith('shop-') || id.startsWith('showroom-') || id.startsWith('apartment-'));
+                          const unitIds = [...requiredFieldIdsForStep].filter((id) => id.startsWith('shop-') || id.startsWith('showroom-') || id.startsWith('apartment-'));
                           if (unitIds.length === 0) return 'bg-primary/5 border-primary/20';
                           const allValid = unitIds.every((id) => isFieldValid(id));
                           return allValid ? 'bg-green-50 border-green-400 ring-2 ring-green-300' : 'bg-red-50 border-red-400 ring-2 ring-red-300';
@@ -987,7 +1019,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                       shops={form.multiUnitShops}
                       showrooms={form.multiUnitShowrooms}
                       apartments={form.multiUnitApartments}
-                      highlightedUnitIds={highlightedFields}
+                      highlightedUnitIds={requiredFieldIdsForStep}
                       onSave={(shops, showrooms, apartments) => {
                         setForm((prev) => ({
                           ...prev,
@@ -1055,7 +1087,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                   </>
                 )}
 
-                <div className={`space-y-2 ${highlightedFields.has('descriptionAr') ? `rounded-lg p-3 -m-3 ${isFieldValid('descriptionAr') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}`}>
+                <div className={`space-y-2 ${requiredFieldIdsForStep.has('descriptionAr') ? `rounded-lg p-3 -m-3 ${isFieldValid('descriptionAr') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="admin-input-label">{ar ? 'الوصف بالعربية' : 'Description (Arabic)'}</label>
                     <button
@@ -1083,7 +1115,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                     translateFrom="en"
                   />
                 </div>
-                <div className={highlightedFields.has('descriptionEn') ? `rounded-lg p-3 -m-3 ${isFieldValid('descriptionEn') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
+                <div className={requiredFieldIdsForStep.has('descriptionEn') ? `rounded-lg p-3 -m-3 ${isFieldValid('descriptionEn') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
                   <TranslateField
                     value={form.descriptionEn}
                     onChange={(v) => setForm({ ...form, descriptionEn: v })}
@@ -1115,7 +1147,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                 </p>
               </div>
               <div className="admin-card-body space-y-6">
-                <div className={highlightedFields.has('images') ? `rounded-lg p-3 -m-3 ${isFieldValid('images') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
+                <div className={requiredFieldIdsForStep.has('images') ? `rounded-lg p-3 -m-3 ${isFieldValid('images') ? 'ring-2 ring-green-500 border border-green-500 bg-green-50' : 'ring-2 ring-red-500 border border-red-500 bg-red-50'}` : ''}>
                   <label className="admin-input-label">{ar ? 'الصور' : 'Images'} *</label>
                   <p className="text-sm text-gray-500 mb-3">
                     {ar ? 'اختر من الجهاز أو من الاستوديو. الصورة الأولى هي الرئيسية. (مطلوب صورة واحدة على الأقل)' : 'Select from device or studio. First image is the main image. (At least one image required)'}

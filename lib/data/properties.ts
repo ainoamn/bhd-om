@@ -132,6 +132,35 @@ export type Property = (typeof properties)[number] & {
   /** رقم الرسم المساحي (الكروركي) - اختياري */
   surveyMapNumber?: string;
   areaAr?: string;
+  /** === البيانات الإضافية للمبنى === */
+  /** رقم المجمع */
+  complexNumber?: string;
+  /** نوع استعمال الأرض */
+  landUseType?: string;
+  /** رقم السكة/الزقاق */
+  streetAlleyNumber?: string;
+  /** رقم عداد الكهرباء */
+  electricityMeterNumber?: string;
+  /** رقم عداد الماء */
+  waterMeterNumber?: string;
+  /** رقم إدارة المبنى */
+  buildingManagementNumber?: string;
+  /** أسم الشخص المسؤول (إدارة المبنى) */
+  responsiblePersonName?: string;
+  /** رقم حارس المبنى */
+  buildingGuardNumber?: string;
+  /** أسم الحارس */
+  guardName?: string;
+  /** رقم الصيانة */
+  maintenanceNumber?: string;
+  /** أسم المسؤول عن الصيانة */
+  maintenanceResponsibleName?: string;
+  /** عداد الحريق / رقم أو معلومات */
+  fireExtinguisherInfo?: string;
+  /** رقم الهاتف (للمبنى) */
+  buildingPhoneNumber?: string;
+  /** رقم الانترنت */
+  internetNumber?: string;
   areaEn?: string;
   /** حالة العقار: شاغر/مؤجر/مباع/محجوز/مسودة */
   businessStatus?: PropertyBusinessStatus;

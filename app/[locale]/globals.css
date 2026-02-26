@@ -299,13 +299,14 @@ img[src="/omr-symbol.png"] {
   margin: 0 auto;
 }
 
-/* Hide header on all pages (navigation is now inside PageHero) */
-.projects-page-header {
-  display: none !important;
-}
-
+/* الهيدر يظهر مع شريط المستخدم - PageHero يخفيه عند الحاجة عبر useEffect */
 .projects-page-main {
-  padding-top: 0 !important;
+  padding-top: 5rem; /* مساحة للهيدر والـ UserTopBar عند تسجيل الدخول */
+}
+@media (min-width: 640px) {
+  .projects-page-main {
+    padding-top: 6rem;
+  }
 }
 
 /* Golden filter for BHD logo - converts ALL letters to match primary color #8B6F47 */
@@ -418,6 +419,31 @@ img[src="/omr-symbol.png"] {
     box-shadow: none !important;
     background: white !important;
   }
+}
+
+/* ========================================
+   الحقول الإجبارية - سلوك عام لكل الموقع
+   إطار أحمر عند الفراغ | أخضر عند التعبئة
+   ======================================== */
+.input-required-error,
+.admin-input.input-required-error,
+.admin-select.input-required-error,
+input.input-required-error,
+select.input-required-error,
+textarea.input-required-error {
+  border-color: rgb(239 68 68) !important;
+  --tw-ring-color: rgba(239, 68, 68, 0.25);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+.input-required-valid,
+.admin-input.input-required-valid,
+.admin-select.input-required-valid,
+input.input-required-valid,
+select.input-required-valid,
+textarea.input-required-valid {
+  border-color: rgb(34 197 94) !important;
+  --tw-ring-color: rgba(34, 197, 94, 0.2);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
 }
 
 /* تنسيق الجداول والمستندات القابلة للطباعة */

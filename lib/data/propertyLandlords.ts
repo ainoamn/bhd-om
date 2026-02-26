@@ -55,3 +55,13 @@ export function setPropertyLandlord(propertyId: number, contactId: string): void
   data[String(propertyId)] = contactId.trim();
   save(data);
 }
+
+/** العقارات المرتبطة بمالك (contactId) */
+export function getPropertyIdsForLandlord(contactId: string): number[] {
+  if (!contactId?.trim()) return [];
+  const data = getStored();
+  return Object.entries(data)
+    .filter(([, cid]) => (cid || '').trim() === contactId.trim())
+    .map(([pid]) => parseInt(pid, 10))
+    .filter((n) => !isNaN(n));
+}

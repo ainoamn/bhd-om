@@ -15,14 +15,16 @@ import {
 import { getAllBookings, updateBooking, getBookingDisplayName } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
-import { getContactById, getContactDisplayName } from '@/lib/data/addressBook';
+import { getContactById, getContactDisplayName, findContactByPhoneOrEmail, isOmaniNationality } from '@/lib/data/addressBook';
+import { isPropertyExtraDataComplete } from '@/lib/data/propertyExtraData';
 
 const STATUS_LABELS: Record<ContractStatus, { ar: string; en: string }> = {
-  DRAFT: { ar: 'مسودة', en: 'Draft' },
-  ADMIN_APPROVED: { ar: 'اعتمدته الإدارة', en: 'Admin Approved' },
+  DRAFT: { ar: 'مسودة - بانتظار رفع المستندات', en: 'Draft - Pending docs' },
+  ADMIN_APPROVED: { ar: 'اعتماد مبدئي من الإدارة', en: 'Preliminary admin approval' },
   TENANT_APPROVED: { ar: 'اعتمده المستأجر', en: 'Tenant Approved' },
   LANDLORD_APPROVED: { ar: 'اعتمده المالك', en: 'Landlord Approved' },
   APPROVED: { ar: 'معتمد - نافذ', en: 'Approved - Active' },
+  CANCELLED: { ar: 'مُشطوب', en: 'Cancelled' },
 };
 
 export default function AdminContractsPage() {
@@ -57,13 +59,22 @@ export default function AdminContractsPage() {
     const createFrom = searchParams?.get('createFrom');
     if (!createFrom || !mounted) return;
     const b = getAllBookings().find((x) => x.id === createFrom);
-    if (!b || b.type !== 'BOOKING' || getContractByBooking(b.id)) return;
+    if (!b || b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || getContractByBooking(b.id)) return;
+    if (!isPropertyExtraDataComplete(b.propertyId)) {
+      const msgAr = 'يجب إكمال البيانات الإضافية للمبنى أولاً قبل إنشاء عقد الإيجار.\n\nاضغط موافق للانتقال إلى صفحة إكمال البيانات.';
+      const msgEn = 'You must complete the additional building data before creating a rental contract.\n\nClick OK to go to the data completion page.';
+      alert(locale === 'ar' ? msgAr : msgEn);
+      window.location.href = `/${locale}/admin/properties/${b.propertyId}/extra-data`;
+      return;
+    }
     const dataOverrides = getPropertyDataOverrides();
     const prop = getPropertyById(b.propertyId, dataOverrides);
     if (!prop) return;
     const monthlyRent = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
     const landlordContactId = getPropertyLandlordContactId(b.propertyId);
     const landlordContact = landlordContactId ? getContactById(landlordContactId) : null;
+    const tenantContact = findContactByPhoneOrEmail(b.phone, b.email);
+    const tenantName = tenantContact ? getContactDisplayName(tenantContact, locale) : getBookingDisplayName(b, locale);
     const landlordName = landlordContact ? getContactDisplayName(landlordContact, locale) : '';
     const contract = createContract({
       bookingId: b.id,
@@ -71,15 +82,34 @@ export default function AdminContractsPage() {
       unitKey: b.unitKey,
       propertyTitleAr: prop.titleAr,
       propertyTitleEn: prop.titleEn,
-      tenantName: getBookingDisplayName(b, locale),
-      tenantEmail: b.email,
-      tenantPhone: b.phone,
+      tenantName: tenantName || b.name || '',
+      tenantEmail: b.email || '',
+      tenantPhone: b.phone || '',
+      tenantNationality: tenantContact?.nationality ?? undefined,
+      tenantGender: tenantContact?.gender ?? undefined,
+      tenantCivilId: tenantContact?.civilId ?? undefined,
+      tenantCivilIdExpiry: tenantContact?.civilIdExpiry ?? undefined,
+      tenantPassportNumber: isOmaniNationality(tenantContact?.nationality ?? '') ? undefined : (tenantContact?.passportNumber ?? undefined),
+      tenantPassportExpiry: isOmaniNationality(tenantContact?.nationality ?? '') ? undefined : (tenantContact?.passportExpiry ?? undefined),
+      tenantWorkplace: tenantContact?.workplace ?? undefined,
+      tenantWorkplaceEn: tenantContact?.workplaceEn ?? undefined,
+      tenantPosition: tenantContact?.position ?? undefined,
       landlordName: landlordName || '',
       landlordEmail: landlordContact?.email ?? undefined,
       landlordPhone: landlordContact?.phone ?? undefined,
+      landlordNationality: landlordContact?.nationality ?? undefined,
+      landlordGender: landlordContact?.gender ?? undefined,
+      landlordCivilId: landlordContact?.civilId ?? undefined,
+      landlordCivilIdExpiry: landlordContact?.civilIdExpiry ?? undefined,
+      landlordPassportNumber: isOmaniNationality(landlordContact?.nationality ?? '') ? undefined : (landlordContact?.passportNumber ?? undefined),
+      landlordPassportExpiry: isOmaniNationality(landlordContact?.nationality ?? '') ? undefined : (landlordContact?.passportExpiry ?? undefined),
+      landlordWorkplace: landlordContact?.workplace ?? undefined,
+      landlordWorkplaceEn: landlordContact?.workplaceEn ?? undefined,
       monthlyRent,
       annualRent: monthlyRent * 12,
-      depositAmount: monthlyRent,
+      depositAmount: b.priceAtBooking ?? monthlyRent,
+      depositCashAmount: b.priceAtBooking ?? monthlyRent,
+      depositCashReceiptNumber: b.depositReceiptNumber,
       checks: [],
       startDate: new Date().toISOString().slice(0, 10),
       endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -90,7 +120,7 @@ export default function AdminContractsPage() {
     loadData();
     window.history.replaceState({}, '', `/${locale}/admin/contracts`);
     window.location.href = `/${locale}/admin/contracts/${contract.id}`;
-  }, [searchParams?.get('createFrom'), mounted]);
+  }, [searchParams?.get('createFrom'), mounted, locale]);
 
   const confirmedBookingsWithoutContract = bookings.filter(
     (b) => b.type === 'BOOKING' && b.status === 'CONFIRMED' && !getContractByBooking(b.id)
@@ -99,12 +129,21 @@ export default function AdminContractsPage() {
   const handleCreateFromBooking = (bookingId: string) => {
     const b = bookings.find((x) => x.id === bookingId);
     if (!b) return;
+    if (!isPropertyExtraDataComplete(b.propertyId)) {
+      const msgAr = 'يجب إكمال البيانات الإضافية للمبنى أولاً قبل إنشاء عقد الإيجار.\n\nاضغط موافق للانتقال إلى صفحة إكمال البيانات.';
+      const msgEn = 'You must complete the additional building data before creating a rental contract.\n\nClick OK to go to the data completion page.';
+      alert(locale === 'ar' ? msgAr : msgEn);
+      window.location.href = `/${locale}/admin/properties/${b.propertyId}/extra-data`;
+      return;
+    }
     const dataOverrides = getPropertyDataOverrides();
     const prop = getPropertyById(b.propertyId, dataOverrides);
     if (!prop) return;
     const monthlyRent = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
     const landlordContactId = getPropertyLandlordContactId(b.propertyId);
     const landlordContact = landlordContactId ? getContactById(landlordContactId) : null;
+    const tenantContact = findContactByPhoneOrEmail(b.phone, b.email);
+    const tenantName = tenantContact ? getContactDisplayName(tenantContact, locale) : getBookingDisplayName(b, locale);
     const landlordName = landlordContact ? getContactDisplayName(landlordContact, locale) : '';
     const contract = createContract({
       bookingId: b.id,
@@ -112,15 +151,34 @@ export default function AdminContractsPage() {
       unitKey: b.unitKey,
       propertyTitleAr: prop.titleAr,
       propertyTitleEn: prop.titleEn,
-      tenantName: getBookingDisplayName(b, locale),
-      tenantEmail: b.email,
-      tenantPhone: b.phone,
+      tenantName: tenantName || b.name || '',
+      tenantEmail: b.email || '',
+      tenantPhone: b.phone || '',
+      tenantNationality: tenantContact?.nationality ?? undefined,
+      tenantGender: tenantContact?.gender ?? undefined,
+      tenantCivilId: tenantContact?.civilId ?? undefined,
+      tenantCivilIdExpiry: tenantContact?.civilIdExpiry ?? undefined,
+      tenantPassportNumber: isOmaniNationality(tenantContact?.nationality ?? '') ? undefined : (tenantContact?.passportNumber ?? undefined),
+      tenantPassportExpiry: isOmaniNationality(tenantContact?.nationality ?? '') ? undefined : (tenantContact?.passportExpiry ?? undefined),
+      tenantWorkplace: tenantContact?.workplace ?? undefined,
+      tenantWorkplaceEn: tenantContact?.workplaceEn ?? undefined,
+      tenantPosition: tenantContact?.position ?? undefined,
       landlordName: landlordName || '',
       landlordEmail: landlordContact?.email ?? undefined,
       landlordPhone: landlordContact?.phone ?? undefined,
+      landlordNationality: landlordContact?.nationality ?? undefined,
+      landlordGender: landlordContact?.gender ?? undefined,
+      landlordCivilId: landlordContact?.civilId ?? undefined,
+      landlordCivilIdExpiry: landlordContact?.civilIdExpiry ?? undefined,
+      landlordPassportNumber: isOmaniNationality(landlordContact?.nationality ?? '') ? undefined : (landlordContact?.passportNumber ?? undefined),
+      landlordPassportExpiry: isOmaniNationality(landlordContact?.nationality ?? '') ? undefined : (landlordContact?.passportExpiry ?? undefined),
+      landlordWorkplace: landlordContact?.workplace ?? undefined,
+      landlordWorkplaceEn: landlordContact?.workplaceEn ?? undefined,
       monthlyRent,
       annualRent: monthlyRent * 12,
-      depositAmount: monthlyRent,
+      depositAmount: b.priceAtBooking ?? monthlyRent,
+      depositCashAmount: b.priceAtBooking ?? monthlyRent,
+      depositCashReceiptNumber: b.depositReceiptNumber,
       checks: [],
       startDate: new Date().toISOString().slice(0, 10),
       endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -213,7 +271,7 @@ export default function AdminContractsPage() {
             >
               {ar ? 'الكل' : 'All'}
             </button>
-            {(['DRAFT', 'ADMIN_APPROVED', 'TENANT_APPROVED', 'LANDLORD_APPROVED', 'APPROVED'] as ContractStatus[]).map((s) => (
+            {(['DRAFT', 'ADMIN_APPROVED', 'TENANT_APPROVED', 'LANDLORD_APPROVED', 'APPROVED', 'CANCELLED'] as ContractStatus[]).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -275,7 +333,7 @@ export default function AdminContractsPage() {
                     <td>
                       <span
                         className={`admin-badge ${
-                          c.status === 'APPROVED' ? 'admin-badge-success' : c.status === 'DRAFT' ? 'admin-badge-warning' : 'admin-badge-info'
+                          c.status === 'APPROVED' ? 'admin-badge-success' : c.status === 'DRAFT' ? 'admin-badge-warning' : c.status === 'CANCELLED' ? 'bg-gray-100 text-gray-600' : 'admin-badge-info'
                         }`}
                       >
                         {ar ? STATUS_LABELS[c.status]?.ar : STATUS_LABELS[c.status]?.en}

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import PropertyForm from '@/components/admin/PropertyForm';
 import { getPropertyById, updateProperty, updatePropertyUnit, type Property } from '@/lib/data/properties';
 import type { PropertyFormData } from '@/components/admin/PropertyForm';
+import { saveDraft, clearDraft } from '@/lib/utils/draftStorage';
 
 function formToUpdatePayload(form: PropertyFormData, property: NonNullable<ReturnType<typeof getPropertyById>>) {
   const image = form.images[0] || property.image;
@@ -87,6 +88,7 @@ export default function EditPropertyPage() {
   const handleSubmit = (form: PropertyFormData, publish: boolean) => {
     if (!property) return;
     const isMultiUnit = form.propertyTypeAr === 'مبنى' && form.propertySubTypeAr === 'متعدد الوحدات';
+    clearDraft(`property_${id}`);
     updateProperty(id, {
       ...formToUpdatePayload(form, property),
       businessStatus: publish ? 'AVAILABLE' : 'DRAFT',
@@ -102,12 +104,8 @@ export default function EditPropertyPage() {
 
   const handleAutoSave = useCallback((form: PropertyFormData) => {
     if (!property) return;
-    updateProperty(id, {
-      ...formToUpdatePayload(form, property),
-      businessStatus: ((property as { businessStatus?: string }).businessStatus || 'DRAFT') as import('@/lib/data/properties').PropertyBusinessStatus,
-      isPublished: (property as { isPublished?: boolean }).isPublished,
-    } as Partial<Property>);
-  }, [id, property]);
+    saveDraft(`property_${id}`, form);
+  }, [id]);
 
   if (loading) {
     return (

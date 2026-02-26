@@ -7,6 +7,7 @@ import { getBookingsByProperty, updateBookingStatus, syncPaidBookingsToAccountin
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
 import { hasContractForUnit, getContractsByProperty } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
+import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
 import BookingDocumentsPanel from '@/components/admin/BookingDocumentsPanel';
 
@@ -83,9 +84,16 @@ export default function PropertyBookingsPage() {
 
   const contracts = getContractsByProperty(parseInt(id, 10));
   const getContractForBooking = (b: PropertyBooking) =>
-    contracts.find((c) => (c.bookingId === b.id || (c.unitKey === b.unitKey)));
-  const getApprovedContractForBooking = (b: PropertyBooking) =>
-    contracts.find((c) => (c.bookingId === b.id || (c.unitKey === b.unitKey)) && c.status === 'APPROVED');
+    contracts.find(
+      (c) =>
+        c.bookingId === b.id ||
+        (b.contractId && c.id === b.contractId) ||
+        (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || ''))
+    );
+  const getApprovedContractForBooking = (b: PropertyBooking) => {
+    const c = getContractForBooking(b);
+    return c && c.status === 'APPROVED' ? c : undefined;
+  };
   const isStatusLocked = (b: PropertyBooking) => hasContractForUnit(parseInt(id, 10), b.unitKey);
 
   const terms = getPropertyBookingTerms(id);
@@ -322,12 +330,20 @@ export default function PropertyBookingsPage() {
                               const c = getContractForBooking(b);
                               const approved = getApprovedContractForBooking(b);
                               const isApproved = !!approved;
+                              const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
+                              const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : c.status === 'APPROVED'
+                                ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
+                                : c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED'
+                                  ? allDocsAndChecksApproved
+                                    ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
+                                    : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
+                                  : (ar ? 'عقد مسودة - بانتظار رفع المستندات' : 'Draft - pending document upload');
                               return (
                                 <>
                                   <span className={`inline-flex px-3 py-1 rounded-xl text-sm font-semibold border ${
                                     isApproved ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'
                                   }`}>
-                                    {isApproved ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)') : (ar ? 'عقد قيد الإعداد' : 'Contract in progress')}
+                                    {contractStatusLabel}
                                   </span>
                                   {approved && (
                                     <div className="text-xs text-gray-600">
@@ -374,8 +390,8 @@ export default function PropertyBookingsPage() {
                               </p>
                             )}
                             {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && (
-                              <p className="text-xs text-amber-600 font-medium" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>
-                                📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}
+                              <p className="text-xs text-amber-600 font-medium" title={ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}>
+                                📋 {ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}
                               </p>
                             )}
                             {b.status === 'CANCELLED' && b.cancellationNote && (
@@ -427,7 +443,7 @@ export default function PropertyBookingsPage() {
                                 <span>📄</span>
                                 {ar ? 'المستندات' : 'Documents'}
                                 {hasDocumentsNeedingConfirmation(b.id) && (
-                                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>!</span>
+                                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold" title={ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}>!</span>
                                 )}
                               </button>
                               {canCreateContract(b) && (
@@ -514,12 +530,21 @@ export default function PropertyBookingsPage() {
                     {isStatusLocked(b) ? (
                       <div className="flex-1 p-3 rounded-xl bg-blue-50 border border-blue-200">
                         {(() => {
+                          const c = getContractForBooking(b);
                           const approved = getApprovedContractForBooking(b);
                           const isApproved = !!approved;
+                          const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
+                          const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : c.status === 'APPROVED'
+                            ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
+                            : c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED'
+                              ? allDocsAndChecksApproved
+                                ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
+                                : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
+                              : (ar ? 'عقد مسودة - بانتظار رفع المستندات' : 'Draft - pending document upload');
                           return (
                             <>
                               <span className={`text-sm font-semibold ${isApproved ? 'text-blue-700' : 'text-amber-700'}`}>
-                                {isApproved ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)') : (ar ? 'عقد قيد الإعداد' : 'Contract in progress')}
+                                {contractStatusLabel}
                               </span>
                               {approved && (
                                 <div className="text-xs text-gray-600 mt-1">
@@ -549,7 +574,7 @@ export default function PropertyBookingsPage() {
                           <p className="text-xs text-emerald-600 font-medium">{ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed'}</p>
                         )}
                         {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && (
-                          <p className="text-xs text-amber-600 font-medium">📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}</p>
+                          <p className="text-xs text-amber-600 font-medium">📋 {ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}</p>
                         )}
                         {b.status === 'CANCELLED' && b.cancellationNote && <p className="text-xs text-gray-600 italic">{b.cancellationNote}</p>}
                         {!getContractForBooking(b) && b.status !== 'CANCELLED' && (

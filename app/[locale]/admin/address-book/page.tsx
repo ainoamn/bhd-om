@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
   getAllContacts,
   searchContacts,
+  getRepDisplayName,
+  buildRepNameFromParts,
   createContact,
   updateContact,
   deleteContact,
@@ -35,6 +38,7 @@ import {
   getAllPersonalContacts,
   findDuplicateContactGroups,
   mergeDuplicateContacts,
+  normalizePhoneForComparison,
   type Contact,
   type ContactCategory,
   type ContactAddress,
@@ -49,6 +53,10 @@ import { getAllNationalityValues } from '@/lib/data/nationalities';
 import { siteConfig } from '@/config/site';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
+import { normalizeDateForInput } from '@/lib/utils/dateFormat';
+import { filterContactsByRolePermissions } from '@/lib/data/contactCategoryPermissions';
+import { ROLE_TO_DASHBOARD_TYPE } from '@/lib/config/dashboardRoles';
+import UserBarcode from '@/components/admin/UserBarcode';
 
 const CATEGORY_KEYS: Record<ContactCategory, string> = {
   CLIENT: 'categoryClient',
@@ -76,6 +84,11 @@ const emptyAddress: ContactAddress = {
 const emptyRep = (): AuthorizedRepresentative => ({
   id: `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
   name: '',
+  firstName: '',
+  secondName: '',
+  thirdName: '',
+  familyName: '',
+  companyName: '',
   nameEn: '',
   nationality: '',
   civilId: '',
@@ -124,7 +137,10 @@ const emptyForm = {
 export default function AdminAddressBookPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
+  const { data: session } = useSession();
   const t = useTranslations('addressBook');
+  const tUsers = useTranslations('usersAdmin');
+  const userRole = (session?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState('');
@@ -140,8 +156,14 @@ export default function AdminAddressBookPage() {
   const [importResult, setImportResult] = useState<number | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [syncResult, setSyncResult] = useState<{ added: number; updated: number } | null>(null);
+  const [syncFromUsersResult, setSyncFromUsersResult] = useState<number | null>(null);
+  const [syncingFromUsers, setSyncingFromUsers] = useState(false);
+  const [userCreateMsg, setUserCreateMsg] = useState<string | null>(null);
+  const [createAccountsResult, setCreateAccountsResult] = useState<{ created: number; linked: number } | null>(null);
+  const [creatingAccounts, setCreatingAccounts] = useState(false);
   const [mergeResult, setMergeResult] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [generatedCreds, setGeneratedCreds] = useState<{ email?: string; tempPassword: string; serialNumber?: string } | null>(null);
   const [repLinkModal, setRepLinkModal] = useState<{ repIdx: number; matches: Contact[] } | null>(null);
   const [repSearchTarget, setRepSearchTarget] = useState<number | null>(null);
   const [repDropdownOpen, setRepDropdownOpen] = useState<number | null>(null);
@@ -173,8 +195,8 @@ export default function AdminAddressBookPage() {
       if (editingId) exclude.push(editingId);
       const civilId = rep.civilId?.trim();
       const passport = rep.passportNumber?.trim();
-      const nameInput = (rep.name || '').trim();
-      const firstName = nameInput.split(/\s+/)[0];
+      const nameInput = (buildRepNameFromParts(rep) || rep.name || '').trim();
+      const firstName = rep.firstName?.trim() || nameInput.split(/\s+/)[0];
       const looksLikeSerial = /^[A-Za-z0-9-]{2,}$/.test(nameInput) && (nameInput.includes('-') || /^CNT/i.test(nameInput) || /^\d/.test(nameInput));
       let matches: Contact[] = [];
       if (looksLikeSerial) {
@@ -197,31 +219,169 @@ export default function AdminAddressBookPage() {
     setRepSearchTarget(repIdx);
   };
 
-  const loadData = () => setContacts(getAllContacts(showArchived));
+  const loadData = () => {
+    const all = getAllContacts(showArchived);
+    const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+    const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
+    setContacts(filtered);
+  };
 
   useEffect(() => {
     try {
       const result = syncBookingContactsToAddressBook();
-      setContacts(getAllContacts(showArchived));
+      const all = getAllContacts(showArchived);
+      const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+      const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
+      setContacts(filtered);
       if (result.added > 0 || result.updated > 0) setSyncResult(result);
     } catch {
       setContacts(getAllContacts(showArchived));
     }
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'bhd_address_book' || e.key === 'bhd_property_bookings') {
+      if (e.key === 'bhd_address_book' || e.key === 'bhd_property_bookings' || e.key === 'bhd_contact_category_permissions') {
         try { syncBookingContactsToAddressBook(); } catch {}
-        setContacts(getAllContacts(showArchived));
+        const all = getAllContacts(showArchived);
+        const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+        const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
+        setContacts(filtered);
       }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [showArchived]);
+  }, [showArchived, userRole]);
 
   const handleSyncFromBookings = () => {
     const result = syncBookingContactsToAddressBook();
     loadData();
     setSyncResult(result);
     setTimeout(() => setSyncResult(null), 4000);
+  };
+
+  const handleSyncFromUsers = async () => {
+    setSyncingFromUsers(true);
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error('Failed');
+      const users = await res.json() as Array<{ id: string; name: string; email: string; phone?: string | null }>;
+      const existingEmails = new Set(getAllContacts(true).map((c) => (c.email || '').toLowerCase()));
+      let added = 0;
+      for (const u of users) {
+        const email = (u.email || '').toLowerCase();
+        if (!email || existingEmails.has(email)) continue;
+        const nameParts = (u.name || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || u.name || '';
+        const familyName = nameParts.length > 1 ? nameParts.slice(-1)[0] : '';
+        const secondName = nameParts.length > 3 ? nameParts[1] : undefined;
+        const thirdName = nameParts.length > 4 ? nameParts[2] : undefined;
+        const fullPhone = (u.phone || '').replace(/\D/g, '');
+        const { code } = parsePhoneToCountryAndNumber(u.phone || '968');
+        const phone = fullPhone.length >= 8
+          ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
+          : `968${String(Date.now()).slice(-7)}`;
+        createContact({
+          contactType: 'PERSONAL',
+          firstName,
+          secondName,
+          thirdName,
+          familyName: familyName || firstName,
+          nationality: 'عماني',
+          gender: 'MALE',
+          email,
+          phone,
+          category: 'CLIENT',
+          address: { fullAddress: '—', fullAddressEn: '—' },
+          userId: u.id,
+        } as Parameters<typeof createContact>[0]);
+        existingEmails.add(email);
+        added++;
+      }
+      loadData();
+      setSyncFromUsersResult(added);
+      setTimeout(() => setSyncFromUsersResult(null), 4000);
+    } catch {
+      setSyncFromUsersResult(-1);
+      setTimeout(() => setSyncFromUsersResult(null), 4000);
+    } finally {
+      setSyncingFromUsers(false);
+    }
+  };
+
+  const handleCreateAccountsForContacts = async () => {
+    setCreatingAccounts(true);
+    setCreateAccountsResult(null);
+    setUserCreateMsg(null);
+    try {
+      const contacts = getAllContacts(true);
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error('Failed to fetch users');
+      const users = await res.json() as Array<{ id: string; name: string; email: string; phone?: string | null }>;
+      const userByEmail = new Map<string, { id: string }>();
+      const userByPhone = new Map<string, { id: string }>();
+      for (const u of users) {
+        const email = (u.email || '').toLowerCase().trim();
+        if (email && !email.includes('@nologin.bhd')) userByEmail.set(email, { id: u.id });
+        const phone = (u.phone || '').trim();
+        if (phone) {
+          const norm = normalizePhoneForComparison(phone);
+          if (norm.length >= 6) userByPhone.set(norm, { id: u.id });
+        }
+      }
+      let created = 0;
+      let linked = 0;
+      for (const c of contacts) {
+        const hasUserId = !!c.userId;
+        if (hasUserId) continue;
+        const email = (c.email || '').toLowerCase().trim();
+        const phone = (c.phone || '').trim();
+        const normPhone = normalizePhoneForComparison(phone);
+        const existingByEmail = email && !email.includes('@nologin.bhd') ? userByEmail.get(email) : undefined;
+        const existingByPhone = normPhone.length >= 6 ? userByPhone.get(normPhone) : undefined;
+        const existing = existingByEmail || existingByPhone;
+        if (existing) {
+          updateContact(c.id, { userId: existing.id });
+          linked++;
+          continue;
+        }
+        const displayName = c.contactType === 'COMPANY' && c.companyData?.companyNameAr
+          ? c.companyData.companyNameAr
+          : [c.firstName, c.secondName, c.thirdName, c.familyName].filter(Boolean).join(' ') || c.firstName || 'Contact';
+        const fullPhone = normPhone.length >= 6
+          ? (normPhone.startsWith('968') ? normPhone : '968' + normPhone.replace(/^0+/, ''))
+          : undefined;
+        try {
+          const apiRes = await fetch('/api/admin/users/create-from-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contactId: c.id,
+              email: email || undefined,
+              name: displayName,
+              phone: fullPhone || undefined,
+              category: c.category,
+            }),
+          });
+          const data = await apiRes.json();
+          if (apiRes.ok && data.userId) {
+            updateContact(c.id, { userId: data.userId });
+            created++;
+            const createdEmail = (data.email || '').toLowerCase().trim();
+            if (createdEmail && !createdEmail.includes('@nologin.bhd')) userByEmail.set(createdEmail, { id: data.userId });
+            const createdPhone = fullPhone ? normalizePhoneForComparison(fullPhone) : '';
+            if (createdPhone.length >= 6) userByPhone.set(createdPhone, { id: data.userId });
+          }
+        } catch {
+          /* skip on error */
+        }
+      }
+      loadData();
+      setCreateAccountsResult({ created, linked });
+      setTimeout(() => setCreateAccountsResult(null), 6000);
+    } catch {
+      setUserCreateMsg(locale === 'ar' ? 'فشل تنفيذ العملية' : 'Operation failed');
+      setTimeout(() => setUserCreateMsg(null), 5000);
+    } finally {
+      setCreatingAccounts(false);
+    }
   };
 
   const duplicateGroups = findDuplicateContactGroups();
@@ -236,7 +396,10 @@ export default function AdminAddressBookPage() {
     setTimeout(() => setMergeResult(null), 4000);
   };
 
-  const filteredContacts = searchContacts(search, showArchived).filter((c) => {
+  const searched = searchContacts(search, showArchived);
+  const addressBookDashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+  const roleFiltered = addressBookDashboardType ? filterContactsByRolePermissions(searched, addressBookDashboardType) : searched;
+  const filteredContacts = roleFiltered.filter((c) => {
     if (filterCategory !== 'ALL' && c.category !== filterCategory) return false;
     if (filterContactType !== 'ALL') {
       const ct = c.contactType || 'PERSONAL';
@@ -262,6 +425,7 @@ export default function AdminAddressBookPage() {
     setEditingId(null);
     setForm(emptyForm);
     setFormErrors({});
+    setGeneratedCreds(null);
     setModalStep('choose');
     setShowModal(true);
   };
@@ -289,9 +453,9 @@ export default function AdminAddressBookPage() {
       })(),
       phoneSecondary: c.phoneSecondary || '',
       civilId: c.civilId || '',
-      civilIdExpiry: c.civilIdExpiry || '',
+      civilIdExpiry: normalizeDateForInput(c.civilIdExpiry) || '',
       passportNumber: c.passportNumber || '',
-      passportExpiry: c.passportExpiry || '',
+      passportExpiry: normalizeDateForInput(c.passportExpiry) || '',
       workplace: c.workplace || '',
       workplaceEn: c.workplaceEn || '',
       nameEn: (c.nameEn || getContactDisplayName(c, 'en') || '').trim() || '',
@@ -305,8 +469,8 @@ export default function AdminAddressBookPage() {
       companyNameAr: isCompany ? (c.companyData?.companyNameAr || '') : '',
       companyNameEn: isCompany ? (c.companyData?.companyNameEn || '') : '',
       commercialRegistrationNumber: isCompany ? (c.companyData?.commercialRegistrationNumber || '') : '',
-      commercialRegistrationExpiry: isCompany ? (c.companyData?.commercialRegistrationExpiry || '') : '',
-      establishmentDate: isCompany ? (c.companyData?.establishmentDate || '') : '',
+      commercialRegistrationExpiry: isCompany ? normalizeDateForInput(c.companyData?.commercialRegistrationExpiry) || '' : '',
+      establishmentDate: isCompany ? normalizeDateForInput(c.companyData?.establishmentDate) || '' : '',
       authorizedRepresentatives: isCompany ? (c.companyData?.authorizedRepresentatives || []).map((r) => {
         const repContactId = (r as { contactId?: string }).contactId;
         const linkedContact = repContactId ? getContactById(repContactId) : undefined;
@@ -315,19 +479,32 @@ export default function AdminAddressBookPage() {
         const parsed = parsePhoneToCountryAndNumber(r.phone || linkedContact?.phone || '');
         const digits = (r.phone || linkedContact?.phone || '').replace(/\D/g, '').replace(/^0+/, '');
         const localNumber = parsed.number || (digits.startsWith(parsed.code) ? digits.slice(parsed.code.length) : digits) || '';
+        const repCivilIdExpiry = r.civilIdExpiry ?? linkedContact?.civilIdExpiry;
+        const repPassportExpiry = r.passportExpiry ?? linkedContact?.passportExpiry;
+        const firstName = r.firstName ?? linkedContact?.firstName ?? '';
+        const secondName = r.secondName ?? linkedContact?.secondName ?? '';
+        const thirdName = r.thirdName ?? linkedContact?.thirdName ?? '';
+        const familyName = r.familyName ?? linkedContact?.familyName ?? '';
+        const fallbackName = (r.name || nameFromContact).trim() || '';
+        const nameFromParts = [firstName, secondName, thirdName, familyName].filter(Boolean).join(' ');
         return {
           ...r,
           id: r.id || `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          name: (r.name || nameFromContact).trim() || '',
+          firstName: firstName || (fallbackName ? fallbackName.split(/\s+/)[0] : ''),
+          secondName: secondName || (fallbackName && fallbackName.split(/\s+/).length > 2 ? fallbackName.split(/\s+/)[1] : ''),
+          thirdName: thirdName || (fallbackName && fallbackName.split(/\s+/).length > 3 ? fallbackName.split(/\s+/)[2] : ''),
+          familyName: familyName || (fallbackName && fallbackName.split(/\s+/).length > 1 ? fallbackName.split(/\s+/).slice(-1)[0] || '' : ''),
+          companyName: r.companyName ?? (isCompany ? c.companyData?.companyNameAr : '') ?? '',
+          name: nameFromParts || fallbackName,
           nameEn: (r.nameEn || nameEnFromContact).trim() || '',
           phoneCountryCode: parsed.code,
           phone: localNumber,
+          civilIdExpiry: normalizeDateForInput(repCivilIdExpiry) || '',
+          passportExpiry: normalizeDateForInput(repPassportExpiry) || '',
           ...(linkedContact && {
             nationality: r.nationality || linkedContact.nationality || '',
             civilId: r.civilId ?? linkedContact.civilId ?? '',
-            civilIdExpiry: r.civilIdExpiry ?? linkedContact.civilIdExpiry ?? '',
             passportNumber: r.passportNumber ?? linkedContact.passportNumber ?? '',
-            passportExpiry: r.passportExpiry ?? linkedContact.passportExpiry ?? '',
           }),
         };
       }) : [],
@@ -407,7 +584,7 @@ export default function AdminAddressBookPage() {
     return digits.startsWith(cc) ? digits : cc + digits.replace(/^0+/, '');
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
     const isCompany = form.contactType === 'COMPANY';
@@ -426,7 +603,8 @@ export default function AdminAddressBookPage() {
       if (form.authorizedRepresentatives.length === 0) errors.authorizedRepresentatives = t('authorizedRepRequired');
       for (let i = 0; i < form.authorizedRepresentatives.length; i++) {
         const r = form.authorizedRepresentatives[i];
-        if (!r.name?.trim()) errors[`rep_${i}_name`] = t('fieldRequired');
+        const repFullName = buildRepNameFromParts(r) || r.name?.trim();
+        if (!repFullName) errors[`rep_${i}_firstName`] = t('fieldRequired');
         if (!r.nameEn?.trim()) errors[`rep_${i}_nameEn`] = t('fieldRequired');
         if (!r.position?.trim()) errors[`rep_${i}_position`] = t('fieldRequired');
         if (!r.phone?.trim()) errors[`rep_${i}_phone`] = t('fieldRequired');
@@ -526,11 +704,17 @@ export default function AdminAddressBookPage() {
           const rDigits = (r.phone || '').replace(/\D/g, '').replace(/^0+/, '');
           const rPhone = rDigits.startsWith(cc) ? rDigits : cc + rDigits;
           const { phoneCountryCode: _cc, ...repRest } = r as { phoneCountryCode?: string; contactId?: string } & typeof r;
+          const repName = buildRepNameFromParts(r) || r.name?.trim() || '';
           return {
             ...repRest,
             id: r.id || `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             contactId: repRest.contactId || undefined,
-            name: r.name.trim(),
+            firstName: r.firstName?.trim() || undefined,
+            secondName: r.secondName?.trim() || undefined,
+            thirdName: r.thirdName?.trim() || undefined,
+            familyName: r.familyName?.trim() || undefined,
+            companyName: r.companyName?.trim() || undefined,
+            name: repName,
             nameEn: r.nameEn?.trim() || undefined,
             nationality: r.nationality?.trim() || undefined,
             civilId: r.civilId?.trim() || undefined,
@@ -549,17 +733,53 @@ export default function AdminAddressBookPage() {
     try {
     if (editingId) {
       updateContact(editingId, payload);
+      setShowModal(false);
+      setFormErrors({});
+      loadData();
     } else {
-        createContact(payload as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
+        const createdContact = createContact(payload as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
+        let creds: { email?: string; tempPassword: string; serialNumber?: string } | null = null;
+        try {
+          const displayName = isCompany ? form.companyNameAr.trim() : [form.firstName, form.secondName, form.thirdName, form.familyName].filter(Boolean).join(' ');
+          const res = await fetch('/api/admin/users/create-from-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contactId: createdContact.id,
+              email: form.email?.trim() || undefined,
+              name: displayName || createdContact.firstName || 'Contact',
+              phone: fullPhone || undefined,
+              category: form.category,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.generatedPassword) {
+            creds = {
+              email: data.email && !data.email.includes('@nologin.bhd') ? data.email : undefined,
+              tempPassword: data.generatedPassword,
+              serialNumber: data.serialNumber,
+            };
+            if (data.userId) {
+              updateContact(createdContact.id, { userId: data.userId });
+            }
+          } else if (!res.ok && data.error) {
+            setUserCreateMsg(data.error);
+            setTimeout(() => setUserCreateMsg(null), 5000);
+          }
+        } catch {
+          setUserCreateMsg(locale === 'ar' ? 'فشل إنشاء الحساب - حاول مرة أخرى' : 'Failed to create account - please try again');
+          setTimeout(() => setUserCreateMsg(null), 5000);
+        }
+        setShowModal(false);
+        setFormErrors({});
+        loadData();
+        if (creds) setGeneratedCreds(creds);
     }
-    setShowModal(false);
-    setFormErrors({});
-    loadData();
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'DUPLICATE_PHONE') setFormErrors((e) => ({ ...e, phone: t('duplicatePhone') }));
-      else if (msg === 'DUPLICATE_CIVIL_ID') setFormErrors((e) => ({ ...e, civilId: t('duplicateCivilId'), authorizedRepresentatives: isCompany ? t('duplicateCivilId') : undefined }));
-      else if (msg === 'DUPLICATE_PASSPORT') setFormErrors((e) => ({ ...e, passportNumber: t('duplicatePassportNumber'), authorizedRepresentatives: isCompany ? t('duplicatePassportNumber') : undefined }));
+      else if (msg === 'DUPLICATE_CIVIL_ID') setFormErrors((e) => ({ ...e, civilId: t('duplicateCivilId'), authorizedRepresentatives: isCompany ? t('duplicateCivilId') : '' }));
+      else if (msg === 'DUPLICATE_PASSPORT') setFormErrors((e) => ({ ...e, passportNumber: t('duplicatePassportNumber'), authorizedRepresentatives: isCompany ? t('duplicatePassportNumber') : '' }));
       else if (msg === 'DUPLICATE_COMMERCIAL_REGISTRATION') setFormErrors((e) => ({ ...e, commercialRegistrationNumber: t('duplicateCommercialRegistration') }));
     }
   };
@@ -634,6 +854,7 @@ export default function AdminAddressBookPage() {
       <tr><td style="${tdLabelStyle}">${t('serialNo')} / Serial No.</td><td style="${tdStyle}">${(contact.serialNumber || '—').replace(/</g, '&lt;')}</td></tr>
       <tr><td style="${tdLabelStyle}">${t('contactType')} / Type</td><td style="${tdStyle}">${isCompany ? (t('contactTypeCompany') + ' / Company') : (t('contactTypePersonal') + ' / Personal')}</td></tr>
       <tr><td style="${tdLabelStyle}">${t('name')} / Name</td><td style="${tdStyle}">${fullName.replace(/</g, '&lt;')}</td></tr>
+      ${(contact as { userId?: string }).userId ? `<tr><td style="${tdLabelStyle}">الباركود / Barcode</td><td style="${tdStyle}"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(origin + '/' + locale + '/scan/' + (contact as { userId: string }).userId)}" alt="QR" style="width:120px;height:120px;display:block" /><p style="margin:4px 0 0;font-size:10px;color:#6b7280">${locale === 'ar' ? 'مسح الباركود لعرض بيانات المستخدم' : 'Scan to view user data'}</p></td></tr>` : ''}
       ${(contact.nameEn || contact.companyData?.companyNameEn || '').trim() ? `<tr><td style="${tdLabelStyle}">الاسم (EN) / Name (EN)</td><td style="${tdStyle}">${(contact.nameEn || contact.companyData?.companyNameEn || '').replace(/</g, '&lt;')}</td></tr>` : ''}
       ${isCompany && contact.companyData ? `
       <tr><td style="${tdLabelStyle}">${t('commercialRegistrationNumber')} / CR No.</td><td style="${tdStyle}">${(contact.companyData.commercialRegistrationNumber || '—').replace(/</g, '&lt;')}</td></tr>
@@ -642,7 +863,7 @@ export default function AdminAddressBookPage() {
       <tr><td colspan="2" style="${tdStyle};background:#f9fafb;font-weight:bold;padding:10px">${t('authorizedRepresentatives')} / المفوضون بالتوقيع</td></tr>
       ${(contact.companyData.authorizedRepresentatives || []).map((r, i) => `
       <tr><td style="${tdLabelStyle}">المفوض ${i + 1} / Rep ${i + 1}</td><td style="${tdStyle}">
-        الاسم / Name: ${(r.name || '—').replace(/</g, '&lt;')}${(r.nameEn || '').trim() ? ' | ' + (r.nameEn || '').replace(/</g, '&lt;') : ''}<br/>
+        الاسم / Name: ${(getRepDisplayName(r) !== '—' ? getRepDisplayName(r) : (r.name || '—')).replace(/</g, '&lt;')}${(r.nameEn || '').trim() ? ' | ' + (r.nameEn || '').replace(/</g, '&lt;') : ''}<br/>
         المنصب / Position: ${(r.position || '—').replace(/</g, '&lt;')}<br/>
         الهاتف / Phone: ${(r.phone || '—').replace(/</g, '&lt;')}<br/>
         الجنسية / Nationality: ${(r.nationality || '—').replace(/</g, '&lt;')}<br/>
@@ -703,7 +924,7 @@ export default function AdminAddressBookPage() {
     <p style="margin:12px 0 0;color:#9ca3af">${new Date().toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')} © ${new Date().getFullYear()}</p>
   </div>
 </div>
-<script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}</script>
+<script>window.onload=function(){var imgs=document.querySelectorAll('img[src*="qrserver"]');var n=imgs.length;function doit(){window.print();window.onafterprint=function(){window.close()}}if(n===0){doit();return}var c=0;imgs.forEach(function(i){i.onload=i.onerror=function(){c++;if(c>=n)doit()}});setTimeout(doit,2500)}</script>
 </body></html>`;
   };
 
@@ -783,6 +1004,30 @@ export default function AdminAddressBookPage() {
           {t('mergeDuplicatesSuccess', { count: mergeResult })}
         </div>
       )}
+      {syncFromUsersResult !== null && syncFromUsersResult >= 0 && (
+        <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-blue-800 font-medium">
+          {locale === 'ar'
+            ? `تمت إضافة ${syncFromUsersResult} مستخدم من صفحة المستخدمين لدفتر العناوين`
+            : `Added ${syncFromUsersResult} users from Users page to address book`}
+        </div>
+      )}
+      {syncFromUsersResult !== null && syncFromUsersResult < 0 && (
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 font-medium">
+          {locale === 'ar' ? 'فشل التحديث من المستخدمين' : 'Failed to sync from users'}
+        </div>
+      )}
+      {userCreateMsg && (
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 font-medium">
+          {userCreateMsg}
+        </div>
+      )}
+      {createAccountsResult !== null && (createAccountsResult.created > 0 || createAccountsResult.linked > 0) && (
+        <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-green-800 font-medium">
+          {locale === 'ar'
+            ? `تم إنشاء ${createAccountsResult.created} حساب جديد وربط ${createAccountsResult.linked} جهة اتصال بحسابات موجودة`
+            : `Created ${createAccountsResult.created} new account(s) and linked ${createAccountsResult.linked} contact(s) to existing accounts`}
+        </div>
+      )}
       <AdminPageHeader
         title={t('title')}
         subtitle={t('subtitle')}
@@ -835,6 +1080,25 @@ export default function AdminAddressBookPage() {
             >
               <span>🔄</span>
               {locale === 'ar' ? 'تحديث من الحجوزات' : 'Sync from Bookings'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSyncFromUsers}
+              disabled={syncingFromUsers}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
+            >
+              <span>👤</span>
+              {syncingFromUsers ? (locale === 'ar' ? 'جاري...' : 'Syncing...') : tUsers('syncFromUsers')}
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateAccountsForContacts}
+              disabled={creatingAccounts}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
+              title={locale === 'ar' ? 'إنشاء حسابات للموجودين بدون حسابات' : 'Create accounts for contacts without user accounts'}
+            >
+              <span>🔐</span>
+              {creatingAccounts ? (locale === 'ar' ? 'جاري...' : 'Creating...') : (locale === 'ar' ? 'إنشاء حسابات للموجودين' : 'Create accounts')}
             </button>
             {duplicateGroups.length > 0 && (
               <button
@@ -984,8 +1248,13 @@ export default function AdminAddressBookPage() {
                         onClick={() => openEdit(c)}
                         className="text-right w-full block cursor-pointer"
                       >
-                        <div className="font-semibold text-gray-900 truncate max-w-[140px] hover:text-[#8B6F47] hover:underline cursor-pointer" title={getContactDisplayName(c, locale)}>
-                          {getContactDisplayName(c, locale)}
+                        <div className="flex items-center gap-2">
+                          {(c as { userId?: string }).userId && (
+                            <UserBarcode userId={(c as { userId: string }).userId} locale={locale} size={28} className="shrink-0" />
+                          )}
+                          <div className="font-semibold text-gray-900 truncate max-w-[140px] hover:text-[#8B6F47] hover:underline cursor-pointer" title={getContactDisplayName(c, locale)}>
+                            {getContactDisplayName(c, locale)}
+                          </div>
                         </div>
                         {isAuthorizedRepresentative(c) && getLinkedCompanyName(c, locale) && (
                           <div className="text-xs text-[#8B6F47] truncate max-w-[140px]" title={getLinkedCompanyName(c, locale)}>
@@ -1279,6 +1548,7 @@ export default function AdminAddressBookPage() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">{t('email')}</label>
                 <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="admin-input w-full" />
+                {!editingId && <p className="text-xs text-amber-700 mt-1">{tUsers('autoCreateAccountHint')}</p>}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1287,7 +1557,7 @@ export default function AdminAddressBookPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('civilIdExpiry')}</label>
-                  <input type="date" value={form.civilIdExpiry} onChange={(e) => setForm({ ...form, civilIdExpiry: e.target.value })} className="admin-input w-full" />
+                  <input type="date" value={form.civilIdExpiry || ''} onChange={(e) => setForm({ ...form, civilIdExpiry: e.target.value })} className="admin-input w-full" />
                 </div>
               </div>
               {!isOmaniNationality(form.nationality) && (
@@ -1299,7 +1569,7 @@ export default function AdminAddressBookPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">{t('passportExpiry')}</label>
-                    <input type="date" value={form.passportExpiry} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} className="admin-input w-full" />
+                    <input type="date" value={form.passportExpiry || ''} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} className="admin-input w-full" />
                   </div>
                 </div>
               )}
@@ -1426,11 +1696,11 @@ export default function AdminAddressBookPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('commercialRegistrationExpiry')}</label>
-                  <input type="date" value={form.commercialRegistrationExpiry} onChange={(e) => setForm({ ...form, commercialRegistrationExpiry: e.target.value })} className="admin-input w-full" />
+                  <input type="date" value={form.commercialRegistrationExpiry || ''} onChange={(e) => setForm({ ...form, commercialRegistrationExpiry: e.target.value })} className="admin-input w-full" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('establishmentDate')}</label>
-                  <input type="date" value={form.establishmentDate} onChange={(e) => setForm({ ...form, establishmentDate: e.target.value })} className="admin-input w-full" />
+                  <input type="date" value={form.establishmentDate || ''} onChange={(e) => setForm({ ...form, establishmentDate: e.target.value })} className="admin-input w-full" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1450,6 +1720,7 @@ export default function AdminAddressBookPage() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">{t('companyEmail')} *</label>
                 <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={`admin-input w-full ${getFieldErrorClass('email')}`} />
+                {!editingId && <p className="text-xs text-amber-700 mt-1">{tUsers('autoCreateAccountHint')}</p>}
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -1478,29 +1749,16 @@ export default function AdminAddressBookPage() {
                         </button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="relative" ref={repDropdownOpen === idx ? repDropdownRef : undefined}>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative col-span-2" ref={repDropdownOpen === idx ? repDropdownRef : undefined}>
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
                           <div className="flex-1 min-w-0">
-                            <TranslateField
-                              label={t('repName') + ' *'}
-                              value={rep.name}
-                              onChange={(v) => {
-                                const arr = [...form.authorizedRepresentatives];
-                                arr[idx] = { ...arr[idx], name: v };
-                                setForm({ ...form, authorizedRepresentatives: arr });
-                                triggerRepSearch(idx);
-                              }}
-                              onFocus={() => setRepDropdownOpen(idx)}
-                              sourceValue={rep.nameEn}
-                              onTranslateFromSource={(v) => {
-                                const arr = [...form.authorizedRepresentatives];
-                                arr[idx] = { ...arr[idx], name: v };
-                                setForm({ ...form, authorizedRepresentatives: arr });
-                              }}
-                              translateFrom="en"
-                              locale={locale}
-                              inputErrorClass={getFieldErrorClass(`rep_${idx}_name`)}
-                            />
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                              <input type="text" value={rep.firstName || ''} onChange={(e) => { const arr = [...form.authorizedRepresentatives]; arr[idx] = { ...arr[idx], firstName: e.target.value }; setForm({ ...form, authorizedRepresentatives: arr }); triggerRepSearch(idx); }} placeholder={t('firstName')} className={`admin-input text-sm ${getFieldErrorClass(`rep_${idx}_firstName`)}`} />
+                              <input type="text" value={rep.secondName || ''} onChange={(e) => { const arr = [...form.authorizedRepresentatives]; arr[idx] = { ...arr[idx], secondName: e.target.value }; setForm({ ...form, authorizedRepresentatives: arr }); triggerRepSearch(idx); }} placeholder={t('secondName')} className="admin-input text-sm" />
+                              <input type="text" value={rep.thirdName || ''} onChange={(e) => { const arr = [...form.authorizedRepresentatives]; arr[idx] = { ...arr[idx], thirdName: e.target.value }; setForm({ ...form, authorizedRepresentatives: arr }); triggerRepSearch(idx); }} placeholder={t('thirdName')} className="admin-input text-sm" />
+                              <input type="text" value={rep.familyName || ''} onChange={(e) => { const arr = [...form.authorizedRepresentatives]; arr[idx] = { ...arr[idx], familyName: e.target.value }; setForm({ ...form, authorizedRepresentatives: arr }); triggerRepSearch(idx); }} placeholder={t('familyName')} className="admin-input text-sm" />
+                              <input type="text" value={rep.companyName || ''} onChange={(e) => { const arr = [...form.authorizedRepresentatives]; arr[idx] = { ...arr[idx], companyName: e.target.value }; setForm({ ...form, authorizedRepresentatives: arr }); }} placeholder={locale === 'ar' ? 'اسم الشركة' : 'Company name'} className="admin-input text-sm" />
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -1516,7 +1774,7 @@ export default function AdminAddressBookPage() {
                             .filter(Boolean) as string[];
                           if (editingId) excludeIds.push(editingId);
                           const list = repDropdownOpen === idx
-                            ? getAllPersonalContacts(excludeIds, (rep.name || '').trim() || undefined)
+                            ? getAllPersonalContacts(excludeIds, (buildRepNameFromParts(rep) || rep.name || '').trim() || undefined)
                             : (repLinkModal?.matches ?? []);
                           return (
                           <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
@@ -1538,6 +1796,10 @@ export default function AdminAddressBookPage() {
                                     arr[idx] = {
                                       ...arr[idx],
                                       contactId: c.id,
+                                      firstName: c.firstName || '',
+                                      secondName: c.secondName || '',
+                                      thirdName: c.thirdName || '',
+                                      familyName: c.familyName || '',
                                       name: [c.firstName, c.secondName, c.thirdName, c.familyName].filter(Boolean).join(' ') || (c as { name?: string }).name || '',
                                       nameEn: (c.nameEn || getContactDisplayName(c, 'en') || '').trim() || '',
                                       position: arr[idx].position,
@@ -1576,7 +1838,7 @@ export default function AdminAddressBookPage() {
                             arr[idx] = { ...arr[idx], nameEn: v };
                             setForm({ ...form, authorizedRepresentatives: arr });
                           }}
-                          sourceValue={rep.name}
+                          sourceValue={buildRepNameFromParts(rep) || rep.name}
                           onTranslateFromSource={(v) => {
                             const arr = [...form.authorizedRepresentatives];
                             arr[idx] = { ...arr[idx], nameEn: v };
@@ -1846,6 +2108,76 @@ export default function AdminAddressBookPage() {
             </form>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: عرض كلمة المرور المؤقتة بعد إنشاء الحساب تلقائياً */}
+      {generatedCreds && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setGeneratedCreds(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl">✓</div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">{tUsers('userCreated')}</h3>
+                <p className="text-sm text-gray-600">{tUsers('generatedPasswordHint')}</p>
+                <div className="flex flex-wrap gap-3 mt-2">
+                  <Link href={`/${locale}/admin/users`} className="text-sm font-semibold text-[#8B6F47] hover:underline">
+                    {locale === 'ar' ? '→ قائمة المستخدمين' : '→ Users list'}
+                  </Link>
+                  <Link href={`/${locale}/login`} className="text-sm font-semibold text-[#8B6F47] hover:underline">
+                    {tUsers('loginLink')}
+                  </Link>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-4 p-4 rounded-xl bg-amber-50 border-2 border-amber-200">
+              {generatedCreds.serialNumber && (
+                <div>
+                  <label className="block text-xs font-semibold text-amber-800 mb-1">{tUsers('username')}</label>
+                  <div className="flex gap-2">
+                    <code className="flex-1 px-3 py-2 rounded-lg bg-white border border-amber-300 font-mono text-sm select-all">
+                      {generatedCreds.serialNumber}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(generatedCreds!.serialNumber!); }}
+                      className="px-4 py-2 rounded-lg font-semibold text-amber-800 bg-amber-200 hover:bg-amber-300"
+                    >
+                      {tUsers('copyPassword')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {generatedCreds.email && (
+                <div>
+                  <label className="block text-xs font-semibold text-amber-800 mb-1">{t('email')}</label>
+                  <p className="font-mono text-sm text-gray-900 break-all">{generatedCreds.email}</p>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-amber-800 mb-1">{tUsers('generatedPassword')}</label>
+                <div className="flex gap-2">
+                  <code className="flex-1 px-3 py-2 rounded-lg bg-white border border-amber-300 font-mono text-sm select-all">
+                    {generatedCreds.tempPassword}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(generatedCreds!.tempPassword); }}
+                    className="px-4 py-2 rounded-lg font-semibold text-amber-800 bg-amber-200 hover:bg-amber-300"
+                  >
+                    {tUsers('copyPassword')}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setGeneratedCreds(null)}
+              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+            >
+              {locale === 'ar' ? 'إغلاق' : 'Close'}
+            </button>
           </div>
         </div>
       )}

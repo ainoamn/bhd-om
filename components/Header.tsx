@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useSession, signOut } from 'next-auth/react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { getPagesVisibility, PAGES_VISIBILITY_EVENT, type PageId } from '@/lib/data/siteSettings';
 
 interface HeaderProps {
   locale: string;
+  hasUserBar?: boolean;
 }
 
 const NAV_ITEMS: { id: PageId; href: string }[] = [
@@ -25,8 +27,9 @@ function refreshVisibility(): Record<PageId, boolean> {
   return getPagesVisibility();
 }
 
-export default function Header({ locale }: HeaderProps) {
+export default function Header({ locale, hasUserBar }: HeaderProps) {
   const t = useTranslations('nav');
+  const { data: session, status } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [visibility, setVisibility] = useState<Record<PageId, boolean>>(refreshVisibility);
@@ -47,7 +50,7 @@ export default function Header({ locale }: HeaderProps) {
   const visibleItems = NAV_ITEMS.filter((item) => visibility[item.id]);
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+    <header className={`fixed left-0 right-0 z-50 transition-all duration-300 ${hasUserBar ? 'top-11' : 'top-0'} ${
       scrolled 
         ? 'bg-white shadow-md border-b border-gray-200' 
         : 'bg-white/95 backdrop-blur-sm'
@@ -103,12 +106,35 @@ export default function Header({ locale }: HeaderProps) {
             <div className="flex items-center gap-4">
               <div className="h-8 w-px bg-gray-300"></div>
               <LanguageSwitcher currentLocale={locale} />
-              <Link 
-                href={`/${locale}/login`} 
-                className="bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary-dark transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
-              >
-                {t('login')}
-              </Link>
+              {status === 'authenticated' && session?.user ? (
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/${locale}/admin`}
+                    className="text-gray-700 hover:text-primary font-semibold text-sm transition-colors"
+                    title={locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}
+                  >
+                    {(session.user as { name?: string }).name?.trim() ||
+                      (session.user as { serialNumber?: string }).serialNumber ||
+                      (session.user as { email?: string }).email ||
+                      (session.user as { phone?: string }).phone ||
+                      '—'}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => signOut({ callbackUrl: `/${locale}` })}
+                    className="text-gray-500 hover:text-red-600 text-xs font-medium transition-colors"
+                  >
+                    {locale === 'ar' ? 'تسجيل الخروج' : 'Log out'}
+                  </button>
+                </div>
+              ) : (
+                <Link 
+                  href={`/${locale}/login`} 
+                  className="bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary-dark transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+                >
+                  {t('login')}
+                </Link>
+              )}
             </div>
           </div>
 
@@ -147,14 +173,40 @@ export default function Header({ locale }: HeaderProps) {
               <div className="px-4 py-3 border-t border-gray-200 mt-2">
                 <LanguageSwitcher currentLocale={locale} />
               </div>
-              <div className="px-4 pt-2">
-                <Link 
-                  href={`/${locale}/login`} 
-                  className="block w-full bg-primary text-white px-6 py-3.5 min-h-[44px] flex items-center justify-center rounded-lg hover:bg-primary-dark transition-all duration-200 font-semibold shadow-md touch-manipulation"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {t('login')}
-                </Link>
+              <div className="px-4 pt-2 space-y-2">
+                {status === 'authenticated' && session?.user ? (
+                  <>
+                    <Link
+                      href={`/${locale}/admin`}
+                      className="block px-4 py-3.5 min-h-[44px] flex items-center justify-between rounded-lg bg-gray-50 font-semibold text-gray-900 touch-manipulation"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <span>
+                        {(session.user as { name?: string }).name?.trim() ||
+                          (session.user as { serialNumber?: string }).serialNumber ||
+                          (session.user as { email?: string }).email ||
+                          (session.user as { phone?: string }).phone ||
+                          '—'}
+                      </span>
+                      <span className="text-xs text-primary">{locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: `/${locale}` }); }}
+                      className="block w-full py-3.5 min-h-[44px] text-red-600 hover:bg-red-50 rounded-lg font-semibold touch-manipulation"
+                    >
+                      {locale === 'ar' ? 'تسجيل الخروج' : 'Log out'}
+                    </button>
+                  </>
+                ) : (
+                  <Link 
+                    href={`/${locale}/login`} 
+                    className="block w-full bg-primary text-white px-6 py-3.5 min-h-[44px] flex items-center justify-center rounded-lg hover:bg-primary-dark transition-all duration-200 font-semibold shadow-md touch-manipulation"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {t('login')}
+                  </Link>
+                )}
               </div>
             </div>
           </div>

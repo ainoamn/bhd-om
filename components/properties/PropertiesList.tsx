@@ -7,6 +7,7 @@ import Link from 'next/link';
 import PageHero from '../shared/PageHero';
 import AdsDisplay from '../ads/AdsDisplay';
 import SerialBadge from '../shared/SerialBadge';
+import PropertyBarcode from '@/components/admin/PropertyBarcode';
 import { getPublishedProperties, type PropertyListing } from '@/lib/data/properties';
 import { getSiteContent } from '@/lib/data/siteContent';
 
@@ -135,10 +136,13 @@ export default function PropertiesList({ overridesCookie = null, dataCookie = nu
                     </div>
                   </Link>
                   <div className="p-6">
-                    {/* الرقم المتسلسل */}
-                    {'serialNumber' in property && (
-                      <SerialBadge serialNumber={(property as { serialNumber?: string }).serialNumber!} compact className="mb-2" />
-                    )}
+                    {/* الباركود والرقم المتسلسل */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <PropertyBarcode propertyId={property.id} unitKey={listing.unitKey} locale={locale} size={32} />
+                      {'serialNumber' in property && (
+                        <SerialBadge serialNumber={(property as { serialNumber?: string }).serialNumber!} compact />
+                      )}
+                    </div>
                     {/* 1. عنوان العقار */}
                     <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ lineHeight: '1.5' }}>
                       {displayTitle}

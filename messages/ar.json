@@ -55,6 +55,43 @@
     "vision": "رسالتنا",
     "values": "قيمنا"
   },
+  "register": {
+    "title": "إنشاء حساب جديد",
+    "subtitle": "سجّل دخولك للوصول إلى خدماتنا",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "phone": "الهاتف",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "submit": "إنشاء الحساب",
+    "hasAccount": "لديك حساب بالفعل؟",
+    "signIn": "تسجيل الدخول",
+    "errorGeneric": "حدث خطأ، يرجى المحاولة لاحقاً"
+  },
+  "userBar": {
+    "welcome": "مرحباً،",
+    "usernameLabel": "اسم المستخدم"
+  },
+  "login": {
+    "signingIn": "جاري التحقق...",
+    "title": "تسجيل الدخول",
+    "subtitle": "لوحة تحكم الموقع",
+    "welcomeBack": "مرحباً بعودتك",
+    "welcomeDesc": "ادخل إلى لوحة التحكم لإدارة العقارات والحجوزات والعقود.",
+    "continueWithGoogle": "المتابعة عبر Google",
+    "continueWithMicrosoft": "المتابعة عبر Microsoft",
+    "orContinueWith": "أو البريد وكلمة المرور",
+    "email": "البريد الإلكتروني",
+    "emailOrUsername": "اسم المستخدم أو البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "submit": "دخول",
+    "noAccount": "ليس لديك حساب؟",
+    "signUp": "إنشاء حساب جديد",
+    "backToWebsite": "العودة للموقع",
+    "errorInvalidCredentials": "اسم المستخدم/البريد أو كلمة المرور غير صحيحة",
+    "errorGeneric": "حدث خطأ، يرجى المحاولة لاحقاً"
+  },
   "properties": {
     "title": "العقارات",
     "forSale": "للبيع",
@@ -126,8 +163,37 @@
         "general": "عام",
         "content": "المحتوى",
         "communication": "التواصل",
-        "system": "النظام"
-      }
+        "system": "النظام",
+        "personalDashboard": "لوحة التحكم الشخصية",
+        "managementBoard": "لوحة الإدارة"
+      },
+      "clientNav": {
+        "dashboard": "لوحتي",
+        "myBookings": "حجوزاتي",
+        "myContracts": "عقودي",
+        "myInvoices": "فواتيري",
+        "myReceipts": "إيصالاتي",
+        "notifications": "الإشعارات",
+        "myAccount": "حسابي"
+      },
+      "ownerNav": {
+        "dashboard": "لوحتي",
+        "myProperties": "عقاري",
+        "myContracts": "عقودي",
+        "myInvoices": "فواتيري",
+        "notifications": "الإشعارات",
+        "myAccount": "حسابي"
+      },
+      "roleClient": "لوحة العميل",
+      "roleOwner": "لوحة المالك",
+      "roleClientShort": "عميل",
+      "roleOwnerShort": "مالك",
+      "permissionType": "نوع الصلاحية",
+      "customerType": "نوع العميل",
+      "dashboardSettings": "إعدادات لوحات التحكم",
+      "dashboardSettingsDesc": "التحكم في ما يظهر لكل دور مستخدم",
+      "contactCategoryPermissions": "صلاحيات تصنيفات دفتر العناوين",
+      "contactCategoryPermissions": "صلاحيات تصنيفات العناوين"
     }
   },
   "dashboard": {
@@ -255,7 +321,10 @@
     "categoryPartner": "شريك",
     "categoryGovernment": "جهة حكومية",
     "categoryAuthorizedRep": "مفوض بالتوقيع",
+    "categoryCompany": "شركة",
     "categoryOther": "أخرى",
+    "categoryPermissions": "صلاحيات تصنيفات دفتر العناوين",
+    "categoryPermissionsDesc": "حدّد التصنيفات التي يمكن لكل دور الاطلاع عليها أو استخدامها",
     "duplicatePhone": "رقم الهاتف مسجل مسبقاً لجهة أخرى",
     "duplicateCivilId": "الرقم المدني مسجل مسبقاً لجهة أخرى",
     "duplicatePassportNumber": "رقم الجواز مسجل مسبقاً لجهة أخرى",
@@ -429,5 +498,40 @@
     "signatorySignature": "صورة التوقيع",
     "electronicSignatureNotice": "هذا المستند تم توقيعه إلكترونياً من قبل {name} ({position}) عن الشركة {company}",
     "companyStamp": "ختم الشركة"
+  },
+  "usersAdmin": {
+    "title": "المستخدمين",
+    "subtitle": "إدارة أسماء المستخدمين وكلمات المرور والربط بدفتر العناوين",
+    "addUser": "إضافة مستخدم",
+    "searchPlaceholder": "بحث بالرقم أو الاسم أو البريد...",
+    "serialNo": "الرقم",
+    "name": "الاسم",
+    "email": "البريد",
+    "phone": "الهاتف",
+    "role": "الدور",
+    "status": "الحالة",
+    "actions": "الإجراءات",
+    "total": "الإجمالي",
+    "admins": "مديرون",
+    "clients": "عملاء",
+    "noUsers": "لا يوجد مستخدمون",
+    "noUsersHint": "المستخدمون المسجلون أو المضافون من دفتر العناوين يظهرون هنا",
+    "roleAdmin": "مدير",
+    "roleClient": "عميل",
+    "roleOwner": "مالك",
+    "statusActive": "نشط",
+    "syncFromAddressBook": "مزامنة من دفتر العناوين",
+    "createUserAccount": "إنشاء حساب مستخدم",
+    "createUserAccountHint": "عند الحفظ سيُنشأ يوزر وباسورد تلقائي ويرتبط بجهة الاتصال",
+    "generatedPassword": "كلمة المرور المؤقتة",
+    "generatedPasswordHint": "احفظ هذه الكلمة وارسلها للعميل. لن تظهر مرة أخرى.",
+    "copyPassword": "نسخ",
+    "userCreated": "تم إنشاء الحساب بنجاح",
+    "username": "اسم المستخدم",
+    "autoCreateAccountHint": "عند الحفظ يُنشأ تلقائياً حساب مستخدم برقم حسب التصنيف (USR-C/T/L/...) وكلمة مرور مؤقتة",
+    "loginLink": "← صفحة تسجيل الدخول",
+    "passwordReset": "تم إعادة تعيين كلمة المرور",
+    "syncFromUsers": "تحديث من المستخدمين",
+    "syncFromUsersHint": "إضافة المستخدمين المسجلين إلى دفتر العناوين"
   }
 }

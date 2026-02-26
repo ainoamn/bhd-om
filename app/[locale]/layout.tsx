@@ -2,9 +2,8 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import LayoutWrapper from '@/components/LayoutWrapper';
+import SessionAwareLayout from '@/components/SessionAwareLayout';
+import Providers from '@/components/Providers';
 import Analytics from '@/components/Analytics';
 import { WebVitals } from '@/components/WebVitals';
 import { PageViewTracker } from '@/components/PageViewTracker';
@@ -68,11 +67,13 @@ export default async function RootLayout({
       <Analytics />
       <WebVitals />
       <PageViewTracker />
-      <NextIntlClientProvider messages={messages}>
-        <LayoutWrapper header={<Header locale={locale} />} footer={<Footer locale={locale} />}>
-          {children}
-        </LayoutWrapper>
-      </NextIntlClientProvider>
+      <Providers>
+        <NextIntlClientProvider messages={messages}>
+          <SessionAwareLayout locale={locale}>
+            {children}
+          </SessionAwareLayout>
+        </NextIntlClientProvider>
+      </Providers>
     </div>
   );
 }

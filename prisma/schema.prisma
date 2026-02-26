@@ -45,6 +45,7 @@ model User {
   name          String
   phone         String?
   role          UserRole  @default(CLIENT)
+  dashboardType String?   // CLIENT|TENANT|LANDLORD|SUPPLIER|PARTNER|GOVERNMENT|AUTHORIZED_REP|COMPANY|OTHER - للتخصيص الدقيق للوحة
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   

@@ -1,13 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname, useParams, useSearchParams } from 'next/navigation';
+import { usePathname, useParams, useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
+import { useSession, signOut } from 'next-auth/react';
 import Icon from '@/components/icons/Icon';
+import RoleBasedSidebar from '@/components/admin/RoleBasedSidebar';
+import { getContactForUser } from '@/lib/data/addressBook';
+import { ALL_DASHBOARD_TYPES } from '@/lib/config/dashboardRoles';
+import { getAdminNavGroupsConfig } from '@/lib/config/adminNav';
 import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import DraftBanner from '@/components/admin/DraftBanner';
+import { useUserBar } from '@/components/UserBarContext';
 import './admin.css';
 
 /** قراءة tab و action من الرابط - useSearchParams يتفاعل مع تغيير query string */
@@ -28,66 +35,21 @@ type NavItemWithSub = { groupKey: string; subItems: NavItem[] };
 type ContentItem = NavItem | NavItemWithSub;
 const isSubGroup = (x: ContentItem): x is NavItemWithSub => 'subItems' in x;
 
-const accountingSubItems: (NavItem & { isHeader?: boolean })[] = [
-  { href: '/admin/accounting?tab=dashboard', labelKey: 'accountingHome', icon: 'dashboard' as const },
-  { href: '/admin/accounting?tab=sales', labelKey: 'accountingSales', icon: 'archive' as const },
-  { href: '/admin/accounting?tab=purchases', labelKey: 'accountingPurchases', icon: 'archive' as const },
-  { href: '/admin/accounting?tab=journal', labelKey: 'accountingJournal', icon: 'documentText' as const },
-  { href: '/admin/accounting?tab=documents', labelKey: 'accountingDocuments', icon: 'archive' as const },
-  { href: '/admin/accounting?tab=accounts', labelKey: 'accountingAccounts', icon: 'archive' as const },
-  { href: '/admin/accounting?tab=reports', labelKey: 'accountingReports', icon: 'chartBar' as const },
-  { href: '/admin/accounting?tab=claims', labelKey: 'accountingClaims', icon: 'inbox' as const },
-  { href: '/admin/accounting?tab=cheques', labelKey: 'accountingCheques', icon: 'archive' as const },
-  { href: '/admin/accounting?tab=payments', labelKey: 'accountingPayments', icon: 'archive' as const },
-  { href: '/admin/accounting?tab=periods', labelKey: 'accountingPeriods', icon: 'calendar' as const },
-  { href: '/admin/accounting?tab=audit', labelKey: 'accountingAudit', icon: 'shieldCheck' as const },
-  { href: '/admin/accounting?tab=settings', labelKey: 'accountingSettings', icon: 'cog' as const },
-  { href: '#', labelKey: 'accountingQuickActions', icon: 'cog' as const, isHeader: true },
-  { href: '/admin/accounting?tab=journal&action=add', labelKey: 'accountingAddJournal', icon: 'documentText' as const },
-  { href: '/admin/accounting?tab=accounts&action=add', labelKey: 'accountingAddAccount', icon: 'plus' as const },
-  { href: '/admin/accounting?tab=documents&action=add', labelKey: 'accountingAddDocument', icon: 'plus' as const },
-  { href: '/admin/accounting?tab=cheques&action=add', labelKey: 'accountingAddCheque', icon: 'plus' as const },
-];
-
-const navGroupsConfig = [
-  { groupKey: 'general', items: [
-    { groupKey: 'dashboard', subItems: [
-      { href: '/admin/address-book', labelKey: 'addressBook', icon: 'users' as const },
-      { href: '/admin/bank-details', labelKey: 'bankDetails', icon: 'archive' as const },
-      { href: '/admin/company-data', labelKey: 'companyData', icon: 'building' as const },
-      { href: '/admin/document-templates', labelKey: 'documentTemplates', icon: 'documentText' as const },
-      { href: '/admin/site', labelKey: 'site', icon: 'globe' as const },
-    ]},
-    { groupKey: 'accounting', subItems: accountingSubItems },
-  ] as ContentItem[]},
-  { groupKey: 'content', items: [
-    { groupKey: 'properties', subItems: [
-      { href: '/admin/properties', labelKey: 'propertiesManage', icon: 'building' as const },
-      { href: '/admin/bookings', labelKey: 'bookingsManage', icon: 'calendar' as const },
-      { href: '/admin/contracts', labelKey: 'contractsManage', icon: 'archive' as const, comingSoon: true },
-      { href: '/admin/maintenance', labelKey: 'maintenanceManage', icon: 'wrench' as const, comingSoon: true },
-      { href: '/admin/data', labelKey: 'dataManage', icon: 'database' as const, comingSoon: true },
-    ]},
-    { href: '/admin/projects', labelKey: 'projects', icon: 'projects' as const },
-    { href: '/admin/services', labelKey: 'services', icon: 'cog' as const },
-  ] as ContentItem[]},
-  { groupKey: 'communication', items: [
-    { href: '/admin/contact', labelKey: 'contact', icon: 'mail' as const },
-    { href: '/admin/submissions', labelKey: 'submissions', icon: 'inbox' as const },
-  ]},
-  { groupKey: 'system', items: [
-    { href: '/admin/users', labelKey: 'users', icon: 'users' as const },
-    { href: '/admin/serial-history', labelKey: 'serialHistory', icon: 'archive' as const },
-    { href: '/admin/backup', labelKey: 'backup', icon: 'database' as const },
-  ]},
-];
+/** القائمة الجانبية للأدمن - مُستمد من السجل المركزي (adminNav)، الصفحات الجديدة تُضاف تلقائياً */
+const navGroupsConfig = getAdminNavGroupsConfig() as { groupKey: string; items: ContentItem[] }[];
 
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams();
+  const { data: session, status } = useSession();
   const { tab: currentTab, action: currentAction } = useAccountingTab();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('admin.nav');
+  const hasUserBar = useUserBar();
+  const userRole = (session?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
+  const isNonAdmin = userRole === 'CLIENT' || userRole === 'OWNER';
+  const isAdminConfirmed = status === 'authenticated' && userRole === 'ADMIN';
+  const userName = (session?.user as { name?: string })?.name || (session?.user as { serialNumber?: string })?.serialNumber || (session?.user as { email?: string })?.email || (session?.user as { phone?: string })?.phone || '—';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
@@ -130,8 +92,82 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     if (pathname?.includes('/admin/accounting')) setAccountingOpen(true);
   }, [pathname]);
 
+  const router = useRouter();
+  const allowedPathsForNonAdmin = [
+    '/admin',
+    '/admin/my-bookings',
+    '/admin/my-contracts',
+    '/admin/my-invoices',
+    '/admin/my-receipts',
+    '/admin/my-properties',
+    '/admin/notifications',
+    '/admin/my-account',
+    '/admin/address-book',
+    '/admin/bank-details',
+    '/admin/company-data',
+    '/admin/document-templates',
+    '/admin/site',
+    '/admin/accounting',
+    '/admin/properties',
+    '/admin/bookings',
+    '/admin/contracts',
+    '/admin/maintenance',
+    '/admin/data',
+    '/admin/projects',
+    '/admin/services',
+    '/admin/contact',
+    '/admin/submissions',
+    '/admin/backup',
+  ];
+  useEffect(() => {
+    if (status === 'unauthenticated' && pathname?.includes('/admin')) {
+      router.replace(`/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`);
+      return;
+    }
+    if (status !== 'authenticated' || !isNonAdmin || !pathname) return;
+    const base = (pathname || '').replace(/^\/[a-z]{2}/, '') || pathname;
+    const isAllowed = allowedPathsForNonAdmin.some((p) => base === p || base.startsWith(p + '/') || base.startsWith(p + '?'));
+    if (!isAllowed) {
+      router.replace(`/${locale}/admin`);
+    }
+  }, [status, isNonAdmin, pathname, locale, router]);
+
+  const effectiveRole = userRole && (userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER') ? userRole : 'CLIENT';
+
+  const contactDashboardType = useMemo(() => {
+    if (!session?.user || effectiveRole === 'ADMIN') return undefined;
+    const explicit = (session.user as { dashboardType?: string | null }).dashboardType;
+    if (explicit && ALL_DASHBOARD_TYPES.includes(explicit as any)) return explicit as any;
+    try {
+      const contact = getContactForUser({
+        id: session.user.id ?? '',
+        email: session.user.email ?? null,
+        phone: (session.user as { phone?: string | null }).phone ?? null,
+      });
+      const cat = (contact as { category?: string }).category;
+      if (contact.id && cat && ALL_DASHBOARD_TYPES.includes(cat as any)) return cat as any;
+      if (contact.id && (contact as { contactType?: string }).contactType === 'COMPANY' && ALL_DASHBOARD_TYPES.includes('COMPANY')) return 'COMPANY';
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }, [session?.user, effectiveRole]);
+
   return (
-    <div className={`admin-root ${sidebarCollapsed ? 'admin-root--sidebar-collapsed' : ''}`} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+    <div className={`admin-root ${sidebarCollapsed ? 'admin-root--sidebar-collapsed' : ''} ${hasUserBar ? 'admin-root--has-user-bar' : ''}`} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+      {!isAdminConfirmed ? (
+        <RoleBasedSidebar
+          role={effectiveRole}
+          locale={locale}
+          sidebarOpen={sidebarOpen}
+          sidebarCollapsed={sidebarCollapsed}
+          onClose={closeSidebar}
+          onToggleCollapse={toggleCollapse}
+          contactDashboardType={contactDashboardType}
+          userDisplayName={userName}
+        />
+      ) : (
+      <>
       {sidebarOpen && (
         <button
           type="button"
@@ -155,12 +191,19 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
             </div>
             <div className="admin-sidebar-brand-text">
               <h1 className="admin-sidebar-title">{locale === 'ar' ? siteConfig.company.nameAr : siteConfig.company.nameEn}</h1>
-              <p className="admin-sidebar-subtitle">{t('adminPanel')}</p>
+              <p className="admin-sidebar-subtitle">{locale === 'ar' ? 'لوحة الإدارة الشاملة' : 'Full Admin Panel'}</p>
             </div>
           </Link>
           {!sidebarCollapsed && (
-            <div className="mt-3 flex items-center gap-2">
-              <LanguageSwitcher currentLocale={locale} />
+            <div className="mt-3 flex flex-col gap-2">
+              {session?.user && (
+                <p className="text-xs font-medium text-gray-600 truncate" title={userName}>
+                  {userName}
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+                <LanguageSwitcher currentLocale={locale} />
+              </div>
             </div>
           )}
         </div>
@@ -307,6 +350,15 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
             <Icon name={locale === 'ar' ? (sidebarCollapsed ? 'chevronLeft' : 'chevronRight') : (sidebarCollapsed ? 'chevronRight' : 'chevronLeft')} className="admin-nav-icon" aria-hidden />
             <span className="admin-nav-link-text">{sidebarCollapsed ? (locale === 'ar' ? 'توسيع' : 'Expand') : (locale === 'ar' ? 'طي' : 'Collapse')}</span>
           </button>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: `/${locale}/login` })}
+            className="admin-nav-link admin-nav-link--external w-full justify-start lg:justify-center"
+            title={locale === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
+          >
+            <Icon name="arrowRightOnRectangle" className="admin-nav-icon" aria-hidden />
+            <span className="admin-nav-link-text">{locale === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
+          </button>
           <Link
             href={`/${locale}`}
             target="_blank"
@@ -319,8 +371,11 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           </Link>
         </div>
       </aside>
+      </>
+      )}
 
       <main className="admin-main">
+        <DraftBanner />
         <header className="admin-mobile-header">
           <button
             type="button"
@@ -330,10 +385,33 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           >
             <Icon name="menu" className="w-6 h-6 text-gray-700" aria-hidden />
           </button>
-          <span className="font-semibold text-gray-900 truncate">
-            {locale === 'ar' ? siteConfig.company.nameAr : siteConfig.company.nameEn}
-          </span>
-          <div className="w-10" aria-hidden />
+          <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-2">
+            <span className="font-semibold text-gray-900 truncate">
+              {session?.user ? (
+                <>
+                  {isAdminConfirmed
+                    ? (locale === 'ar' ? 'لوحة الإدارة' : 'Admin Panel')
+                    : userRole === 'OWNER'
+                      ? (locale === 'ar' ? 'لوحة المالك' : 'Owner Panel')
+                      : (locale === 'ar' ? 'لوحتي' : 'My Panel')}
+                  <span className="text-gray-600 font-medium mx-2">|</span>
+                  <span className="text-[#8B6F47]">{userName}</span>
+                </>
+              ) : (
+                isAdminConfirmed
+                  ? (locale === 'ar' ? 'لوحة الإدارة' : 'Admin Panel')
+                  : userRole === 'OWNER'
+                    ? (locale === 'ar' ? 'لوحة المالك' : 'Owner Panel')
+                    : (locale === 'ar' ? 'لوحتي' : 'My Panel')
+              )}
+            </span>
+            {session?.user && (
+              <span className="text-xs text-gray-500 truncate sm:border-s sm:border-gray-200 sm:ps-2">
+                {(session.user as { name?: string }).name || (session.user as { serialNumber?: string }).serialNumber || (session.user as { email?: string }).email || (session.user as { phone?: string }).phone || '—'}
+              </span>
+            )}
+          </div>
+          <div className="w-10 shrink-0" aria-hidden />
         </header>
         <div className="admin-main-inner">{children}</div>
       </main>

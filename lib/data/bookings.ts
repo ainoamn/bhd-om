@@ -5,7 +5,7 @@
 
 import { updateProperty, updatePropertyUnit, getPropertyById, getPropertyDisplayByLevel, getPropertyDataOverrides } from '@/lib/data/properties';
 import { ensureContactFromBooking, ensureCompanyContactFromBooking, findContactByPhoneOrEmail } from '@/lib/data/addressBook';
-import { createDocument, searchDocuments, postUnpostedDocuments } from '@/lib/data/accounting';
+import { createDocument, searchDocuments, postUnpostedDocuments, updateDocument } from '@/lib/data/accounting';
 
 import type { AuthorizedRepresentative } from './addressBook';
 
@@ -59,6 +59,8 @@ export interface PropertyBooking {
   contractId?: string;
   /** تاريخ تأكيد المحاسب/مدير الحسابات لاستلام المبلغ */
   accountantConfirmedAt?: string;
+  /** رقم الإيصال المُعيّن من المحاسب عند تأكيد الاستلام — ينعكس في مستندات العقد */
+  depositReceiptNumber?: string;
   /** آخر 4 أرقام من البطاقة (عند الدفع ببطاقة) */
   cardLast4?: string;
   /** تاريخ انتهاء البطاقة MM/YY */
@@ -236,35 +238,29 @@ export function getUnitDisplayFromProperty(prop: { multiUnitShops?: { unitNumber
   return `${typeLabels[type][0]} ${unitNum}`;
 }
 
-/** إنشاء إيصال محاسبي تلقائياً عند تأكيد دفع الحجز - تظهر العمليات في المحاسبة */
+/** إنشاء إيصال محاسبي فوراً عند الحجز — برقم متسلسل، غير مقيد. المحاسب يؤكد الاستلام ليقيده */
 function createAccountingReceiptFromBooking(booking: PropertyBooking): void {
   if (typeof window === 'undefined') return;
   if (booking.type !== 'BOOKING' || !booking.paymentConfirmed || !booking.priceAtBooking || booking.priceAtBooking <= 0) return;
 
-  // تجنب التكرار: إذا وُجد إيصال مرتبط بهذا الحجز فلا ننشئ آخر
   const existing = searchDocuments({ bookingId: booking.id });
   if (existing.length > 0) return;
 
-  // للتحويل/الشيك: نحتاج التاريخ. للحجوزات القديمة أو من صفحة الحجز العامة نستخدم تاريخ الإنشاء
   const paymentDate = booking.paymentDate?.trim() || (booking.createdAt ? booking.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10));
 
   try {
     const contact = findContactByPhoneOrEmail(booking.phone, booking.email);
     const prop = getPropertyById(booking.propertyId, getPropertyDataOverrides());
     const propNum = prop ? getPropertyDisplayByLevel(prop, 'numberOnly') : booking.propertyTitleAr;
-    const unitDisplay = booking.unitKey && prop
-      ? getUnitDisplayFromProperty(prop, booking.unitKey, true)
-      : booking.unitKey || '';
-    const unitDisplayEn = booking.unitKey && prop
-      ? getUnitDisplayFromProperty(prop, booking.unitKey, false)
-      : booking.unitKey || '';
+    const unitDisplay = booking.unitKey && prop ? getUnitDisplayFromProperty(prop, booking.unitKey, true) : booking.unitKey || '';
+    const unitDisplayEn = booking.unitKey && prop ? getUnitDisplayFromProperty(prop, booking.unitKey, false) : booking.unitKey || '';
     const displayName = getBookingDisplayName(booking);
     const descAr = `إيصال حجز - رقم العقار: ${propNum}${unitDisplay ? ` - الوحدة: ${unitDisplay}` : ''} - ${displayName}`;
     const descEn = `Booking receipt - Property: ${propNum}${unitDisplayEn ? ` - Unit: ${unitDisplayEn}` : ''} - ${getBookingDisplayName(booking, 'en')}`;
 
     createDocument({
       type: 'RECEIPT',
-      status: 'APPROVED',
+      status: 'PENDING',
       date: paymentDate,
       dueDate: booking.paymentMethod === 'CHEQUE' && booking.paymentDate ? booking.paymentDate : undefined,
       contactId: contact?.id,
@@ -277,8 +273,8 @@ function createAccountingReceiptFromBooking(booking: PropertyBooking): void {
       totalAmount: booking.priceAtBooking,
       descriptionAr: descAr,
       descriptionEn: descEn,
-      paymentMethod: booking.paymentMethod || 'CASH',
-      paymentReference: booking.paymentReferenceNo?.trim() || `حجز-${booking.id}`,
+      paymentMethod: (booking.cardLast4 ? 'CASH' : booking.paymentMethod) || 'CASH',
+      paymentReference: booking.paymentReferenceNo?.trim() || (booking.cardLast4 ? `بطاقة ****${booking.cardLast4}` : `حجز-${booking.id}`),
       chequeNumber: booking.paymentMethod === 'CHEQUE' ? (booking.paymentReferenceNo?.trim() || undefined) : undefined,
       chequeDueDate: booking.paymentMethod === 'CHEQUE' && booking.paymentDate ? booking.paymentDate : undefined,
     });
@@ -287,7 +283,7 @@ function createAccountingReceiptFromBooking(booking: PropertyBooking): void {
   }
 }
 
-/** مزامنة الحجوزات المدفوعة مع المحاسبة - إنشاء إيصالات للحجوزات التي لا تملك إيصالاً بعد */
+/** مزامنة الحجوزات المدفوعة مع المحاسبة — إنشاء إيصالات غير مقيدة للحجوزات التي لا تملك إيصالاً */
 export function syncPaidBookingsToAccounting(propertyId?: number): { created: number; skipped: number } {
   if (typeof window === 'undefined') return { created: 0, skipped: 0 };
   const all = getStoredBookings();
@@ -307,9 +303,6 @@ export function syncPaidBookingsToAccounting(propertyId?: number): { created: nu
     } catch {
       skipped++;
     }
-  }
-  if (typeof window !== 'undefined') {
-    try { postUnpostedDocuments(); } catch {}
   }
   return { created, skipped };
 }
@@ -498,9 +491,23 @@ export function getBookingsPendingAccountantConfirmation(): PropertyBooking[] {
   );
 }
 
-/** تأكيد استلام مبلغ الحجز من قبل المحاسب/مدير الحسابات - ينتقل تلقائياً إلى قيد انهاء الإجراءات */
+/** تأكيد استلام مبلغ الحجز من قبل المحاسب — اعتماد الإيصال وتقيده في الحسابات */
 export function confirmBookingReceiptByAccountant(bookingId: string): PropertyBooking | null {
-  return updateBooking(bookingId, { accountantConfirmedAt: new Date().toISOString(), status: 'CONFIRMED' });
+  const booking = getStoredBookings().find((b) => b.id === bookingId);
+  if (!booking || booking.type !== 'BOOKING' || !booking.paymentConfirmed || !booking.priceAtBooking) return null;
+
+  const docs = searchDocuments({ bookingId: bookingId });
+  const receipt = docs.find((d) => d.type === 'RECEIPT' && (d.status === 'PENDING' || d.status === 'DRAFT'));
+  if (receipt) {
+    updateDocument(receipt.id, { status: 'APPROVED' });
+    postUnpostedDocuments();
+  }
+
+  return updateBooking(bookingId, {
+    accountantConfirmedAt: new Date().toISOString(),
+    status: 'CONFIRMED',
+    depositReceiptNumber: receipt?.serialNumber,
+  });
 }
 
 /** حذف حجز - يُسمح فقط للحجوزات غير المرتبطة بأي أمر حسابي أو دفع */

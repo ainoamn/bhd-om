@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 interface AdminPageHeaderProps {
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   actions?: React.ReactNode;
 }

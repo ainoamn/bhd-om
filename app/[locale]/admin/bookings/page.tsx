@@ -7,6 +7,8 @@ import { getAllBookings, updateBookingStatus, createBooking, updateBooking, dele
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
 import { getContractByBooking, hasContractForUnit, hasActiveContractForUnit, getAllContracts } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
+import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
+import { getDocumentUploadLink, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
 import { searchContacts, getContactDisplayName, getContactById, findContactByPhoneOrEmail, isOmaniNationality, isCompanyContact } from '@/lib/data/addressBook';
 import { getActiveBankAccounts, getDefaultBankAccount, getBankAccountById } from '@/lib/data/bankAccounts';
@@ -160,9 +162,16 @@ export default function AdminBookingsPage() {
 
   const allContracts = typeof window !== 'undefined' ? getAllContracts() : [];
   const getContractForBooking = (b: PropertyBooking) =>
-    allContracts.find((c) => c.bookingId === b.id || (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || '')));
-  const getApprovedContractForBooking = (b: PropertyBooking) =>
-    allContracts.find((c) => (c.bookingId === b.id || (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || ''))) && c.status === 'APPROVED');
+    allContracts.find(
+      (c) =>
+        c.bookingId === b.id ||
+        (b.contractId && c.id === b.contractId) ||
+        (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || ''))
+    );
+  const getApprovedContractForBooking = (b: PropertyBooking) => {
+    const c = getContractForBooking(b);
+    return c && c.status === 'APPROVED' ? c : undefined;
+  };
   const isStatusLocked = (b: PropertyBooking) => hasContractForUnit(b.propertyId, b.unitKey);
   const hasContract = (b: PropertyBooking) => !!getContractForBooking(b);
 
@@ -469,11 +478,32 @@ export default function AdminBookingsPage() {
                                 const c = getContractForBooking(b);
                                 const approved = getApprovedContractForBooking(b);
                                 const isApproved = !!approved;
+                                const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
+                                const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : c.status === 'APPROVED'
+                                  ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
+                                  : c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED'
+                                    ? allDocsAndChecksApproved
+                                      ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
+                                      : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
+                                    : (ar ? 'عقد مسودة - بانتظار رفع المستندات' : 'Draft - pending document upload');
+                                const docUploadLink = typeof window !== 'undefined' ? getDocumentUploadLink(window.location.origin, locale, b.propertyId, b.id, b.email) : '';
+                                const docMsg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${docUploadLink}` : `Hello, please complete the contract documentation by uploading the required documents:\n${docUploadLink}`;
+                                const needsDocs = c && c.status !== 'APPROVED';
+                                const needsApproval = hasDocumentsNeedingConfirmation(b.id) || (getChecksByBooking(b.id).length > 0 && !areAllChecksApproved(b.id));
                                 return (
                                   <>
                                     <span className={`inline-flex px-3 py-1 rounded-xl text-sm font-semibold border ${isApproved ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                      {isApproved ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)') : (ar ? 'عقد قيد الإعداد' : 'Contract in progress')}
+                                      {contractStatusLabel}
                                     </span>
+                                    {needsApproval && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setDocumentsPanelBooking(b)}
+                                        className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 border border-amber-500/40"
+                                      >
+                                        📋 {ar ? 'اعتماد المستندات' : 'Approve documents'}
+                                      </button>
+                                    )}
                                     {approved && (
                                       <div className="text-xs text-gray-600">
                                         {approved.monthlyRent.toLocaleString()} ر.ع/شهر • {approved.annualRent.toLocaleString()} ر.ع/سنة • {new Date(approved.startDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')} — {new Date(approved.endDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}
@@ -482,6 +512,36 @@ export default function AdminBookingsPage() {
                                     <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block">
                                       {ar ? 'تعديل من صفحة العقود' : 'Edit from contracts page'}
                                     </Link>
+                                    {needsDocs && docUploadLink && (
+                                      <div className="flex flex-wrap gap-1.5 mt-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => b.phone && openWhatsAppWithMessage(b.phone, docMsg)}
+                                          disabled={!b.phone}
+                                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                          title={ar ? 'إرسال بالواتساب' : 'Send via WhatsApp'}
+                                        >
+                                          💬 {ar ? 'واتساب' : 'WhatsApp'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => b.email && openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link', docMsg)}
+                                          disabled={!b.email}
+                                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                          title={ar ? 'إرسال بالبريد' : 'Send via email'}
+                                        >
+                                          ✉ {ar ? 'بريد' : 'Email'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => navigator.clipboard.writeText(docUploadLink)}
+                                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          title={ar ? 'نسخ الرابط' : 'Copy link'}
+                                        >
+                                          📋 {ar ? 'نسخ الرابط' : 'Copy link'}
+                                        </button>
+                                      </div>
+                                    )}
                                   </>
                                 );
                               })()}
@@ -502,7 +562,7 @@ export default function AdminBookingsPage() {
                                 <p className="text-xs text-emerald-600 font-medium">{ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed'}</p>
                               )}
                               {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && (
-                                <p className="text-xs text-amber-600 font-medium" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}</p>
+                                <p className="text-xs text-amber-600 font-medium" title={ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}>📋 {ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}</p>
                               )}
                               {b.status === 'CANCELLED' && b.cancellationNote && (
                                 <p className="text-xs text-gray-600 italic" title={ar ? 'ملاحظة المحاسب' : 'Accountant note'}>{b.cancellationNote}</p>
@@ -553,7 +613,7 @@ export default function AdminBookingsPage() {
                                   <span>📄</span>
                                   {ar ? 'المستندات' : 'Documents'}
                                   {hasDocumentsNeedingConfirmation(b.id) && (
-                                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold" title={ar ? 'بحاجة لتأكيد المستندات' : 'Documents need confirmation'}>!</span>
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center font-bold" title={ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}>!</span>
                                   )}
                                 </button>
                                 {canCreateContract(b) && (
@@ -614,14 +674,63 @@ export default function AdminBookingsPage() {
                       {isStatusLocked(b) ? (
                         <div className="flex-1 p-3 rounded-xl bg-blue-50 border border-blue-200">
                           {(() => {
+                            const c = getContractForBooking(b);
                             const approved = getApprovedContractForBooking(b);
                             const isApproved = !!approved;
+                            const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
+                            const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : c.status === 'APPROVED'
+                              ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
+                              : c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED'
+                                ? allDocsAndChecksApproved
+                                  ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
+                                  : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
+                                : (ar ? 'عقد مسودة - بانتظار رفع المستندات' : 'Draft - pending document upload');
+                            const docUploadLink = typeof window !== 'undefined' ? getDocumentUploadLink(window.location.origin, locale, b.propertyId, b.id, b.email) : '';
+                            const docMsg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${docUploadLink}` : `Hello, please complete the contract documentation by uploading the required documents:\n${docUploadLink}`;
+                            const needsDocs = c && c.status !== 'APPROVED';
+                            const needsApprovalCard = hasDocumentsNeedingConfirmation(b.id) || (getChecksByBooking(b.id).length > 0 && !areAllChecksApproved(b.id));
                             return (
                               <>
                                 <span className={`text-sm font-semibold ${isApproved ? 'text-blue-700' : 'text-amber-700'}`}>
-                                  {isApproved ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)') : (ar ? 'عقد قيد الإعداد' : 'Contract in progress')}
+                                  {contractStatusLabel}
                                 </span>
+                                {needsApprovalCard && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDocumentsPanelBooking(b)}
+                                    className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 border border-amber-500/40"
+                                  >
+                                    📋 {ar ? 'اعتماد المستندات' : 'Approve documents'}
+                                  </button>
+                                )}
                                 <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block mt-1">{ar ? 'من العقود' : 'From contracts'}</Link>
+                                {needsDocs && docUploadLink && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => b.phone && openWhatsAppWithMessage(b.phone, docMsg)}
+                                      disabled={!b.phone}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                    >
+                                      💬 واتساب
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => b.email && openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link', docMsg)}
+                                      disabled={!b.email}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                      ✉ بريد
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigator.clipboard.writeText(docUploadLink)}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                    >
+                                      📋 {ar ? 'نسخ الرابط' : 'Copy link'}
+                                    </button>
+                                  </div>
+                                )}
                               </>
                             );
                           })()}
@@ -637,7 +746,7 @@ export default function AdminBookingsPage() {
                           </div>
                           {b.type === 'BOOKING' && b.paymentConfirmed && !b.accountantConfirmedAt && <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant'}</p>}
                           {b.status === 'CONFIRMED' && b.accountantConfirmedAt && <p className="text-xs text-emerald-600 font-medium">{ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed'}</p>}
-                          {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && <p className="text-xs text-amber-600 font-medium">📋 {ar ? 'بحاجة لتأكيد المستندات' : 'Docs need confirmation'}</p>}
+                          {b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id) && <p className="text-xs text-amber-600 font-medium">📋 {ar ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}</p>}
                           {b.status === 'CANCELLED' && b.cancellationNote && <p className="text-xs text-gray-600 italic">{b.cancellationNote}</p>}
                           {!hasContract(b) && b.status !== 'CANCELLED' && (
                             hasBookingFinancialLinkage(b) ? (

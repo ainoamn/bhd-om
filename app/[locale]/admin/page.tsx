@@ -2,13 +2,16 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
+import ClientDashboard from '@/components/admin/ClientDashboard';
+import OwnerDashboard from '@/components/admin/OwnerDashboard';
 import { properties } from '@/lib/data/properties';
 import { projects } from '@/lib/data/projects';
 import { users } from '@/lib/data/users';
 
-// Mock data for dashboard
+// Mock data for admin dashboard
 const mockNotifications = [
   { id: 1, textAr: 'طلب عرض عقار جديد', textEn: 'New property viewing request', time: 'منذ 5 دقائق', timeEn: '5 min ago', type: 'request' },
   { id: 2, textAr: 'رسالة تواصل جديدة', textEn: 'New contact message', time: 'منذ 15 دقيقة', timeEn: '15 min ago', type: 'message' },
@@ -24,8 +27,20 @@ const mockRequests = [
 
 export default function AdminDashboardPage() {
   const params = useParams();
+  const { data: session, status } = useSession();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('dashboard');
+  const userRole = (session?.user as { role?: string })?.role;
+
+  if (status === 'loading') {
+    return (
+      <div className="admin-page-header">
+        <div className="animate-pulse text-gray-500 py-12">{locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>
+      </div>
+    );
+  }
+  if (userRole === 'CLIENT') return <ClientDashboard />;
+  if (userRole === 'OWNER') return <OwnerDashboard />;
 
   const stats = [
     { label: t('stats.properties'), value: properties.length, href: '/admin/properties', icon: 'building' as const, color: 'from-blue-500 to-blue-600', bgColor: 'bg-blue-50' },

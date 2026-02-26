@@ -690,10 +690,10 @@ export default function AccountingSection() {
               <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm">
                 <h5 className="mb-3 flex items-center gap-2 font-semibold text-amber-800">
                   <span className="text-xl">⚠️</span>
-                  {ar ? 'تأكيد استلام مبالغ الحجز' : 'Confirm booking receipt'}
+                  {ar ? 'تأكيد استلام مبالغ الحجز (الإيصال مُنشأ، غير مقيد)' : 'Confirm booking receipt (receipt created, unposted)'}
                 </h5>
                 <p className="text-sm text-amber-700 mb-4">
-                  {ar ? 'يُرجى تأكيد استلام المبلغ خلال 24 ساعة عمل.' : 'Please confirm receipt within 24 business hours.'}
+                  {ar ? 'الإيصال مُنشأ تلقائياً عند الحجز. تحقّق من استلام المبلغ واضغط للتأكيد — سيُقيد الإيصال في الحسابات بنفس التاريخ والمرجع.' : 'Receipt was created at booking. Verify amount received and click to confirm — it will be posted with same date and reference.'}
                 </p>
                 <ul className="space-y-3">
                   {pendingReceipts.map((b) => (
@@ -722,7 +722,7 @@ export default function AccountingSection() {
                         }}
                         className="px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors shrink-0"
                       >
-                        {ar ? 'تأكيد الاستلام' : 'Confirm receipt'}
+                        {ar ? 'تأكيد الاستلام وتقيد الطلب' : 'Confirm receipt & post'}
                       </button>
                     </li>
                   ))}

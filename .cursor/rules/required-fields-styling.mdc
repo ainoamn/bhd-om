@@ -1,7 +1,7 @@
 ---
-description: تنسيق الحقول الإجبارية - إطار أحمر عند الفراغ وأخضر عند التعبئة
+description: تنسيق الحقول الإجبارية - إطار أحمر عند الفراغ وأخضر عند التعبئة - سلوك عام لكل الموقع
 globs: "**/*.tsx,**/*.ts,**/*.css"
-alwaysApply: false
+alwaysApply: true
 ---
 
 # تنسيق الحقول الإجبارية (Required Fields Styling)
@@ -23,29 +23,22 @@ alwaysApply: false
 - جميع النماذج: inputs، selects، textareas، checkboxes
 - في كل صفحات الموقع (الواجهة الأمامية + لوحة الإدارة)
 
-### 4. أمثلة التطبيق
+### 4. استخدام الأدوات المشتركة
 
 ```tsx
-// Tailwind - حقل إجباري مع تنسيق ديناميكي
-<input
-  className={`w-full px-4 py-2.5 rounded-lg border-2 ${
-    !value?.trim() ? 'border-red-500' : 'border-green-500'
-  }`}
-  required
-/>
+// lib/utils/requiredFields.ts
+import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
 
-// أو باستخدام classes
-<input className="border-2 border-red-500 focus:border-green-500 valid:border-green-500" />
-```
+// لكل حقل إجباري:
+className={`admin-input w-full ${getRequiredFieldClass(true, form.fieldName)}`}
 
-```css
-/* CSS - للاستخدام العام */
-.input-required:invalid,
-.input-required:placeholder-shown {
-  border-color: rgb(239 68 68);
-}
-
-.input-required:valid:not(:placeholder-shown) {
-  border-color: rgb(34 197 94);
+// عند فشل التحقق - نافذة تنبيه:
+if (missing.length > 0) {
+  showMissingFieldsAlert(missing, ar);
+  return;
 }
 ```
+
+### 5. كلاسات CSS العالمية (globals.css)
+- `input-required-error` — إطار أحمر عند الفراغ
+- `input-required-valid` — إطار أخضر عند التعبئة

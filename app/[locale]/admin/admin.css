@@ -9,6 +9,10 @@
   @apply w-72 bg-white border-l border-gray-200/80 flex-shrink-0 fixed top-0 bottom-0 z-40 h-full flex flex-col
     shadow-[0_0_50px_-12px_rgba(0,0,0,0.08)] transform transition-all duration-300 ease-out;
 }
+.admin-root--has-user-bar .admin-sidebar {
+  top: 2.75rem;
+  height: calc(100vh - 2.75rem);
+}
 .admin-sidebar--collapsed {
   width: 4.5rem;
 }

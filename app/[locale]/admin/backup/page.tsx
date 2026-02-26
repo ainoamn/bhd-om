@@ -3,19 +3,28 @@
 import { useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { downloadBackup, importBackup } from '@/lib/data/backup';
+import { downloadBackup, importBackup, resetAllOperationalData } from '@/lib/data/backup';
 
 export default function BackupAdminPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
   const [importing, setImporting] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState('');
   const [result, setResult] = useState<{ success: boolean; restored?: number; error?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
     downloadBackup();
     setResult({ success: true });
+  };
+
+  const handleReset = () => {
+    if (resetConfirm !== (ar ? 'تصفير' : 'RESET')) return;
+    const n = resetAllOperationalData();
+    setResetConfirm('');
+    setResult({ success: true, restored: n });
+    window.location.reload();
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,9 +110,40 @@ export default function BackupAdminPage() {
         </div>
 
         <div className="admin-card p-6 bg-amber-50/50 border-amber-200">
-          <p className="text-sm font-medium text-amber-900">
+          <p className="text-sm font-medium text-amber-900 mb-2">
             {ar ? '💡 نصيحة: احفظ الملف المُصدَّر في مكان آمن (سحابة، قرص خارجي). يمكنك استعادته لاحقاً من أي متصفح.' : '💡 Tip: Save the exported file somewhere safe (cloud, external drive). You can restore it later from any browser.'}
           </p>
+          <p className="text-sm font-medium text-amber-900">
+            {ar
+              ? '🔄 قبل أي تحديث: صدّر من هنا أولاً، ثم نفّذ السكريبت scripts\\backup-all.ps1 لنسخ قاعدة البيانات، واحفظ الملفات في مكان آمن. راجع docs/UPDATE_GUIDE.md.'
+              : '🔄 Before any update: export here first, then run scripts\\backup-all.ps1 to copy the database, and save files somewhere safe. See docs/UPDATE_GUIDE.md.'}
+          </p>
+        </div>
+
+        <div className="admin-card p-6 border-red-200 bg-red-50/50">
+          <h3 className="font-bold text-red-900 mb-2">{ar ? 'تصفير كل البيانات التشغيلية' : 'Reset All Operational Data'}</h3>
+          <p className="text-red-800 text-sm leading-relaxed mb-4">
+            {ar
+              ? 'سيتم حذف الحجوزات، العقود، العمليات المحاسبية، المستندات، والمسودات. لن يتأثر: العقارات، دفتر العناوين، بيانات الشركة، الحسابات البنكية.'
+              : 'This will delete all bookings, contracts, accounting operations, documents, and drafts. Unaffected: properties, address book, company data, bank accounts.'}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="text"
+              value={resetConfirm}
+              onChange={(e) => setResetConfirm(e.target.value)}
+              placeholder={ar ? 'اكتب "تصفير" للتأكيد' : 'Type "RESET" to confirm'}
+              className="px-4 py-2 rounded-lg border border-red-300 bg-white text-red-900 placeholder-red-400 max-w-xs"
+            />
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={resetConfirm !== (ar ? 'تصفير' : 'RESET')}
+              className="px-6 py-2 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {ar ? 'تصفير الكل' : 'Reset All'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

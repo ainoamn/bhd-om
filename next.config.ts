@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
   experimental: {
     // Prisma 7 with adapter - avoid optimizePackageImports to prevent bundling issues
     // optimizePackageImports: ['@prisma/client'],
-    optimizeCss: true,
+    // optimizeCss: true, // يتطلب critters - معطل مؤقتاً
     viewTransition: true,
   },
   

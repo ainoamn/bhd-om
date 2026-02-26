@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import PropertyBarcode from '@/components/admin/PropertyBarcode';
 
 interface PropertyImageSliderProps {
   images: string[];
@@ -10,9 +11,12 @@ interface PropertyImageSliderProps {
   locale: string;
   /** حالة العقار - عند RESERVED تظهر شارة محجوز */
   businessStatus?: string;
+  /** لعرض الباركود في أسفل الصورة جهة اليسار */
+  propertyId?: number;
+  unitKey?: string;
 }
 
-export default function PropertyImageSlider({ images, alt, type, locale, businessStatus }: PropertyImageSliderProps) {
+export default function PropertyImageSlider({ images, alt, type, locale, businessStatus, propertyId, unitKey }: PropertyImageSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const goToPrevious = () => {
@@ -137,8 +141,17 @@ export default function PropertyImageSlider({ images, alt, type, locale, busines
 
         {/* Image Counter */}
         {images.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-semibold z-10">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-semibold">
             {currentIndex + 1} / {images.length}
+          </div>
+        )}
+
+        {/* الباركود الوحيد - داخل الصورة في الزاوية اليسرى السفلى */}
+        {propertyId != null && (
+          <div className="absolute bottom-4 left-4 z-20" style={{ maxWidth: 'calc(100% - 2rem)' }}>
+            <div className="inline-flex p-1.5 rounded-lg bg-white/95 shadow-lg border border-white/80">
+              <PropertyBarcode propertyId={propertyId} unitKey={unitKey} locale={locale} size={40} />
+            </div>
           </div>
         )}
       </div>

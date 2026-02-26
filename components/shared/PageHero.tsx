@@ -4,6 +4,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSession, signOut } from 'next-auth/react';
 import LanguageSwitcher from '../LanguageSwitcher';
 import { getPagesVisibility, PAGES_VISIBILITY_EVENT, type PageId } from '@/lib/data/siteSettings';
 
@@ -88,6 +89,7 @@ export default function PageHero({
 }: PageHeroProps) {
   const tNav = useTranslations('nav');
   const locale = useLocale();
+  const { data: session, status } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [animatedValues, setAnimatedValues] = useState<Record<string, number>>({});
   const [visibility, setVisibility] = useState<Record<PageId, boolean>>(() =>
@@ -234,14 +236,38 @@ export default function PageHero({
                 <div className="flex items-center gap-4">
                   <div className="h-10 w-px bg-white/30"></div>
                   <LanguageSwitcher currentLocale={locale} />
-                  <Link 
-                    href={`/${locale}/login`} 
-                    prefetch={true}
-                    className="bg-primary text-white px-8 py-3.5 rounded-lg font-bold text-base md:text-lg hover:bg-primary-dark transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-                    style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}
-                  >
-                    {tNav('login')}
-                  </Link>
+                  {status === 'authenticated' && session?.user ? (
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/${locale}/admin`}
+                        className="text-white hover:text-primary font-bold text-base md:text-lg transition-colors drop-shadow-lg"
+                        style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}
+                      >
+                        {(session.user as { name?: string }).name?.trim() ||
+                        (session.user as { serialNumber?: string }).serialNumber ||
+                        (session.user as { email?: string }).email ||
+                        (session.user as { phone?: string }).phone ||
+                        '—'}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => signOut({ callbackUrl: `/${locale}` })}
+                        className="text-white/80 hover:text-white text-xs font-medium transition-colors"
+                        style={{ textShadow: '0 1px 3px rgba(0, 0, 0, 0.5)' }}
+                      >
+                        {locale === 'ar' ? 'تسجيل الخروج' : 'Log out'}
+                      </button>
+                    </div>
+                  ) : (
+                    <Link 
+                      href={`/${locale}/login`} 
+                      prefetch={true}
+                      className="bg-primary text-white px-8 py-3.5 rounded-lg font-bold text-base md:text-lg hover:bg-primary-dark transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                      style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}
+                    >
+                      {tNav('login')}
+                    </Link>
+                  )}
                 </div>
               </div>
 
@@ -282,16 +308,37 @@ export default function PageHero({
                   <div className="px-5 py-4 border-t border-white/20 mt-2">
                     <LanguageSwitcher currentLocale={locale} />
                   </div>
-                  <div className="px-5 pt-2">
-                    <Link 
-                      href={`/${locale}/login`} 
-                      prefetch={true}
-                      className="block w-full bg-primary text-white px-8 py-4 rounded-lg hover:bg-primary-dark transition-all duration-200 font-bold text-base md:text-lg text-center shadow-lg"
-                      onClick={() => setIsMenuOpen(false)}
-                      style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}
-                    >
-                      {tNav('login')}
-                    </Link>
+                  <div className="px-5 pt-2 space-y-2">
+                    {status === 'authenticated' && session?.user ? (
+                      <>
+                        <Link
+                          href={`/${locale}/admin`}
+                          className="block px-5 py-4 min-h-[44px] flex items-center justify-between rounded-lg bg-white/10 text-white font-bold touch-manipulation"
+                          onClick={() => setIsMenuOpen(false)}
+                          style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}
+                        >
+                          <span>{(session.user as { name?: string }).name || (session.user as { email?: string }).email || (session.user as { serialNumber?: string }).serialNumber || '—'}</span>
+                          <span className="text-xs text-primary">{locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: `/${locale}` }); }}
+                          className="block w-full py-4 min-h-[44px] text-red-200 hover:bg-red-500/20 rounded-lg font-bold touch-manipulation"
+                        >
+                          {locale === 'ar' ? 'تسجيل الخروج' : 'Log out'}
+                        </button>
+                      </>
+                    ) : (
+                      <Link 
+                        href={`/${locale}/login`} 
+                        prefetch={true}
+                        className="block w-full bg-primary text-white px-8 py-4 rounded-lg hover:bg-primary-dark transition-all duration-200 font-bold text-base md:text-lg text-center shadow-lg"
+                        onClick={() => setIsMenuOpen(false)}
+                        style={{ textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)' }}
+                      >
+                        {tNav('login')}
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>

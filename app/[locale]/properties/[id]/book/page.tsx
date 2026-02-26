@@ -59,6 +59,7 @@ export default function PropertyBookPage() {
   const [clientSearchStatus, setClientSearchStatus] = useState<'idle' | 'found' | 'not_found'>('idle');
   const [userHasExistingBooking, setUserHasExistingBooking] = useState<boolean | null>(null);
   const [existingBookingForLink, setExistingBookingForLink] = useState<{ id: string; email?: string } | null>(null);
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -255,6 +256,7 @@ export default function PropertyBookPage() {
         cardholderName: cardData.name.trim(),
       });
       setSubmitStatus('success');
+      setCreatedBookingId(booking.id);
       setFormData({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', message: '' });
       setCompanyForm({ companyNameAr: '', companyNameEn: '', commercialRegistrationNumber: '', repName: '', repNameEn: '', repPosition: '', repPhone: '', repPhoneCountryCode: '968', repNationality: '', repCivilId: '', repPassportNumber: '' });
       setTimeout(() => router.push(`/${locale}/properties/${id}/receipt?booking=${booking.id}`), 2500);
@@ -281,6 +283,27 @@ export default function PropertyBookPage() {
   const displayCardNumber = cardData.number || '•••• •••• •••• ••••';
   const displayCardName = cardData.name || (ar ? 'اسم حامل البطاقة' : 'CARDHOLDER NAME');
   const displayCardExpiry = cardData.expiry || 'MM/YY';
+
+  if (submitStatus === 'success' && createdBookingId) {
+    const receiptUrl = `/${locale}/properties/${id}/receipt?booking=${createdBookingId}`;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/95 backdrop-blur-xl">
+        <div className="text-center max-w-lg mx-auto px-6">
+          <div className="w-24 h-24 rounded-full bg-emerald-500/30 flex items-center justify-center text-6xl mx-auto mb-8 animate-pulse">✓</div>
+          <h2 className="text-3xl font-bold text-emerald-400 mb-4">{ar ? 'شكراً لحجزك!' : 'Thank you for your booking!'}</h2>
+          <p className="text-white/80 text-lg mb-2">{ar ? 'تم إتمام الدفع بنجاح.' : 'Payment completed successfully.'}</p>
+          <p className="text-white/60 text-sm mb-10">{ar ? 'سيتم تحويلك للإيصال لطباعته أو تحميله...' : 'Redirecting you to the receipt to print or download...'}</p>
+          <Link
+            href={receiptUrl}
+            className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-bold text-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-2xl shadow-emerald-500/30"
+          >
+            <span>📄</span>
+            {ar ? 'عرض الإيصال والطباعة' : 'View Receipt & Print'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!property) {
     return (
@@ -461,15 +484,6 @@ export default function PropertyBookPage() {
                   </h2>
                 </div>
                 <div className="p-6 md:p-8">
-                  {submitStatus === 'success' && (
-                    <div className="mb-8 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 p-6 flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-full bg-emerald-500/30 flex items-center justify-center text-3xl flex-shrink-0">✓</div>
-                      <div>
-                        <p className="font-bold text-emerald-400 text-lg">{ar ? 'تم إتمام الدفع بنجاح!' : 'Payment completed successfully!'}</p>
-                        <p className="text-white/70 text-sm mt-1">{ar ? 'سيتم تحويلك لصفحة إيصال الاستلام لطباعته أو تنزيله.' : 'You will be redirected to the receipt page to print or download it.'}</p>
-                      </div>
-                    </div>
-                  )}
                   {submitStatus === 'error' && (
                     <div className="mb-8 rounded-2xl bg-red-500/20 border border-red-400/30 p-4 text-red-300">
                       {submitError === 'ALREADY_BOOKED'
@@ -479,7 +493,6 @@ export default function PropertyBookPage() {
                           : (ar ? 'حدث خطأ. يرجى المحاولة مرة أخرى.' : 'An error occurred. Please try again.')}
                     </div>
                   )}
-
                   <form onSubmit={handleSubmit} className="space-y-8">
                     {/* بحث عن عميل مسجل */}
                     <div className="rounded-xl bg-white/5 border border-white/10 p-4">

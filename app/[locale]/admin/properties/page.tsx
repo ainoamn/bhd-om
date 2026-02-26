@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 
 import { properties, updateProperty, updatePropertyUnit, getPropertyOverrides, getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, type PropertyBusinessStatus, type Property } from '@/lib/data/properties';
+import PropertyBarcode from '@/components/admin/PropertyBarcode';
 import { getBookingsByProperty } from '@/lib/data/bookings';
 
 type PropertyWithStatus = (typeof properties)[number] & { businessStatus?: PropertyBusinessStatus; isPublished?: boolean; propertySubTypeAr?: string };
@@ -241,7 +242,9 @@ export default function PropertiesAdminPage() {
                           )}
                         </td>
                         <td className="font-semibold text-gray-900">
-                          <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <PropertyBarcode propertyId={property.id} locale={locale} size={28} className="shrink-0" />
+                            <div className="flex flex-col gap-0.5">
                             <span className="text-sm font-semibold text-[#8B6F47]">
                               {[
                                 (property as { landParcelNumber?: string }).landParcelNumber,
@@ -275,6 +278,7 @@ export default function PropertiesAdminPage() {
                                 <span className="text-xs text-amber-700 font-medium">عرض الوحدات</span>
                               </div>
                             )}
+                            </div>
                           </div>
                         </td>
                         <td>
@@ -331,8 +335,9 @@ export default function PropertiesAdminPage() {
                           {isMultiUnit && <span className="text-gray-500 text-sm">—</span>}
                         </td>
                         <td>
-                          <div className="flex gap-2 items-center">
+                          <div className="flex gap-2 items-center flex-wrap">
                             <Link href={`/${locale}/admin/properties/${property.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">تعديل</Link>
+                            <Link href={`/${locale}/admin/properties/${property.id}/extra-data`} className="text-sm font-medium text-blue-600 hover:underline">البيانات الإضافية</Link>
                             <Link href={`/${locale}/admin/properties/${property.id}/bookings`} className="text-sm font-medium text-violet-600 hover:underline">الحجوزات</Link>
                             <button className="text-sm font-medium text-red-600 hover:underline">حذف</button>
                           </div>
@@ -371,7 +376,9 @@ export default function PropertiesAdminPage() {
                                       <tr key={u.unitKey} className="bg-white">
                                         <td className="font-mono text-xs text-primary">{unitSerial}</td>
                                         <td>
-                                          <div className="flex flex-col gap-0.5">
+                                          <div className="flex items-center gap-2">
+                                            <PropertyBarcode propertyId={property.id} unitKey={u.unitKey} locale={locale} size={28} className="shrink-0" />
+                                            <div className="flex flex-col gap-0.5">
                                             <span className="text-sm font-semibold text-[#8B6F47]">
                                               {unitTitleLine1 || unitSerial}
                                             </span>

@@ -16,6 +16,9 @@ import TranslateField from '@/components/admin/TranslateField';
 import { getAllNationalityValues } from '@/lib/data/nationalities';
 import { isOmaniNationality } from '@/lib/data/addressBook';
 import { siteConfig } from '@/config/site';
+import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
+import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
+import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 
 const CATEGORY_KEYS: Record<ContactCategory, string> = {
   CLIENT: 'categoryClient',
@@ -48,6 +51,8 @@ export interface ContactFormModalProps {
   initialName?: string;
   initialEmail?: string;
   initialPhone?: string;
+  /** التصنيف الافتراضي عند الإضافة (مثل LANDLORD لمالك جديد) */
+  initialCategory?: ContactCategory;
   locale?: string;
 }
 
@@ -59,6 +64,7 @@ export default function ContactFormModal({
   initialName = '',
   initialEmail = '',
   initialPhone = '',
+  initialCategory = 'CLIENT',
   locale = 'ar',
 }: ContactFormModalProps) {
   const t = useTranslations('addressBook');
@@ -101,11 +107,13 @@ export default function ContactFormModal({
     };
   };
 
+  const draftKey = editContactId ? `contact_edit_${editContactId}` : 'contact_new';
+
   useEffect(() => {
     if (open && editContactId) {
       const c = getContactById(editContactId);
       if (c) {
-        setForm({
+        const baseForm = {
           firstName: c.firstName || '',
           secondName: c.secondName || '',
           thirdName: c.thirdName || '',
@@ -116,9 +124,9 @@ export default function ContactFormModal({
           phone: c.phone || '',
           phoneSecondary: c.phoneSecondary || '',
           civilId: c.civilId || '',
-          civilIdExpiry: c.civilIdExpiry || '',
+          civilIdExpiry: normalizeDateForInput(c.civilIdExpiry) || '',
           passportNumber: c.passportNumber || '',
-          passportExpiry: c.passportExpiry || '',
+          passportExpiry: normalizeDateForInput(c.passportExpiry) || '',
           workplace: c.workplace || '',
           workplaceEn: c.workplaceEn || '',
           nameEn: c.nameEn || '',
@@ -129,21 +137,35 @@ export default function ContactFormModal({
           notes: c.notes || '',
           notesEn: c.notesEn || '',
           tags: c.tags || [],
-        });
+        };
+        const draft = loadDraft<typeof baseForm>(draftKey);
+        setForm(draft && typeof draft === 'object' ? { ...baseForm, ...draft } : baseForm);
       }
     } else if (open && !editContactId) {
       const { firstName, secondName, thirdName, familyName } = parseName(initialName);
-      setForm((f) => ({
-        ...f,
-        firstName: firstName || f.firstName,
-        secondName: secondName || f.secondName,
-        thirdName: thirdName || f.thirdName,
-        familyName: familyName || f.familyName,
-        email: initialEmail || f.email,
-        phone: initialPhone || f.phone,
-      }));
+      const draft = loadDraft<typeof form>(draftKey);
+      if (draft && typeof draft === 'object') {
+        setForm(draft);
+      } else {
+        setForm((f) => ({
+          ...f,
+          firstName: firstName || f.firstName,
+          secondName: secondName || f.secondName,
+          thirdName: thirdName || f.thirdName,
+          familyName: familyName || f.familyName,
+          email: initialEmail || f.email,
+          phone: initialPhone || f.phone,
+          category: initialCategory || f.category,
+        }));
+      }
     }
-  }, [open, editContactId, initialName, initialEmail, initialPhone]);
+  }, [open, editContactId, initialName, initialEmail, initialPhone, initialCategory, draftKey]);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => saveDraft(draftKey, form), 800);
+    return () => clearTimeout(t);
+  }, [open, draftKey, form]);
 
   const requiredFieldLabels: Record<string, string> = {
     firstName: t('firstName'),
@@ -158,7 +180,7 @@ export default function ContactFormModal({
   };
 
   const getFieldErrorClass = (field: keyof typeof requiredFieldLabels) => {
-    if (formErrors[field]) return 'border-2 border-red-500 ring-2 ring-red-200 bg-red-50';
+    if (formErrors[field]) return 'input-required-error';
     const isEmpty =
       field === 'address' ? !form.address?.fullAddress?.trim() :
       field === 'firstName' ? !form.firstName?.trim() :
@@ -169,8 +191,7 @@ export default function ContactFormModal({
       field === 'civilIdExpiry' ? !form.civilIdExpiry?.trim() :
       field === 'passportNumber' ? !form.passportNumber?.trim() :
       field === 'passportExpiry' ? !form.passportExpiry?.trim() : false;
-    if (isEmpty) return 'border-2 border-red-500 ring-2 ring-red-200 bg-red-50';
-    return 'border-2 border-emerald-400';
+    return getRequiredFieldClass(true, isEmpty ? '' : 'x');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -212,7 +233,11 @@ export default function ContactFormModal({
       }
     }
     setFormErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      const missingLabels = Object.keys(errors).map((k) => requiredFieldLabels[k as keyof typeof requiredFieldLabels] || k);
+      showMissingFieldsAlert(missingLabels, locale === 'ar');
+      return;
+    }
 
     const addr = form.address?.fullAddress
       ? { fullAddress: form.address.fullAddress }
@@ -248,6 +273,7 @@ export default function ContactFormModal({
       const contact = editContactId
         ? (updateContact(editContactId, payload) || getContactById(editContactId)!)
         : createContact(payload);
+      clearDraft(draftKey);
       onSaved(contact);
       onClose();
     } catch (err) {
@@ -420,7 +446,7 @@ export default function ContactFormModal({
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">{t('civilIdExpiry')}{isOmaniNationality(form.nationality) ? ' *' : ''}</label>
-              <input type="date" value={form.civilIdExpiry} onChange={(e) => setForm({ ...form, civilIdExpiry: e.target.value })} className={`admin-input w-full ${isOmaniNationality(form.nationality) ? getFieldErrorClass('civilIdExpiry') : ''}`} />
+              <input type="date" value={form.civilIdExpiry || ''} onChange={(e) => setForm({ ...form, civilIdExpiry: e.target.value })} className={`admin-input w-full ${isOmaniNationality(form.nationality) ? getFieldErrorClass('civilIdExpiry') : ''}`} />
             </div>
           </div>
           {form.nationality && !isOmaniNationality(form.nationality) && (
@@ -432,7 +458,7 @@ export default function ContactFormModal({
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">{t('passportExpiry')} *</label>
-                <input type="date" value={form.passportExpiry} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} className={`admin-input w-full ${getFieldErrorClass('passportExpiry')}`} />
+                <input type="date" value={form.passportExpiry || ''} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} className={`admin-input w-full ${getFieldErrorClass('passportExpiry')}`} />
               </div>
             </div>
           )}

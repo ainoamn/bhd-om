@@ -24,6 +24,9 @@ export interface BookingDocument {
   docTypeId: string;
   labelAr: string;
   labelEn: string;
+  /** شرح/وصف المستند (للمستندات الإضافية) */
+  descriptionAr?: string;
+  descriptionEn?: string;
   isRequired: boolean;
   status: DocumentStatus;
   /** للمرجعية القديمة - استخدم fileUrls إن وُجدت */
@@ -108,6 +111,65 @@ export function createDocumentRequests(
   const all = [...getStored(), ...docs];
   save(all);
   return docs;
+}
+
+/** إضافة طلبات المستندات الناقصة (مثلاً عند إضافة مفوضين جدد للشركة) */
+export function addMissingDocumentRequests(
+  bookingId: string,
+  propertyId: number,
+  requirements: { docTypeId: string; labelAr: string; labelEn: string; isRequired: boolean }[]
+): BookingDocument[] {
+  const existing = getDocumentsByBooking(bookingId);
+  const missing: BookingDocument[] = [];
+  const now = new Date().toISOString();
+  for (const r of requirements) {
+    const hasMatch = existing.some((d) => d.docTypeId === r.docTypeId && d.labelAr === r.labelAr);
+    if (!hasMatch) {
+      missing.push({
+        id: generateId(),
+        bookingId,
+        propertyId,
+        docTypeId: r.docTypeId,
+        labelAr: r.labelAr,
+        labelEn: r.labelEn,
+        isRequired: r.isRequired,
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+  if (missing.length === 0) return existing;
+  const all = [...getStored(), ...missing];
+  save(all);
+  return [...existing, ...missing];
+}
+
+/** إضافة مستند إضافي مطلوب من الإدارة (مع وصف/شرح) */
+export function addCustomDocumentRequest(
+  bookingId: string,
+  propertyId: number,
+  opts: { labelAr: string; labelEn: string; descriptionAr?: string; descriptionEn?: string; isRequired?: boolean }
+): BookingDocument {
+  const customId = `CUSTOM_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const now = new Date().toISOString();
+  const doc: BookingDocument = {
+    id: generateId(),
+    bookingId,
+    propertyId,
+    docTypeId: customId,
+    labelAr: opts.labelAr,
+    labelEn: opts.labelEn,
+    isRequired: opts.isRequired ?? false,
+    status: 'PENDING',
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (opts.descriptionAr) doc.descriptionAr = opts.descriptionAr;
+  if (opts.descriptionEn) doc.descriptionEn = opts.descriptionEn;
+  const all = [...getStored(), doc];
+  save(all);
+  return doc;
 }
 
 /** تحويل المستند إلى مصفوفة files موحدة (للمرجعية القديمة) */
@@ -283,6 +345,22 @@ export function removeDocumentRequest(docId: string): boolean {
   list.splice(idx, 1);
   save(list);
   return true;
+}
+
+/** إزالة طلبات المستندات بحسب نوع المستند (مثلاً عند العودة من "شركة" إلى "المستأجر") */
+export function removeDocumentRequestsByTypes(bookingId: string, docTypeIds: string[]): number {
+  const list = getStored();
+  const ids = new Set(docTypeIds);
+  let removed = 0;
+  const filtered = list.filter((d) => {
+    if (d.bookingId === bookingId && ids.has(d.docTypeId)) {
+      removed++;
+      return false;
+    }
+    return true;
+  });
+  if (removed > 0) save(filtered);
+  return removed;
 }
 
 /** رفض مستند - يحذف الصور فقط ويبقي البيانات والتواريخ كأرشفة لمتابعة المعاملة */

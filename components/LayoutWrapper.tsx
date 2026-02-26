@@ -16,8 +16,9 @@ export default function LayoutWrapper({
 }) {
   const pathname = usePathname();
   const isAdmin = pathname?.includes('/admin');
+  const isAuthPage = pathname?.endsWith('/login') || pathname?.endsWith('/register') || pathname?.includes('/forgot-password');
 
-  if (isAdmin) {
+  if (isAdmin || isAuthPage) {
     return <>{children}</>;
   }
 

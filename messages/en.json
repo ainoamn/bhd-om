@@ -55,6 +55,43 @@
     "vision": "Our Vision",
     "values": "Our Values"
   },
+  "register": {
+    "title": "Create account",
+    "subtitle": "Sign up to access our services",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "submit": "Create account",
+    "hasAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "errorGeneric": "Something went wrong. Please try again."
+  },
+  "userBar": {
+    "welcome": "Welcome,",
+    "usernameLabel": "Username"
+  },
+  "login": {
+    "signingIn": "Signing in...",
+    "title": "Login",
+    "subtitle": "Admin Dashboard",
+    "welcomeBack": "Welcome back",
+    "welcomeDesc": "Sign in to manage properties, bookings, and contracts.",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithMicrosoft": "Continue with Microsoft",
+    "orContinueWith": "Or email and password",
+    "email": "Email",
+    "emailOrUsername": "Username or Email",
+    "password": "Password",
+    "forgotPassword": "Forgot password?",
+    "submit": "Sign In",
+    "noAccount": "Don't have an account?",
+    "signUp": "Create account",
+    "backToWebsite": "Back to website",
+    "errorInvalidCredentials": "Invalid username/email or password",
+    "errorGeneric": "Something went wrong. Please try again."
+  },
   "properties": {
     "title": "Properties",
     "forSale": "For Sale",
@@ -126,8 +163,37 @@
         "general": "General",
         "content": "Content",
         "communication": "Communication",
-        "system": "System"
-      }
+        "system": "System",
+        "personalDashboard": "Personal Dashboard",
+        "managementBoard": "Management Board"
+      },
+      "clientNav": {
+        "dashboard": "My Dashboard",
+        "myBookings": "My Bookings",
+        "myContracts": "My Contracts",
+        "myInvoices": "My Invoices",
+        "myReceipts": "My Receipts",
+        "notifications": "Notifications",
+        "myAccount": "My Account"
+      },
+      "ownerNav": {
+        "dashboard": "My Dashboard",
+        "myProperties": "My Properties",
+        "myContracts": "My Contracts",
+        "myInvoices": "My Invoices",
+        "notifications": "Notifications",
+        "myAccount": "My Account"
+      },
+      "roleClient": "Client Dashboard",
+      "roleOwner": "Owner Dashboard",
+      "roleClientShort": "Client",
+      "roleOwnerShort": "Owner",
+      "permissionType": "Permission",
+      "customerType": "Customer Type",
+      "dashboardSettings": "Dashboard Settings",
+      "dashboardSettingsDesc": "Control what each user role can see",
+      "contactCategoryPermissions": "Address Book Category Permissions",
+      "contactCategoryPermissions": "Address Book Category Permissions"
     }
   },
   "dashboard": {
@@ -255,7 +321,10 @@
     "categoryPartner": "Partner",
     "categoryGovernment": "Government",
     "categoryAuthorizedRep": "Authorized Representative",
+    "categoryCompany": "Company",
     "categoryOther": "Other",
+    "categoryPermissions": "Address Book Category Permissions",
+    "categoryPermissionsDesc": "Set which categories each role can view or use",
     "duplicatePhone": "Phone number is already registered for another contact",
     "duplicateCivilId": "Civil ID is already registered for another contact",
     "duplicatePassportNumber": "Passport number is already registered for another contact",
@@ -429,5 +498,40 @@
     "signatorySignature": "Signature image",
     "electronicSignatureNotice": "This document was electronically signed by {name} ({position}) on behalf of {company}",
     "companyStamp": "Company stamp"
+  },
+  "usersAdmin": {
+    "title": "Users",
+    "subtitle": "Manage usernames, passwords, and link to address book",
+    "addUser": "Add user",
+    "searchPlaceholder": "Search by number, name, email...",
+    "serialNo": "Number",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "role": "Role",
+    "status": "Status",
+    "actions": "Actions",
+    "total": "Total",
+    "admins": "Admins",
+    "clients": "Clients",
+    "noUsers": "No users",
+    "noUsersHint": "Registered users or those added from address book appear here",
+    "roleAdmin": "Admin",
+    "roleClient": "Client",
+    "roleOwner": "Owner",
+    "statusActive": "Active",
+    "syncFromAddressBook": "Sync from address book",
+    "createUserAccount": "Create user account",
+    "createUserAccountHint": "On save, user and password will be auto-created and linked to contact",
+    "generatedPassword": "Temporary password",
+    "generatedPasswordHint": "Save this and send it to the client. It won't show again.",
+    "copyPassword": "Copy",
+    "userCreated": "Account created successfully",
+    "username": "Username",
+    "autoCreateAccountHint": "On save, a user account is auto-created with a number based on category (USR-C/T/L/...) and temp password",
+    "loginLink": "← Login page",
+    "passwordReset": "Password reset",
+    "syncFromUsers": "Sync from users",
+    "syncFromUsersHint": "Add registered users to address book"
   }
 }

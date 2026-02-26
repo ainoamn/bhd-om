@@ -40,8 +40,18 @@ export const AUTHORIZED_REP_TAG_EN = 'Authorized Representative';
 /** المفوض بالإدارة والتوقيع - للشركات */
 export interface AuthorizedRepresentative {
   id: string;
-  /** الاسم الكامل (عربي) */
+  /** الاسم الكامل (عربي) - يُستخدم للتوافق، يُستمد من الأجزاء عند الحفظ */
   name: string;
+  /** الاسم الأول */
+  firstName?: string;
+  /** الاسم الثاني */
+  secondName?: string;
+  /** الاسم الثالث */
+  thirdName?: string;
+  /** اسم العائلة */
+  familyName?: string;
+  /** اسم الشركة التي يمثلها المفوض (اختياري) */
+  companyName?: string;
   /** الاسم الكامل (إنجليزي) - إجباري */
   nameEn?: string;
   /** الجنسية - لتحديد إذا عماني (بطاقة فقط) أو وافد (بطاقة + جواز) */
@@ -56,6 +66,8 @@ export interface AuthorizedRepresentative {
   passportExpiry?: string;
   /** رقم الهاتف */
   phone: string;
+  /** رمز الدولة للهاتف (استخدام واجهة النموذج) */
+  phoneCountryCode?: string;
   /** المنصب في الشركة */
   position: string;
   /** معرف جهة الاتصال المحفوظة منفرداً في دفتر العناوين */
@@ -184,6 +196,8 @@ export interface Contact {
   /** موقوفة/مؤرشفة - لا تُحذف، يمكن استعادتها */
   archived?: boolean;
   archivedAt?: string;
+  /** معرف المستخدم في النظام (Prisma User) - عند ربط الجهة بحساب مستخدم */
+  userId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -225,6 +239,21 @@ export function getLinkedRepPosition(c: Contact): string | undefined {
   const company = getContactById(c.authorizedForCompanyId);
   const rep = company?.companyData?.authorizedRepresentatives?.find((r) => r.contactId === c.id);
   return rep?.position?.trim();
+}
+
+/** الحصول على الاسم الكامل للمفوض من الأجزاء أو الحقل القديم */
+export function getRepDisplayName(rep: AuthorizedRepresentative, locale?: 'ar' | 'en'): string {
+  if (locale === 'en' && rep.nameEn?.trim()) return rep.nameEn.trim();
+  const parts = [rep.firstName, rep.secondName, rep.thirdName, rep.familyName].filter(Boolean);
+  if (parts.length > 0) return parts.join(' ');
+  return rep.name?.trim() || rep.nameEn?.trim() || '—';
+}
+
+/** اشتقاق الاسم الكامل للمفوض من الأجزاء */
+export function buildRepNameFromParts(rep: { firstName?: string; secondName?: string; thirdName?: string; familyName?: string; name?: string }): string {
+  const parts = [rep.firstName, rep.secondName, rep.thirdName, rep.familyName].filter(Boolean);
+  if (parts.length > 0) return parts.join(' ');
+  return (rep.name || '').trim();
 }
 
 /** الحصول على جميع الشركات التي يمثلها المفوض بالتوقيع */
@@ -425,6 +454,96 @@ export function getContactById(id: string): Contact | undefined {
   return getStored().find((c) => c.id === id);
 }
 
+/** البحث عن جهة اتصال بالبريد الإلكتروني */
+export function findContactByEmail(email: string): Contact | undefined {
+  const e = (email || '').toLowerCase().trim();
+  if (!e) return undefined;
+  return getStored().find((c) => (c.email || '').toLowerCase().trim() === e);
+}
+
+/** البحث عن جهة اتصال بمعرف المستخدم */
+export function findContactByUserId(userId: string): Contact | undefined {
+  return getStored().find((c) => (c as { userId?: string }).userId === userId);
+}
+
+/** جهة اتصال للربط بالمستخدم - من دفتر العناوين أو بيانات المستخدم (للوحات التحكم)
+ * يبحث بالترتيب: userId → email → phone (يشمل هاتف الشركة أو هاتف المفوض) */
+export function getContactForUser(user: { id: string; email?: string | null; phone?: string | null }): Contact | Pick<Contact, 'id' | 'email' | 'phone'> {
+  const byUserId = findContactByUserId(user.id);
+  if (byUserId) return byUserId;
+  const emailNorm = (user.email || '').trim().toLowerCase();
+  if (emailNorm && !emailNorm.includes('@nologin.bhd')) {
+    const byEmail = findContactByEmail(emailNorm);
+    if (byEmail) return byEmail;
+  }
+  const phone = (user.phone || '').trim();
+  if (phone) {
+    const byPhone = findContactByPhoneOrEmail(phone, emailNorm || undefined);
+    if (byPhone) return byPhone;
+    const byRepPhone = findContactByRepPhone(phone);
+    if (byRepPhone) return byRepPhone;
+  }
+  return { id: '', email: emailNorm || undefined, phone };
+}
+
+/** البحث عن شركة يرتبط بها مستخدم عبر هاتف المفوض بالتوقيع */
+function findContactByRepPhone(phone: string): Contact | undefined {
+  const normPhone = normalizePhoneForComparison(phone || '');
+  if (normPhone.length < 6) return undefined;
+  return getStored().find((c) => {
+    if (c.contactType !== 'COMPANY' || !c.companyData?.authorizedRepresentatives?.length) return false;
+    return c.companyData.authorizedRepresentatives.some((rep) => {
+      const repNorm = normalizePhoneForComparison(rep.phone || '');
+      return repNorm.length >= 6 && normPhone === repNorm;
+    });
+  });
+}
+
+/** مزامنة المستخدمين من قاعدة البيانات إلى دفتر العناوين - إضافة جهات اتصال للمستخدمين دون تطابق
+ * يدعم المستخدمين بالبريد العادي أو @nologin.bhd أو بالهاتف فقط */
+export function syncContactsFromUsers(users: Array<{ id: string; email: string; name: string; phone?: string | null }>): { added: number } {
+  const list = getStored();
+  let added = 0;
+  for (const u of users) {
+    const emailNorm = (u.email || '').toLowerCase().trim();
+    const hasContact =
+      findContactByUserId(u.id) ||
+      (emailNorm && !emailNorm.includes('@nologin.bhd') && list.some((c) => (c.email || '').toLowerCase().trim() === emailNorm)) ||
+      (() => {
+        const phone = (u.phone || '').trim();
+        if (phone && normalizePhoneForComparison(phone).length >= 6) {
+          return list.some((c) => normalizePhoneForComparison(c.phone || '') === normalizePhoneForComparison(phone));
+        }
+        return false;
+      })();
+    if (hasContact) continue;
+    const fullPhone = (u.phone || '').replace(/\D/g, '');
+    const phone = fullPhone.length >= 8 ? fullPhone : '968' + String(Date.now()).slice(-7);
+    const normPhone = normalizePhoneForComparison(phone);
+    const finalPhone = normPhone.length >= 6 ? (normPhone.startsWith('968') ? normPhone : '968' + normPhone.replace(/^0+/, '')) : '96800000000';
+    const nameParts = (u.name || '').trim().split(/\s+/).filter(Boolean);
+    const contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
+      contactType: 'PERSONAL',
+      firstName: nameParts[0] || '—',
+      familyName: nameParts.length > 1 ? nameParts[nameParts.length - 1]! : '',
+      nationality: 'عماني',
+      gender: 'MALE',
+      email: emailNorm && !emailNorm.includes('@nologin.bhd') ? emailNorm : undefined,
+      phone: finalPhone,
+      category: 'CLIENT',
+      address: { fullAddress: '—', fullAddressEn: '—' },
+      userId: u.id,
+    };
+    try {
+      createContact(contactData as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
+      added++;
+    } catch {
+      // تجاهل إن وُجد تكرار
+    }
+  }
+  return { added };
+}
+
 export function getContactsByCategory(category: ContactCategory, includeArchived = false): Contact[] {
   let list = getStored().filter((c) => c.category === category);
   if (!includeArchived) list = list.filter((c) => !c.archived);
@@ -535,7 +654,7 @@ export function searchContacts(query: string, includeArchived = false): Contact[
       c.companyData?.companyNameAr,
       c.companyData?.companyNameEn,
       c.companyData?.commercialRegistrationNumber,
-      ...(c.companyData?.authorizedRepresentatives || []).flatMap((r) => [r.name, r.civilId, r.passportNumber, r.position]),
+      ...(c.companyData?.authorizedRepresentatives || []).flatMap((r) => [getRepDisplayName(r), r.civilId, r.passportNumber, r.position]),
       ...(c.tags || []),
     ]
       .filter(Boolean)
@@ -633,7 +752,49 @@ export function updateContact(id: string, updates: Partial<Contact>): Contact | 
   if (updated.contactType === 'COMPANY' && updated.companyData?.authorizedRepresentatives?.length) {
     syncAuthorizedRepsToAddressBook(updated);
   }
+  if (updated.contactType === 'PERSONAL' && updated.authorizedForCompanyId) {
+    syncPersonalContactToCompanyRep(updated);
+  }
   return updated;
+}
+
+/** مزامنة بيانات المفوض من حسابه الشخصي إلى بيانات الشركة - عند تعديل الحساب الشخصي */
+function syncPersonalContactToCompanyRep(personalContact: Contact): void {
+  const companyId = personalContact.authorizedForCompanyId;
+  if (!companyId) return;
+  const list = getStored();
+  const companyIdx = list.findIndex((c) => c.id === companyId);
+  if (companyIdx < 0) return;
+  const company = list[companyIdx];
+  const reps = company.companyData?.authorizedRepresentatives || [];
+  const repIdx = reps.findIndex((r) => (r as { contactId?: string }).contactId === personalContact.id);
+  if (repIdx < 0) return;
+  const rep = reps[repIdx];
+  const fullName = [personalContact.firstName, personalContact.secondName, personalContact.thirdName, personalContact.familyName].filter(Boolean).join(' ');
+  const updatedRep: AuthorizedRepresentative = {
+    ...rep,
+    firstName: personalContact.firstName,
+    secondName: personalContact.secondName,
+    thirdName: personalContact.thirdName,
+    familyName: personalContact.familyName,
+    name: fullName || rep.name,
+    nameEn: personalContact.nameEn?.trim() || rep.nameEn,
+    nationality: personalContact.nationality || rep.nationality,
+    civilId: personalContact.civilId || rep.civilId,
+    civilIdExpiry: personalContact.civilIdExpiry || rep.civilIdExpiry,
+    passportNumber: personalContact.passportNumber || rep.passportNumber,
+    passportExpiry: personalContact.passportExpiry || rep.passportExpiry,
+    phone: personalContact.phone || rep.phone,
+    position: personalContact.position || rep.position,
+  };
+  const newReps = [...reps];
+  newReps[repIdx] = updatedRep;
+  list[companyIdx] = {
+    ...company,
+    companyData: { ...company.companyData!, authorizedRepresentatives: newReps },
+    updatedAt: new Date().toISOString(),
+  };
+  save(list);
 }
 
 /** مزامنة المفوضين بالتوقيع كجهات اتصال شخصية منفصلة - تُستدعى عند حفظ شركة */
@@ -654,12 +815,14 @@ function syncAuthorizedRepsToAddressBook(company: Contact): void {
     const existing = rep.contactId ? getContactById(rep.contactId) : undefined;
     const baseTags = existing?.tags?.filter((t) => t !== AUTHORIZED_REP_TAG_AR && t !== AUTHORIZED_REP_TAG_EN) || [];
     const tags = [AUTHORIZED_REP_TAG_AR, ...baseTags];
+    const parts = [rep.firstName, rep.secondName, rep.thirdName, rep.familyName].filter(Boolean);
+    const fallbackParts = rep.name?.trim() ? rep.name.trim().split(/\s+/) : [];
     const repData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
       contactType: 'PERSONAL',
-      firstName: rep.name || '—',
-      secondName: undefined,
-      thirdName: undefined,
-      familyName: '',
+      firstName: rep.firstName || fallbackParts[0] || '—',
+      secondName: rep.secondName || (fallbackParts.length > 2 ? fallbackParts[1] : undefined),
+      thirdName: rep.thirdName || (fallbackParts.length > 3 ? fallbackParts[2] : undefined),
+      familyName: rep.familyName || (fallbackParts.length > 1 ? fallbackParts[fallbackParts.length - 1] : ''),
       nameEn: rep.nameEn?.trim() || undefined,
       nationality: rep.nationality || '',
       gender: 'MALE',
@@ -835,21 +998,38 @@ export function findContactForBookingSearch(query: string): { contact: Contact; 
   return null;
 }
 
-/** البحث عن جهة اتصال بالهاتف أو البريد - مطابقة دقيقة مع دعم الصيغة المحلية/الدولية للهاتف */
-export function findContactByPhoneOrEmail(phone: string, email?: string): Contact | undefined {
+/** البحث عن جهة اتصال بالهاتف أو البريد - مطابقة دقيقة مع دعم الصيغة المحلية/الدولية للهاتف
+ * عند وجود أكثر من جهة بنفس الهاتف/البريد: preferContactType يفضّل المطابقة (شخصي أو شركة) */
+export function findContactByPhoneOrEmail(
+  phone: string,
+  email?: string,
+  options?: { preferContactType?: 'PERSONAL' | 'COMPANY' }
+): Contact | undefined {
   const list = getStored();
   const normPhone = normalizePhoneForComparison(phone || '');
   const normEmail = (email || '').trim().toLowerCase();
-  return list.find((c) => {
+  const matches = list.filter((c) => {
     const cNorm = normalizePhoneForComparison(c.phone || '');
     const cEmail = (c.email || '').trim().toLowerCase();
     const matchPhone = normPhone.length >= 6 && cNorm.length >= 6 && normPhone === cNorm;
     const matchEmail = normEmail.length >= 3 && cEmail.length >= 3 && cEmail === normEmail;
     return matchPhone || matchEmail;
   });
+  if (matches.length === 0) return undefined;
+  if (matches.length === 1) return matches[0];
+  const prefer = options?.preferContactType;
+  if (prefer === 'COMPANY') {
+    const company = matches.find((c) => c.contactType === 'COMPANY');
+    if (company) return company;
+  }
+  if (prefer === 'PERSONAL') {
+    const personal = matches.find((c) => c.contactType !== 'COMPANY');
+    if (personal) return personal;
+  }
+  return matches[0];
 }
 
-/** إيجاد جميع جهات الاتصال المكررة (نفس الهاتف أو الرقم المدني أو الجواز) - للدمج - مع الإغلاق المتعدي */
+/** إيجاد جميع جهات الاتصال المكررة (نفس الهاتف أو الرقم المدني أو الجواز أو السجل التجاري) - للدمج - مع الإغلاق المتعدي */
 export function findDuplicateContactGroups(): Contact[][] {
   const list = getStored();
   const seen = new Set<string>();
@@ -863,8 +1043,9 @@ export function findDuplicateContactGroups(): Contact[][] {
       if (inGroup.has(cur.id)) continue;
       inGroup.add(cur.id);
       group.push(cur);
-      const dups = findDuplicateContactFields(cur.phone, cur.civilId, cur.passportNumber);
-      for (const d of [dups.phone, dups.civilId, dups.passportNumber]) {
+      const crNum = cur.companyData?.commercialRegistrationNumber;
+      const dups = findDuplicateContactFields(cur.phone, cur.civilId, cur.passportNumber, undefined, crNum);
+      for (const d of [dups.phone, dups.civilId, dups.passportNumber, dups.commercialRegistration]) {
         if (d && !inGroup.has(d.id)) toProcess.push(d);
       }
     }
@@ -904,11 +1085,35 @@ export function mergeDuplicateContacts(contactIds: string[]): Contact | null {
     email: keep.email || mergeFrom.find((o) => o.email)?.email,
     civilId: keep.civilId || mergeFrom.find((o) => o.civilId)?.civilId,
     passportNumber: keep.passportNumber || mergeFrom.find((o) => o.passportNumber)?.passportNumber,
+    phoneSecondary: keep.phoneSecondary || mergeFrom.find((o) => o.phoneSecondary)?.phoneSecondary,
     categoryChangeHistory: allHistory.length ? allHistory : undefined,
     archived: false,
     archivedAt: undefined,
     updatedAt: new Date().toISOString(),
   };
+  /** دمج بيانات الشركة عند دمج جهتين شركتين */
+  const companies = [keep, ...mergeFrom].filter((c) => c.contactType === 'COMPANY' && c.companyData);
+  if (companies.length >= 1) {
+    const cd = companies[0].companyData!;
+    const allReps = companies.flatMap((c) => c.companyData?.authorizedRepresentatives || []);
+    const seenKeys = new Set<string>();
+    const mergedReps = allReps.filter((r) => {
+      const repName = getRepDisplayName(r);
+      const key = `${(repName !== '—' ? repName : (r.name || '')).trim()}|${(r.phone || '').replace(/\D/g, '')}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+    merged.contactType = 'COMPANY';
+    merged.companyData = {
+      companyNameAr: cd.companyNameAr || companies.find((c) => c.companyData?.companyNameAr)?.companyData?.companyNameAr || '',
+      companyNameEn: cd.companyNameEn || companies.find((c) => c.companyData?.companyNameEn?.trim())?.companyData?.companyNameEn,
+      commercialRegistrationNumber: cd.commercialRegistrationNumber || companies.find((c) => c.companyData?.commercialRegistrationNumber)?.companyData?.commercialRegistrationNumber || '',
+      commercialRegistrationExpiry: cd.commercialRegistrationExpiry || companies.find((c) => c.companyData?.commercialRegistrationExpiry?.trim())?.companyData?.commercialRegistrationExpiry,
+      establishmentDate: cd.establishmentDate || companies.find((c) => c.companyData?.establishmentDate?.trim())?.companyData?.establishmentDate,
+      authorizedRepresentatives: mergedReps,
+    };
+  }
   const idsToRemove = new Set(mergeFrom.map((c) => c.id));
   const newList = list.filter((c) => !idsToRemove.has(c.id));
   const idx = newList.findIndex((c) => c.id === keep.id);

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import PageHero from '../shared/PageHero';
 import AdsDisplay from '../ads/AdsDisplay';
 import SerialBadge from '../shared/SerialBadge';
+import PropertyBarcode from '@/components/admin/PropertyBarcode';
 import PropertyImageSlider from './PropertyImageSlider';
 import PropertyIcon from './PropertyIcon';
 import { FACING_OPTIONS, MAIN_FEATURES, ADDITIONAL_FEATURES, NEARBY_LOCATIONS } from '@/lib/propertyOptions';
@@ -153,7 +154,9 @@ export default function PropertyDetails({ property, locale, similarProperties = 
             </Link>
 
             {property.serialNumber && (
-              <SerialBadge serialNumber={property.serialNumber} className="mb-6" />
+              <div className="mb-6">
+                <SerialBadge serialNumber={property.serialNumber} />
+              </div>
             )}
 
             {/* Main Content Grid */}
@@ -168,8 +171,11 @@ export default function PropertyDetails({ property, locale, similarProperties = 
                     type={property.type as 'RENT' | 'SALE'}
                     locale={currentLocale}
                     businessStatus={isReserved ? 'RESERVED' : ((property as { businessStatus?: string }).businessStatus)}
+                    propertyId={property.id}
+                    unitKey={(property as { unitKey?: string }).unitKey}
                   />
                 ) : (
+                  <>
                   <div className="relative h-80 md:h-[500px] rounded-2xl overflow-hidden shadow-xl">
                     <Image
                       src={property.image}
@@ -243,7 +249,19 @@ export default function PropertyDetails({ property, locale, similarProperties = 
                         loading="lazy"
                       />
                     </div>
+                    {/* الباركود الوحيد - داخل الصورة في الزاوية اليسرى السفلى */}
+                    <div className="absolute bottom-4 left-4 z-20">
+                      <div className="inline-flex p-1.5 rounded-lg bg-white/95 shadow-lg border border-white/80">
+                        <PropertyBarcode
+                          propertyId={property.id}
+                          unitKey={(property as { unitKey?: string }).unitKey}
+                          locale={locale}
+                          size={40}
+                        />
+                      </div>
+                    </div>
                   </div>
+                  </>
                 )}
 
                 {/* Video Section */}
