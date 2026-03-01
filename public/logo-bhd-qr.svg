@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <!-- فلتر: شفافية الخلفية السوداء + لون ذهبي #8B6F47 -->
+    <filter id="goldenTransparent" color-interpolation-filters="sRGB">
+      <!-- مرحلة 1: تحويل للرمادي + جعل الأسود شفافاً -->
+      <feColorMatrix in="SourceGraphic" type="matrix" values="
+        0.33 0.33 0.33 0 0
+        0.33 0.33 0.33 0 0
+        0.33 0.33 0.33 0 0
+        0.33 0.33 0.33 0 -0.15
+      "/>
+      <!-- مرحلة 2: صبغ ذهبي مع الحفاظ على الشفافية -->
+      <feColorMatrix type="matrix" values="
+        0 0 0 0.545 0
+        0 0 0 0.435 0
+        0 0 0 0.278 0
+        0 0 0 1 0
+      "/>
+    </filter>
+  </defs>
+  <image xlink:href="/logo-bhd.png" width="200" height="200" preserveAspectRatio="xMidYMid meet" filter="url(#goldenTransparent)"/>
+</svg>

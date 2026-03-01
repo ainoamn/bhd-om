@@ -393,9 +393,10 @@ export default function PropertiesAdminPage() {
                                                 .join(' - ') || '—'}
                                             </span>
                                           </div>
+                                          </div>
                                         </td>
                                         <td><span className="admin-badge admin-badge-info">{u.unitType}</span></td>
-                                        <td className="font-semibold">{u.price.toLocaleString()} ر.ع</td>
+                                        <td className="font-semibold">{u.price.toLocaleString()} {'ر.ع'}</td>
                                         <td>
                                           {unitLocked ? (
                                             <div className="flex flex-col gap-1">

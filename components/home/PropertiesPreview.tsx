@@ -4,6 +4,7 @@ import { useLocale } from 'next-intl';
 import Link from 'next/link';
 import Image from 'next/image';
 import SerialBadge from '../shared/SerialBadge';
+import PropertyBarcode from '@/components/admin/PropertyBarcode';
 import { getPublishedProperties } from '@/lib/data/properties';
 import { getSiteContent } from '@/lib/data/siteContent';
 
@@ -98,6 +99,10 @@ export default function PropertiesPreview() {
                     {/* Type Badge */}
                     <div className="absolute top-4 left-4 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg z-30">
                       {locale === 'ar' ? 'للإيجار' : 'For Rent'}
+                    </div>
+                    {/* Barcode */}
+                    <div className="absolute bottom-3 left-3 z-30 bg-white/90 rounded-lg p-1.5">
+                      <PropertyBarcode propertyId={property.id} locale={locale} size={32} />
                     </div>
                   </div>
                 </Link>
@@ -220,6 +225,10 @@ export default function PropertiesPreview() {
                     {/* Type Badge */}
                     <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg z-30">
                       {locale === 'ar' ? 'للبيع' : 'For Sale'}
+                    </div>
+                    {/* Barcode */}
+                    <div className="absolute bottom-3 left-3 z-30 bg-white/90 rounded-lg p-1.5">
+                      <PropertyBarcode propertyId={property.id} locale={locale} size={32} />
                     </div>
                   </div>
                 </Link>

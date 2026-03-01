@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { LOGO_DATA_URI } from '@/lib/logoDataUri';
 
 interface PropertyBarcodeProps {
   propertyId: number | string;
@@ -19,6 +20,16 @@ export default function PropertyBarcode({ propertyId, unitKey, locale, size = 36
     ? `${base}/${locale}/scan/property/${propertyId}?unit=${encodeURIComponent(unitKey)}`
     : `${base}/${locale}/scan/property/${propertyId}`;
 
+  /** حجم الشعار داخل الباركود — نسبة ~28% من حجم QR لضمان المسح السليم */
+  const logoSize = Math.max(8, Math.floor(size * 0.28));
+
+  const imageSettings = {
+    src: LOGO_DATA_URI,
+    height: logoSize,
+    width: logoSize,
+    excavate: true,
+  };
+
   return (
     <div className={`inline-flex items-center ${className}`}>
       <button
@@ -28,7 +39,7 @@ export default function PropertyBarcode({ propertyId, unitKey, locale, size = 36
         title={locale === 'ar' ? (showFull ? 'إخفاء' : 'مسح لعرض التفاصيل') : (showFull ? 'Close' : 'Scan to view details')}
         aria-label="Barcode"
       >
-        <QRCodeSVG value={url} size={size} level="M" includeMargin={false} />
+        <QRCodeCanvas value={url} size={size} level="H" includeMargin={false} imageSettings={imageSettings} />
       </button>
       {showFull && (
         <div
@@ -47,7 +58,18 @@ export default function PropertyBarcode({ propertyId, unitKey, locale, size = 36
               {locale === 'ar' ? 'مسح الباركود لعرض تفاصيل العقار الكاملة' : 'Scan barcode to view full property details'}
             </p>
             <div className="flex justify-center p-4 bg-white rounded-xl border border-gray-200">
-              <QRCodeSVG value={url} size={200} level="M" includeMargin />
+              <QRCodeCanvas
+                value={url}
+                size={200}
+                level="H"
+                includeMargin
+                imageSettings={{
+                  src: LOGO_DATA_URI,
+                  height: 56,
+                  width: 56,
+                  excavate: true,
+                }}
+              />
             </div>
             <p className="text-xs text-gray-500 mt-3 text-center break-all">
               {url}
