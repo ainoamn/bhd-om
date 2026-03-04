@@ -44,13 +44,15 @@ export async function POST(
     const amount = updatedDoc.amount || 0;
     const vatAmount = updatedDoc.vatAmount || 0;
 
+    const descAr = updatedDoc.descriptionAr ?? undefined;
+    const descEn = updatedDoc.descriptionEn ?? undefined;
     let lines: Array<{ accountId: string; debit: number; credit: number; descriptionAr?: string; descriptionEn?: string }> = [];
 
     if (updatedDoc.type === 'RECEIPT' || updatedDoc.type === 'INVOICE') {
       if (!debitAcc || !revenueAcc) throw new Error('دليل الحسابات غير مكتمل');
       lines = [
-        { accountId: debitAcc.id, debit: totalAmount, credit: 0, descriptionAr: updatedDoc.descriptionAr || `ترحيل ${updatedDoc.serialNumber}`, descriptionEn: updatedDoc.descriptionEn },
-        { accountId: revenueAcc.id, debit: 0, credit: amount, descriptionAr: updatedDoc.descriptionAr, descriptionEn: updatedDoc.descriptionEn },
+        { accountId: debitAcc.id, debit: totalAmount, credit: 0, descriptionAr: descAr || `ترحيل ${updatedDoc.serialNumber}`, descriptionEn: descEn },
+        { accountId: revenueAcc.id, debit: 0, credit: amount, descriptionAr: descAr, descriptionEn: descEn },
       ];
       if (vatAmount > 0 && vatAcc) {
         lines.push({ accountId: vatAcc.id, debit: 0, credit: vatAmount, descriptionAr: `ضريبة ${updatedDoc.serialNumber}`, descriptionEn: `VAT ${updatedDoc.serialNumber}` });
@@ -58,37 +60,37 @@ export async function POST(
     } else if (updatedDoc.type === 'PURCHASE_INV') {
       if (!payableAcc || !expenseAcc) throw new Error('دليل الحسابات غير مكتمل');
       const purchaseLines: typeof lines = [];
-      // توزيع البنود إن وجدت
-      if (updatedDoc.items?.length && updatedDoc.items.some((i: any) => i.accountId)) {
+      const items = (updatedDoc as { items?: Array<{ accountId?: string; amount?: number; descriptionAr?: string; descriptionEn?: string }> }).items;
+      if (items?.length && items.some((i) => i.accountId)) {
         let allocated = 0;
-        for (const item of updatedDoc.items) {
-          if (item.accountId && item.amount > 0) {
-            purchaseLines.push({ accountId: item.accountId, debit: item.amount, credit: 0, descriptionAr: item.descriptionAr || updatedDoc.descriptionAr, descriptionEn: item.descriptionEn || updatedDoc.descriptionEn });
-            allocated += item.amount;
+        for (const item of items) {
+          if (item.accountId && (item.amount ?? 0) > 0) {
+            purchaseLines.push({ accountId: item.accountId, debit: item.amount ?? 0, credit: 0, descriptionAr: item.descriptionAr ?? descAr, descriptionEn: item.descriptionEn ?? descEn });
+            allocated += item.amount ?? 0;
           }
         }
         if (allocated < amount) {
-          purchaseLines.push({ accountId: expenseAcc.id, debit: amount - allocated, credit: 0, descriptionAr: updatedDoc.descriptionAr || `فاتورة مشتريات ${updatedDoc.serialNumber}`, descriptionEn: updatedDoc.descriptionEn || `Purchase invoice ${updatedDoc.serialNumber}` });
+          purchaseLines.push({ accountId: expenseAcc.id, debit: amount - allocated, credit: 0, descriptionAr: descAr || `فاتورة مشتريات ${updatedDoc.serialNumber}`, descriptionEn: descEn || `Purchase invoice ${updatedDoc.serialNumber}` });
         }
       } else {
-        purchaseLines.push({ accountId: expenseAcc.id, debit: amount, credit: 0, descriptionAr: updatedDoc.descriptionAr || `فاتورة مشتريات ${updatedDoc.serialNumber}`, descriptionEn: updatedDoc.descriptionEn || `Purchase invoice ${updatedDoc.serialNumber}` });
+        purchaseLines.push({ accountId: expenseAcc.id, debit: amount, credit: 0, descriptionAr: descAr || `فاتورة مشتريات ${updatedDoc.serialNumber}`, descriptionEn: descEn || `Purchase invoice ${updatedDoc.serialNumber}` });
       }
       if (vatAmount > 0 && vatAcc) {
         purchaseLines.push({ accountId: vatAcc.id, debit: vatAmount, credit: 0, descriptionAr: `ضريبة ${updatedDoc.serialNumber}`, descriptionEn: `VAT ${updatedDoc.serialNumber}` });
       }
-      purchaseLines.push({ accountId: payableAcc.id, debit: 0, credit: totalAmount, descriptionAr: updatedDoc.descriptionAr || `فاتورة مشتريات ${updatedDoc.serialNumber}`, descriptionEn: updatedDoc.descriptionEn || `Purchase invoice ${updatedDoc.serialNumber}` });
+      purchaseLines.push({ accountId: payableAcc.id, debit: 0, credit: totalAmount, descriptionAr: descAr || `فاتورة مشتريات ${updatedDoc.serialNumber}`, descriptionEn: descEn || `Purchase invoice ${updatedDoc.serialNumber}` });
       lines = purchaseLines;
     } else if (updatedDoc.type === 'PAYMENT') {
       if (!debitAcc || !expenseAcc) throw new Error('دليل الحسابات غير مكتمل');
       lines = [
-        { accountId: expenseAcc.id, debit: totalAmount, credit: 0, descriptionAr: updatedDoc.descriptionAr, descriptionEn: updatedDoc.descriptionEn },
-        { accountId: debitAcc.id, debit: 0, credit: totalAmount, descriptionAr: updatedDoc.descriptionAr, descriptionEn: updatedDoc.descriptionEn },
+        { accountId: expenseAcc.id, debit: totalAmount, credit: 0, descriptionAr: descAr, descriptionEn: descEn },
+        { accountId: debitAcc.id, debit: 0, credit: totalAmount, descriptionAr: descAr, descriptionEn: descEn },
       ];
     } else if (updatedDoc.type === 'DEPOSIT') {
       if (!debitAcc || !depositAcc) throw new Error('دليل الحسابات غير مكتمل');
       lines = [
-        { accountId: debitAcc.id, debit: totalAmount, credit: 0, descriptionAr: updatedDoc.descriptionAr, descriptionEn: updatedDoc.descriptionEn },
-        { accountId: depositAcc.id, debit: 0, credit: totalAmount, descriptionAr: updatedDoc.descriptionAr, descriptionEn: updatedDoc.descriptionEn },
+        { accountId: debitAcc.id, debit: totalAmount, credit: 0, descriptionAr: descAr, descriptionEn: descEn },
+        { accountId: depositAcc.id, debit: 0, credit: totalAmount, descriptionAr: descAr, descriptionEn: descEn },
       ];
     }
 
@@ -96,14 +98,14 @@ export async function POST(
       const entry = await createJournalEntryInDb({
         date: updatedDoc.date,
         lines,
-        descriptionAr: updatedDoc.descriptionAr || `${updatedDoc.type} ${updatedDoc.serialNumber}`,
-        descriptionEn: updatedDoc.descriptionEn,
+        descriptionAr: descAr || `${updatedDoc.type} ${updatedDoc.serialNumber}`,
+        descriptionEn: descEn,
         documentType: updatedDoc.type,
         documentId: updatedDoc.id,
-        contactId: updatedDoc.contactId,
-        bankAccountId: updatedDoc.bankAccountId,
-        propertyId: updatedDoc.propertyId,
-        projectId: updatedDoc.projectId,
+        contactId: updatedDoc.contactId ?? undefined,
+        bankAccountId: updatedDoc.bankAccountId ?? undefined,
+        propertyId: updatedDoc.propertyId ?? undefined,
+        projectId: updatedDoc.projectId ?? undefined,
         status: 'APPROVED',
       });
       await updateDocumentInDb(updatedDoc.id, { journalEntryId: entry.id });
