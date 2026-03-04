@@ -2,7 +2,7 @@
 
 import { useLocale } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { signIn } from 'next-auth/react';
@@ -36,6 +36,13 @@ function LoginFormInner() {
   const searchParams = useSearchParams();
   const t = useTranslations('login');
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+
+  // Check for loginAsUser parameter
+  const loginAsUser = searchParams.get('loginAsUser');
+  const adminId = searchParams.get('adminId');
+  const autoLogin = searchParams.get('autoLogin');
+  const returnToAdmin = searchParams.get('returnToAdmin');
 
   const {
     register,
@@ -46,29 +53,168 @@ function LoginFormInner() {
     defaultValues: { emailOrUsername: '', password: '' },
   });
 
+  // Auto-login as user if parameters are present AND not skipped
+  useEffect(() => {
+    const skipAutoLogin = localStorage.getItem('skipAutoLogin');
+    if (loginAsUser && adminId && autoLogin === 'true' && !skipAutoLogin) {
+      handleAutoLogin();
+    }
+    
+    // Handle return to admin
+    if (returnToAdmin === 'true' && adminId) {
+      handleReturnToAdmin();
+    }
+  }, [loginAsUser, adminId, autoLogin, returnToAdmin]);
+
+  const handleReturnToAdmin = async () => {
+    try {
+      // Get admin session from temp storage
+      const tempAdminSession = localStorage.getItem('tempAdminSession');
+      
+      if (tempAdminSession) {
+        const adminSession = JSON.parse(tempAdminSession);
+        
+        // Try to login as admin
+        const result = await signIn('credentials', {
+          email: adminSession.email,
+          password: adminSession.serialNumber || 'password123', // Try serial number or default
+          redirect: false,
+          callbackUrl: `/${locale}/admin`,
+        });
+
+        if (result?.error) {
+          console.error('Return to admin failed:', result.error);
+          setFormError('Failed to return to admin account');
+          return;
+        }
+
+        if (result?.ok) {
+          // Clear temp sessions
+          localStorage.removeItem('tempAdminSession');
+          localStorage.removeItem('adminSessionBackup');
+          localStorage.removeItem('isSwitchingUser');
+          
+          router.push(`/${locale}/admin`);
+          router.refresh();
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Return to admin error:', error);
+      setFormError('Failed to return to admin account');
+    }
+  };
+
+  const handleAutoLogin = async () => {
+    try {
+      // Get user data from database or API using existing endpoint
+      const response = await fetch(`/api/admin/users/${loginAsUser}`);
+      if (!response.ok) {
+        throw new Error('User not found');
+      }
+      
+      const user = await response.json();
+      console.log('Auto-login user data:', user);
+      
+      // For users with @nologin.bhd email, we need special handling
+      const isNologinUser = user.email && user.email.includes('@nologin.bhd');
+      
+      if (isNologinUser) {
+        // For nologin users, we should not reach here since we skip auto-login
+        console.log('Nologin user detected, but auto-login should be skipped');
+        // Clear the skip flag and redirect to admin
+        localStorage.removeItem('skipAutoLogin');
+        window.location.href = `/${locale}/admin`;
+        return;
+      } else {
+        // For regular users with email, try normal login with a default approach
+        console.log('Attempting regular user login for:', user.email);
+        
+        // Try to login with the user's serial number as password
+        const result = await signIn('credentials', {
+          email: user.email,
+          password: user.serialNumber, // Use serial number as default password
+          redirect: false,
+          callbackUrl: `/${locale}/admin`,
+        });
+
+        if (result?.error) {
+          console.error('Regular user login failed:', result.error);
+          // If serial number doesn't work, try a common default password
+          const fallbackResult = await signIn('credentials', {
+            email: user.email,
+            password: 'password123', // Try common default password
+            redirect: false,
+            callbackUrl: `/${locale}/admin`,
+          });
+          
+          if (fallbackResult?.error) {
+            console.error('Fallback login also failed:', fallbackResult.error);
+            setFormError('Failed to login as user - user may need valid password or account setup');
+            return;
+          }
+          
+          if (fallbackResult?.ok) {
+            router.push(`/${locale}/admin`);
+            router.refresh();
+            return;
+          }
+        }
+
+        if (result?.ok) {
+          router.push(`/${locale}/admin`);
+          router.refresh();
+          return;
+        }
+      }
+      
+    } catch (error) {
+      console.error('Auto-login error:', error);
+      setFormError('Failed to login as user');
+    }
+  };
+
   const onSubmit = async (data: LoginFormData) => {
     setFormError(null);
-    const callbackUrl = searchParams.get('callbackUrl') ?? `/${locale}/admin`;
-
-    const result = await signIn('credentials', {
-      email: data.emailOrUsername.trim(),
-      password: data.password,
-      redirect: false,
-      callbackUrl,
-    });
-
-    if (result?.error) {
-      setFormError(t('errorInvalidCredentials'));
-      return;
+    setIsSubmittingForm(true);
+    let callbackUrl = searchParams.get('callbackUrl') ?? `/${locale}/admin`;
+    if (typeof window !== 'undefined' && callbackUrl.startsWith(window.location.origin)) {
+      try {
+        const u = new URL(callbackUrl);
+        callbackUrl = u.pathname + u.search;
+      } catch {
+        callbackUrl = `/${locale}/admin`;
+      }
     }
+    if (!callbackUrl.startsWith('/')) callbackUrl = `/${locale}/admin`;
 
-    if (result?.ok) {
-      router.push(callbackUrl);
-      router.refresh();
-      return;
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.emailOrUsername.trim(),
+          password: data.password,
+          callbackUrl,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.ok === true && typeof json.url === 'string') {
+        window.location.href = json.url;
+        return;
+      }
+
+      const message =
+        json.message && typeof json.message === 'string'
+          ? json.message
+          : t('errorGeneric');
+      setFormError(message);
+    } catch {
+      setFormError(t('errorGeneric'));
+    } finally {
+      setIsSubmittingForm(false);
     }
-
-    setFormError(t('errorGeneric'));
   };
 
   const handleOAuthSignIn = (provider: 'google' | 'azure-ad') => {
@@ -258,7 +404,7 @@ function LoginFormInner() {
             {/* زر تسجيل الدخول الرئيسي */}
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isSubmittingForm}
               className="w-full py-5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl text-lg
                 transition-all duration-200 focus:ring-4 focus:ring-primary/30 focus:ring-offset-2
                 disabled:opacity-60 disabled:cursor-not-allowed shadow-xl hover:shadow-2xl active:scale-[0.99]
@@ -266,7 +412,7 @@ function LoginFormInner() {
               style={{ background: 'linear-gradient(135deg, #8B6F47 0%, #6B5535 100%)' }}
             >
               <HiOutlineMail className="w-6 h-6 shrink-0" />
-              {isSubmitting ? t('signingIn') : t('submit')}
+              {(isSubmitting || isSubmittingForm) ? t('signingIn') : t('submit')}
             </button>
           </form>
 

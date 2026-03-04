@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const perm = requirePermission(request, 'DOCUMENT_CREATE');
+  const perm = await requirePermission(request, 'DOCUMENT_CREATE');
   if (!perm.ok) {
     return NextResponse.json({ error: perm.message }, { status: perm.status });
   }

@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
@@ -26,17 +25,20 @@ const CATEGORY_PREFIX: Record<string, string> = {
 };
 
 const schema = z.object({
-  name: z.string().min(2),
+  name: z.string().min(1).transform((s) => (s.trim().length >= 2 ? s.trim() : 'Contact')),
   email: z.string().optional(),
   phone: z.string().optional(),
   contactId: z.string().optional(),
   category: z.string().optional(),
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user as { role?: string }).role !== 'ADMIN') {
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+    if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -73,8 +75,6 @@ export async function POST(req: Request) {
     const hashed = await hash(tempPassword, 10);
 
     const role = (category === 'LANDLORD' || category === 'COMPANY') ? 'OWNER' : 'CLIENT';
-    const dashboardType = ['CLIENT', 'TENANT', 'LANDLORD', 'SUPPLIER', 'PARTNER', 'GOVERNMENT', 'AUTHORIZED_REP', 'COMPANY', 'OTHER'].includes(category || '')
-      ? category : null;
     const user = await prisma.user.create({
       data: {
         serialNumber,
@@ -83,7 +83,6 @@ export async function POST(req: Request) {
         name: name.trim(),
         phone: phone?.trim() || null,
         role,
-        dashboardType,
       },
     });
 

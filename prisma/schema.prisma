@@ -45,7 +45,7 @@ model User {
   name          String
   phone         String?
   role          UserRole  @default(CLIENT)
-  dashboardType String?   // CLIENT|TENANT|LANDLORD|SUPPLIER|PARTNER|GOVERNMENT|AUTHORIZED_REP|COMPANY|OTHER - للتخصيص الدقيق للوحة
+  // dashboardType String?   // CLIENT|TENANT|LANDLORD|SUPPLIER|PARTNER|GOVERNMENT|AUTHORIZED_REP|COMPANY|OTHER - للتخصيص الدقيق للوحة
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
@@ -259,6 +259,15 @@ model ContactSubmission {
   createdAt       DateTime  @default(now())
 }
 
+/// حجوزات من الواجهة العامة — تُخزّن على الخادم لظهورها في لوحة الإدارة والمحاسبة
+model BookingStorage {
+  id        String   @id @default(cuid())
+  bookingId String   @unique // BKG-xxx من الواجهة
+  data      String   // JSON كامل للحجز (PropertyBooking)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // ========== Global Intelligent Accounting ==========
 enum AccountingAccountType {
   ASSET
@@ -288,21 +297,33 @@ enum AccountingDocStatus {
   CANCELLED
 }
 
+enum AccountingEntryStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  POSTED
+  CANCELLED
+}
+
 model AccountingAccount {
   id          String                 @id @default(cuid())
   code        String                 @unique
   nameAr      String
-  nameEn      String?
+  nameEn      String
   type        AccountingAccountType
-  parentId    String?
+  description String?
+  balance     Float                  @default(0)
+  currency    String                 @default("OMR")
   isActive    Boolean                @default(true)
-  sortOrder   Int                    @default(0)
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-
+  parentId    String?
   parent      AccountingAccount?     @relation("AccountHierarchy", fields: [parentId], references: [id])
   children    AccountingAccount[]    @relation("AccountHierarchy")
   journalLines AccountingJournalLine[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  
+  @@index([type])
+  @@index([code])
 }
 
 model AccountingJournalEntry {
@@ -310,21 +331,19 @@ model AccountingJournalEntry {
   serialNumber    String
   version         Int       @default(1)
   date            DateTime
-  totalDebit      Float
-  totalCredit     Float
+  totalDebit      Float     @default(0)
+  totalCredit     Float     @default(0)
   descriptionAr   String?
   descriptionEn   String?
-  documentType    AccountingDocType?
-  documentId      String?
-  contactId       String?
-  bankAccountId   String?
-  propertyId      Int?
-  projectId       String?
-  status          AccountingDocStatus @default(APPROVED)
-  replacedBy      String?
+  reference       String?
+  status          AccountingEntryStatus @default(PENDING)
+  approvedBy      String?
+  approvedAt      DateTime?
+  postedBy        String?
+  postedAt        DateTime?
+  createdBy       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
   lines           AccountingJournalLine[]
 }
 
@@ -336,7 +355,8 @@ model AccountingJournalLine {
   credit        Float     @default(0)
   descriptionAr String?
   descriptionEn String?
-
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   journal       AccountingJournalEntry @relation(fields: [journalId], references: [id], onDelete: Cascade)
   account       AccountingAccount     @relation(fields: [accountId], references: [id])
 }
@@ -347,24 +367,21 @@ model AccountingDocument {
   type            AccountingDocType
   status          AccountingDocStatus
   date            DateTime
-  dueDate         DateTime?
+  totalAmount     Float     @default(0)
+  vatRate         Float?
+  vatAmount       Float?
+  netAmount       Float     @default(0)
+  descriptionAr   String?
+  descriptionEn   String?
+  reference       String?
   contactId       String?
   bankAccountId   String?
   propertyId      Int?
   projectId       String?
-  amount          Float
-  currency        String    @default("OMR")
-  vatRate         Float?
-  vatAmount       Float?
-  totalAmount     Float
-  descriptionAr   String?
-  descriptionEn   String?
-  itemsJson       String?   // JSON
-  journalEntryId  String?
   attachmentsJson String?   // JSON [{url, name}]
   purchaseOrder   String?
-  reference       String?
   branch          String?
+  createdBy       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
@@ -411,3 +428,14 @@ model UserAccountingRole {
   permissions String // JSON array of AccountingPermission
   createdAt  DateTime @default(now())
 }
+
+// إعدادات التطبيق (لوحات التحكم، صلاحيات التصنيفات، إلخ) — يُحفظ من لوحة الأدمن ويُقرأ للعميل
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique // مثلاً: dashboard_settings
+  value     String   // JSON
+  updatedAt DateTime @updatedAt
+}
+
+// ==================== نظام المحاسبة المتكامل الجديد ====================
+// استخدم النماذج الموجودة أعلاه بدلاً من هذه

@@ -48,11 +48,17 @@ const dashboardSubItems: NavItemWithSection[] = [
 ];
 
 const propertiesSubItems: NavItemWithSection[] = [
-  { href: '/admin/properties', labelKey: 'propertiesManage', icon: 'building', section: 'propertiesManage' },
+  { href: '/admin/properties', labelKey: 'propertiesAll', icon: 'building', section: 'propertiesManage' },
+  { href: '/admin/properties/new', labelKey: 'propertiesAdd', icon: 'plus', section: 'propertiesAdd' },
   { href: '/admin/bookings', labelKey: 'bookingsManage', icon: 'calendar', section: 'bookingsManage' },
   { href: '/admin/contracts', labelKey: 'contractsManage', icon: 'archive', section: 'contractsManage' },
   { href: '/admin/maintenance', labelKey: 'maintenanceManage', icon: 'wrench', section: 'maintenanceManage' },
   { href: '/admin/data', labelKey: 'dataManage', icon: 'database', section: 'dataManage' },
+];
+
+const projectsSubItems: NavItemWithSection[] = [
+  { href: '/admin/projects', labelKey: 'projectsAll', icon: 'projects', section: 'projects' },
+  { href: '/admin/projects/new', labelKey: 'projectsAdd', icon: 'plus', section: 'projectsAdd' },
 ];
 
 const topLevelItems: NavItemWithSection[] = [
@@ -64,22 +70,25 @@ const topLevelItems: NavItemWithSection[] = [
   { href: '/admin/my-receipts', labelKey: 'clientNav.myReceipts', icon: 'documentText', section: 'myReceipts' },
   { href: '/admin/notifications', labelKey: 'clientNav.notifications', icon: 'inbox', section: 'notifications' },
   { href: '/admin/my-account', labelKey: 'clientNav.myAccount', icon: 'users', section: 'myAccount' },
-  { href: '/admin/projects', labelKey: 'projects', icon: 'projects', section: 'projects' },
+  { href: '/admin/analytics', labelKey: 'analytics', icon: 'chartBar', section: 'analytics' },
   { href: '/admin/services', labelKey: 'services', icon: 'cog', section: 'services' },
   { href: '/admin/contact', labelKey: 'contact', icon: 'mail', section: 'contact' },
   { href: '/admin/submissions', labelKey: 'submissions', icon: 'inbox', section: 'submissions' },
   { href: '/admin/dashboard-settings', labelKey: 'dashboardSettings', icon: 'cog', section: 'dashboardSettings' },
   { href: '/admin/contact-category-permissions', labelKey: 'contactCategoryPermissions', icon: 'shieldCheck', section: 'contactCategoryPermissions' },
   { href: '/admin/users', labelKey: 'users', icon: 'users', section: 'users' },
+  { href: '/admin/reports', labelKey: 'reports', icon: 'chartBar', section: 'reports' },
   { href: '/admin/serial-history', labelKey: 'serialHistory', icon: 'archive', section: 'serialHistory' },
   { href: '/admin/backup', labelKey: 'backup', icon: 'database', section: 'backup' },
+  { href: '/admin/security', labelKey: 'security', icon: 'shieldCheck', section: 'security' },
+  { href: '/admin/data', labelKey: 'dataReset', icon: 'archive', section: 'dataReset' },
 ];
 
 /** جميع عناصر التنقل مسطّحة — للتجريب والصلاحيات */
 function collectAllNavItems(): NavItemWithSection[] {
   const seen = new Set<string>();
   const out: NavItemWithSection[] = [];
-  for (const item of [...topLevelItems, ...dashboardSubItems, ...accountingSubItems, ...propertiesSubItems]) {
+  for (const item of [...topLevelItems, ...dashboardSubItems, ...accountingSubItems, ...propertiesSubItems, ...projectsSubItems]) {
     if (!item.isHeader && item.section && !seen.has(item.section)) {
       seen.add(item.section);
       out.push(item);
@@ -100,8 +109,9 @@ const SECTION_ORDER: string[] = [
   'accountingHome', 'accountingSales', 'accountingPurchases', 'accountingJournal', 'accountingDocuments', 'accountingAccounts',
   'accountingReports', 'accountingClaims', 'accountingCheques', 'accountingPayments', 'accountingPeriods', 'accountingAudit',
   'accountingSettings', 'accountingQuickActions', 'accountingAddJournal', 'accountingAddAccount', 'accountingAddDocument', 'accountingAddCheque',
-  'propertiesManage', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage', 'projects', 'services',
-  'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions', 'users', 'serialHistory', 'backup',
+  'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
+  'projects', 'projectsAdd', 'services', 'analytics', 'reports', 'security',
+  'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions', 'users', 'serialHistory', 'backup', 'dataReset',
 ];
 
 /** كل الصلاحيات المستخرجة من السجل — الصفحات الجديدة المُضافة في الأسفل تُدرج تلقائياً */
@@ -152,9 +162,10 @@ const ADMIN_ONLY_SECTIONS = new Set([
   'accountingAccounts', 'accountingReports', 'accountingClaims', 'accountingCheques', 'accountingPayments',
   'accountingPeriods', 'accountingAudit', 'accountingSettings', 'accountingQuickActions',
   'accountingAddJournal', 'accountingAddAccount', 'accountingAddDocument', 'accountingAddCheque',
-  'propertiesManage', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
-  'projects', 'services', 'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions',
-  'users', 'serialHistory', 'backup',
+  'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
+  'projects', 'projectsAdd', 'services', 'analytics', 'reports', 'security',
+  'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions',
+  'users', 'serialHistory', 'backup', 'dataReset',
 ]);
 
 /** بناء هيكل القائمة الجانبية للأدمن من السجل المركزي */
@@ -172,9 +183,10 @@ export function getAdminNavGroupsConfig(): AdminNavGroup[] {
 
   const propertiesItems = propertiesSubItems.map((i) => ({
     ...toItem(i),
-    comingSoon: ['contractsManage', 'maintenanceManage', 'dataManage'].includes(i.section),
+    comingSoon: ['contractsManage', 'maintenanceManage'].includes(i.section),
   }));
 
+  const projectsItems = projectsSubItems.map(toItem);
   const topLevelForAdmin = topLevelItems
     .filter((i) => ADMIN_ONLY_SECTIONS.has(i.section))
     .map(toItem);
@@ -184,6 +196,7 @@ export function getAdminNavGroupsConfig(): AdminNavGroup[] {
       groupKey: 'general',
       items: [
         { groupKey: 'dashboard', subItems: dashboardItems },
+        ...topLevelForAdmin.filter((i) => i.labelKey === 'analytics'),
         { groupKey: 'accounting', subItems: accountingSubItems.map(toItem) },
       ],
     },
@@ -191,7 +204,8 @@ export function getAdminNavGroupsConfig(): AdminNavGroup[] {
       groupKey: 'content',
       items: [
         { groupKey: 'properties', subItems: propertiesItems },
-        ...topLevelForAdmin.filter((i) => i.labelKey === 'projects' || i.labelKey === 'services'),
+        { groupKey: 'projects', subItems: projectsItems },
+        ...topLevelForAdmin.filter((i) => i.labelKey === 'services'),
       ],
     },
     {
@@ -201,7 +215,7 @@ export function getAdminNavGroupsConfig(): AdminNavGroup[] {
     {
       groupKey: 'system',
       items: topLevelForAdmin.filter((i) =>
-        ['dashboardSettings', 'contactCategoryPermissions', 'users', 'serialHistory', 'backup'].includes(i.labelKey)
+        ['dashboardSettings', 'contactCategoryPermissions', 'users', 'reports', 'serialHistory', 'backup', 'security', 'dataReset'].includes(i.labelKey)
       ),
     },
   ];
@@ -254,8 +268,14 @@ export function getPermissionGroupsForSettings(): PermissionGroupForSettings[] {
           subGroupLabelKey: 'properties',
           sections: propertiesSubItems.map((i) => ({ section: i.section, labelKey: i.labelKey })),
         },
-        { type: 'single', section: 'projects', labelKey: 'projects' },
+        {
+          type: 'subsection',
+          subGroupKey: 'projects',
+          subGroupLabelKey: 'projects',
+          sections: projectsSubItems.map((i) => ({ section: i.section, labelKey: i.labelKey })),
+        },
         { type: 'single', section: 'services', labelKey: 'services' },
+        { type: 'single', section: 'analytics', labelKey: 'analytics' },
       ],
     },
     {
@@ -273,8 +293,10 @@ export function getPermissionGroupsForSettings(): PermissionGroupForSettings[] {
         { type: 'single', section: 'dashboardSettings', labelKey: 'dashboardSettings' },
         { type: 'single', section: 'contactCategoryPermissions', labelKey: 'contactCategoryPermissions' },
         { type: 'single', section: 'users', labelKey: 'users' },
+        { type: 'single', section: 'reports', labelKey: 'reports' },
         { type: 'single', section: 'serialHistory', labelKey: 'serialHistory' },
         { type: 'single', section: 'backup', labelKey: 'backup' },
+        { type: 'single', section: 'security', labelKey: 'security' },
       ],
     },
   ];
@@ -294,4 +316,4 @@ export function getPersonalDashboardSectionsForSettings(): Array<{ section: stri
   ];
 }
 
-export { accountingSubItems, dashboardSubItems, propertiesSubItems, topLevelItems };
+export { accountingSubItems, dashboardSubItems, propertiesSubItems, projectsSubItems, topLevelItems };

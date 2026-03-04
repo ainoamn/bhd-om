@@ -243,6 +243,16 @@ export const COUNTRY_DIAL_CODES: CountryDialCode[] = [
   { code: '263', nameAr: 'زيمبابوي', nameEn: 'Zimbabwe' },
 ];
 
+/** رمز فتح الخط الافتراضي: سلطنة عمان +968 */
+export const DEFAULT_DIAL_CODE = '968';
+
+/** قائمة الدول مع سلطنة عمان أولاً (للاختيار الافتراضي في دفتر العناوين والحجز وتسجيل المستخدم) */
+export function getCountryDialCodesWithOmanFirst(): CountryDialCode[] {
+  const oman = COUNTRY_DIAL_CODES.find((c) => c.code === '968');
+  const rest = COUNTRY_DIAL_CODES.filter((c) => c.code !== '968');
+  return oman ? [oman, ...rest] : COUNTRY_DIAL_CODES;
+}
+
 /** استخراج رمز الدولة والرقم من رقم هاتف كامل */
 export function parsePhoneToCountryAndNumber(phone: string): { code: string; number: string } {
   const digits = (phone || '').replace(/\D/g, '').replace(/^0+/, '');
@@ -256,11 +266,10 @@ export function parsePhoneToCountryAndNumber(phone: string): { code: string; num
   return { code: '968', number: digits };
 }
 
-/** البحث عن رمز الدولة بالاسم (عربي/إنجليزي) أو بالرقم */
+/** البحث عن رمز الدولة بالاسم (عربي/إنجليزي) أو بالرقم — عند عدم البحث تُرجع القائمة مع عُمان أولاً */
 export function searchCountryDialCodes(query: string, locale: 'ar' | 'en' = 'ar'): CountryDialCode[] {
   const q = (query || '').trim().toLowerCase();
-  if (!q) return COUNTRY_DIAL_CODES;
-  const nameKey = locale === 'ar' ? 'nameAr' : 'nameEn';
+  if (!q) return getCountryDialCodesWithOmanFirst();
   return COUNTRY_DIAL_CODES.filter(
     (c) =>
       c.nameAr.toLowerCase().includes(q) ||

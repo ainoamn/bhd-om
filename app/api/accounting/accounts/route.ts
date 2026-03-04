@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAccountsFromDb } from '@/lib/accounting/data/dbService';
+import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const perm = await requirePermission(request, 'ACCOUNT_VIEW');
+  if (!perm.ok) {
+    return NextResponse.json({ error: perm.message }, { status: perm.status });
+  }
   try {
     const accounts = await getAccountsFromDb();
     return NextResponse.json(accounts);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams, useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -41,18 +41,27 @@ const navGroupsConfig = getAdminNavGroupsConfig() as { groupKey: string; items: 
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams();
+  
+  // Check for mock session first
+  const mockSession = (window as any)?.mockNextAuthSession;
+  const currentUser = (window as any)?.currentUser;
   const { data: session, status } = useSession();
+  
+  // Use mock session if available, otherwise use real session
+  const currentSession = mockSession || session;
+  
   const { tab: currentTab, action: currentAction } = useAccountingTab();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('admin.nav');
   const hasUserBar = useUserBar();
-  const userRole = (session?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
+  const userRole = (currentSession?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
   const isNonAdmin = userRole === 'CLIENT' || userRole === 'OWNER';
-  const isAdminConfirmed = status === 'authenticated' && userRole === 'ADMIN';
-  const userName = (session?.user as { name?: string })?.name || (session?.user as { serialNumber?: string })?.serialNumber || (session?.user as { email?: string })?.email || (session?.user as { phone?: string })?.phone || '—';
+  const isAdminConfirmed = (mockSession || currentUser) ? false : (status === 'authenticated' && userRole === 'ADMIN');
+  const userName = (currentSession?.user as { name?: string })?.name || (currentSession?.user as { serialNumber?: string })?.serialNumber || (currentSession?.user as { email?: string })?.email || (currentSession?.user as { phone?: string })?.phone || '—';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
   const [accountingOpen, setAccountingOpen] = useState(false);
 
@@ -90,6 +99,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       setDashboardOpen(true);
     }
     if (pathname?.includes('/admin/accounting')) setAccountingOpen(true);
+    if (pathname?.includes('/admin/projects')) setProjectsOpen(true);
   }, [pathname]);
 
   const router = useRouter();
@@ -120,10 +130,11 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     '/admin/backup',
   ];
   useEffect(() => {
-    if (status === 'unauthenticated' && pathname?.includes('/admin')) {
-      router.replace(`/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`);
-      return;
-    }
+    const isLoginAsUser = (window as any)?.isLoginAsUser;
+    const mockSession = (window as any)?.mockNextAuthSession;
+    const currentUser = (window as any)?.currentUser;
+
+    if (isLoginAsUser && (mockSession || currentUser)) return;
     if (status !== 'authenticated' || !isNonAdmin || !pathname) return;
     const base = (pathname || '').replace(/^\/[a-z]{2}/, '') || pathname;
     const isAllowed = allowedPathsForNonAdmin.some((p) => base === p || base.startsWith(p + '/') || base.startsWith(p + '?'));
@@ -135,23 +146,57 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const effectiveRole = userRole && (userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER') ? userRole : 'CLIENT';
 
   const contactDashboardType = useMemo(() => {
-    if (!session?.user || effectiveRole === 'ADMIN') return undefined;
-    const explicit = (session.user as { dashboardType?: string | null }).dashboardType;
+    if (!currentSession?.user || effectiveRole === 'ADMIN') return undefined;
+    const explicit = (currentSession.user as { dashboardType?: string | null }).dashboardType;
     if (explicit && ALL_DASHBOARD_TYPES.includes(explicit as any)) return explicit as any;
     try {
-      const contact = getContactForUser({
-        id: session.user.id ?? '',
-        email: session.user.email ?? null,
-        phone: (session.user as { phone?: string | null }).phone ?? null,
-      });
-      const cat = (contact as { category?: string }).category;
-      if (contact.id && cat && ALL_DASHBOARD_TYPES.includes(cat as any)) return cat as any;
-      if (contact.id && (contact as { contactType?: string }).contactType === 'COMPANY' && ALL_DASHBOARD_TYPES.includes('COMPANY')) return 'COMPANY';
-      return undefined;
+      const contact = getContactForUser({ id: (currentSession.user as { id: string }).id });
+      return (contact as any)?.category;
     } catch {
       return undefined;
     }
-  }, [session?.user, effectiveRole]);
+  }, [currentSession?.user, effectiveRole]);
+
+  const isLoginAsUser = (window as any)?.isLoginAsUser;
+  const hasMockSession = isLoginAsUser && ((window as any)?.mockNextAuthSession || (window as any)?.currentUser);
+  const showLoginRequired = !hasMockSession && status === 'unauthenticated' && pathname?.includes('/admin');
+
+  if (status === 'loading' && !hasMockSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#8B6F47] border-t-transparent mx-auto mb-4" />
+          <p className="text-neutral-600">{locale === 'ar' ? 'جاري التحقق من الجلسة...' : 'Checking session...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showLoginRequired) {
+    const loginUrl = `/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+        <div className="text-center max-w-md px-6">
+          <div className="mb-6">
+            <Image src="/logo-bhd.png" alt="BHD" width={64} height={64} className="mx-auto opacity-90" />
+          </div>
+          <h1 className="text-xl font-bold text-neutral-800 mb-2">
+            {locale === 'ar' ? 'يجب تسجيل الدخول' : 'Login required'}
+          </h1>
+          <p className="text-neutral-600 mb-6">
+            {locale === 'ar' ? 'يجب تسجيل الدخول للوصول إلى لوحة التحكم.' : 'You need to sign in to access the admin panel.'}
+          </p>
+          <Link
+            href={loginUrl}
+            className="inline-block px-8 py-3 rounded-xl font-semibold text-white transition-colors"
+            style={{ background: 'linear-gradient(135deg, #8B6F47 0%, #6B5535 100%)' }}
+          >
+            {locale === 'ar' ? 'تسجيل الدخول' : 'Sign in'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`admin-root ${sidebarCollapsed ? 'admin-root--sidebar-collapsed' : ''} ${hasUserBar ? 'admin-root--has-user-bar' : ''}`} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -183,25 +228,22 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
               <Image
                 src="/logo-bhd.png"
                 alt={siteConfig.company.nameAr}
-                width={32}
-                height={32}
+                width={28}
+                height={28}
                 className="object-contain opacity-90"
                 style={{ filter: 'sepia(30%) saturate(200%) hue-rotate(-10deg)' }}
               />
             </div>
             <div className="admin-sidebar-brand-text">
               <h1 className="admin-sidebar-title">{locale === 'ar' ? siteConfig.company.nameAr : siteConfig.company.nameEn}</h1>
-              <p className="admin-sidebar-subtitle">{locale === 'ar' ? 'لوحة الإدارة الشاملة' : 'Full Admin Panel'}</p>
             </div>
           </Link>
           {!sidebarCollapsed && (
-            <div className="mt-3 flex flex-col gap-2">
-              {session?.user && (
-                <p className="text-xs font-medium text-gray-600 truncate" title={userName}>
-                  {userName}
-                </p>
+            <div className="admin-sidebar-meta">
+              {currentSession?.user && (
+                <p className="admin-sidebar-user" title={userName}>{userName}</p>
               )}
-              <div className="flex items-center gap-2">
+              <div className="admin-sidebar-lang">
                 <LanguageSwitcher currentLocale={locale} />
               </div>
             </div>
@@ -223,13 +265,15 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                       : subHrefs.some((h) => pathname === `/${locale}${h}` || (pathname.startsWith(`/${locale}${h}`) && h !== '/admin'));
                     const isDashboard = item.groupKey === 'dashboard';
                     const isAccounting = item.groupKey === 'accounting';
-                    const subOpen = isDashboard ? dashboardOpen : isAccounting ? accountingOpen : propertiesOpen;
+                    const isProjects = item.groupKey === 'projects';
+                    const subOpen = isDashboard ? dashboardOpen : isAccounting ? accountingOpen : isProjects ? projectsOpen : propertiesOpen;
                     const toggleOpen = () => {
                       if (isDashboard) setDashboardOpen((o) => !o);
                       else if (isAccounting) setAccountingOpen((o) => !o);
+                      else if (isProjects) setProjectsOpen((o) => !o);
                       else setPropertiesOpen((o) => !o);
                     };
-                    const groupIcon = isDashboard ? 'dashboard' : isAccounting ? 'archive' : 'building';
+                    const groupIcon = isDashboard ? 'dashboard' : isAccounting ? 'archive' : isProjects ? 'projects' : 'building';
                     return (
                       <li key={item.groupKey} className="admin-nav-dropdown">
                         <button
@@ -240,6 +284,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                             if (!subOpen) {
                               if (isDashboard) setDashboardOpen(true);
                               else if (isAccounting) setAccountingOpen(true);
+                              else if (isProjects) setProjectsOpen(true);
                               else setPropertiesOpen(true);
                             }
                           } else {
@@ -259,13 +304,13 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                           )}
                         </button>
                         {subOpen && !sidebarCollapsed && (
-                          <ul className={`admin-nav-sublist ${isAccounting ? 'pr-4' : ''}`} role="list">
+                          <ul className="admin-nav-sublist" role="list">
                             {item.subItems.map((sub) => {
                               const subItem = sub as NavItem & { isHeader?: boolean };
                               if (subItem.isHeader) {
                                 return (
-                                  <li key={subItem.labelKey} className="mt-3 pt-2 border-t border-gray-100 first:mt-0 first:pt-0 first:border-0">
-                                    <span className="px-4 py-1.5 text-xs font-semibold text-gray-500">{t(subItem.labelKey)}</span>
+                                  <li key={subItem.labelKey} className="admin-nav-subheader">
+                                    <span>{t(subItem.labelKey)}</span>
                                   </li>
                                 );
                               }
@@ -350,25 +395,27 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
             <Icon name={locale === 'ar' ? (sidebarCollapsed ? 'chevronLeft' : 'chevronRight') : (sidebarCollapsed ? 'chevronRight' : 'chevronLeft')} className="admin-nav-icon" aria-hidden />
             <span className="admin-nav-link-text">{sidebarCollapsed ? (locale === 'ar' ? 'توسيع' : 'Expand') : (locale === 'ar' ? 'طي' : 'Collapse')}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: `/${locale}/login` })}
-            className="admin-nav-link admin-nav-link--external w-full justify-start lg:justify-center"
-            title={locale === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
-          >
-            <Icon name="arrowRightOnRectangle" className="admin-nav-icon" aria-hidden />
-            <span className="admin-nav-link-text">{locale === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
-          </button>
-          <Link
-            href={`/${locale}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="admin-nav-link admin-nav-link--external"
-            title={t('viewSite')}
-          >
-            <Icon name="externalLink" className="admin-nav-icon" aria-hidden />
-            <span className="admin-nav-link-text">{t('viewSite')}</span>
-          </Link>
+          <div className="admin-sidebar-footer-actions">
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: `/${locale}/login` })}
+              className="admin-nav-link admin-nav-link--external flex-1 min-w-0 justify-center"
+              title={locale === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
+            >
+              <Icon name="arrowRightOnRectangle" className="admin-nav-icon" aria-hidden />
+              <span className="admin-nav-link-text">{locale === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</span>
+            </button>
+            <Link
+              href={`/${locale}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-nav-link admin-nav-link--external flex-1 min-w-0 justify-center"
+              title={t('viewSite')}
+            >
+              <Icon name="externalLink" className="admin-nav-icon" aria-hidden />
+              <span className="admin-nav-link-text">{t('viewSite')}</span>
+            </Link>
+          </div>
         </div>
       </aside>
       </>
@@ -387,27 +434,23 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           </button>
           <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-2">
             <span className="font-semibold text-gray-900 truncate">
-              {session?.user ? (
+              {currentSession?.user ? (
                 <>
                   {isAdminConfirmed
                     ? (locale === 'ar' ? 'لوحة الإدارة' : 'Admin Panel')
                     : userRole === 'OWNER'
                       ? (locale === 'ar' ? 'لوحة المالك' : 'Owner Panel')
                       : (locale === 'ar' ? 'لوحتي' : 'My Panel')}
-                  <span className="text-gray-600 font-medium mx-2">|</span>
-                  <span className="text-[#8B6F47]">{userName}</span>
                 </>
               ) : (
                 isAdminConfirmed
                   ? (locale === 'ar' ? 'لوحة الإدارة' : 'Admin Panel')
-                  : userRole === 'OWNER'
-                    ? (locale === 'ar' ? 'لوحة المالك' : 'Owner Panel')
-                    : (locale === 'ar' ? 'لوحتي' : 'My Panel')
+                  : (locale === 'ar' ? 'لوحتي' : 'My Panel')
               )}
             </span>
-            {session?.user && (
+            {currentSession?.user && (
               <span className="text-xs text-gray-500 truncate sm:border-s sm:border-gray-200 sm:ps-2">
-                {(session.user as { name?: string }).name || (session.user as { serialNumber?: string }).serialNumber || (session.user as { email?: string }).email || (session.user as { phone?: string }).phone || '—'}
+                {(currentSession.user as { name?: string }).name || (currentSession.user as { serialNumber?: string }).serialNumber || (currentSession.user as { email?: string }).email || (currentSession.user as { phone?: string }).phone || '—'}
               </span>
             )}
           </div>

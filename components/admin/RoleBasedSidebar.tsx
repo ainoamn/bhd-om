@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useParams, usePathname } from 'next/navigation';
@@ -8,7 +9,7 @@ import { signOut } from 'next-auth/react';
 import Icon from '@/components/icons/Icon';
 import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-import { getEffectiveDashboardConfig } from '@/lib/data/dashboardSettings';
+import { getEffectiveDashboardConfig, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { RoleKey, DashboardType } from '@/lib/config/dashboardRoles';
 
 const DASHBOARD_TYPE_LABEL_KEYS: Record<string, string> = {
@@ -49,6 +50,20 @@ export default function RoleBasedSidebar({
   const pathname = usePathname();
   const t = useTranslations('admin.nav');
   const tAddr = useTranslations('addressBook');
+  const [, setSettingsVersion] = useState(0);
+
+  useEffect(() => {
+    const handler = () => setSettingsVersion((v) => v + 1);
+    window.addEventListener(DASHBOARD_SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(DASHBOARD_SETTINGS_EVENT, handler);
+  }, []);
+
+  useEffect(() => {
+    if (role === 'CLIENT' || role === 'OWNER') {
+      loadDashboardSettingsFromServer();
+    }
+  }, [role]);
+
   const config = getEffectiveDashboardConfig(role, contactDashboardType);
 
   const subtitle =

@@ -64,6 +64,7 @@ export function hasPermission(
 }
 
 export function getRoleFromUserRole(userRole: string): AccountingRole {
-  if (userRole === 'ADMIN' || userRole === 'OWNER') return 'ADMIN';
-  return 'ACCOUNTANT'; // default for CLIENT
+  if (userRole === 'ADMIN') return 'ADMIN';
+  if (userRole === 'OWNER') return 'APPROVER';
+  return 'ACCOUNTANT';
 }

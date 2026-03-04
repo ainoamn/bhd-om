@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getAllBookings, updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { getAllBookings, updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, mergeBookingsFromServer, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
 import { getContractByBooking, hasContractForUnit, hasActiveContractForUnit, getAllContracts } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
@@ -122,13 +122,30 @@ export default function AdminBookingsPage() {
   const [bankAccountsVersion, setBankAccountsVersion] = useState(0);
 
   useEffect(() => {
-    loadData();
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/bookings');
+        if (res.ok && !cancelled) {
+          const serverBookings = await res.json();
+          if (Array.isArray(serverBookings) && serverBookings.length > 0) {
+            mergeBookingsFromServer(serverBookings);
+          }
+        }
+      } catch {
+        // تجاهل فشل الجلب؛ الاعتماد على التخزين المحلي
+      }
+      if (!cancelled) loadData();
+    })();
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_property_bookings' || e.key === 'bhd_booking_documents' || e.key === 'bhd_booking_cancellation_requests') loadData();
       if (e.key === 'bhd_bank_accounts') setBankAccountsVersion((v) => v + 1);
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
   const bankAccounts = typeof window !== 'undefined' ? getActiveBankAccounts() : [];
@@ -155,9 +172,15 @@ export default function AdminBookingsPage() {
     return { serial: unitSerial, label };
   };
 
+  const syncBookingToServer = (b: PropertyBooking) => {
+    fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).catch(() => {});
+  };
+
   const handleStatusChange = (bookingId: string, newStatus: BookingStatus) => {
     updateBookingStatus(bookingId, newStatus);
     loadData();
+    const updated = getAllBookings().find((b) => b.id === bookingId);
+    if (updated) syncBookingToServer(updated);
   };
 
   const allContracts = typeof window !== 'undefined' ? getAllContracts() : [];

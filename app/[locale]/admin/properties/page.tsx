@@ -7,7 +7,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 
 import { properties, updateProperty, updatePropertyUnit, getPropertyOverrides, getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, type PropertyBusinessStatus, type Property } from '@/lib/data/properties';
 import PropertyBarcode from '@/components/admin/PropertyBarcode';
-import { getBookingsByProperty } from '@/lib/data/bookings';
+import { getBookingsByProperty, mergeBookingsFromServer } from '@/lib/data/bookings';
 
 type PropertyWithStatus = (typeof properties)[number] & { businessStatus?: PropertyBusinessStatus; isPublished?: boolean; propertySubTypeAr?: string };
 
@@ -60,7 +60,18 @@ export default function PropertiesAdminPage() {
   useEffect(() => {
     const refresh = () => setOverrides(getPropertyOverrides() as any);
     refresh();
-    // مزامنة عند تغيير البيانات من تاب آخر (حجز عميل أو تغيير من صفحة الحجوزات)
+    (async () => {
+      try {
+        const res = await fetch('/api/bookings');
+        if (res.ok) {
+          const serverBookings = await res.json();
+          if (Array.isArray(serverBookings) && serverBookings.length > 0) mergeBookingsFromServer(serverBookings);
+        }
+      } catch {
+        // تجاهل
+      }
+      refresh();
+    })();
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_property_overrides' || e.key === 'bhd_property_bookings') refresh();
     };
@@ -73,10 +84,22 @@ export default function PropertiesAdminPage() {
     };
   }, []);
 
+  /** هل للعقار/الوحدة حجز نشط (محجوز/مؤجر) - التعديل يكون من صفحة الحجوزات فقط */
+  const hasActiveBooking = (propertyId: number, unitKey?: string) => {
+    const bookings = getBookingsByProperty(propertyId);
+    return bookings.some(
+      (b) =>
+        b.type === 'BOOKING' &&
+        b.status !== 'CANCELLED' &&
+        (unitKey !== undefined ? b.unitKey === unitKey : !b.unitKey)
+    );
+  };
+
   const getBusinessStatus = (p: PropertyWithStatus, unitKey?: string): PropertyBusinessStatus => {
     const o = overrides[String(p.id)];
-    if (unitKey && o?.units?.[unitKey]) return o.units[unitKey].businessStatus ?? 'AVAILABLE';
-    return o?.businessStatus ?? (p.businessStatus ?? 'AVAILABLE');
+    const fromOverride = unitKey && o?.units?.[unitKey] ? (o.units[unitKey].businessStatus ?? 'AVAILABLE') : (o?.businessStatus ?? (p.businessStatus ?? 'AVAILABLE'));
+    if (hasActiveBooking(p.id, unitKey)) return 'RESERVED';
+    return fromOverride;
   };
 
   const getIsPublished = (p: PropertyWithStatus, unitKey?: string): boolean => {
@@ -86,18 +109,6 @@ export default function PropertiesAdminPage() {
   };
 
   const canBePublished = (p: PropertyWithStatus, unitKey?: string) => getBusinessStatus(p, unitKey) === 'AVAILABLE';
-
-  /** هل للعقار/الوحدة حجز نشط (محجوز/مؤجر) - التعديل يكون من صفحة الحجوزات فقط */
-  const hasActiveBooking = (propertyId: number, unitKey?: string) => {
-    const bookings = getBookingsByProperty(propertyId);
-    return bookings.some(
-      (b) =>
-        b.type === 'BOOKING' &&
-        b.paymentConfirmed &&
-        b.status !== 'CANCELLED' &&
-        (unitKey !== undefined ? b.unitKey === unitKey : !b.unitKey)
-    );
-  };
 
   const handleUnitStatusClickWhenLocked = () => {
     alert(

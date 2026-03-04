@@ -18,15 +18,15 @@ export default function SessionAwareLayout({
   const { status } = useSession();
   const pathname = usePathname();
   const isAdmin = pathname?.includes('/admin');
-  const isAuthPage = pathname?.endsWith('/login') || pathname?.endsWith('/register') || pathname?.includes('/forgot-password');
-  const hasUserBar = status === 'authenticated' && (isAdmin || isAuthPage);
+  // الشريط الذهبي يظهر فقط في لوحة التحكم (/admin)
+  const hasUserBar = status === 'authenticated' && isAdmin;
 
   return (
     <UserBarContext.Provider value={hasUserBar}>
       {hasUserBar && <UserTopBar />}
       <div className={hasUserBar ? 'pt-11' : ''}>
         <LayoutWrapper
-          header={<Header locale={locale} hasUserBar={false} />}
+          header={<Header locale={locale} hasUserBar={hasUserBar} />}
           footer={<Footer locale={locale} />}
         >
           {children}

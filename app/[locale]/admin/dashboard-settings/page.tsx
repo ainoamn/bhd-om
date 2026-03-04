@@ -12,6 +12,7 @@ import {
   enableSectionForAll,
   disableAllForType,
   enableAllForType,
+  loadDashboardSettingsFromServer,
   DASHBOARD_SETTINGS_EVENT,
 } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey, DashboardType } from '@/lib/config/dashboardRoles';
@@ -50,7 +51,10 @@ export default function DashboardSettingsPage() {
     setSectionsByType(next);
   };
 
-  useEffect(loadSections, []);
+  useEffect(() => {
+    loadSections();
+    loadDashboardSettingsFromServer().then(loadSections);
+  }, []);
 
   useEffect(() => {
     const handler = () => loadSections();

@@ -35,6 +35,27 @@ function validateBalance(lines: JournalLine[]): { totalDebit: number; totalCredi
   return { totalDebit, totalCredit, balanced };
 }
 
+function validateLines(lines: JournalLine[]): void {
+  if (!Array.isArray(lines) || lines.length < 2) {
+    throw new Error('قيد غير صالح: يجب أن يحتوي القيد على سطرين على الأقل');
+  }
+  for (const l of lines) {
+    if (!l.accountId || typeof l.accountId !== 'string') {
+      throw new Error('قيد غير صالح: رقم الحساب مطلوب لكل سطر');
+    }
+    const debit = Number(l.debit || 0);
+    const credit = Number(l.credit || 0);
+    if (debit < 0 || credit < 0) {
+      throw new Error('قيد غير صالح: المبالغ لا يجوز أن تكون سالبة');
+    }
+    const hasDebit = debit > 0 && credit === 0;
+    const hasCredit = credit > 0 && debit === 0;
+    if (!hasDebit && !hasCredit) {
+      throw new Error('قيد غير صالح: كل سطر يجب أن يكون إما مدين أو دائن حصراً');
+    }
+  }
+}
+
 export function createJournalEntry(
   data: Omit<JournalEntry, 'id' | 'serialNumber' | 'version' | 'totalDebit' | 'totalCredit' | 'createdAt' | 'updatedAt'>,
   userId?: string
@@ -42,6 +63,7 @@ export function createJournalEntry(
   if (isPeriodLocked(data.date)) {
     throw new Error('لا يمكن الترحيل لفترة مغلقة');
   }
+  validateLines(data.lines);
   const { totalDebit, totalCredit, balanced } = validateBalance(data.lines);
   if (!balanced) {
     throw new Error('قيد غير متوازن: المدين يجب أن يساوي الدائن');
@@ -85,6 +107,7 @@ export function updateJournalEntry(
     throw new Error('لا يمكن تعديل قيد في فترة مغلقة');
   }
   const lines = data.lines ?? existing.lines;
+  validateLines(lines);
   const { totalDebit, totalCredit, balanced } = validateBalance(lines);
   if (!balanced) throw new Error('قيد غير متوازن');
   const updated: JournalEntry = {

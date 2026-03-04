@@ -386,6 +386,17 @@ export function getAllBookings(): PropertyBooking[] {
   return getStoredBookings();
 }
 
+/** دمج حجوزات من الخادم في التخزين المحلي (لوحة الإدارة) — بالمعرّف، الخادم يفوز إن وُجد محلياً */
+export function mergeBookingsFromServer(serverBookings: PropertyBooking[]): void {
+  if (typeof window === 'undefined') return;
+  const current = getStoredBookings();
+  const byId = new Map(current.map((b) => [b.id, b]));
+  for (const b of serverBookings) {
+    if (b?.id) byId.set(b.id, b);
+  }
+  saveBookings(Array.from(byId.values()));
+}
+
 /** مزامنة جميع الحجوزات مع دفتر العناوين - إضافة جهات اتصال للحجوزات التي لا تملك جهة في الدفتر */
 export function syncBookingContactsToAddressBook(): { added: number; updated: number } {
   if (typeof window === 'undefined') return { added: 0, updated: 0 };

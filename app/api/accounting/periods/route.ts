@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFiscalPeriodsFromDb, lockPeriodInDb } from '@/lib/accounting/data/dbService';
+import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const perm = await requirePermission(request, 'REPORT_VIEW');
+  if (!perm.ok) {
+    return NextResponse.json({ error: perm.message }, { status: perm.status });
+  }
   try {
     const periods = await getFiscalPeriodsFromDb();
     return NextResponse.json(periods);
@@ -15,6 +20,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const perm = await requirePermission(request, 'PERIOD_LOCK');
+  if (!perm.ok) {
+    return NextResponse.json({ error: perm.message }, { status: perm.status });
+  }
   try {
     const body = await request.json();
     const { periodId, userId } = body;

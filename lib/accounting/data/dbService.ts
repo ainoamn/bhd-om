@@ -63,17 +63,21 @@ export async function ensureAccountingAccounts() {
 }
 
 export async function ensureFiscalPeriods() {
-  const count = await prisma.accountingFiscalPeriod.count();
-  if (count > 0) return;
+  const existing = await prisma.accountingFiscalPeriod.count();
+  if (existing > 0) return;
   const year = new Date().getFullYear();
-  await prisma.accountingFiscalPeriod.create({
-    data: {
-      code: `FY-${year}`,
-      startDate: new Date(`${year}-01-01`),
-      endDate: new Date(`${year}-12-31`),
-      isLocked: false,
-    },
-  });
+  const periods: Array<{ code: string; startDate: Date; endDate: Date }> = [];
+  for (let m = 0; m < 12; m++) {
+    const start = new Date(year, m, 1);
+    const end = new Date(year, m + 1, 0);
+    const code = `M${String(m + 1).padStart(2, '0')}-${year}`;
+    periods.push({ code, startDate: start, endDate: end });
+  }
+  for (const p of periods) {
+    await prisma.accountingFiscalPeriod.create({
+      data: { code: p.code, startDate: p.startDate, endDate: p.endDate, isLocked: false },
+    });
+  }
 }
 
 export async function getFiscalPeriodsFromDb() {
@@ -193,10 +197,13 @@ export async function createJournalEntryInDb(data: {
   const locked = await isPeriodLockedForDate(data.date);
   if (locked) throw new Error('لا يمكن الترحيل: الفترة المالية مغلقة');
   const year = new Date().getFullYear();
-  const count = await prisma.accountingJournalEntry.count({
-    where: { createdAt: { gte: new Date(`${year}-01-01`) } },
+  const serialKey = `JRN-${year}`;
+  const counter = await prisma.serialCounter.upsert({
+    where: { key: serialKey },
+    create: { key: serialKey, lastValue: 1 },
+    update: { lastValue: { increment: 1 } },
   });
-  const serialNumber = `JRN-${year}-${String(count + 1).padStart(4, '0')}`;
+  const serialNumber = `JRN-${year}-${String(counter.lastValue).padStart(4, '0')}`;
   const totalDebit = data.lines.reduce((s, l) => s + l.debit, 0);
   const totalCredit = data.lines.reduce((s, l) => s + l.credit, 0);
   if (Math.abs(totalDebit - totalCredit) > 0.01) {
@@ -345,10 +352,13 @@ export async function createDocumentInDb(data: {
   const year = new Date().getFullYear();
   const type = data.type as keyof typeof DOC_TYPE_MAP;
   const prefix = DOC_SERIAL_PREFIX[type] || 'DOC';
-  const count = await prisma.accountingDocument.count({
-    where: { type: DOC_TYPE_MAP[type] || 'OTHER', createdAt: { gte: new Date(`${year}-01-01`) } },
+  const serialKey = `${prefix}-${year}`;
+  const counter = await prisma.serialCounter.upsert({
+    where: { key: serialKey },
+    create: { key: serialKey, lastValue: 1 },
+    update: { lastValue: { increment: 1 } },
   });
-  const serialNumber = data.serialNumber?.trim() || `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
+  const serialNumber = data.serialNumber?.trim() || `${prefix}-${year}-${String(counter.lastValue).padStart(4, '0')}`;
   const doc = await prisma.accountingDocument.create({
     data: {
       serialNumber,
@@ -409,4 +419,119 @@ export async function updateDocumentInDb(id: string, data: { journalEntryId?: st
     data: { journalEntryId: data.journalEntryId, updatedAt: new Date() },
   });
   return doc;
+}
+
+export async function updateJournalStatusInDb(id: string, status: 'APPROVED' | 'CANCELLED') {
+  const entry = await prisma.accountingJournalEntry.update({
+    where: { id },
+    data: { status, updatedAt: new Date() },
+    include: { lines: true },
+  });
+  await prisma.accountingAuditLog.create({
+    data: {
+      action: status === 'APPROVED' ? 'UPDATE' : 'CANCEL',
+      entityType: 'JOURNAL_ENTRY',
+      entityId: id,
+      newState: JSON.stringify({ status }),
+    },
+  });
+  return {
+    id: entry.id,
+    serialNumber: entry.serialNumber,
+    version: entry.version,
+    date: entry.date.toISOString().slice(0, 10),
+    lines: entry.lines.map((l) => ({
+      accountId: l.accountId,
+      debit: l.debit,
+      credit: l.credit,
+      descriptionAr: l.descriptionAr,
+      descriptionEn: l.descriptionEn,
+    })),
+    totalDebit: entry.totalDebit,
+    totalCredit: entry.totalCredit,
+    descriptionAr: entry.descriptionAr,
+    descriptionEn: entry.descriptionEn,
+    documentType: entry.documentType,
+    documentId: entry.documentId,
+    contactId: entry.contactId,
+    bankAccountId: entry.bankAccountId,
+    propertyId: entry.propertyId,
+    projectId: entry.projectId,
+    status: entry.status,
+    replacedBy: entry.replacedBy,
+    createdAt: entry.createdAt.toISOString(),
+    updatedAt: entry.updatedAt.toISOString(),
+  };
+}
+
+export async function getDocumentByIdFromDb(id: string) {
+  const d = await prisma.accountingDocument.findUnique({ where: { id } });
+  if (!d) return null;
+  return {
+    id: d.id,
+    serialNumber: d.serialNumber,
+    type: d.type,
+    status: d.status,
+    date: d.date.toISOString().slice(0, 10),
+    dueDate: d.dueDate?.toISOString().slice(0, 10),
+    contactId: d.contactId,
+    bankAccountId: d.bankAccountId,
+    propertyId: d.propertyId,
+    projectId: d.projectId,
+    amount: d.amount,
+    currency: d.currency,
+    vatRate: d.vatRate,
+    vatAmount: d.vatAmount,
+    totalAmount: d.totalAmount,
+    descriptionAr: d.descriptionAr,
+    descriptionEn: d.descriptionEn,
+    items: d.itemsJson ? JSON.parse(d.itemsJson) : undefined,
+    journalEntryId: d.journalEntryId,
+    attachments: d.attachmentsJson ? JSON.parse(d.attachmentsJson) : undefined,
+    purchaseOrder: d.purchaseOrder,
+    reference: d.reference,
+    branch: d.branch,
+    createdAt: d.createdAt.toISOString(),
+    updatedAt: d.updatedAt.toISOString(),
+  };
+}
+
+export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 'CANCELLED' | 'PAID') {
+  const doc = await prisma.accountingDocument.update({
+    where: { id },
+    data: { status, updatedAt: new Date() },
+  });
+  await prisma.accountingAuditLog.create({
+    data: {
+      action: status === 'APPROVED' ? 'UPDATE' : status === 'PAID' ? 'UPDATE' : 'CANCEL',
+      entityType: 'DOCUMENT',
+      entityId: id,
+      newState: JSON.stringify({ status }),
+    },
+  });
+  return {
+    id: doc.id,
+    serialNumber: doc.serialNumber,
+    type: doc.type,
+    status: doc.status,
+    date: doc.date.toISOString().slice(0, 10),
+    dueDate: doc.dueDate?.toISOString().slice(0, 10),
+    contactId: doc.contactId,
+    bankAccountId: doc.bankAccountId,
+    propertyId: doc.propertyId,
+    projectId: doc.projectId,
+    amount: doc.amount,
+    currency: doc.currency,
+    vatRate: doc.vatRate,
+    vatAmount: doc.vatAmount,
+    totalAmount: doc.totalAmount,
+    descriptionAr: doc.descriptionAr,
+    descriptionEn: doc.descriptionEn,
+    journalEntryId: doc.journalEntryId,
+    purchaseOrder: doc.purchaseOrder,
+    reference: doc.reference,
+    branch: doc.branch,
+    createdAt: doc.createdAt.toISOString(),
+    updatedAt: doc.updatedAt.toISOString(),
+  };
 }

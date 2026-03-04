@@ -3,18 +3,22 @@
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactForUser } from '@/lib/data/addressBook';
 import { getContactLinkedBookings } from '@/lib/data/contactLinks';
-import Link from 'next/link';
+import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 
 export default function MyBookingsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const { data: session } = useSession();
+  const effectiveUser = useEffectiveUser();
   const t = useTranslations('admin.nav.clientNav');
 
-  const user = session?.user as { id?: string; email?: string; phone?: string } | undefined;
+  const user = (effectiveUser
+    ? { id: effectiveUser.id, email: effectiveUser.email, phone: effectiveUser.phone }
+    : session?.user) as { id?: string; email?: string; phone?: string } | undefined;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
   const bookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
 

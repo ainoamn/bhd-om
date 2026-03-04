@@ -56,6 +56,29 @@ export function lockPeriod(periodId: string, userId?: string): FiscalPeriod | nu
   return updated;
 }
 
+export function unlockPeriod(periodId: string, userId?: string): FiscalPeriod | null {
+  const periods = getFiscalPeriods();
+  const idx = periods.findIndex((p) => p.id === periodId);
+  if (idx < 0) return null;
+  const period = periods[idx];
+  const updated: FiscalPeriod = {
+    ...period,
+    isLocked: false,
+    closedAt: undefined,
+    closedBy: undefined,
+  };
+  periods[idx] = updated;
+  saveStored(STORAGE_KEYS.PERIODS, periods);
+  appendAuditLog({
+    action: 'PERIOD_UNLOCK',
+    entityType: 'PERIOD',
+    entityId: periodId,
+    userId,
+    reason: 'Period unlocked for corrections',
+  });
+  return updated;
+}
+
 export function createFiscalPeriod(startDate: string, endDate: string, code?: string): FiscalPeriod {
   const year = startDate.slice(0, 4);
   const period: FiscalPeriod = {

@@ -50,9 +50,9 @@ export default function Header({ locale, hasUserBar }: HeaderProps) {
   const visibleItems = NAV_ITEMS.filter((item) => visibility[item.id]);
 
   return (
-    <header className={`fixed left-0 right-0 z-50 transition-all duration-300 ${hasUserBar ? 'top-11' : 'top-0'} ${
-      scrolled 
-        ? 'bg-white shadow-md border-b border-gray-200' 
+    <header className={`fixed left-0 right-0 z-50 transition-all duration-300 ${hasUserBar ? '!top-11' : 'top-0'} ${
+      scrolled
+        ? 'bg-white shadow-md border-b border-gray-200'
         : 'bg-white/95 backdrop-blur-sm'
     }`}>
       <nav className="container mx-auto px-4 sm:px-6 lg:px-8">

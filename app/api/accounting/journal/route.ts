@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const perm = requirePermission(request, 'JOURNAL_CREATE');
+  const perm = await requirePermission(request, 'JOURNAL_CREATE');
   if (!perm.ok) {
     return NextResponse.json({ error: perm.message }, { status: perm.status });
   }

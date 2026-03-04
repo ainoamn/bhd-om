@@ -3,7 +3,7 @@
  * Zero Trust: All writes go through audit
  */
 
-const KEYS = {
+export const KEYS = {
   ACCOUNTS: 'bhd_chart_of_accounts',
   JOURNAL: 'bhd_journal_entries',
   DOCUMENTS: 'bhd_accounting_documents',
@@ -11,6 +11,8 @@ const KEYS = {
   PERIODS: 'bhd_fiscal_periods',
   AUDIT: 'bhd_audit_log',
 } as const;
+
+export const STORAGE_KEYS = KEYS;
 
 export function getStored<T>(key: string): T[] {
   if (typeof window === 'undefined') return [];
@@ -47,5 +49,3 @@ export function saveStoredObject<T>(key: string, data: T): void {
     window.dispatchEvent(new StorageEvent('storage', { key }));
   } catch {}
 }
-
-export const STORAGE_KEYS = KEYS;

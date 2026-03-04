@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import AzureADProvider from 'next-auth/providers/azure-ad';
 import { compare } from 'bcryptjs';
+import { verifyImpersonateToken } from '@/lib/impersonate';
   // OAuth - يُفعّل عند إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في .env
 import { prisma } from '@/lib/prisma';
 
@@ -34,21 +35,64 @@ const providers: NextAuthOptions['providers'] = [
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        const raw = credentials as Record<string, string> | undefined;
+        const emailOrUser = (raw?.email ?? raw?.['emailOrUsername'] ?? raw?.['username'] ?? '').toString().trim();
+        const password = (raw?.password ?? '').toString().trim();
+        if (!emailOrUser || !password) {
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('[auth] authorize: missing email or password', { hasEmail: !!emailOrUser, hasPassword: !!password, keys: raw ? Object.keys(raw) : [] });
+          }
+          return null;
+        }
 
-        const input = (credentials.email || '').trim();
+        const input = emailOrUser;
         if (!input) return null;
+
+        // تمثيل المستخدم من لوحة المدير (رابط لمرة واحدة)
+        if (input === '__impersonate__') {
+          const verified = verifyImpersonateToken(password);
+          if (!verified) return null;
+          const user = await prisma.user.findUnique({ where: { id: verified.userId } });
+          if (!user) return null;
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            serialNumber: user.serialNumber,
+            role: user.role,
+            dashboardType: (user as { dashboardType?: string | null }).dashboardType ?? undefined,
+            phone: user.phone ?? undefined,
+          };
+        }
 
         // اسم المستخدم (USR-C-2025-0001) أو البريد الإلكتروني
         const isEmail = input.includes('@');
-        const user = isEmail
-          ? await prisma.user.findUnique({ where: { email: input.toLowerCase() } })
-          : await prisma.user.findUnique({ where: { serialNumber: input.toUpperCase() } });
+        let user;
+        try {
+          user = isEmail
+            ? await prisma.user.findUnique({ where: { email: input.toLowerCase() } })
+            : await prisma.user.findUnique({ where: { serialNumber: input.toUpperCase() } });
+        } catch (err) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('[auth] authorize: prisma error', err);
+          }
+          return null;
+        }
 
-        if (!user || !user.password) return null;
+        if (!user || !user.password) {
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('[auth] authorize: user not found or no password', { input: input.substring(0, 20), found: !!user });
+          }
+          return null;
+        }
 
-        const isValid = await compare(credentials.password, user.password);
-        if (!isValid) return null;
+        const isValid = await compare(password, user.password);
+        if (!isValid) {
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('[auth] authorize: password mismatch for', user.email);
+          }
+          return null;
+        }
 
         return {
           id: user.id,
@@ -96,5 +140,5 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: false,
+  debug: process.env.NODE_ENV === 'development',
 };

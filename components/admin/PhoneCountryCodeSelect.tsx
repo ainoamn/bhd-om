@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { COUNTRY_DIAL_CODES, searchCountryDialCodes, type CountryDialCode } from '@/lib/data/countryDialCodes';
+import { COUNTRY_DIAL_CODES, DEFAULT_DIAL_CODE, getCountryDialCodesWithOmanFirst, searchCountryDialCodes, type CountryDialCode } from '@/lib/data/countryDialCodes';
 
 interface PhoneCountryCodeSelectProps {
   value: string;
@@ -14,6 +14,7 @@ interface PhoneCountryCodeSelectProps {
   /** واجهة داكنة لصفحات العملاء */
   variant?: 'default' | 'dark';
   onBlur?: () => void;
+  disabled?: boolean;
 }
 
 export default function PhoneCountryCodeSelect({
@@ -25,14 +26,19 @@ export default function PhoneCountryCodeSelect({
   size = 'default',
   variant = 'default',
   onBlur,
+  disabled = false,
 }: PhoneCountryCodeSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const nameKey = locale === 'ar' ? 'nameAr' : 'nameEn';
-  const filtered = search ? searchCountryDialCodes(search, locale) : COUNTRY_DIAL_CODES;
-  const selected = COUNTRY_DIAL_CODES.find((c) => c.code === value) || COUNTRY_DIAL_CODES.find((c) => c.code === '968');
+  const filtered = search ? searchCountryDialCodes(search, locale) : getCountryDialCodesWithOmanFirst();
+  const selected = COUNTRY_DIAL_CODES.find((c) => c.code === value) || COUNTRY_DIAL_CODES.find((c) => c.code === DEFAULT_DIAL_CODE);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -58,10 +64,11 @@ export default function PhoneCountryCodeSelect({
     <div ref={containerRef} className={`relative shrink-0 ${className}`}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        className={`w-full min-w-[100px] flex items-center justify-between gap-1 border focus:ring-2 focus:border-[#8B6F47] outline-none ${inputClass} ${btnClass} ${selectClassName}`}
+        onClick={() => !disabled && setOpen(!open)}
+        disabled={disabled}
+        className={`w-full min-w-[100px] flex items-center justify-between gap-1 border focus:ring-2 focus:border-[#8B6F47] outline-none ${inputClass} ${btnClass} ${selectClassName} ${disabled ? 'cursor-not-allowed opacity-80' : ''}`}
       >
-        <span className="truncate">+{selected?.code || value || '968'}</span>
+        <span className="truncate">+{selected?.code || value || DEFAULT_DIAL_CODE}</span>
         <span className={`text-xs truncate max-w-[70px] ${isDark ? 'text-white/70' : 'text-gray-500'}`}>({((selected as CountryDialCode)?.[nameKey] || '').slice(0, 10)}{((selected as CountryDialCode)?.[nameKey] || '').length > 10 ? '…' : ''})</span>
         <span className={isDark ? 'text-white/50' : 'text-gray-400'}>▼</span>
       </button>

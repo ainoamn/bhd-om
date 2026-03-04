@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 
-const DASHBOARD_TYPES = ['CLIENT', 'TENANT', 'LANDLORD', 'SUPPLIER', 'PARTNER', 'GOVERNMENT', 'AUTHORIZED_REP', 'COMPANY', 'OTHER'] as const;
-
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user as { role?: string }).role !== 'ADMIN') {
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+    if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -27,7 +27,6 @@ export async function GET(
         email: true,
         phone: true,
         role: true,
-        dashboardType: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -37,7 +36,12 @@ export async function GET(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    return NextResponse.json(user);
+    return NextResponse.json({
+      ...user,
+      dashboardType: null,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    });
   } catch (e) {
     console.error('Get user error:', e);
     return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 });
@@ -49,22 +53,24 @@ const updateSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional().nullable(),
   role: z.enum(['ADMIN', 'CLIENT', 'OWNER']).optional(),
-  dashboardType: z.enum(DASHBOARD_TYPES).optional().nullable(),
   newPassword: z.string().min(6).optional(),
 });
 
 export async function PATCH(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user as { role?: string }).role !== 'ADMIN') {
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+    if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const body = await _req.json();
+    const body = await req.json();
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 });
@@ -75,7 +81,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const updates: { name?: string; email?: string; phone?: string | null; role?: 'ADMIN' | 'CLIENT' | 'OWNER'; dashboardType?: string | null; password?: string } = {};
+    const updates: { name?: string; email?: string; phone?: string | null; role?: 'ADMIN' | 'CLIENT' | 'OWNER'; password?: string } = {};
     if (parsed.data.name !== undefined) updates.name = parsed.data.name.trim();
     if (parsed.data.email !== undefined) {
       const emailLower = parsed.data.email.toLowerCase().trim();
@@ -85,7 +91,6 @@ export async function PATCH(
     }
     if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone?.trim() || null;
     if (parsed.data.role !== undefined) updates.role = parsed.data.role;
-    if (parsed.data.dashboardType !== undefined) updates.dashboardType = parsed.data.dashboardType;
     if (parsed.data.newPassword) {
       updates.password = await hash(parsed.data.newPassword, 10);
     }
@@ -93,10 +98,15 @@ export async function PATCH(
     const updated = await prisma.user.update({
       where: { id },
       data: updates,
-      select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true, dashboardType: true, createdAt: true },
+      select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true, createdAt: true, updatedAt: true },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({
+      ...updated,
+      dashboardType: null,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    });
   } catch (e) {
     console.error('Update user error:', e);
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });

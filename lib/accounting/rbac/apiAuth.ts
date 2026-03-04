@@ -5,26 +5,38 @@
 
 import { NextRequest } from 'next/server';
 import { hasPermission, type AccountingPermission, type AccountingRole } from './permissions';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
-/** يحصل على دور المستخدم من الطلب (header أو session لاحقاً) */
-export function getAccountingRoleFromRequest(request: NextRequest): AccountingRole | undefined {
-  const headerRole = request.headers.get('X-Accounting-Role');
-  if (headerRole && ['ACCOUNTANT', 'APPROVER', 'AUDITOR', 'ADMIN'].includes(headerRole)) {
-    return headerRole as AccountingRole;
+/** يحصل على دور المستخدم من الطلب (الجلسة في الإنتاج، وHeader مسموح في التطوير فقط) */
+export async function getAccountingRoleFromRequest(request: NextRequest): Promise<AccountingRole | undefined> {
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev) {
+    const headerRole = request.headers.get('X-Accounting-Role');
+    if (headerRole && ['ACCOUNTANT', 'APPROVER', 'AUDITOR', 'ADMIN'].includes(headerRole)) {
+      return headerRole as AccountingRole;
+    }
   }
-  // TODO: عند تفعيل NextAuth: const session = await getServerSession(); return session?.user?.accountingRole;
-  return undefined;
+  const session = await getServerSession(authOptions);
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  if (!userRole) return undefined;
+  // تحويل دور المستخدم العام إلى دور محاسبي
+  const mapped = (await import('./permissions')).getRoleFromUserRole(userRole);
+  return mapped;
 }
 
 /** يتحقق من الصلاحية ويرجع 403 إن لم تكن متوفرة */
-export function requirePermission(
+export async function requirePermission(
   request: NextRequest,
   permission: AccountingPermission
-): { ok: true; role: AccountingRole } | { ok: false; status: number; message: string } {
-  const role = getAccountingRoleFromRequest(request);
-  // في وضع التطوير: إن لم يُمرّر دور، نسمح بالمرور (للتوافق مع الواجهة الحالية)
+): Promise<{ ok: true; role: AccountingRole } | { ok: false; status: number; message: string }> {
+  const role = await getAccountingRoleFromRequest(request);
   if (!role) {
-    return { ok: true, role: 'ACCOUNTANT' as AccountingRole };
+    return {
+      ok: false,
+      status: 401,
+      message: 'Unauthorized: accounting role is required',
+    };
   }
   if (hasPermission(role, permission)) {
     return { ok: true, role };

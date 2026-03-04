@@ -25,7 +25,7 @@ export default function UserTopBar() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[200] h-11 bg-[#8B6F47] text-white flex items-center justify-between gap-4 px-4 sm:px-6 text-sm font-medium shadow-md border-b border-[#8B6F47]/20"
+      className="fixed top-0 left-0 right-0 z-[100] h-11 bg-[#8B6F47] text-white flex items-center justify-between gap-4 px-4 sm:px-6 text-sm font-medium shadow-md border-b border-[#8B6F47]/20"
       dir={locale === 'ar' ? 'rtl' : 'ltr'}
       role="banner"
       aria-label={ar ? 'شريط المستخدم' : 'User bar'}

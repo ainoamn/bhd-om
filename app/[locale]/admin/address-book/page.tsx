@@ -159,7 +159,7 @@ export default function AdminAddressBookPage() {
   const [syncFromUsersResult, setSyncFromUsersResult] = useState<number | null>(null);
   const [syncingFromUsers, setSyncingFromUsers] = useState(false);
   const [userCreateMsg, setUserCreateMsg] = useState<string | null>(null);
-  const [createAccountsResult, setCreateAccountsResult] = useState<{ created: number; linked: number } | null>(null);
+  const [createAccountsResult, setCreateAccountsResult] = useState<{ created: number; linked: number; failed?: number; noAction?: boolean } | null>(null);
   const [creatingAccounts, setCreatingAccounts] = useState(false);
   const [mergeResult, setMergeResult] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -307,14 +307,28 @@ export default function AdminAddressBookPage() {
   };
 
   const handleCreateAccountsForContacts = async () => {
-    setCreatingAccounts(true);
     setCreateAccountsResult(null);
     setUserCreateMsg(null);
+    setCreatingAccounts(true);
     try {
-      const contacts = getAllContacts(true);
-      const res = await fetch('/api/admin/users');
-      if (!res.ok) throw new Error('Failed to fetch users');
-      const users = await res.json() as Array<{ id: string; name: string; email: string; phone?: string | null }>;
+      let contacts: Contact[];
+      try {
+        contacts = getAllContacts(true);
+      } catch {
+        setUserCreateMsg(locale === 'ar' ? 'تعذر قراءة دفتر العناوين' : 'Could not read address book');
+        return;
+      }
+      const res = await fetch('/api/admin/users', { credentials: 'include' });
+      if (!res.ok) {
+        if (res.status === 401) {
+          setUserCreateMsg(locale === 'ar' ? 'يجب تسجيل الدخول كمسؤول' : 'You must be logged in as admin');
+        } else {
+          setUserCreateMsg(locale === 'ar' ? 'فشل جلب قائمة المستخدمين' : 'Failed to fetch users list');
+        }
+        return;
+      }
+      const users = (await res.json()) as Array<{ id: string; name: string; email: string; phone?: string | null }>;
+      const validUserIds = new Set(users.map((u) => u.id));
       const userByEmail = new Map<string, { id: string }>();
       const userByPhone = new Map<string, { id: string }>();
       for (const u of users) {
@@ -326,11 +340,22 @@ export default function AdminAddressBookPage() {
           if (norm.length >= 6) userByPhone.set(norm, { id: u.id });
         }
       }
+      // تحتاج حساباً: من ليس لديه userId، أو من لديه userId لا يطابق أي مستخدم حالي (حساب محذوف/يتيم)
+      const toProcess = contacts.filter((c) => {
+        const uid = (c as { userId?: string }).userId;
+        return !uid || !validUserIds.has(uid);
+      });
+      if (toProcess.length === 0) {
+        setCreateAccountsResult({ created: 0, linked: 0, noAction: true });
+        setTimeout(() => setCreateAccountsResult(null), 5000);
+        return;
+      }
       let created = 0;
       let linked = 0;
+      let failed = 0;
       for (const c of contacts) {
-        const hasUserId = !!c.userId;
-        if (hasUserId) continue;
+        const uid = (c as { userId?: string }).userId;
+        if (uid && validUserIds.has(uid)) continue;
         const email = (c.email || '').toLowerCase().trim();
         const phone = (c.phone || '').trim();
         const normPhone = normalizePhoneForComparison(phone);
@@ -342,15 +367,21 @@ export default function AdminAddressBookPage() {
           linked++;
           continue;
         }
-        const displayName = c.contactType === 'COMPANY' && c.companyData?.companyNameAr
+        let displayName = c.contactType === 'COMPANY' && c.companyData?.companyNameAr
           ? c.companyData.companyNameAr
-          : [c.firstName, c.secondName, c.thirdName, c.familyName].filter(Boolean).join(' ') || c.firstName || 'Contact';
+          : [c.firstName, c.secondName, c.thirdName, c.familyName].filter(Boolean).join(' ') || c.firstName || '';
+        if (typeof displayName !== 'string' || displayName.trim().length < 2) {
+          displayName = locale === 'ar' ? `جهة اتصال ${c.id.slice(-6)}` : `Contact ${c.id.slice(-6)}`;
+        } else {
+          displayName = displayName.trim();
+        }
         const fullPhone = normPhone.length >= 6
           ? (normPhone.startsWith('968') ? normPhone : '968' + normPhone.replace(/^0+/, ''))
           : undefined;
         try {
           const apiRes = await fetch('/api/admin/users/create-from-contact', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contactId: c.id,
@@ -360,7 +391,7 @@ export default function AdminAddressBookPage() {
               category: c.category,
             }),
           });
-          const data = await apiRes.json();
+          const data = await apiRes.json().catch(() => ({}));
           if (apiRes.ok && data.userId) {
             updateContact(c.id, { userId: data.userId });
             created++;
@@ -368,13 +399,15 @@ export default function AdminAddressBookPage() {
             if (createdEmail && !createdEmail.includes('@nologin.bhd')) userByEmail.set(createdEmail, { id: data.userId });
             const createdPhone = fullPhone ? normalizePhoneForComparison(fullPhone) : '';
             if (createdPhone.length >= 6) userByPhone.set(createdPhone, { id: data.userId });
+          } else {
+            failed++;
           }
         } catch {
-          /* skip on error */
+          failed++;
         }
       }
       loadData();
-      setCreateAccountsResult({ created, linked });
+      setCreateAccountsResult({ created, linked, failed: failed > 0 ? failed : undefined });
       setTimeout(() => setCreateAccountsResult(null), 6000);
     } catch {
       setUserCreateMsg(locale === 'ar' ? 'فشل تنفيذ العملية' : 'Operation failed');
@@ -1026,6 +1059,23 @@ export default function AdminAddressBookPage() {
           {locale === 'ar'
             ? `تم إنشاء ${createAccountsResult.created} حساب جديد وربط ${createAccountsResult.linked} جهة اتصال بحسابات موجودة`
             : `Created ${createAccountsResult.created} new account(s) and linked ${createAccountsResult.linked} contact(s) to existing accounts`}
+          {createAccountsResult.failed != null && createAccountsResult.failed > 0 && (
+            <span className="block mt-1 text-amber-700">
+              {locale === 'ar' ? `لم يُنشأ حساب لـ ${createAccountsResult.failed} جهة اتصال (تحقق من البريد أو الاسم).` : `${createAccountsResult.failed} contact(s) could not get an account (check email/name).`}
+            </span>
+          )}
+        </div>
+      )}
+      {createAccountsResult !== null && createAccountsResult.created === 0 && createAccountsResult.linked === 0 && (createAccountsResult.failed ?? 0) > 0 && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-amber-800 font-medium">
+          {locale === 'ar'
+            ? `لم يُنشأ أي حساب. فشل ${createAccountsResult.failed} جهة اتصال. تحقق من أن الاسم حرفان على الأقل وأن البريد غير مكرر.`
+            : `No accounts created. ${createAccountsResult.failed} contact(s) failed. Ensure name has at least 2 characters and email is not duplicate.`}
+        </div>
+      )}
+      {createAccountsResult !== null && createAccountsResult.noAction === true && (
+        <div className="rounded-xl bg-slate-100 border border-slate-200 px-4 py-3 text-slate-700 font-medium">
+          {locale === 'ar' ? 'جميع جهات الاتصال لديها حسابات مستخدمين بالفعل.' : 'All contacts already have user accounts.'}
         </div>
       )}
       <AdminPageHeader
@@ -1092,9 +1142,13 @@ export default function AdminAddressBookPage() {
             </button>
             <button
               type="button"
-              onClick={handleCreateAccountsForContacts}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!creatingAccounts) handleCreateAccountsForContacts();
+              }}
               disabled={creatingAccounts}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60 cursor-pointer"
               title={locale === 'ar' ? 'إنشاء حسابات للموجودين بدون حسابات' : 'Create accounts for contacts without user accounts'}
             >
               <span>🔐</span>
@@ -1207,90 +1261,90 @@ export default function AdminAddressBookPage() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto w-full min-w-0 -mx-px">
-            <table className="admin-table min-w-[1000px] text-sm w-full">
+          <div className="w-full min-w-0 -mx-px overflow-x-auto">
+            <table className="admin-table address-book-table text-sm w-full min-w-[960px]">
               <thead>
                 <tr>
-                  <th className="w-24 px-3 py-2 text-xs">{t('serialNo')}</th>
-                  <th className="w-20 px-3 py-2 text-xs">{t('contactType')}</th>
-                  <th className="w-36 px-3 py-2 text-xs">{t('name')}</th>
-                  <th className="w-20 px-3 py-2 text-xs">{t('nationality')}</th>
-                  <th className="w-28 px-3 py-2 text-xs">{t('phone')}</th>
-                  <th className="w-24 px-3 py-2 text-xs">{t('civilId')}</th>
-                  <th className="w-40 px-3 py-2 text-xs max-w-[160px]">{t('email')}</th>
-                  <th className="w-28 px-3 py-2 text-xs">{t('workplace')}</th>
-                  <th className="w-24 px-3 py-2 text-xs">{t('category')}</th>
-                  <th className="w-36 px-3 py-2 text-xs max-w-[140px]">{t('linkedUnit')}</th>
-                  <th className="w-24 px-3 py-2 text-xs">{t('actions')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[5rem]">{t('serialNo')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[4.5rem]">{t('contactType')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[10rem]">{t('name')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[4rem]">{t('nationality')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[7rem]">{t('phone')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[5rem]">{t('civilId')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[11rem]">{t('email')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[7rem]">{t('workplace')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[6rem]">{t('category')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[7rem]">{t('linkedUnit')}</th>
+                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[8rem]">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredContacts.map((c) => (
                   <tr key={c.id} className={`border-t border-gray-100 hover:bg-gray-50/50 ${c.archived ? 'bg-gray-50/70 opacity-80' : ''}`}>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 cell-serial align-top">
                       <button
                         type="button"
                         onClick={() => openEdit(c)}
-                        className="font-mono text-xs text-[#8B6F47] font-medium whitespace-nowrap hover:underline text-right w-full cursor-pointer"
+                        className="font-mono text-sm text-[#8B6F47] font-medium whitespace-nowrap hover:underline cursor-pointer"
                         title={locale === 'ar' ? 'عرض بيانات الجهة' : 'View contact details'}
                       >
                         {c.serialNumber || '—'}
                       </button>
                     </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${(c.contactType || 'PERSONAL') === 'COMPANY' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>
+                    <td className="px-3 py-2 align-top">
+                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${(c.contactType || 'PERSONAL') === 'COMPANY' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>
                         {(c.contactType || 'PERSONAL') === 'COMPANY' ? t('contactTypeCompany') : t('contactTypePersonal')}
                       </span>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 min-w-[10rem] align-top">
                       <button
                         type="button"
                         onClick={() => openEdit(c)}
                         className="text-right w-full block cursor-pointer"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 min-w-0">
                           {(c as { userId?: string }).userId && (
                             <UserBarcode userId={(c as { userId: string }).userId} locale={locale} size={28} className="shrink-0" />
                           )}
-                          <div className="font-semibold text-gray-900 truncate max-w-[140px] hover:text-[#8B6F47] hover:underline cursor-pointer" title={getContactDisplayName(c, locale)}>
+                          <div className="font-semibold text-gray-900 hover:text-[#8B6F47] hover:underline cursor-pointer break-words" title={getContactDisplayName(c, locale)}>
                             {getContactDisplayName(c, locale)}
                           </div>
                         </div>
                         {isAuthorizedRepresentative(c) && getLinkedCompanyName(c, locale) && (
-                          <div className="text-xs text-[#8B6F47] truncate max-w-[140px]" title={getLinkedCompanyName(c, locale)}>
+                          <div className="text-xs text-[#8B6F47] break-words" title={getLinkedCompanyName(c, locale)}>
                             {getLinkedCompanyName(c, locale)}
                           </div>
                         )}
-                        {getLinkedRepPosition(c) && <div className="text-xs text-gray-500 truncate max-w-[140px]">{getLinkedRepPosition(c)}</div>}
+                        {getLinkedRepPosition(c) && <div className="text-xs text-gray-500 break-words">{getLinkedRepPosition(c)}</div>}
                       </button>
                     </td>
-                    <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{c.nationality || '—'}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <a href={`tel:${c.phone}`} className="text-[#8B6F47] hover:underline text-xs truncate">{c.phone}</a>
+                    <td className="px-3 py-2 text-gray-700 text-sm whitespace-nowrap align-top">{c.nationality || '—'}</td>
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex flex-col gap-0.5">
+                        <a href={`tel:${c.phone}`} className="text-[#8B6F47] hover:underline text-sm whitespace-nowrap">{c.phone}</a>
                         {c.phoneSecondary && (
-                          <a href={`tel:${c.phoneSecondary}`} className="text-xs text-gray-500 hover:underline truncate">{c.phoneSecondary}</a>
+                          <a href={`tel:${c.phoneSecondary}`} className="text-sm text-gray-500 hover:underline whitespace-nowrap">{c.phoneSecondary}</a>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-gray-700 whitespace-nowrap">
+                    <td className="px-3 py-2 font-mono text-sm text-gray-700 whitespace-nowrap align-top">
                       {isCompanyContact(c) ? (c.companyData?.commercialRegistrationNumber || '—') : (c.civilId || '—')}
                     </td>
-                    <td className="px-3 py-2 max-w-[160px]">
+                    <td className="px-3 py-2 cell-email align-top min-w-[11rem]">
                       {c.email ? (
-                        <a href={`mailto:${c.email}`} className="text-[#8B6F47] hover:underline truncate block text-xs" title={c.email}>
+                        <a href={`mailto:${c.email}`} className="text-[#8B6F47] hover:underline text-sm break-all" title={c.email}>
                           {c.email}
                         </a>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">
-                      <span className="text-gray-700 truncate block max-w-[110px] text-xs" title={getContactLocalizedField(c, 'workplace', locale) === '—' ? (c.company || '') : getContactLocalizedField(c, 'workplace', locale)}>
+                    <td className="px-3 py-2 align-top">
+                      <span className="text-gray-700 text-sm break-words block" title={getContactLocalizedField(c, 'workplace', locale) === '—' ? (c.company || '') : getContactLocalizedField(c, 'workplace', locale)}>
                         {getContactLocalizedField(c, 'workplace', locale) === '—' ? (c.company || '—') : getContactLocalizedField(c, 'workplace', locale)}
                       </span>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 align-top">
                       <div className="flex flex-wrap gap-1">
                         {isAuthorizedRepresentative(c) && getLinkedRepDisplayItems(c, locale).length > 0 ? (
                           <button
@@ -1306,11 +1360,11 @@ export default function AdminAddressBookPage() {
                             <div className="flex flex-col gap-1 items-end">
                               {getLinkedRepDisplayItems(c, locale).map((item, i) => (
                                 <div key={i} className="text-right">
-                                  <div className="font-semibold truncate max-w-[140px] text-xs">
+                                  <div className="font-semibold text-xs break-words">
                                     {item.companyName}
                                   </div>
                                   {item.position && (
-                                    <div className="text-[11px] opacity-90 truncate max-w-[140px]">
+                                    <div className="text-xs opacity-90 break-words">
                                       {item.position}
                                     </div>
                                   )}
@@ -1342,24 +1396,24 @@ export default function AdminAddressBookPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 max-w-[140px]">
+                    <td className="px-3 py-2 align-top">
                       {c.linkedPropertyId != null ? (
                         <Link
                           href={`/${locale}/admin/properties/${c.linkedPropertyId}`}
-                          className="text-xs text-[#8B6F47] hover:underline truncate block font-medium cursor-pointer"
+                          className="text-sm text-[#8B6F47] hover:underline font-medium cursor-pointer break-words"
                           title={locale === 'ar' ? `عرض العقار: ${c.linkedUnitDisplay || ''}` : `View property: ${c.linkedUnitDisplay || ''}`}
                         >
                           {c.linkedUnitDisplay || '—'}
                         </Link>
                       ) : (
-                        <span className="text-xs text-gray-600 truncate block" title={c.linkedUnitDisplay || ''}>
+                        <span className="text-sm text-gray-600 break-words block" title={c.linkedUnitDisplay || ''}>
                           {c.linkedUnitDisplay || '—'}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1">
-                        <a href={`tel:${c.phone}`} className="p-1.5 rounded hover:bg-gray-100 text-emerald-600" title={t('call')}>📞</a>
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex items-center flex-wrap gap-0.5 min-w-0">
+                        <a href={`tel:${c.phone}`} className="p-1 sm:p-1.5 rounded hover:bg-gray-100 text-emerald-600 shrink-0" title={t('call')}>📞</a>
                         <a
                           href={`https://wa.me/${(() => { const d = (c.phone || '').replace(/\D/g, ''); return d.startsWith('968') ? d : '968' + d.replace(/^0/, ''); })()}`}
                           target="_blank"

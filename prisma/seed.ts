@@ -4,14 +4,23 @@ import { prisma } from '@/lib/prisma';
 
 async function main() {
   const adminEmail = 'admin@bhd-om.com';
+  const adminPassword = 'admin123';
+  const hashed = await hash(adminPassword, 10);
+
   const existing = await prisma.user.findUnique({
     where: { email: adminEmail },
+    select: { id: true },
   });
+
   if (existing) {
-    console.log('Admin user already exists:', adminEmail);
+    await prisma.user.update({
+      where: { email: adminEmail },
+      data: { password: hashed, name: 'مدير النظام', role: 'ADMIN' },
+    });
+    console.log('Admin user updated:', adminEmail, '(password:', adminPassword + ')');
     return;
   }
-  const hashed = await hash('admin123', 10);
+
   await prisma.user.create({
     data: {
       serialNumber: 'USR-A-2025-0001',
@@ -21,7 +30,7 @@ async function main() {
       role: 'ADMIN',
     },
   });
-  console.log('Admin user created:', adminEmail, '(password: admin123)');
+  console.log('Admin user created:', adminEmail, '(password:', adminPassword + ')');
 }
 
 main()

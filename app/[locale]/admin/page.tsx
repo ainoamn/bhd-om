@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -10,20 +11,29 @@ import OwnerDashboard from '@/components/admin/OwnerDashboard';
 import { properties } from '@/lib/data/properties';
 import { projects } from '@/lib/data/projects';
 import { users } from '@/lib/data/users';
+import { getAllBookings, getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
+import { getAllContracts } from '@/lib/data/contracts';
 
-// Mock data for admin dashboard
-const mockNotifications = [
-  { id: 1, textAr: 'طلب عرض عقار جديد', textEn: 'New property viewing request', time: 'منذ 5 دقائق', timeEn: '5 min ago', type: 'request' },
-  { id: 2, textAr: 'رسالة تواصل جديدة', textEn: 'New contact message', time: 'منذ 15 دقيقة', timeEn: '15 min ago', type: 'message' },
-];
-const mockTasks = [
-  { id: 1, textAr: 'مراجعة عقار PRP-R-2025-0001', textEn: 'Review property PRP-R-2025-0001', done: false },
-  { id: 2, textAr: 'استكمال بيانات مشروع جديد', textEn: 'Complete new project data', done: false },
-];
-const mockRequests = [
-  { id: 1, textAr: 'طلب حجز معاينة - فيلا الخوض', textEn: 'Viewing request - Al Khoudh Villa', status: 'pending' },
-  { id: 2, textAr: 'استفسار عن مشروع النهضة', textEn: 'Inquiry about Al Nahda project', status: 'pending' },
-];
+const STORAGE_KEYS = ['bhd_property_bookings', 'bhd_rental_contracts'];
+
+/** تنسيق الوقت النسبي (منذ X) */
+function formatTimeAgo(dateStr: string, locale: string): string {
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return locale === 'ar' ? 'الآن' : 'Just now';
+    if (diffMins < 60) return locale === 'ar' ? `منذ ${diffMins} دقيقة` : `${diffMins} min ago`;
+    if (diffHours < 24) return locale === 'ar' ? `منذ ${diffHours} ساعة` : `${diffHours} hr ago`;
+    if (diffDays < 7) return locale === 'ar' ? `منذ ${diffDays} يوم` : `${diffDays} day(s) ago`;
+    return date.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return '';
+  }
+}
 
 export default function AdminDashboardPage() {
   const params = useParams();
@@ -32,6 +42,44 @@ export default function AdminDashboardPage() {
   const t = useTranslations('dashboard');
   const userRole = (session?.user as { role?: string })?.role;
 
+  const [bookings, setBookings] = useState<PropertyBooking[]>([]);
+  const [contracts, setContracts] = useState<ReturnType<typeof getAllContracts>>([]);
+
+  const loadRealData = () => {
+    if (typeof window === 'undefined') return;
+    setBookings(getAllBookings());
+    setContracts(getAllContracts());
+  };
+
+  useEffect(() => {
+    loadRealData();
+    (async () => {
+      try {
+        const res = await fetch('/api/bookings');
+        if (res.ok) {
+          const serverBookings = await res.json();
+          if (Array.isArray(serverBookings) && serverBookings.length > 0) {
+            mergeBookingsFromServer(serverBookings);
+            loadRealData();
+          }
+        }
+      } catch {
+        // تجاهل
+      }
+    })();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key && STORAGE_KEYS.some((k) => e.key === k)) loadRealData();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const pendingBookings = bookings.filter((b) => b.status === 'PENDING');
+  const recentBookings = [...bookings]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 8);
+  const activeContracts = contracts.filter((c) => c.status !== 'CANCELLED');
+
   if (status === 'loading') {
     return (
       <div className="admin-page-header">
@@ -39,14 +87,22 @@ export default function AdminDashboardPage() {
       </div>
     );
   }
-  if (userRole === 'CLIENT') return <ClientDashboard />;
+  // لوحة المدير الكاملة للمسؤول فقط؛ المستأجر/العميل ومالك كل يرون لوحتهم حسب الصلاحيات
   if (userRole === 'OWNER') return <OwnerDashboard />;
+  if (userRole !== 'ADMIN') return <ClientDashboard />;
 
   const stats = [
     { label: t('stats.properties'), value: properties.length, href: '/admin/properties', icon: 'building' as const, color: 'from-blue-500 to-blue-600', bgColor: 'bg-blue-50' },
     { label: t('stats.projects'), value: projects.length, href: '/admin/projects', icon: 'projects' as const, color: 'from-emerald-500 to-emerald-600', bgColor: 'bg-emerald-50' },
-    { label: t('stats.submissions'), value: '--', href: '/admin/submissions', icon: 'inbox' as const, color: 'from-violet-500 to-violet-600', bgColor: 'bg-violet-50' },
+    { label: locale === 'ar' ? 'طلبات معلقة' : 'Pending requests', value: pendingBookings.length, href: '/admin/bookings', icon: 'inbox' as const, color: 'from-violet-500 to-violet-600', bgColor: 'bg-violet-50' },
     { label: t('stats.users'), value: users.length, href: '/admin/users', icon: 'users' as const, color: 'from-amber-500 to-amber-600', bgColor: 'bg-amber-50' },
+  ];
+
+  const analyticsData = [
+    { label: locale === 'ar' ? 'إجمالي الحجوزات' : 'Total bookings', value: String(bookings.length), sub: locale === 'ar' ? 'حجز ومعاينة' : 'bookings & viewings', positive: true },
+    { label: locale === 'ar' ? 'حجوزات معلقة' : 'Pending', value: String(pendingBookings.length), sub: locale === 'ar' ? 'قيد المراجعة' : 'to review', positive: true },
+    { label: locale === 'ar' ? 'عقود نشطة' : 'Active contracts', value: String(activeContracts.length), sub: locale === 'ar' ? 'عقود إيجار' : 'rental contracts', positive: true },
+    { label: locale === 'ar' ? 'مؤكد / ملغى' : 'Confirmed / Cancelled', value: `${bookings.filter((b) => b.status === 'CONFIRMED' || b.status === 'RENTED').length} / ${bookings.filter((b) => b.status === 'CANCELLED').length}`, sub: locale === 'ar' ? 'حالة الحجوزات' : 'booking status', positive: true },
   ];
 
   return (
@@ -82,22 +138,17 @@ export default function AdminDashboardPage() {
         <div className="admin-card lg:col-span-2">
           <div className="admin-card-header flex items-center justify-between">
             <h2 className="admin-card-title">{t('analytics')}</h2>
-            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{t('techTools')}</span>
+            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{locale === 'ar' ? 'تحليلات متقدمة' : 'Advanced Analytics'}</span>
           </div>
           <div className="admin-card-body">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-100">
-                <div className="text-2xl font-bold text-blue-600">245</div>
-                <div className="text-sm text-gray-600">{locale === 'ar' ? 'عقار مُدار' : 'Managed Properties'}</div>
-              </div>
-              <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-100">
-                <div className="text-2xl font-bold text-emerald-600">128</div>
-                <div className="text-sm text-gray-600">{locale === 'ar' ? 'عقار مبيع' : 'Sold Properties'}</div>
-              </div>
-              <div className="p-4 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 border border-violet-100">
-                <div className="text-2xl font-bold text-violet-600">15,420</div>
-                <div className="text-sm text-gray-600">{locale === 'ar' ? 'زائر للموقع' : 'Website Visitors'}</div>
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {analyticsData.map((item, index) => (
+                <div key={index} className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100/50 border border-gray-100">
+                  <div className="text-2xl font-bold text-gray-900 mb-1">{item.value}</div>
+                  <div className="text-sm text-gray-600 mb-0.5">{item.label}</div>
+                  {'sub' in item && item.sub && <div className="text-xs text-gray-500">{item.sub}</div>}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -105,18 +156,27 @@ export default function AdminDashboardPage() {
         <div className="admin-card">
           <div className="admin-card-header flex items-center justify-between">
             <h2 className="admin-card-title">{t('notifications')}</h2>
-            <Link href={`/${locale}/admin/submissions`} className="text-sm font-medium text-primary hover:underline">{t('viewAll')}</Link>
+            <Link href={`/${locale}/admin/bookings`} className="text-sm font-medium text-primary hover:underline">{t('viewAll')}</Link>
           </div>
           <div className="admin-card-body">
-            {mockNotifications.length > 0 ? (
+            {recentBookings.length > 0 ? (
               <ul className="space-y-3">
-                {mockNotifications.map((n) => (
-                  <li key={n.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                {recentBookings.map((b) => (
+                  <li key={b.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
                     <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-gray-900 text-sm">{locale === 'ar' ? n.textAr : n.textEn}</p>
-                      <p className="text-xs text-gray-500">{locale === 'ar' ? n.time : n.timeEn}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 text-sm">
+                        {locale === 'ar'
+                          ? (b.type === 'BOOKING' ? 'حجز جديد من ' : 'معاينة جديدة من ') + getBookingDisplayName(b, locale)
+                          : (b.type === 'BOOKING' ? 'New booking from ' : 'New viewing from ') + getBookingDisplayName(b, 'en')}
+                        {' — '}
+                        <span className="text-gray-600 font-normal">{b.propertyTitleAr || b.propertyTitleEn}</span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{formatTimeAgo(b.createdAt, locale)}</p>
                     </div>
+                    <Link href={`/${locale}/admin/bookings?highlight=${b.id}`} className="text-xs font-medium text-[#8B6F47] hover:underline shrink-0">
+                      {locale === 'ar' ? 'عرض' : 'View'}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -127,27 +187,41 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Tasks & Requests Row */}
+      {/* Tasks & Requests Row - بيانات حقيقية من الحجوزات المعلقة */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <div className="admin-card">
           <div className="admin-card-header flex items-center justify-between">
             <h2 className="admin-card-title">{t('tasks')}</h2>
-            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full">{mockTasks.filter(x => !x.done).length} {locale === 'ar' ? 'معلقة' : 'pending'}</span>
+            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
+              {pendingBookings.length} {locale === 'ar' ? 'معلقة' : 'pending'}
+            </span>
           </div>
           <div className="admin-card-body">
-            {mockTasks.length > 0 ? (
+            {pendingBookings.length > 0 ? (
               <ul className="space-y-3">
-                {mockTasks.map((task) => (
-                  <li key={task.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <input type="checkbox" className="rounded border-gray-300" defaultChecked={task.done} />
-                    <span className={`text-sm font-medium ${task.done ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                      {locale === 'ar' ? task.textAr : task.textEn}
-                    </span>
+                {pendingBookings.slice(0, 10).map((b) => (
+                  <li key={b.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {locale === 'ar' ? 'مراجعة حجز — ' : 'Review booking — '}
+                        {getBookingDisplayName(b, locale)} — {b.propertyTitleAr || b.propertyTitleEn}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{formatTimeAgo(b.createdAt, locale)}</p>
+                    </div>
+                    <Link href={`/${locale}/admin/bookings?highlight=${b.id}`} className="text-xs font-medium text-[#8B6F47] hover:underline shrink-0">
+                      {locale === 'ar' ? 'فتح' : 'Open'}
+                    </Link>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-gray-500 py-4">{t('noTasks')}</p>
+            )}
+            {pendingBookings.length > 10 && (
+              <Link href={`/${locale}/admin/bookings`} className="block mt-3 text-sm font-medium text-[#8B6F47] hover:underline">
+                {locale === 'ar' ? `عرض كل ${pendingBookings.length} مهمة` : `View all ${pendingBookings.length} tasks`}
+              </Link>
             )}
           </div>
         </div>
@@ -155,25 +229,39 @@ export default function AdminDashboardPage() {
         <div className="admin-card">
           <div className="admin-card-header flex items-center justify-between">
             <h2 className="admin-card-title">{t('requests')}</h2>
-            <Link href={`/${locale}/admin/submissions`} className="text-sm font-medium text-primary hover:underline">{t('viewAll')}</Link>
+            <Link href={`/${locale}/admin/bookings`} className="text-sm font-medium text-primary hover:underline">{t('viewAll')}</Link>
           </div>
           <div className="admin-card-body">
-            {mockRequests.length > 0 ? (
+            {pendingBookings.length > 0 ? (
               <ul className="space-y-3">
-                {mockRequests.map((r) => (
-                  <li key={r.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                {pendingBookings.slice(0, 8).map((b) => (
+                  <li key={b.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
                     <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-gray-900 text-sm">{locale === 'ar' ? r.textAr : r.textEn}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 text-sm">
+                        {b.type === 'BOOKING'
+                          ? (locale === 'ar' ? 'طلب حجز — ' : 'Booking request — ') + getBookingDisplayName(b, locale)
+                          : (locale === 'ar' ? 'طلب معاينة — ' : 'Viewing request — ') + getBookingDisplayName(b, locale)}
+                        {' — '}
+                        <span className="text-gray-600 font-normal">{b.propertyTitleAr || b.propertyTitleEn}</span>
+                      </p>
                       <span className="inline-block mt-1 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                        {r.status === 'pending' ? (locale === 'ar' ? 'قيد المراجعة' : 'Pending') : r.status}
+                        {locale === 'ar' ? 'قيد المراجعة' : 'Pending'}
                       </span>
                     </div>
+                    <Link href={`/${locale}/admin/bookings?highlight=${b.id}`} className="text-xs font-medium text-[#8B6F47] hover:underline shrink-0">
+                      {locale === 'ar' ? 'عرض' : 'View'}
+                    </Link>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-gray-500 py-4">{t('noRequests')}</p>
+            )}
+            {pendingBookings.length > 8 && (
+              <Link href={`/${locale}/admin/bookings`} className="block mt-3 text-sm font-medium text-[#8B6F47] hover:underline">
+                {locale === 'ar' ? `عرض كل الطلبات (${pendingBookings.length})` : `View all requests (${pendingBookings.length})`}
+              </Link>
             )}
           </div>
         </div>
@@ -183,6 +271,7 @@ export default function AdminDashboardPage() {
       <div className="admin-card mb-8">
         <div className="admin-card-header">
           <h2 className="admin-card-title">{t('quickActions')}</h2>
+          <span className="text-xs font-medium text-green-600 bg-green-50 px-3 py-1 rounded-full">{locale === 'ar' ? 'مُحسّنة' : 'Enhanced'}</span>
         </div>
         <div className="admin-card-body">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

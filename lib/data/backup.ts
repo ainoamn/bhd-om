@@ -106,7 +106,23 @@ const RESET_KEYS = [
   'bhd_audit_log',
   'bhd_booking_terms',
   'bhd_draft_keys',
+  'bhd_property_data',
+  'bhd_property_landlords',
 ] as const;
+
+/** مفاتيح لا تُمس عند التصفير (تُحفظ) — تُحدَّث حالة العقارات فقط عبر resetPropertyStatuses */
+const RESET_KEEP_KEYS = new Set([
+  'bhd_address_book',
+  'bhd_company_data',
+  'bhd_bank_accounts',
+  'bhd_document_templates',
+  'bhd_dashboard_settings',
+  'bhd_contact_category_permissions',
+  'bhd-pages-visibility',
+  'bhd-ads',
+  'bhd_print_options',
+  'bhd_property_overrides',
+]);
 
 /** مسح جميع المسودات bhd_draft_* */
 function clearDrafts(): void {
@@ -156,18 +172,37 @@ function resetPropertyStatuses(): void {
 
 /**
  * تصفير كل العقود والحجوزات والعمليات المحاسبية والبدء من جديد
- * لا يمس: العقارات، دفتر العناوين، بيانات الشركة، الحسابات البنكية، القوالب
+ * لا يمس: دفتر العناوين، بيانات الشركة، الحسابات البنكية، القوالب، إعدادات لوحة التحكم
  */
 export function resetAllOperationalData(): number {
   if (typeof window === 'undefined') return 0;
   let removed = 0;
+  // 1) حذف المفاتيح المحددة
   for (const key of RESET_KEYS) {
-    if (localStorage.getItem(key) !== null) {
+    try {
+      if (localStorage.getItem(key) !== null) {
+        localStorage.removeItem(key);
+        removed++;
+      }
+    } catch (_) {}
+  }
+  // 2) حذف أي مفتاح آخر يبدأ بـ bhd ولا يكون من المحفوظات
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('bhd_') || key.startsWith('bhd-')) && !RESET_KEEP_KEYS.has(key)) {
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) {
       localStorage.removeItem(key);
       removed++;
     }
-  }
+  } catch (_) {}
+  // 3) مسح المسودات (bhd_draft_*)
   clearDrafts();
+  // 4) إعادة حالة العقارات إلى متاح
   resetPropertyStatuses();
   window.dispatchEvent(new StorageEvent('storage', { key: 'bhd_reset_all' }));
   return removed;

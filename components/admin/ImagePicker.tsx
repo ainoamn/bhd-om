@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Icon from '@/components/icons/Icon';
+import { log } from '@/lib/logger';
 
 interface ImagePickerProps {
   images: string[];
@@ -43,7 +44,7 @@ export default function ImagePicker({ images, onImagesChange, locale = 'ar' }: I
         if (data.url) onImagesChange([...images, data.url]);
       }
     } catch (err) {
-      console.error(err);
+      log.error('Failed to upload images', { error: err, fileCount: files.length });
     } finally {
       setUploading(false);
       e.target.value = '';

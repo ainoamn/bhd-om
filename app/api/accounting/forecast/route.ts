@@ -35,7 +35,7 @@ function movingAverage(arr: number[], window: number): number[] {
 }
 
 export async function GET(request: NextRequest) {
-  const perm = requirePermission(request, 'REPORT_VIEW');
+  const perm = await requirePermission(request, 'REPORT_VIEW');
   if (!perm.ok) {
     return NextResponse.json({ error: perm.message }, { status: perm.status });
   }

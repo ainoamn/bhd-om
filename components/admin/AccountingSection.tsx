@@ -520,6 +520,61 @@ export default function AccountingSection() {
 
   const anomalies = aiDetectAnomalies();
 
+  const cashSnapshot = getBankAccountBalance('CASH', reportAsOf, entriesForReports);
+  const banksTotal = bankAccounts
+    .filter((b) => b.isActive)
+    .reduce((s, b) => s + getBankAccountBalance(b.id, reportAsOf, entriesForReports).balance, 0);
+  const latestEntries = journalEntries.slice(0, 5);
+  const latestDocs = documents.slice(0, 5);
+  const setRangeThisMonth = () => {
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+    setFilterFromDate(from);
+    setFilterToDate(to);
+  };
+  const setRangeLast30 = () => {
+    const now = new Date();
+    const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const to = new Date().toISOString().slice(0, 10);
+    setFilterFromDate(from);
+    setFilterToDate(to);
+  };
+  const setRangeYearToDate = () => {
+    const from = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
+    const to = new Date().toISOString().slice(0, 10);
+    setFilterFromDate(from);
+    setFilterToDate(to);
+  };
+  const monthlyLabels: string[] = [];
+  const monthlyRevenue: number[] = [];
+  const monthlyExpense: number[] = [];
+  {
+    const months = 6;
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+    for (let m = 0; m < months; m++) {
+      const monthStart = new Date(startDate.getFullYear(), startDate.getMonth() + m, 1);
+      const monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + m + 1, 0);
+      const label = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
+      monthlyLabels.push(label);
+      let rev = 0, exp = 0;
+      for (const entry of entriesForReports) {
+        if (entry.status === 'CANCELLED' || entry.replacedBy) continue;
+        const d = new Date(entry.date);
+        if (d < monthStart || d > monthEnd) continue;
+        for (const line of entry.lines) {
+          const acc = accountsForReports.find((a) => a.id === line.accountId);
+          if (!acc) continue;
+          if (acc.type === 'REVENUE') rev += (line.credit || 0) - (line.debit || 0);
+          if (acc.type === 'EXPENSE') exp += (line.debit || 0) - (line.credit || 0);
+        }
+      }
+      monthlyRevenue.push(rev);
+      monthlyExpense.push(exp);
+    }
+  }
+
   const receivables = useMemo(() => {
     const invs = documents.filter((d) => d.type === 'INVOICE' && d.status !== 'PAID' && d.status !== 'CANCELLED');
     return invs.reduce((s, d) => s + d.totalAmount, 0);
@@ -536,34 +591,32 @@ export default function AccountingSection() {
 
   return (
     <div className="space-y-6">
-        {/* الفلاتر - مدمجة وبسيطة */}
-        <div className="rounded-xl bg-white border border-gray-200/80 p-4 shadow-sm">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex-1 min-w-[140px]">
-              <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'بحث' : 'Search'}</label>
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={ar ? 'رقم، وصف...' : 'Number, desc...'} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20" />
-            </div>
-            <div className="w-36">
-              <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'من' : 'From'}</label>
-              <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
-            </div>
-            <div className="w-36">
-              <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'إلى' : 'To'}</label>
-              <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" />
-            </div>
-            <div className="w-40">
-              <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'العميل' : 'Contact'}</label>
-              <select value={filterContactId} onChange={(e) => setFilterContactId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
-                <option value="">{ar ? 'الكل' : 'All'}</option>
-                {contacts.map((c) => <option key={c.id} value={c.id}>{getContactDisplayFull(c, locale)}</option>)}
-              </select>
-            </div>
+        <div className={styles.filterBar}>
+          <div className={styles.filterField}>
+            <label className={styles.filterLabel}>{ar ? 'بحث' : 'Search'}</label>
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={ar ? 'رقم، وصف...' : 'Number, desc...'} className={styles.filterInput} />
+          </div>
+          <div className="w-36">
+            <label className={styles.filterLabel}>{ar ? 'من' : 'From'}</label>
+            <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className={styles.filterInput} />
+          </div>
+          <div className="w-36">
+            <label className={styles.filterLabel}>{ar ? 'إلى' : 'To'}</label>
+            <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className={styles.filterInput} />
+          </div>
+          <div className="w-44">
+            <label className={styles.filterLabel}>{ar ? 'العميل' : 'Contact'}</label>
+            <select value={filterContactId} onChange={(e) => setFilterContactId(e.target.value)} className={styles.filterInput}>
+              <option value="">{ar ? 'الكل' : 'All'}</option>
+              {contacts.map((c) => <option key={c.id} value={c.id}>{getContactDisplayFull(c, locale)}</option>)}
+            </select>
+          </div>
             {(activeTab === 'documents' || activeTab === 'journal' || activeTab === 'cheques') && (
               <>
                 {activeTab !== 'cheques' && (
                 <div className="w-40">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'الحساب البنكي' : 'Bank'}</label>
-                  <select value={filterBankId} onChange={(e) => setFilterBankId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+                  <label className={styles.filterLabel}>{ar ? 'الحساب البنكي' : 'Bank'}</label>
+                  <select value={filterBankId} onChange={(e) => setFilterBankId(e.target.value)} className={styles.filterInput}>
                     <option value="">{ar ? 'الكل' : 'All'}</option>
                     <option value="CASH">{ar ? 'الصندوق' : 'Cash'}</option>
                     {bankAccounts.filter((b) => b.isActive).map((b) => (
@@ -573,8 +626,8 @@ export default function AccountingSection() {
                 </div>
                 )}
                 <div className="w-44">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'العقار' : 'Property'}</label>
-                  <select value={filterPropertyId} onChange={(e) => setFilterPropertyId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+                  <label className={styles.filterLabel}>{ar ? 'العقار' : 'Property'}</label>
+                  <select value={filterPropertyId} onChange={(e) => setFilterPropertyId(e.target.value)} className={styles.filterInput}>
                     <option value="">{ar ? 'الكل' : 'All'}</option>
                     {mergedProperties.map((p) => (
                       <option key={p.id} value={p.id}>{getPropertyDisplay(p).replace(/\n/g, ' | ')}</option>
@@ -583,8 +636,8 @@ export default function AccountingSection() {
                 </div>
                 {activeTab === 'cheques' && (
                 <div className="w-44">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'المشروع' : 'Project'}</label>
-                  <select value={filterProjectId} onChange={(e) => setFilterProjectId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+                  <label className={styles.filterLabel}>{ar ? 'المشروع' : 'Project'}</label>
+                  <select value={filterProjectId} onChange={(e) => setFilterProjectId(e.target.value)} className={styles.filterInput}>
                     <option value="">{ar ? 'الكل' : 'All'}</option>
                     {projectsList.map((p) => <option key={p.id} value={p.id}>{getProjectDisplay(p)}</option>)}
                   </select>
@@ -594,18 +647,25 @@ export default function AccountingSection() {
             )}
             {(activeTab === 'documents' || activeTab === 'journal' || activeTab === 'sales' || activeTab === 'purchases') && (
               <div className="w-36">
-                <label className="block text-xs font-medium text-gray-500 mb-1">{ar ? 'النوع' : 'Type'}</label>
-                <select value={filterDocType} onChange={(e) => setFilterDocType(e.target.value as DocumentType | '')} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+                <label className={styles.filterLabel}>{ar ? 'النوع' : 'Type'}</label>
+                <select value={filterDocType} onChange={(e) => setFilterDocType(e.target.value as DocumentType | '')} className={styles.filterInput}>
                   <option value="">{ar ? 'الكل' : 'All'}</option>
                   {(Object.keys(DOC_TYPE_LABELS) as DocumentType[]).map((t) => <option key={t} value={t}>{ar ? DOC_TYPE_LABELS[t].ar : DOC_TYPE_LABELS[t].en}</option>)}
                 </select>
               </div>
             )}
-          </div>
         </div>
 
       {activeTab === 'dashboard' && (
         <div className={`space-y-6 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={styles.rangeBar}>
+            <span className="text-xs font-semibold text-gray-700">{ar ? 'نطاق زمني' : 'Range'}</span>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={setRangeThisMonth} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium hover:bg-gray-50">{ar ? 'هذا الشهر' : 'This Month'}</button>
+              <button type="button" onClick={setRangeLast30} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium hover:bg-gray-50">{ar ? 'آخر 30 يوماً' : 'Last 30 Days'}</button>
+              <button type="button" onClick={setRangeYearToDate} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium hover:bg-gray-50">{ar ? 'منذ بداية السنة' : 'Year to Date'}</button>
+            </div>
+          </div>
           <div className={styles.statGrid}>
             <button type="button" onClick={() => setTab('reports', undefined, 'balance')} className={`${styles.statCard} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all text-start`}>
               <p className={styles.statCardLabel}>{ar ? 'إجمالي الأصول' : 'Total Assets'}</p>
@@ -631,6 +691,24 @@ export default function AccountingSection() {
               <p className={styles.statCardLabel}>{ar ? 'صافي الدخل' : 'Net Income'}</p>
               <p className={`${styles.statCardValue} ${stats.netIncome >= 0 ? styles.statCardPositive : styles.statCardNegative}`}>{stats.netIncome.toLocaleString()} ر.ع</p>
             </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold text-gray-500">{ar ? 'الصندوق' : 'Cash'}</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{cashSnapshot.balance.toLocaleString()} ر.ع</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold text-gray-500">{ar ? 'البنوك' : 'Banks'}</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{banksTotal.toLocaleString()} ر.ع</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold text-gray-500">{ar ? 'ذمم العملاء' : 'Receivables'}</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-700 tabular-nums">{receivables.toLocaleString()} ر.ع</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold text-gray-500">{ar ? 'شيكات قيد التحصيل' : 'Cheques receivable'}</p>
+              <p className="mt-1 text-2xl font-bold text-amber-700 tabular-nums">{chequesReceivable.toLocaleString()} ر.ع</p>
+            </div>
           </div>
           {/* Revenue vs Expense bar */}
           {(stats.totalRevenue > 0 || stats.totalExpenses > 0) && (
@@ -658,6 +736,33 @@ export default function AccountingSection() {
               </div>
             </div>
           )}
+          <div className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm">
+            <p className="mb-4 text-sm font-semibold text-gray-700">{ar ? 'اتجاهات الأشهر الأخيرة' : 'Recent monthly trends'}</p>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <p className="text-xs text-gray-500 mb-2">{ar ? 'الإيرادات' : 'Revenue'}</p>
+                <div className="flex items-end gap-2 h-16">
+                  {monthlyRevenue.map((v, i) => (
+                    <div key={`rev-${i}`} className="w-6 rounded-t bg-emerald-400" style={{ height: `${Math.max(4, (v / Math.max(...monthlyRevenue.concat(1))) * 64)}px` }} title={`${monthlyLabels[i]}: ${v.toLocaleString()} ر.ع`} />
+                  ))}
+                </div>
+                <div className="mt-2 flex justify-between text-[10px] text-gray-400">
+                  {monthlyLabels.map((l) => <span key={`rl-${l}`}>{l}</span>)}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-2">{ar ? 'المصروفات' : 'Expenses'}</p>
+                <div className="flex items-end gap-2 h-16">
+                  {monthlyExpense.map((v, i) => (
+                    <div key={`exp-${i}`} className="w-6 rounded-t bg-red-400" style={{ height: `${Math.max(4, (v / Math.max(...monthlyExpense.concat(1))) * 64)}px` }} title={`${monthlyLabels[i]}: ${v.toLocaleString()} ر.ع`} />
+                  ))}
+                </div>
+                <div className="mt-2 flex justify-between text-[10px] text-gray-400">
+                  {monthlyLabels.map((l) => <span key={`el-${l}`}>{l}</span>)}
+                </div>
+              </div>
+            </div>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <button type="button" onClick={() => setTab('journal')} className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer text-start">
               <p className="text-xs font-semibold text-gray-500">{ar ? 'عدد القيود' : 'Journal Entries'}</p>
@@ -795,6 +900,32 @@ export default function AccountingSection() {
               </ul>
             </div>
           )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold text-gray-500">{ar ? 'أحدث القيود' : 'Latest entries'}</p>
+              <ul className="mt-3 space-y-2">
+                {latestEntries.map((e) => (
+                  <li key={e.id} className="flex items-center justify-between text-sm">
+                    <span className="font-mono">{e.serialNumber}</span>
+                    <span className="text-gray-600">{ar ? e.descriptionAr : e.descriptionEn || e.descriptionAr || '—'}</span>
+                    <span className="text-gray-500">{new Date(e.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold text-gray-500">{ar ? 'أحدث المستندات' : 'Latest documents'}</p>
+              <ul className="mt-3 space-y-2">
+                {latestDocs.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between text-sm">
+                    <span className="font-mono">{d.serialNumber}</span>
+                    <span className="text-gray-600">{ar ? d.descriptionAr : d.descriptionEn || d.descriptionAr || '—'}</span>
+                    <span className="text-gray-500">{new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
           <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-5 shadow-sm">
             <p className="flex items-start gap-3 text-sm leading-relaxed text-amber-900">
               <Icon name="information" className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />

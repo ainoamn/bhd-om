@@ -7,10 +7,11 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const rawUrl = process.env.DATABASE_URL || 'file:./dev.db';
-const dbFile = rawUrl.replace(/^file:/, '');
-const url = path.isAbsolute(dbFile) || /^[A-Za-z]:/.test(dbFile)
-  ? rawUrl
-  : `file:${path.join(process.cwd(), dbFile.replace(/^\.\//, ''))}`;
+const dbFile = rawUrl.replace(/^file:\/?/, '').replace(/^\.\//, '');
+const absolutePath = path.isAbsolute(dbFile) || /^[A-Za-z]:/.test(dbFile)
+  ? dbFile
+  : path.join(process.cwd(), dbFile);
+const url = `file:${absolutePath.replace(/\\/g, '/')}`;
 
 function createPrisma() {
   const adapter = new PrismaBetterSqlite3({ url });

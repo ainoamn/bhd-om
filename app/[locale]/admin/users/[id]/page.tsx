@@ -18,6 +18,7 @@ import {
 } from '@/lib/data/addressBook';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
+import LoginAsUserButton from '@/components/admin/LoginAsUserButton';
 
 interface UserDetail {
   id: string;
@@ -128,6 +129,7 @@ export default function UserDetailPage() {
   const [resetPasswordUser, setResetPasswordUser] = useState<UserDetail | null>(null);
   const [resetResult, setResetResult] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
   const [addingToAddressBook, setAddingToAddressBook] = useState(false);
+  const [openingAsUser, setOpeningAsUser] = useState(false);
 
   const contact: Contact | null = user
     ? (() => {
@@ -142,7 +144,7 @@ export default function UserDetailPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/admin/users/${id}`);
+        const res = await fetch(`/api/admin/users/${id}`, { credentials: 'include' });
         if (!cancelled) setRequireAdmin(res.status === 401);
         if (res.status === 404) {
           if (!cancelled) setNotFound(true);
@@ -165,6 +167,7 @@ export default function UserDetailPage() {
     try {
       const res = await fetch(`/api/admin/users/${editUser.id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
@@ -189,7 +192,7 @@ export default function UserDetailPage() {
     if (!user) return;
     setResetPasswordUser(user);
     try {
-      const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: 'POST' });
+      const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: 'POST', credentials: 'include' });
       const data = await res.json();
       if (res.ok && data.generatedPassword) {
         setResetResult({
@@ -207,6 +210,11 @@ export default function UserDetailPage() {
       setTimeout(() => setSyncMsg(null), 2500);
       setResetPasswordUser(null);
     }
+  };
+
+  const handleOpenAsUser = async () => {
+    // This function is now handled by LoginAsUserButton component
+    console.log('Login as user functionality moved to LoginAsUserButton component');
   };
 
   const handleAddToAddressBook = async () => {
@@ -318,13 +326,22 @@ export default function UserDetailPage() {
         }
         subtitle={shortenUserSerial(user.serialNumber) !== '—' ? shortenUserSerial(user.serialNumber) : user.serialNumber}
         actions={
-          <Link
-            href={`/${locale}/admin/users`}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
-          >
-            <Icon name="chevronRight" className="w-4 h-4" />
-            {ar ? 'قائمة المستخدمين' : 'Users list'}
-          </Link>
+          <div className="flex items-center gap-2">
+            <LoginAsUserButton
+              userId={user.id}
+              userName={user.name}
+              userEmail={user.email}
+              userRole={user.role}
+              className="px-4 py-2.5 rounded-xl font-semibold text-violet-700 bg-violet-100 hover:bg-violet-200 disabled:opacity-50 transition-colors"
+            />
+            <Link
+              href={`/${locale}/admin/users`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
+            >
+              <Icon name="chevronRight" className="w-4 h-4" />
+              {ar ? 'قائمة المستخدمين' : 'Users list'}
+            </Link>
+          </div>
         }
       />
 
@@ -385,6 +402,13 @@ export default function UserDetailPage() {
             >
               {resetPasswordUser?.id === user.id ? (ar ? 'جاري...' : '...') : (ar ? 'إعادة تعيين كلمة المرور' : 'Reset password')}
             </button>
+            <LoginAsUserButton
+              userId={user.id}
+              userName={user.name}
+              userEmail={user.email}
+              userRole={user.role}
+              className="px-4 py-2.5 rounded-xl font-semibold text-violet-700 bg-violet-100 hover:bg-violet-200 disabled:opacity-50 transition-colors"
+            />
             {!isInAddressBook ? (
               <button
                 type="button"

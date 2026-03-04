@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 
 export async function GET(request: NextRequest) {
+  const perm = await requirePermission(request, 'AUDIT_VIEW');
+  if (!perm.ok) {
+    return NextResponse.json({ error: perm.message }, { status: perm.status });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const entityType = searchParams.get('entityType') || undefined;

@@ -39,7 +39,8 @@ export type AuditAction =
   | 'CANCEL'
   | 'REVERSE'
   | 'PERIOD_CLOSE'
-  | 'PERIOD_LOCK';
+  | 'PERIOD_LOCK'
+  | 'PERIOD_UNLOCK';
 
 export interface ChartAccount {
   id: string;

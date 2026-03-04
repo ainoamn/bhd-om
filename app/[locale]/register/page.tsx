@@ -9,6 +9,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslations } from 'next-intl';
+import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
+import { DEFAULT_DIAL_CODE } from '@/lib/data/countryDialCodes';
 
 const registerSchema = z
   .object({
@@ -30,6 +32,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const t = useTranslations('register');
   const [formError, setFormError] = useState<string | null>(null);
+  const [phoneCountryCode, setPhoneCountryCode] = useState(DEFAULT_DIAL_CODE);
 
   const {
     register,
@@ -42,13 +45,17 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setFormError(null);
+    const digits = (data.phone || '').replace(/\D/g, '').replace(/^0+/, '');
+    const fullPhone = digits
+      ? (digits.startsWith(phoneCountryCode) ? `+${digits}` : `+${phoneCountryCode}${digits}`)
+      : undefined;
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: data.name,
         email: data.email,
-        phone: data.phone || undefined,
+        phone: fullPhone,
         password: data.password,
       }),
     });
@@ -170,13 +177,21 @@ export default function RegisterPage() {
 
             <div>
               <label htmlFor="phone" className="block text-sm font-semibold text-neutral-700 mb-2">{t('phone')}</label>
-              <input
-                id="phone"
-                type="tel"
-                autoComplete="tel"
-                className="w-full px-4 py-4 rounded-xl border-2 border-neutral-200 hover:border-neutral-300 text-neutral-800 placeholder:text-neutral-400 text-base focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all"
-                {...register('phone')}
-              />
+              <div className="flex gap-2">
+                <PhoneCountryCodeSelect
+                  value={phoneCountryCode}
+                  onChange={setPhoneCountryCode}
+                  locale={locale as 'ar' | 'en'}
+                />
+                <input
+                  id="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder={locale === 'ar' ? '91234567' : '91234567'}
+                  className="flex-1 px-4 py-4 rounded-xl border-2 border-neutral-200 hover:border-neutral-300 text-neutral-800 placeholder:text-neutral-400 text-base focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all"
+                  {...register('phone')}
+                />
+              </div>
             </div>
 
             <div>

@@ -13,7 +13,7 @@
     "sync": "powershell -ExecutionPolicy Bypass -File ./scripts/git-sync.ps1",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint ."
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -37,6 +37,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "dotenv": "^16.4.5",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
