@@ -11,7 +11,7 @@ import { STORAGE_KEYS } from '../data/storage';
 import type { ChartAccount } from '../domain/types';
 
 function getAccounts(): ChartAccount[] {
-  return getStored<ChartAccount>(STORAGE_KEYS.ACCOUNTS).sort((a, b) => a.sortOrder - b.sortOrder);
+  return getStored<ChartAccount[]>(STORAGE_KEYS.ACCOUNTS).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 function findAccountByCode(code: string): ChartAccount | null {

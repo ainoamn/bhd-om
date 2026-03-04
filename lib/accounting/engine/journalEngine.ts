@@ -23,7 +23,7 @@ function roundAmount(n: number): number {
 
 function generateSerial(): string {
   const year = new Date().getFullYear();
-  const entries = getStored<JournalEntry>(STORAGE_KEYS.JOURNAL);
+  const entries = getStored<JournalEntry[]>(STORAGE_KEYS.JOURNAL);
   const count = entries.filter((e) => e.createdAt.startsWith(String(year)) && !e.replacedBy).length + 1;
   return `JRN-${year}-${String(count).padStart(4, '0')}`;
 }
@@ -80,7 +80,7 @@ export function createJournalEntry(
     createdAt: now,
     updatedAt: now,
   };
-  const entries = getStored<JournalEntry>(STORAGE_KEYS.JOURNAL);
+  const entries = getStored<JournalEntry[]>(STORAGE_KEYS.JOURNAL);
   entries.unshift(entry);
   saveStored(STORAGE_KEYS.JOURNAL, entries);
   appendAuditLog({
@@ -98,7 +98,7 @@ export function updateJournalEntry(
   data: Partial<Pick<JournalEntry, 'lines' | 'descriptionAr' | 'descriptionEn' | 'status'>>,
   userId?: string
 ): JournalEntry | null {
-  const entries = getStored<JournalEntry>(STORAGE_KEYS.JOURNAL);
+  const entries = getStored<JournalEntry[]>(STORAGE_KEYS.JOURNAL);
   const idx = entries.findIndex((e) => e.id === id);
   if (idx < 0) return null;
   const existing = entries[idx];
@@ -132,7 +132,7 @@ export function updateJournalEntry(
 }
 
 export function reverseJournalEntry(id: string, reverseDate: string, userId?: string): JournalEntry | null {
-  const entries = getStored<JournalEntry>(STORAGE_KEYS.JOURNAL);
+  const entries = getStored<JournalEntry[]>(STORAGE_KEYS.JOURNAL);
   const existing = entries.find((e) => e.id === id);
   if (!existing || existing.replacedBy) return null;
   if (isPeriodLocked(reverseDate)) throw new Error('لا يمكن الترحيل لفترة مغلقة');
@@ -172,7 +172,7 @@ export function cancelJournalEntry(id: string, userId?: string): JournalEntry | 
 }
 
 export function getAllJournalEntries(): JournalEntry[] {
-  const raw = getStored<JournalEntry>(STORAGE_KEYS.JOURNAL);
+  const raw = getStored<JournalEntry[]>(STORAGE_KEYS.JOURNAL);
   return raw
     .map((e) => ({ ...e, version: e.version ?? 1 }))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

@@ -187,7 +187,7 @@ const DEFAULT_ACCOUNTS: Omit<ChartAccount, 'id' | 'createdAt' | 'updatedAt'>[] =
 
 /** تهيئة دليل الحسابات إذا كان فارغاً + إضافة حساب 1150 للمستخدمين القدامى */
 function ensureChartOfAccounts(): ChartAccount[] {
-  let accounts = getStored<ChartAccount>(ACCOUNTS_KEY);
+  let accounts = getStored<ChartAccount[]>(ACCOUNTS_KEY);
   if (accounts.length === 0) {
     const now = new Date().toISOString();
     accounts = DEFAULT_ACCOUNTS.map((a) => ({
@@ -302,7 +302,7 @@ export function updateAccount(id: string, updates: Partial<ChartAccount>): Chart
 /** توليد رقم متسلسل للقيد */
 function generateJournalSerial(): string {
   const year = new Date().getFullYear();
-  const entries = getStored<JournalEntry>(JOURNAL_KEY);
+  const entries = getStored<JournalEntry[]>(JOURNAL_KEY);
   const count = entries.filter((e) => e.createdAt.startsWith(String(year))).length + 1;
   return `JRN-${year}-${String(count).padStart(4, '0')}`;
 }
@@ -328,7 +328,7 @@ export function cancelJournalEntry(id: string): JournalEntry | null {
 /** الحصول على جميع القيود - يُرحّل المستندات غير المرحّلة تلقائياً ثم يقرأ القيود */
 export function getAllJournalEntries(): JournalEntry[] {
   if (typeof window !== 'undefined') postUnpostedDocuments();
-  const raw = getStored<JournalEntry>(JOURNAL_KEY);
+  const raw = getStored<JournalEntry[]>(JOURNAL_KEY);
   return raw
     .map((e) => ({ ...e, version: e.version ?? 1 }))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -388,7 +388,7 @@ function generateDocumentSerial(type: DocumentType): string {
     OTHER: 'DOC',
   };
   const prefix = prefixMap[type] || 'DOC';
-  const docs = getStored<AccountingDocument>(DOCUMENTS_KEY);
+  const docs = getStored<AccountingDocument[]>(DOCUMENTS_KEY);
   const count = docs.filter((d) => d.type === type && d.createdAt.startsWith(String(year))).length + 1;
   return `${prefix}-${year}-${String(count).padStart(4, '0')}`;
 }
@@ -410,7 +410,7 @@ export function createDocument(data: Omit<AccountingDocument, 'id' | 'serialNumb
     createdAt: now,
     updatedAt: now,
   };
-  const docs = getStored<AccountingDocument>(DOCUMENTS_KEY);
+  const docs = getStored<AccountingDocument[]>(DOCUMENTS_KEY);
   docs.unshift(doc);
   saveStored(DOCUMENTS_KEY, docs);
 
@@ -457,7 +457,7 @@ function createJournalEntryLocal(doc: AccountingDocument): JournalEntry | null {
   const totalCredit = lines.reduce((s, l) => s + (l.credit || 0), 0);
   if (Math.abs(totalDebit - totalCredit) > 0.01) return null;
   const year = new Date().getFullYear();
-  const entries = getStored<JournalEntry>(JOURNAL_KEY);
+  const entries = getStored<JournalEntry[]>(JOURNAL_KEY);
   const count = entries.filter((e) => e.createdAt?.startsWith(String(year)) && !e.replacedBy).length + 1;
   const now = new Date().toISOString();
   const entry: JournalEntry = {
@@ -492,8 +492,8 @@ function createJournalEntryLocal(doc: AccountingDocument): JournalEntry | null {
 function repairBrokenPostings(): number {
   const accounts = getChartOfAccounts();
   const accountIds = new Set(accounts.map((a) => a.id));
-  const entries = getStored<JournalEntry>(JOURNAL_KEY);
-  const docs = getStored<AccountingDocument>(DOCUMENTS_KEY);
+  const entries = getStored<JournalEntry[]>(JOURNAL_KEY);
+  const docs = getStored<AccountingDocument[]>(DOCUMENTS_KEY);
   const toRemove = new Set<string>();
   const docsToClear: string[] = [];
 
@@ -531,7 +531,7 @@ export function postUnpostedDocuments(): PostUnpostedResult {
   getChartOfAccounts();
   ensureDefaultPeriods();
   repairBrokenPostings();
-  const docs = getStored<AccountingDocument>(DOCUMENTS_KEY);
+  const docs = getStored<AccountingDocument[]>(DOCUMENTS_KEY);
   let posted = 0;
   const errors: string[] = [];
   for (const doc of docs) {
@@ -561,7 +561,7 @@ export function getAllDocuments(): AccountingDocument[] {
     getChartOfAccounts();
     postUnpostedDocuments();
   }
-  return getStored<AccountingDocument>(DOCUMENTS_KEY).sort(
+  return getStored<AccountingDocument[]>(DOCUMENTS_KEY).sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 }
@@ -610,7 +610,7 @@ export function getDocumentById(id: string): AccountingDocument | null {
 
 /** تحديث مستند - مع أثر تدقيقي */
 export function updateDocument(id: string, data: Partial<Omit<AccountingDocument, 'id' | 'serialNumber' | 'createdAt'>>): AccountingDocument | null {
-  const docs = getStored<AccountingDocument>(DOCUMENTS_KEY);
+  const docs = getStored<AccountingDocument[]>(DOCUMENTS_KEY);
   const idx = docs.findIndex((d) => d.id === id);
   if (idx < 0) return null;
   const previous = docs[idx];

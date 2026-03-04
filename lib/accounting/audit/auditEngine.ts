@@ -18,7 +18,7 @@ export function appendAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>): 
     id: generateId(),
     timestamp: new Date().toISOString(),
   };
-  const logs = getStored<AuditLogEntry>(STORAGE_KEYS.AUDIT);
+  const logs = getStored<AuditLogEntry[]>(STORAGE_KEYS.AUDIT);
   logs.push(full);
   saveStored(STORAGE_KEYS.AUDIT, logs);
   return full;
@@ -31,7 +31,7 @@ export function getAuditLog(filters?: {
   fromDate?: string;
   toDate?: string;
 }): AuditLogEntry[] {
-  let logs = getStored<AuditLogEntry>(STORAGE_KEYS.AUDIT);
+  let logs = getStored<AuditLogEntry[]>(STORAGE_KEYS.AUDIT);
   if (filters?.entityType) logs = logs.filter((l) => l.entityType === filters.entityType);
   if (filters?.entityId) logs = logs.filter((l) => l.entityId === filters.entityId);
   if (filters?.action) logs = logs.filter((l) => l.action === filters.action);

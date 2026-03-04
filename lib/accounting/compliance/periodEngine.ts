@@ -13,7 +13,7 @@ function generateId(): string {
 }
 
 export function getFiscalPeriods(): FiscalPeriod[] {
-  return getStored<FiscalPeriod>(STORAGE_KEYS.PERIODS).sort(
+  return getStored<FiscalPeriod[]>(STORAGE_KEYS.PERIODS).sort(
     (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
   );
 }

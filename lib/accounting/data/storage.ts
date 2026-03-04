@@ -14,13 +14,14 @@ export const KEYS = {
 
 export const STORAGE_KEYS = KEYS;
 
-export function getStored<T>(key: string): T[] {
-  if (typeof window === 'undefined') return [];
+/** Returns stored value as T. Use getStored<ChartAccount[]> for arrays so return type is ChartAccount[]. */
+export function getStored<T>(key: string): T {
+  if (typeof window === 'undefined') return [] as unknown as T;
   try {
     const raw = localStorage.getItem(key);
-    return (raw ? JSON.parse(raw) : []) as T[];
+    return (raw ? JSON.parse(raw) : []) as T;
   } catch {
-    return [];
+    return [] as unknown as T;
   }
 }
 
