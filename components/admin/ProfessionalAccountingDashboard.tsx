@@ -14,7 +14,7 @@ import Icon from '@/components/icons/Icon';
 import { generateBalanceSheet, analyzeBalanceSheet } from '@/lib/accounting/financialStatements/balanceSheet';
 import { generateIncomeStatement, analyzeIncomeStatement } from '@/lib/accounting/financialStatements/incomeStatement';
 import { generateTrialBalance } from '@/lib/accounting/ledger/generalLedger';
-import { checkIFRSCompliance } from '@/lib/accounting/standards/ifrsCompliance';
+import { checkIFRSCompliance, generateComplianceReport } from '@/lib/accounting/standards/ifrsCompliance';
 import { closePeriod, validatePeriodClosing } from '@/lib/accounting/period/periodClosing';
 import type { JournalEntry } from '@/lib/accounting/domain/types';
 import { getStored } from '@/lib/accounting/data/storage';
@@ -112,12 +112,13 @@ export default function ProfessionalAccountingDashboard() {
   const handleComplianceCheck = () => {
     const entries = getStored<JournalEntry[]>(KEYS.JOURNAL);
     const periodEntries = entries.filter(entry => entry.date.startsWith(selectedPeriod));
-    const compliance = checkIFRSCompliance(periodEntries, selectedPeriod);
-    
-    const report = ar 
+    const checks = checkIFRSCompliance(periodEntries, selectedPeriod);
+    const compliance = generateComplianceReport(checks);
+
+    const report = ar
       ? `تقرير التوافق مع IFRS:\n\nالحالة: ${compliance.overallStatus}\nالملخص: ${compliance.summary}\n\nالتوصيات:\n${compliance.actionItems.join('\n')}`
       : `IFRS Compliance Report:\n\nStatus: ${compliance.overallStatus}\nSummary: ${compliance.summary}\n\nAction Items:\n${compliance.actionItems.join('\n')}`;
-    
+
     alert(report);
   };
 
