@@ -18,7 +18,7 @@ export function getStored<T>(key: string): T[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    return (raw ? JSON.parse(raw) : []) as T[];
   } catch {
     return [];
   }
