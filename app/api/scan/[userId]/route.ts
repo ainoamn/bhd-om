@@ -19,7 +19,6 @@ export async function GET(
         email: true,
         phone: true,
         role: true,
-        dashboardType: true,
         createdAt: true,
       },
     });
@@ -33,7 +32,6 @@ export async function GET(
       email: user.email?.includes('@nologin.bhd') ? null : user.email,
       phone: user.phone,
       role: user.role,
-      dashboardType: user.dashboardType,
       createdAt: user.createdAt,
     });
   } catch (e) {
