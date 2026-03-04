@@ -125,6 +125,7 @@ export async function createJournalEntry(
           descriptionEn: data.descriptionEn,
           totalDebit: validation.totalDebits,
           totalCredit: validation.totalCredits,
+          createdBy: data.createdBy,
           lines: {
             create: data.lines.map(l => ({
               accountId: l.accountId,
