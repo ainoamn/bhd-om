@@ -1,12 +1,13 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
+// قاعدة بيانات حقيقية قابلة للتوسع: 10M+ عقار، 1M+ مستخدم — استخدم PostgreSQL مع Connection Pooling (Neon/Supabase/Citus)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -45,14 +46,17 @@ model User {
   name          String
   phone         String?
   role          UserRole  @default(CLIENT)
-  // dashboardType String?   // CLIENT|TENANT|LANDLORD|SUPPLIER|PARTNER|GOVERNMENT|AUTHORIZED_REP|COMPANY|OTHER - للتخصيص الدقيق للوحة
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  
+
   projects      Project[]
   tasks         Task[]
   documents     Document[]
   accounts      Account[]
+
+  @@index([role])
+  @@index([createdAt])
+  @@index([email])
 }
 
 model Project {
@@ -73,13 +77,16 @@ model Project {
   images          String          // JSON array of image URLs
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
-  
+
   userId          String
   user            User            @relation(fields: [userId], references: [id])
   tasks           Task[]
   documents       Document[]
   accounts        Account[]
   serialHistory   SerialNumberHistory[]
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Task {
@@ -210,6 +217,13 @@ model Property {
 
   bookings        PropertyBooking[]
   serialHistory   SerialNumberHistory[]
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([type, status])
+  @@index([governorateAr])
+  @@index([price])
 }
 
 model PropertyBooking {
@@ -224,6 +238,13 @@ model PropertyBooking {
   status          String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([propertyId, status])
+  @@index([email])
+  @@index([type])
 }
 
 // عدادات للأرقام المتسلسلة - مفتاح: entity-type-year (مثل PRP-R-2025)
@@ -257,6 +278,9 @@ model ContactSubmission {
   type            String    // CONTACT, CALLBACK
   isRead          Boolean   @default(false)
   createdAt       DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([type])
 }
 
 /// حجوزات من الواجهة العامة — تُخزّن على الخادم لظهورها في لوحة الإدارة والمحاسبة
@@ -266,6 +290,8 @@ model BookingStorage {
   data      String   // JSON كامل للحجز (PropertyBooking)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 // ========== Global Intelligent Accounting ==========
@@ -345,6 +371,10 @@ model AccountingJournalEntry {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   lines           AccountingJournalLine[]
+
+  @@index([date])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model AccountingJournalLine {
@@ -384,6 +414,11 @@ model AccountingDocument {
   createdBy       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([date])
+  @@index([createdAt])
 }
 
 model AccountingFiscalPeriod {
@@ -406,6 +441,10 @@ model AccountingAuditLog {
   reason        String?
   previousState String?
   newState      String?
+
+  @@index([timestamp])
+  @@index([entityType, entityId])
+  @@index([userId])
 }
 
 // RBAC - صلاحيات المحاسبة

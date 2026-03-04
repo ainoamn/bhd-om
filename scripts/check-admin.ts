@@ -1,20 +1,8 @@
 import 'dotenv/config';
-import path from 'path';
-import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { prisma } from '@/lib/prisma';
 import { compare } from 'bcryptjs';
 
-const rawUrl = process.env.DATABASE_URL || 'file:./dev.db';
-const dbFile = rawUrl.replace(/^file:/, '');
-const url =
-  path.isAbsolute(dbFile) || /^[A-Za-z]:/.test(dbFile)
-    ? rawUrl
-    : `file:${path.join(process.cwd(), dbFile.replace(/^\.\//, ''))}`;
-
-console.log('DB URL:', url);
-
-const adapter = new PrismaBetterSqlite3({ url });
-const prisma = new PrismaClient({ adapter });
+console.log('DATABASE_URL set:', !!process.env.DATABASE_URL);
 
 async function run() {
   const u = await prisma.user.findUnique({ where: { email: 'admin@bhd-om.com' } });

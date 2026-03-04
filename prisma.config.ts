@@ -1,7 +1,12 @@
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
 
-const databaseUrl = process.env.DATABASE_URL?.trim() || 'file:./dev.db';
+// قاعدة بيانات حقيقية قابلة للتوسع — استخدم رابط Pooled في الإنتاج (Neon/Vercel Postgres)
+const raw = process.env.DATABASE_URL?.trim() || '';
+const databaseUrl =
+  raw && (raw.startsWith('postgresql://') || raw.startsWith('postgres://'))
+    ? raw
+    : 'postgresql://postgres:postgres@127.0.0.1:5432/bhd_om';
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -10,7 +15,6 @@ export default defineConfig({
     seed: 'npx tsx prisma/seed.ts',
   },
   datasource: {
-    // Fallback keeps Prisma generate/build working in CI when env is missing.
     url: databaseUrl,
   },
 });

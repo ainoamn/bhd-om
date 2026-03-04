@@ -1,20 +1,19 @@
-import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const rawUrl = process.env.DATABASE_URL || 'file:./dev.db';
-const dbFile = rawUrl.replace(/^file:\/?/, '').replace(/^\.\//, '');
-const absolutePath = path.isAbsolute(dbFile) || /^[A-Za-z]:/.test(dbFile)
-  ? dbFile
-  : path.join(process.cwd(), dbFile);
-const url = `file:${absolutePath.replace(/\\/g, '/')}`;
-
 function createPrisma() {
-  const adapter = new PrismaBetterSqlite3({ url });
+  const connectionString =
+    process.env.DATABASE_URL?.trim() ||
+    'postgresql://postgres:postgres@127.0.0.1:5432/bhd_om';
+  const adapter = new PrismaPg({
+    connectionString,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 60_000,
+  });
   return new PrismaClient({ adapter });
 }
 
