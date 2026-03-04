@@ -45,7 +45,8 @@ export default function ChartOfAccountsPage() {
 
   const loadAccounts = () => {
     try {
-      const allAccounts: ChartAccount[] = getStored<ChartAccount>(KEYS.ACCOUNTS);
+      // getStored<T> returns T[]; use assertion so both getStored<ChartAccount> and getStored<ChartAccount[]> compile
+      const allAccounts = getStored<ChartAccount>(KEYS.ACCOUNTS) as unknown as ChartAccount[];
       setAccounts([...allAccounts].sort((a, b) => a.sortOrder - b.sortOrder));
     } catch (error) {
       console.error('Error loading accounts:', error);
