@@ -201,27 +201,30 @@ function LoginFormInner() {
     if (!callbackUrl.startsWith('/')) callbackUrl = `/${locale}/admin`;
 
     try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: data.emailOrUsername.trim(),
-          password: data.password,
-          callbackUrl,
-        }),
+      const result = await signIn('credentials', {
+        email: data.emailOrUsername.trim(),
+        password: data.password,
+        callbackUrl,
+        redirect: false,
       });
-      const json = await res.json().catch(() => ({}));
 
-      if (res.ok && json.ok === true && typeof json.url === 'string') {
-        window.location.href = json.url;
+      if (result?.error) {
+        setFormError(
+          result.error === 'CredentialsSignin'
+            ? (locale === 'ar' ? 'البريد أو كلمة المرور غير صحيحة.' : 'Invalid email or password.')
+            : (result.error === 'Configuration'
+              ? (locale === 'ar' ? 'إعدادات الخادم ناقصة (NEXTAUTH_SECRET).' : 'Server configuration missing (NEXTAUTH_SECRET).')
+              : t('errorGeneric'))
+        );
         return;
       }
 
-      const message =
-        json.message && typeof json.message === 'string'
-          ? json.message
-          : t('errorGeneric');
-      setFormError(message);
+      if (result?.ok && result?.url) {
+        window.location.href = result.url;
+        return;
+      }
+
+      setFormError(t('errorGeneric'));
     } catch {
       setFormError(t('errorGeneric'));
     } finally {
