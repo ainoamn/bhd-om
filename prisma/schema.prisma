@@ -39,24 +39,32 @@ enum DocumentType {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  serialNumber  String    @unique  // USR-A-2025-0001 حسب الدور والسنة
-  email         String    @unique
-  password      String
-  name          String
-  phone         String?
-  role          UserRole  @default(CLIENT)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  serialNumber      String    @unique  // USR-A-2025-0001 حسب الدور والسنة
+  email             String    @unique
+  password          String
+  name              String
+  phone             String?
+  role              UserRole  @default(CLIENT)
+  isSuperAdmin      Boolean   @default(false)  // أدمن كامل الصلاحيات
+  adminPermissions  String?   // JSON: مصفوفة صلاحيات للأدمن الجزئي، مثل ["MANAGE_USERS","MANAGE_PROPERTIES"]
+  organizationId    String?   // موظف شركة → الشركة التابع لها
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  projects      Project[]
-  tasks         Task[]
-  documents     Document[]
-  accounts      Account[]
+  projects          Project[]
+  tasks             Task[]
+  documents         Document[]
+  accounts          Account[]
+  organization      Organization?  @relation("OrgMembers", fields: [organizationId], references: [id])
+  ownedOrganization Organization?  @relation("OrgOwner")
+  createdProperties Property[]
+  subscriptions     Subscription[]
 
   @@index([role])
   @@index([createdAt])
   @@index([email])
+  @@index([organizationId])
 }
 
 model Project {
@@ -212,9 +220,14 @@ model Property {
   googleMapsUrl   String?
   lat             Float?
   lng             Float?
+  isArchived      Boolean         @default(false)
+  createdById     String?         // من أضاف العقار (للأدمن: عرض «تابع لـ»)
+  organizationId  String?         // عقار تابع لشركة
   createdAt       DateTime        @default(now())
-  updatedAt       DateTime       @updatedAt
+  updatedAt       DateTime        @updatedAt
 
+  createdBy       User?           @relation(fields: [createdById], references: [id])
+  organization    Organization?   @relation(fields: [organizationId], references: [id])
   bookings        PropertyBooking[]
   serialHistory   SerialNumberHistory[]
 
@@ -224,6 +237,9 @@ model Property {
   @@index([type, status])
   @@index([governorateAr])
   @@index([price])
+  @@index([createdById])
+  @@index([organizationId])
+  @@index([isArchived])
 }
 
 model PropertyBooking {
@@ -476,5 +492,58 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 }
 
-// ==================== نظام المحاسبة المتكامل الجديد ====================
-// استخدم النماذج الموجودة أعلاه بدلاً من هذه
+// ========== الشركات والموظفين ==========
+model Organization {
+  id          String    @id @default(cuid())
+  nameAr      String
+  nameEn      String
+  ownerId     String    @unique  // صاحب الشركة (User)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner       User      @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     User[]    @relation("OrgMembers")
+  properties  Property[]
+}
+
+// ========== باقات الاشتراك ==========
+model Plan {
+  id            String   @id @default(cuid())
+  code          String   @unique   // basic, standard, premium, enterprise
+  nameAr        String
+  nameEn        String
+  priceMonthly  Float    @default(0)
+  priceYearly   Float?   @default(0)
+  currency      String   @default("OMR")
+  featuresJson  String?  // JSON: قائمة الميزات أو الصلاحيات
+  limitsJson    String?  // JSON: maxProperties, maxUsers, storageGB, etc.
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id          String    @id @default(cuid())
+  userId      String
+  planId      String
+  status      String    @default("active")  // active, expired, cancelled, pending
+  startAt     DateTime  @default(now())
+  endAt       DateTime
+  usageJson   String?   // JSON: استخدام حالي (عقارات، مستخدمين، إلخ)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        Plan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@unique([userId])
+  @@index([userId])
+  @@index([planId])
+  @@index([status])
+}
+
+// ========== ربط User بالاشتراك ==========
+// (يُضاف في User: subscriptions Subscription[])

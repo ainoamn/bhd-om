@@ -15,7 +15,7 @@ async function main() {
   if (existing) {
     await prisma.user.update({
       where: { email: adminEmail },
-      data: { password: hashed, name: 'مدير النظام', role: 'ADMIN' },
+      data: { password: hashed, name: 'مدير النظام', role: 'ADMIN', isSuperAdmin: true },
     });
     console.log('Admin user updated:', adminEmail, '(password:', adminPassword + ')');
     return;
@@ -28,6 +28,7 @@ async function main() {
       password: hashed,
       name: 'مدير النظام',
       role: 'ADMIN',
+      isSuperAdmin: true,
     },
   });
   console.log('Admin user created:', adminEmail, '(password:', adminPassword + ')');

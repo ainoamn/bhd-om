@@ -62,6 +62,9 @@ const providers: NextAuthOptions['providers'] = [
             role: user.role,
             dashboardType: (user as { dashboardType?: string | null }).dashboardType ?? undefined,
             phone: user.phone ?? undefined,
+            isSuperAdmin: (user as { isSuperAdmin?: boolean }).isSuperAdmin ?? false,
+            adminPermissions: (user as { adminPermissions?: string | null }).adminPermissions ?? undefined,
+            organizationId: (user as { organizationId?: string | null }).organizationId ?? undefined,
           };
         }
 
@@ -102,6 +105,9 @@ const providers: NextAuthOptions['providers'] = [
           role: user.role,
           dashboardType: (user as { dashboardType?: string | null }).dashboardType ?? undefined,
           phone: user.phone ?? undefined,
+          isSuperAdmin: (user as { isSuperAdmin?: boolean }).isSuperAdmin ?? false,
+          adminPermissions: (user as { adminPermissions?: string | null }).adminPermissions ?? undefined,
+          organizationId: (user as { organizationId?: string | null }).organizationId ?? undefined,
         };
       },
     }),
@@ -125,6 +131,9 @@ export const authOptions: NextAuthOptions = {
         token.dashboardType = (user as { dashboardType?: string }).dashboardType;
         token.phone = (user as { phone?: string }).phone;
         token.serialNumber = (user as { serialNumber?: string }).serialNumber;
+        token.isSuperAdmin = (user as { isSuperAdmin?: boolean }).isSuperAdmin;
+        token.adminPermissions = (user as { adminPermissions?: string }).adminPermissions;
+        token.organizationId = (user as { organizationId?: string }).organizationId;
       }
       return token;
     },
@@ -135,6 +144,9 @@ export const authOptions: NextAuthOptions = {
         (session.user as { dashboardType?: string }).dashboardType = token.dashboardType as string | undefined;
         (session.user as { phone?: string }).phone = token.phone as string | undefined;
         (session.user as { serialNumber?: string }).serialNumber = token.serialNumber as string | undefined;
+        (session.user as { isSuperAdmin?: boolean }).isSuperAdmin = token.isSuperAdmin as boolean | undefined;
+        (session.user as { adminPermissions?: string }).adminPermissions = token.adminPermissions as string | undefined;
+        (session.user as { organizationId?: string }).organizationId = token.organizationId as string | undefined;
       }
       return session;
     },
