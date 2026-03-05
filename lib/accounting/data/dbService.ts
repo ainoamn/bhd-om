@@ -56,8 +56,9 @@ export async function ensureAccountingAccounts() {
   const count = await prisma.accountingAccount.count();
   if (count > 0) return;
   for (const a of DEFAULT_ACCOUNTS) {
+    const { sortOrder: _so, ...rest } = a;
     await prisma.accountingAccount.create({
-      data: { ...a, parentId: null },
+      data: { ...rest, parentId: null },
     });
   }
 }
@@ -126,9 +127,9 @@ export async function getAccountsFromDb() {
   await ensureAccountingAccounts();
   const rows = await prisma.accountingAccount.findMany({
     where: { isActive: true },
-    orderBy: { sortOrder: 'asc' },
+    orderBy: { code: 'asc' },
   });
-  return rows.map((r) => ({
+  return rows.map((r, i) => ({
     id: r.id,
     code: r.code,
     nameAr: r.nameAr,
@@ -136,7 +137,7 @@ export async function getAccountsFromDb() {
     type: r.type,
     parentId: r.parentId,
     isActive: r.isActive,
-    sortOrder: r.sortOrder,
+    sortOrder: i,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));
