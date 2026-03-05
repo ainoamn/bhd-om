@@ -45,7 +45,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   // Check for mock session first
   const mockSession = (window as any)?.mockNextAuthSession;
   const currentUser = (window as any)?.currentUser;
-  const { data: session, status, refetch: refetchSession } = useSession();
+  const { data: session, status, update: refetchSession } = useSession();
   
   // Use mock session if available, otherwise use real session
   const currentSession = mockSession || session;
