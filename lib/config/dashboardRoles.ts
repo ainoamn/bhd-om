@@ -60,6 +60,7 @@ export type DashboardSectionKey =
   | 'dashboardSettings'
   | 'contactCategoryPermissions'
   | 'users'
+  | 'subscriptions'
   | 'serialHistory'
   | 'backup';
 

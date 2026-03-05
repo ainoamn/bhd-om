@@ -72,25 +72,69 @@ export function hasAdminPermission(scope: DataScope, permission: AdminPermission
 }
 
 /**
- * هل يمكنه الوصول لهذا العقار؟ (أدمن: نعم، عادي: إن كان createdById أو organizationId يخصه)
+ * هل يمكنه الوصول لهذا العقار؟ (أدمن: نعم؛ ب/ر: createdById أو organizationId؛ د: ownerId)
  */
 export function canAccessProperty(
   scope: DataScope,
-  property: { createdById?: string | null; organizationId?: string | null }
+  property: { createdById?: string | null; organizationId?: string | null; ownerId?: string | null }
 ): boolean {
   if (scope.isAdmin && (scope.isSuperAdmin || hasAdminPermission(scope, 'MANAGE_PROPERTIES'))) return true;
   if (scope.userId && property.createdById === scope.userId) return true;
   if (scope.organizationId && property.organizationId === scope.organizationId) return true;
+  if (scope.userId && property.ownerId === scope.userId) return true;
   return false;
 }
 
 /**
  * فلتر Prisma: where لعقارات المستخدم أو الكل للأدمن
  */
-export function propertyScopeWhere(scope: DataScope): { OR?: Array<{ createdById: string } | { organizationId: string }> } | object {
+export function propertyScopeWhere(scope: DataScope): { OR?: Array<{ createdById: string } | { organizationId: string } | { ownerId: string }> } | object {
   if (scope.isAdmin) return {};
-  const or: Array<{ createdById: string } | { organizationId: string }> = [];
-  if (scope.userId) or.push({ createdById: scope.userId });
+  const or: Array<{ createdById: string } | { organizationId: string } | { ownerId: string }> = [];
+  if (scope.userId) {
+    or.push({ createdById: scope.userId });
+    or.push({ ownerId: scope.userId });
+  }
   if (scope.organizationId) or.push({ organizationId: scope.organizationId });
   return or.length ? { OR: or } : { id: { in: [] } };
+}
+
+/** دور المستخدم من الجلسة */
+export function getUserRole(session: { user?: SessionUser } | null): string | undefined {
+  return session?.user?.role;
+}
+
+/**
+ * صلاحيات العقار حسب نوع الحساب (أ ب ج د ر)
+ * - canManage: إضافة/تعديل/اعتماد عقد — ب، ر (لنفس الشركة)، أ (دعم فني)
+ * - canApproveContract: اعتماد العقد ومتابعته — ب، ر فقط
+ * - canOnlyView: الاطلاع والمتابعة فقط — د (مالك)، أ (متفرج)
+ * @param ownedOrganizationId عند دور COMPANY: معرف الشركة التي يملكها المستخدم (للعقارات التابعة للشركة)
+ */
+export function propertyAccess(
+  scope: DataScope,
+  role: string | undefined,
+  property: { createdById?: string | null; organizationId?: string | null; ownerId?: string | null },
+  ownedOrganizationId?: string | null
+): { canManage: boolean; canApproveContract: boolean; canOnlyView: boolean } {
+  const isAdmin = role === 'ADMIN';
+  const isCompany = role === 'COMPANY';
+  const isOrgManager = role === 'ORG_MANAGER';
+  const isOwner = role === 'OWNER';
+
+  if (isAdmin) {
+    return { canManage: true, canApproveContract: false, canOnlyView: true };
+  }
+  const belongsToCompany = scope.userId && property.createdById === scope.userId;
+  const belongsToOrg = ownedOrganizationId && property.organizationId === ownedOrganizationId;
+  if (isCompany && (belongsToCompany || belongsToOrg)) {
+    return { canManage: true, canApproveContract: true, canOnlyView: false };
+  }
+  if (isOrgManager && scope.organizationId && property.organizationId === scope.organizationId) {
+    return { canManage: true, canApproveContract: true, canOnlyView: false };
+  }
+  if (isOwner && scope.userId && property.ownerId === scope.userId) {
+    return { canManage: false, canApproveContract: false, canOnlyView: true };
+  }
+  return { canManage: false, canApproveContract: false, canOnlyView: false };
 }

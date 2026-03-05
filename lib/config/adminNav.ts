@@ -77,6 +77,7 @@ const topLevelItems: NavItemWithSection[] = [
   { href: '/admin/dashboard-settings', labelKey: 'dashboardSettings', icon: 'cog', section: 'dashboardSettings' },
   { href: '/admin/contact-category-permissions', labelKey: 'contactCategoryPermissions', icon: 'shieldCheck', section: 'contactCategoryPermissions' },
   { href: '/admin/users', labelKey: 'users', icon: 'users', section: 'users' },
+  { href: '/admin/subscriptions', labelKey: 'subscriptions', icon: 'creditCard', section: 'subscriptions' },
   { href: '/admin/reports', labelKey: 'reports', icon: 'chartBar', section: 'reports' },
   { href: '/admin/serial-history', labelKey: 'serialHistory', icon: 'archive', section: 'serialHistory' },
   { href: '/admin/backup', labelKey: 'backup', icon: 'database', section: 'backup' },
@@ -111,7 +112,7 @@ const SECTION_ORDER: string[] = [
   'accountingSettings', 'accountingQuickActions', 'accountingAddJournal', 'accountingAddAccount', 'accountingAddDocument', 'accountingAddCheque',
   'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
   'projects', 'projectsAdd', 'services', 'analytics', 'reports', 'security',
-  'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions', 'users', 'serialHistory', 'backup', 'dataReset',
+  'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions', 'users', 'subscriptions', 'serialHistory', 'backup', 'dataReset',
 ];
 
 /** كل الصلاحيات المستخرجة من السجل — الصفحات الجديدة المُضافة في الأسفل تُدرج تلقائياً */

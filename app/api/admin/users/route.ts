@@ -8,8 +8,28 @@ export async function GET(req: NextRequest) {
       req,
       secret: process.env.NEXTAUTH_SECRET,
     });
-    if (!token || (token.role as string) !== 'ADMIN') {
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const role = token.role as string;
+    const isAdmin = role === 'ADMIN';
+    const url = new URL(req.url);
+    const filterRole = url.searchParams.get('role');
+
+    if (filterRole === 'OWNER') {
+      if (!isAdmin && role !== 'COMPANY' && role !== 'ORG_MANAGER') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      const users = await prisma.user.findMany({
+        where: { role: 'OWNER' },
+        orderBy: { name: 'asc' },
+        select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true },
+      });
+      return NextResponse.json(users);
+    }
+
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const users = await prisma.user.findMany({

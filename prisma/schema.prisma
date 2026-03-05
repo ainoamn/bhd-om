@@ -11,9 +11,11 @@ datasource db {
 }
 
 enum UserRole {
-  ADMIN
-  CLIENT
-  OWNER
+  ADMIN          // أ - الإدارة
+  COMPANY        // ب - شركة عقارية
+  CLIENT         // ج - عميل
+  OWNER          // د - مالك عقار (اطلاع ومتابعة فقط)
+  ORG_MANAGER    // ر - مدير شركة مخول (نفس صلاحيات الشركة على عقاراتها)
 }
 
 enum ProjectStatus {
@@ -59,6 +61,7 @@ model User {
   organization      Organization?  @relation("OrgMembers", fields: [organizationId], references: [id])
   ownedOrganization Organization?  @relation("OrgOwner")
   createdProperties Property[]
+  ownedProperties   Property[]     @relation("PropertyOwner")  // عقارات يملكها (د) — للمتابعة والاطلاع فقط
   subscriptions     Subscription[]
 
   @@index([role])
@@ -221,13 +224,15 @@ model Property {
   lat             Float?
   lng             Float?
   isArchived      Boolean         @default(false)
-  createdById     String?         // من أضاف العقار (للأدمن: عرض «تابع لـ»)
-  organizationId  String?         // عقار تابع لشركة
+  createdById     String?         // من أضاف العقار (ب أو ر)
+  organizationId  String?         // الشركة (ب) التي تدير العقار
+  ownerId         String?         // المالك (د) — يظهر العقار في لوحته للمتابعة والاطلاع فقط
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
   createdBy       User?           @relation(fields: [createdById], references: [id])
   organization    Organization?   @relation(fields: [organizationId], references: [id])
+  owner           User?           @relation("PropertyOwner", fields: [ownerId], references: [id])
   bookings        PropertyBooking[]
   serialHistory   SerialNumberHistory[]
 
@@ -239,6 +244,7 @@ model Property {
   @@index([price])
   @@index([createdById])
   @@index([organizationId])
+  @@index([ownerId])
   @@index([isArchived])
 }
 
@@ -538,6 +544,7 @@ model Subscription {
 
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan        Plan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  changeRequests SubscriptionChangeRequest[]
 
   @@unique([userId])
   @@index([userId])
@@ -545,5 +552,22 @@ model Subscription {
   @@index([status])
 }
 
-// ========== ربط User بالاشتراك ==========
-// (يُضاف في User: subscriptions Subscription[])
+// طلب ترقية أو تنزيل الباقة من المستخدم
+model SubscriptionChangeRequest {
+  id            String    @id @default(cuid())
+  userId        String
+  subscriptionId String
+  requestedPlanId String
+  direction     String    // upgrade | downgrade
+  status        String    @default("pending")  // pending | approved | rejected
+  reason        String?   // سبب الطلب (اختياري)
+  reviewedAt    DateTime?
+  reviewedById  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  subscription  Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}

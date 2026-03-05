@@ -52,7 +52,7 @@ const updateSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
   phone: z.string().optional().nullable(),
-  role: z.enum(['ADMIN', 'CLIENT', 'OWNER']).optional(),
+  role: z.enum(['ADMIN', 'COMPANY', 'CLIENT', 'OWNER', 'ORG_MANAGER']).optional(),
   newPassword: z.string().min(6).optional(),
 });
 
@@ -81,7 +81,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const updates: { name?: string; email?: string; phone?: string | null; role?: 'ADMIN' | 'CLIENT' | 'OWNER'; password?: string } = {};
+    const updates: { name?: string; email?: string; phone?: string | null; role?: 'ADMIN' | 'COMPANY' | 'CLIENT' | 'OWNER' | 'ORG_MANAGER'; password?: string } = {};
     if (parsed.data.name !== undefined) updates.name = parsed.data.name.trim();
     if (parsed.data.email !== undefined) {
       const emailLower = parsed.data.email.toLowerCase().trim();

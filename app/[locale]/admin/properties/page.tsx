@@ -57,8 +57,10 @@ type DbPropertyItem = {
   status: string;
   price: number;
   governorateAr: string;
+  ownerId?: string | null;
   belongsToUser: { id: string; name: string; email: string; serialNumber: string } | null;
   belongsToOrg: { id: string; nameAr: string; nameEn: string } | null;
+  owner?: { id: string; name: string; email: string; serialNumber: string } | null;
 };
 
 export default function PropertiesAdminPage() {
@@ -69,7 +71,9 @@ export default function PropertiesAdminPage() {
   const [overrides, setOverrides] = useState<Record<string, { businessStatus?: PropertyBusinessStatus; isPublished?: boolean; units?: Record<string, { businessStatus?: PropertyBusinessStatus; isPublished?: boolean }> }>>({});
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [dbProperties, setDbProperties] = useState<DbPropertyItem[]>([]);
+  const [ownerUsers, setOwnerUsers] = useState<Array<{ id: string; name: string; serialNumber: string }>>([]);
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
+  const canManageProperties = isAdmin || (session?.user as { role?: string })?.role === 'COMPANY' || (session?.user as { role?: string })?.role === 'ORG_MANAGER';
 
   const dataOverrides = getPropertyDataOverrides();
   const displayProperties = properties.map((p) => getPropertyById(p.id, dataOverrides) ?? p) as Property[];
@@ -102,12 +106,20 @@ export default function PropertiesAdminPage() {
   }, []);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!session?.user) return;
     fetch('/api/admin/properties')
       .then((r) => r.json())
       .then((data) => (Array.isArray(data?.list) ? setDbProperties(data.list) : setDbProperties([])))
       .catch(() => setDbProperties([]));
-  }, [isAdmin]);
+  }, [session?.user]);
+
+  useEffect(() => {
+    if (!canManageProperties) return;
+    fetch('/api/admin/users?role=OWNER')
+      .then((r) => r.json())
+      .then((list) => (Array.isArray(list) ? setOwnerUsers(list.map((u: { id: string; name: string; serialNumber: string }) => ({ id: u.id, name: u.name, serialNumber: u.serialNumber }))) : setOwnerUsers([])))
+      .catch(() => setOwnerUsers([]));
+  }, [canManageProperties]);
 
   /** هل للعقار/الوحدة حجز نشط (محجوز/مؤجر) - التعديل يكون من صفحة الحجوزات فقط */
   const hasActiveBooking = (propertyId: number, unitKey?: string) => {
@@ -231,9 +243,9 @@ export default function PropertiesAdminPage() {
         </div>
       </div>
 
-      {isAdmin && (
+      {dbProperties.length > 0 && (
         <div className="admin-card overflow-hidden mb-6">
-          <h2 className="text-lg font-bold text-neutral-800 mb-3">عقارات من قاعدة البيانات (مع تابع لـ)</h2>
+          <h2 className="text-lg font-bold text-neutral-800 mb-3">عقارات من قاعدة البيانات (مع تابع لـ ومالك)</h2>
           <div className="overflow-x-auto">
             <table className="admin-table">
               <thead>
@@ -244,41 +256,73 @@ export default function PropertiesAdminPage() {
                   <th>السعر</th>
                   <th>المحافظة</th>
                   <th>تابع لـ</th>
+                  <th>مالك العقار (د)</th>
                 </tr>
               </thead>
               <tbody>
-                {dbProperties.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center text-gray-500 py-6">
-                      لا توجد عقارات مسجلة في قاعدة البيانات بعد، أو أنت غير مسجل دخول كأدمن.
+                {dbProperties.map((p) => (
+                  <tr key={p.id}>
+                    <td className="font-mono text-sm">{p.serialNumber}</td>
+                    <td className="font-medium">{p.titleAr}</td>
+                    <td>
+                      <span className={`admin-badge ${p.type === 'RENT' ? 'admin-badge-info' : p.type === 'SALE' ? 'admin-badge-success' : 'admin-badge-warning'}`}>
+                        {p.type === 'RENT' ? 'إيجار' : p.type === 'SALE' ? 'بيع' : p.type}
+                      </span>
                     </td>
-                  </tr>
-                ) : (
-                  dbProperties.map((p) => (
-                    <tr key={p.id}>
-                      <td className="font-mono text-sm">{p.serialNumber}</td>
-                      <td className="font-medium">{p.titleAr}</td>
-                      <td>
-                        <span className={`admin-badge ${p.type === 'RENT' ? 'admin-badge-info' : p.type === 'SALE' ? 'admin-badge-success' : 'admin-badge-warning'}`}>
-                          {p.type === 'RENT' ? 'إيجار' : p.type === 'SALE' ? 'بيع' : p.type}
+                    <td className="font-semibold">{p.price.toLocaleString()} ر.ع</td>
+                    <td>{p.governorateAr || '—'}</td>
+                    <td className="text-sm">
+                      {p.belongsToUser ? (
+                        <span title={p.belongsToUser.email}>
+                          {p.belongsToUser.name} ({p.belongsToUser.serialNumber})
                         </span>
-                      </td>
-                      <td className="font-semibold">{p.price.toLocaleString()} ر.ع</td>
-                      <td>{p.governorateAr || '—'}</td>
-                      <td className="text-sm">
-                        {p.belongsToUser ? (
-                          <span title={p.belongsToUser.email}>
-                            {p.belongsToUser.name} ({p.belongsToUser.serialNumber})
-                          </span>
-                        ) : p.belongsToOrg ? (
+                      ) : p.belongsToOrg ? (
                           <span>{p.belongsToOrg.nameAr}</span>
                         ) : (
                           '—'
                         )}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                    </td>
+                    <td className="text-sm">
+                      {canManageProperties ? (
+                        <select
+                          value={p.ownerId ?? ''}
+                          onChange={async (e) => {
+                            const newOwnerId = e.target.value || null;
+                            const res = await fetch(`/api/admin/properties/${p.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ ownerId: newOwnerId }),
+                            });
+                            if (res.ok) {
+                              const u = newOwnerId ? ownerUsers.find((o) => o.id === newOwnerId) : null;
+                              setDbProperties((prev) =>
+                                prev.map((x) =>
+                                  x.id === p.id
+                                    ? { ...x, ownerId: newOwnerId, owner: u ? { id: u.id, name: u.name, email: '', serialNumber: u.serialNumber } : null }
+                                    : x
+                                )
+                              );
+                            }
+                          }}
+                          className="admin-select min-w-[140px]"
+                        >
+                          <option value="">— لا مالك —</option>
+                          {ownerUsers.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.serialNumber})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        p.owner ? (
+                          <span title={p.owner.email}>{p.owner.name} ({p.owner.serialNumber})</span>
+                        ) : (
+                          '—'
+                        )
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

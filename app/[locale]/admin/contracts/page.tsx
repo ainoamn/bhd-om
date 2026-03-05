@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
   getAllContracts,
@@ -28,10 +29,13 @@ const STATUS_LABELS: Record<ContractStatus, { ar: string; en: string }> = {
 };
 
 export default function AdminContractsPage() {
+  const { data: session } = useSession();
   const params = useParams();
   const searchParams = useSearchParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
+  const role = (session?.user as { role?: string })?.role;
+  const canApproveContract = role === 'COMPANY' || role === 'ORG_MANAGER';
 
   const [contracts, setContracts] = useState<RentalContract[]>([]);
   const [bookings, setBookings] = useState<ReturnType<typeof getAllBookings>>([]);
@@ -344,7 +348,7 @@ export default function AdminContractsPage() {
                         <Link href={`/${locale}/admin/contracts/${c.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">
                           {ar ? 'عرض / تعديل' : 'View / Edit'}
                         </Link>
-                        {c.status === 'DRAFT' && (
+                        {c.status === 'DRAFT' && canApproveContract && (
                           <button
                             type="button"
                             onClick={() => handleApproveByAdmin(c.id)}

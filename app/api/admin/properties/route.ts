@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       include: {
         createdBy: { select: { id: true, name: true, email: true, serialNumber: true } },
         organization: { select: { id: true, nameAr: true, nameEn: true } },
+        owner: { select: { id: true, name: true, email: true, serialNumber: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -57,8 +58,10 @@ export async function GET(req: NextRequest) {
       isArchived: p.isArchived,
       createdById: p.createdById,
       organizationId: p.organizationId,
+      ownerId: p.ownerId,
       belongsToUser: p.createdBy ? { id: p.createdBy.id, name: p.createdBy.name, email: p.createdBy.email, serialNumber: p.createdBy.serialNumber } : null,
       belongsToOrg: p.organization ? { id: p.organization.id, nameAr: p.organization.nameAr, nameEn: p.organization.nameEn } : null,
+      owner: p.owner ? { id: p.owner.id, name: p.owner.name, email: p.owner.email, serialNumber: p.owner.serialNumber } : null,
     }));
 
     return NextResponse.json({ list });
