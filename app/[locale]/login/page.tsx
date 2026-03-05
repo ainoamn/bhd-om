@@ -44,15 +44,17 @@ function LoginFormInner() {
   const autoLogin = searchParams.get('autoLogin');
   const returnToAdmin = searchParams.get('returnToAdmin');
 
-  // عند ظهور error=Configuration: NEXTAUTH_SECRET غير معرّف على السيرفر (مثلاً Vercel)
+  // عرض خطأ من الرابط (بعد تحويل NextAuth عند redirect: true)
   useEffect(() => {
     const err = searchParams.get('error');
     if (err === 'Configuration') {
-      const msg =
+      setFormError(
         locale === 'ar'
           ? 'إعدادات الخادم ناقصة: يرجى تعيين NEXTAUTH_SECRET و DATABASE_URL في متغيرات البيئة (Vercel: الإعدادات → Environment Variables) ثم إعادة النشر.'
-          : 'Server configuration missing: set NEXTAUTH_SECRET and DATABASE_URL in environment variables (Vercel: Settings → Environment Variables) then redeploy.';
-      setFormError(msg);
+          : 'Server configuration missing: set NEXTAUTH_SECRET and DATABASE_URL in environment variables (Vercel: Settings → Environment Variables) then redeploy.'
+      );
+    } else if (err === 'CredentialsSignin') {
+      setFormError(locale === 'ar' ? 'البريد أو كلمة المرور غير صحيحة.' : 'Invalid email or password.');
     }
   }, [searchParams, locale]);
 
@@ -201,30 +203,14 @@ function LoginFormInner() {
     if (!callbackUrl.startsWith('/')) callbackUrl = `/${locale}/admin`;
 
     try {
-      const result = await signIn('credentials', {
+      // redirect: true حتى يضع NextAuth الكوكي ويحوّل بنفسه (يضمن ظهور الجلسة في /ar/admin)
+      await signIn('credentials', {
         email: data.emailOrUsername.trim(),
         password: data.password,
         callbackUrl,
-        redirect: false,
+        redirect: true,
       });
-
-      if (result?.error) {
-        setFormError(
-          result.error === 'CredentialsSignin'
-            ? (locale === 'ar' ? 'البريد أو كلمة المرور غير صحيحة.' : 'Invalid email or password.')
-            : (result.error === 'Configuration'
-              ? (locale === 'ar' ? 'إعدادات الخادم ناقصة (NEXTAUTH_SECRET).' : 'Server configuration missing (NEXTAUTH_SECRET).')
-              : t('errorGeneric'))
-        );
-        return;
-      }
-
-      if (result?.ok && result?.url) {
-        window.location.href = result.url;
-        return;
-      }
-
-      setFormError(t('errorGeneric'));
+      // عند redirect: true لا نصل هنا عند النجاح؛ عند الفشل يحوّل NextAuth إلى صفحة الخطأ
     } catch {
       setFormError(t('errorGeneric'));
     } finally {
