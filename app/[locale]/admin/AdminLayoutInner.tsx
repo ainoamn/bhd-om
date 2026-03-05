@@ -45,7 +45,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   // Check for mock session first
   const mockSession = (window as any)?.mockNextAuthSession;
   const currentUser = (window as any)?.currentUser;
-  const { data: session, status } = useSession();
+  const { data: session, status, refetch: refetchSession } = useSession();
   
   // Use mock session if available, otherwise use real session
   const currentSession = mockSession || session;
@@ -159,14 +159,40 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
 
   const isLoginAsUser = (window as any)?.isLoginAsUser;
   const hasMockSession = isLoginAsUser && ((window as any)?.mockNextAuthSession || (window as any)?.currentUser);
-  const showLoginRequired = !hasMockSession && status === 'unauthenticated' && pathname?.includes('/admin');
+  const isAdminPath = pathname?.includes('/admin');
 
-  if (status === 'loading' && !hasMockSession) {
+  const [sessionGraceEnd, setSessionGraceEnd] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isAdminPath || hasMockSession) return;
+    if (status === 'loading') {
+      setSessionGraceEnd(null);
+      return;
+    }
+    if (status === 'unauthenticated' && sessionGraceEnd === null) {
+      const t = window.setTimeout(() => setSessionGraceEnd(Date.now()), 15000);
+      return () => clearTimeout(t);
+    }
+    if (status === 'authenticated') setSessionGraceEnd(null);
+  }, [status, isAdminPath, hasMockSession, sessionGraceEnd]);
+
+  useEffect(() => {
+    if (!isAdminPath || hasMockSession || status !== 'unauthenticated' || sessionGraceEnd !== null) return;
+    const interval = window.setInterval(() => refetchSession(), 3000);
+    return () => clearInterval(interval);
+  }, [isAdminPath, hasMockSession, status, sessionGraceEnd, refetchSession]);
+
+  const stillInGrace = status === 'unauthenticated' && isAdminPath && !hasMockSession && sessionGraceEnd === null;
+  const showLoginRequired = !hasMockSession && status === 'unauthenticated' && isAdminPath && sessionGraceEnd !== null;
+
+  if ((status === 'loading' || stillInGrace) && !hasMockSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#8B6F47] border-t-transparent mx-auto mb-4" />
           <p className="text-neutral-600">{locale === 'ar' ? 'جاري التحقق من الجلسة...' : 'Checking session...'}</p>
+          {stillInGrace && (
+            <p className="text-sm text-neutral-500 mt-2">{locale === 'ar' ? 'يرجى الانتظار...' : 'Please wait...'}</p>
+          )}
         </div>
       </div>
     );
