@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
         currency: true,
         featuresJson: true,
         limitsJson: true,
+        permissionsJson: true,
         isActive: true,
         sortOrder: true,
       },
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest) {
       currency: p.currency,
       features: p.featuresJson ? (JSON.parse(p.featuresJson) as string[]) : [],
       limits: p.limitsJson ? (JSON.parse(p.limitsJson) as Record<string, number>) : {},
+      permissions: p.permissionsJson ? (JSON.parse(p.permissionsJson) as string[]) : [],
       isActive: p.isActive,
       sortOrder: p.sortOrder,
     }));

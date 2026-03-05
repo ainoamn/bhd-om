@@ -32,6 +32,7 @@ export async function PATCH(
       currency,
       featuresJson,
       limitsJson,
+      permissionsJson,
       isActive,
       sortOrder,
     } = body as {
@@ -42,6 +43,7 @@ export async function PATCH(
       currency?: string;
       featuresJson?: string;
       limitsJson?: string;
+      permissionsJson?: string;
       isActive?: boolean;
       sortOrder?: number;
     };
@@ -54,6 +56,7 @@ export async function PATCH(
     if (currency !== undefined) updateData.currency = currency;
     if (featuresJson !== undefined) updateData.featuresJson = featuresJson;
     if (limitsJson !== undefined) updateData.limitsJson = limitsJson;
+    if (permissionsJson !== undefined) updateData.permissionsJson = permissionsJson;
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
     if (sortOrder !== undefined) updateData.sortOrder = Number(sortOrder);
 

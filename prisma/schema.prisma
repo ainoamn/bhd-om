@@ -521,9 +521,10 @@ model Plan {
   priceMonthly  Float    @default(0)
   priceYearly   Float?   @default(0)
   currency      String   @default("OMR")
-  featuresJson  String?  // JSON: قائمة الميزات أو الصلاحيات
-  limitsJson    String?  // JSON: maxProperties, maxUsers, storageGB, etc.
-  isActive      Boolean  @default(true)
+  featuresJson   String?  // JSON: قائمة الميزات المعروضة
+  limitsJson     String?  // JSON: maxProperties, maxUsers, storageGB, etc.
+  permissionsJson String?  // JSON: مصفوفة صلاحيات الباقة [id, id, ...]
+  isActive       Boolean  @default(true)
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
