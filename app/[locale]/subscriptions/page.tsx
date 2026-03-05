@@ -187,7 +187,25 @@ export default function SubscriptionsPage() {
           </div>
         )}
 
-        {/* Plans grid */}
+        {/* Plans grid أو رسالة عدم توفر باقات */}
+        {plans.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-10 text-center mb-16">
+            <p className="text-lg text-gray-700 mb-4">
+              {ar ? 'الباقات غير متوفرة حالياً.' : 'Plans are not available at the moment.'}
+            </p>
+            <p className="text-gray-600 mb-6">
+              {ar
+                ? 'إذا كنت مسؤولاً عن الموقع، ادخل إلى لوحة التحكم ← الاشتراكات والباقات واضغط «تهيئة الباقات الافتراضية».'
+                : 'If you are an administrator, go to Dashboard → Subscriptions & Plans and click «Initialize default plans».'}
+            </p>
+            <Link
+              href={`/${locale}/admin/subscriptions`}
+              className="inline-block px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90"
+            >
+              {ar ? 'لوحة التحكم — الاشتراكات' : 'Dashboard — Subscriptions'}
+            </Link>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {plans.map((plan, idx) => {
             const isCurrent = userSubscription?.planId === plan.id;
@@ -289,6 +307,7 @@ export default function SubscriptionsPage() {
             );
           })}
         </div>
+        )}
 
         {/* Comparison table */}
         {plans.length > 0 && (

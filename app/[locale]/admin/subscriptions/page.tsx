@@ -43,8 +43,28 @@ export default function AdminSubscriptionsPage() {
   const [assignUserId, setAssignUserId] = useState('');
   const [assignPlanId, setAssignPlanId] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [initPlansLoading, setInitPlansLoading] = useState(false);
 
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
+
+  const handleInitPlans = async () => {
+    setInitPlansLoading(true);
+    try {
+      const res = await fetch('/api/plans/init', { method: 'POST' });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        alert(ar ? `تم إنشاء ${d.created} باقة افتراضية. حدّث الصفحة.` : `${d.created} default plans created. Refresh.`);
+        await load();
+      } else {
+        alert(d.error || d.message || (ar ? 'فشل تهيئة الباقات' : 'Init failed'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert(ar ? 'حدث خطأ' : 'Error');
+    } finally {
+      setInitPlansLoading(false);
+    }
+  };
 
   const load = async () => {
     if (!isAdmin) return;
@@ -141,6 +161,26 @@ export default function AdminSubscriptionsPage() {
         <div className="admin-card p-8 text-center text-gray-500">{ar ? 'جاري التحميل...' : 'Loading...'}</div>
       ) : (
         <>
+          {/* تهيئة الباقات عند عدم وجود أي باقة */}
+          {plans.length === 0 && (
+            <div className="admin-card border-2 border-amber-200 bg-amber-50/50 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-2">{ar ? 'لا توجد باقات في النظام' : 'No plans in system'}</h2>
+              <p className="text-gray-700 mb-4">
+                {ar
+                  ? 'لم تُضف أي باقة بعد. اضغط أدناه لإنشاء الباقات الافتراضية (أساسية، معيارية، مميزة، مؤسسية) ثم حدّث الصفحة لرؤية قائمة الباقات وتعيينها للمستخدمين.'
+                  : 'No plans have been added. Click below to create the default plans (Basic, Standard, Premium, Enterprise), then refresh to see and assign them.'}
+              </p>
+              <button
+                type="button"
+                onClick={handleInitPlans}
+                disabled={initPlansLoading}
+                className="admin-btn-primary bg-amber-600 hover:bg-amber-700"
+              >
+                {initPlansLoading ? (ar ? 'جاري الإنشاء...' : 'Creating...') : (ar ? 'تهيئة الباقات الافتراضية' : 'Initialize default plans')}
+              </button>
+            </div>
+          )}
+
           {/* تعيين باقة لمستخدم */}
           <div className="admin-card">
             <h2 className="text-lg font-bold text-gray-900 mb-4">{ar ? 'تعيين باقة لمستخدم' : 'Assign plan to user'}</h2>

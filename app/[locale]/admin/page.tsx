@@ -44,6 +44,7 @@ export default function AdminDashboardPage() {
 
   const [bookings, setBookings] = useState<PropertyBooking[]>([]);
   const [contracts, setContracts] = useState<ReturnType<typeof getAllContracts>>([]);
+  const [subscriptionList, setSubscriptionList] = useState<Array<{ id: string; status: string; endAt: string; user: { name: string; email: string; serialNumber: string }; plan: { nameAr: string; nameEn: string } }>>([]);
 
   const loadRealData = () => {
     if (typeof window === 'undefined') return;
@@ -74,6 +75,14 @@ export default function AdminDashboardPage() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  useEffect(() => {
+    if (userRole !== 'ADMIN') return;
+    fetch('/api/subscriptions')
+      .then((r) => r.ok ? r.json() : { list: [] })
+      .then((d) => setSubscriptionList(Array.isArray(d?.list) ? d.list : []))
+      .catch(() => setSubscriptionList([]));
+  }, [userRole]);
+
   const pendingBookings = bookings.filter((b) => b.status === 'PENDING');
   const recentBookings = [...bookings]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -91,11 +100,16 @@ export default function AdminDashboardPage() {
   if (userRole === 'OWNER') return <OwnerDashboard />;
   if (userRole !== 'ADMIN') return <ClientDashboard />;
 
+  const now = new Date();
+  const activeSubs = subscriptionList.filter((s) => s.status === 'active' && new Date(s.endAt) > now);
+  const expiredSubs = subscriptionList.filter((s) => s.status !== 'active' || new Date(s.endAt) <= now);
+
   const stats = [
     { label: t('stats.properties'), value: properties.length, href: '/admin/properties', icon: 'building' as const, color: 'from-blue-500 to-blue-600', bgColor: 'bg-blue-50' },
     { label: t('stats.projects'), value: projects.length, href: '/admin/projects', icon: 'projects' as const, color: 'from-emerald-500 to-emerald-600', bgColor: 'bg-emerald-50' },
     { label: locale === 'ar' ? 'طلبات معلقة' : 'Pending requests', value: pendingBookings.length, href: '/admin/bookings', icon: 'inbox' as const, color: 'from-violet-500 to-violet-600', bgColor: 'bg-violet-50' },
     { label: t('stats.users'), value: users.length, href: '/admin/users', icon: 'users' as const, color: 'from-amber-500 to-amber-600', bgColor: 'bg-amber-50' },
+    { label: locale === 'ar' ? 'الاشتراكات' : 'Subscriptions', value: subscriptionList.length, href: '/admin/subscriptions', icon: 'creditCard' as const, color: 'from-teal-500 to-teal-600', bgColor: 'bg-teal-50' },
   ];
 
   const analyticsData = [
@@ -113,7 +127,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-6 mb-8">
         {stats.map((stat) => (
           <Link
             key={stat.href}
@@ -267,6 +281,68 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* الاشتراكات والباقات — نشطة / منتهية + آخر الاشتراكات */}
+      <div className="admin-card mb-8">
+        <div className="admin-card-header flex items-center justify-between flex-wrap gap-2">
+          <h2 className="admin-card-title">{locale === 'ar' ? 'الاشتراكات والباقات' : 'Subscriptions & Plans'}</h2>
+          <Link href={`/${locale}/admin/subscriptions`} className="text-sm font-medium text-primary hover:underline">
+            {locale === 'ar' ? 'عرض الكل وإدارة الباقات' : 'View all & manage plans'}
+          </Link>
+        </div>
+        <div className="admin-card-body">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+              <div className="text-2xl font-bold text-emerald-700">{activeSubs.length}</div>
+              <div className="text-sm text-emerald-600">{locale === 'ar' ? 'اشتراكات نشطة' : 'Active'}</div>
+            </div>
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+              <div className="text-2xl font-bold text-gray-700">{expiredSubs.length}</div>
+              <div className="text-sm text-gray-600">{locale === 'ar' ? 'منتهية أو ملغاة' : 'Expired / Cancelled'}</div>
+            </div>
+            <div className="p-4 rounded-xl bg-teal-50 border border-teal-100 col-span-2 sm:col-span-2">
+              <div className="text-2xl font-bold text-teal-700">{subscriptionList.length}</div>
+              <div className="text-sm text-teal-600">{locale === 'ar' ? 'إجمالي الاشتراكات' : 'Total subscriptions'}</div>
+            </div>
+          </div>
+          {subscriptionList.length > 0 ? (
+            <>
+              <h3 className="text-sm font-bold text-gray-700 mb-3">{locale === 'ar' ? 'آخر الاشتراكات' : 'Recent subscriptions'}</h3>
+              <div className="overflow-x-auto">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>{locale === 'ar' ? 'المستخدم' : 'User'}</th>
+                      <th>{locale === 'ar' ? 'الباقة' : 'Plan'}</th>
+                      <th>{locale === 'ar' ? 'نهاية الاشتراك' : 'End date'}</th>
+                      <th>{locale === 'ar' ? 'الحالة' : 'Status'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subscriptionList.slice(0, 5).map((s) => (
+                      <tr key={s.id}>
+                        <td>
+                          <div className="font-medium">{s.user?.name}</div>
+                          <div className="text-xs text-gray-500">{s.user?.serialNumber}</div>
+                        </td>
+                        <td>{locale === 'ar' ? s.plan?.nameAr : s.plan?.nameEn}</td>
+                        <td className="text-sm">{new Date(s.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</td>
+                        <td>
+                          <span className={`admin-badge ${s.status === 'active' ? 'admin-badge-success' : 'admin-badge-warning'}`}>
+                            {s.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 py-4">{locale === 'ar' ? 'لا توجد اشتراكات مسجلة. انتقل إلى الاشتراكات والباقات لتعيين باقات للمستخدمين.' : 'No subscriptions yet. Go to Subscriptions & Plans to assign plans to users.'}</p>
+          )}
+        </div>
+      </div>
+
       {/* Quick Actions */}
       <div className="admin-card mb-8">
         <div className="admin-card-header">
@@ -330,6 +406,7 @@ export default function AdminDashboardPage() {
                 { nameKey: 'servicesPage', href: '/admin/services' },
                 { nameKey: 'contactPage', href: '/admin/contact' },
                 { nameKey: 'aboutPage', href: '/admin/site?page=about' },
+                { nameKey: 'subscriptionsPage', href: '/admin/subscriptions' },
               ].map((item) => (
                 <li key={item.href}>
                   <Link
