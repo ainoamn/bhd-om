@@ -13,9 +13,9 @@ interface AuthProviderWrapperProps {
 }
 
 export default function AuthProviderWrapper({ children }: AuthProviderWrapperProps) {
-  // Check for mock session in window
-  const mockSession = (window as any).mockNextAuthSession;
-  
+  // Check for mock session in window (guard for SSR/prerender)
+  const mockSession = typeof window !== 'undefined' ? (window as any).mockNextAuthSession : undefined;
+
   return (
     <SessionProvider session={mockSession}>
       {children}

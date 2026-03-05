@@ -42,9 +42,9 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const params = useParams();
   
-  // Check for mock session first
-  const mockSession = (window as any)?.mockNextAuthSession;
-  const currentUser = (window as any)?.currentUser;
+  // Check for mock session first (guard for SSR/prerender)
+  const mockSession = typeof window !== 'undefined' ? (window as any)?.mockNextAuthSession : undefined;
+  const currentUser = typeof window !== 'undefined' ? (window as any)?.currentUser : undefined;
   const { data: session, status, update: refetchSession } = useSession();
 
   // آخر جلسة معروفة — للعرض الفوري عند التنقل دون انتظار إعادة التحقق
@@ -91,6 +91,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const mq = window.matchMedia('(min-width: 1024px)');
     const handler = () => {
       if (mq.matches) setSidebarOpen(false);
@@ -162,8 +163,8 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     }
   }, [currentSession?.user, effectiveRole]);
 
-  const isLoginAsUser = (window as any)?.isLoginAsUser;
-  const hasMockSession = isLoginAsUser && ((window as any)?.mockNextAuthSession || (window as any)?.currentUser);
+  const isLoginAsUser = typeof window !== 'undefined' && (window as any)?.isLoginAsUser;
+  const hasMockSession = isLoginAsUser && (typeof window !== 'undefined' && ((window as any)?.mockNextAuthSession || (window as any)?.currentUser));
   const isAdminPath = pathname?.includes('/admin');
 
   const [sessionGraceEnd, setSessionGraceEnd] = useState<number | null>(null);
