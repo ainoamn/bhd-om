@@ -166,7 +166,7 @@ const ADMIN_ONLY_SECTIONS = new Set([
   'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
   'projects', 'projectsAdd', 'services', 'analytics', 'reports', 'security',
   'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions',
-  'users', 'serialHistory', 'backup', 'dataReset',
+  'users', 'subscriptions', 'serialHistory', 'backup', 'dataReset',
 ]);
 
 /** بناء هيكل القائمة الجانبية للأدمن من السجل المركزي */
@@ -216,7 +216,7 @@ export function getAdminNavGroupsConfig(): AdminNavGroup[] {
     {
       groupKey: 'system',
       items: topLevelForAdmin.filter((i) =>
-        ['dashboardSettings', 'contactCategoryPermissions', 'users', 'reports', 'serialHistory', 'backup', 'security', 'dataReset'].includes(i.labelKey)
+        ['dashboardSettings', 'contactCategoryPermissions', 'users', 'subscriptions', 'reports', 'serialHistory', 'backup', 'security', 'dataReset'].includes(i.labelKey)
       ),
     },
   ];
@@ -294,6 +294,7 @@ export function getPermissionGroupsForSettings(): PermissionGroupForSettings[] {
         { type: 'single', section: 'dashboardSettings', labelKey: 'dashboardSettings' },
         { type: 'single', section: 'contactCategoryPermissions', labelKey: 'contactCategoryPermissions' },
         { type: 'single', section: 'users', labelKey: 'users' },
+        { type: 'single', section: 'subscriptions', labelKey: 'subscriptions' },
         { type: 'single', section: 'reports', labelKey: 'reports' },
         { type: 'single', section: 'serialHistory', labelKey: 'serialHistory' },
         { type: 'single', section: 'backup', labelKey: 'backup' },

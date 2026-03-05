@@ -20,6 +20,15 @@ import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import LoginAsUserButton from '@/components/admin/LoginAsUserButton';
 
+interface PlanInfo {
+  id: string;
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  priceMonthly: number;
+  currency: string;
+}
+
 interface UserDetail {
   id: string;
   serialNumber: string;
@@ -30,6 +39,9 @@ interface UserDetail {
   dashboardType: string | null;
   createdAt: string;
   updatedAt: string;
+  plan?: PlanInfo | null;
+  subscriptionEndAt?: string | null;
+  subscriptionStatus?: string | null;
 }
 
 const roleLabels: Record<string, string> = {
@@ -383,6 +395,34 @@ export default function UserDetailPage() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{ar ? 'تاريخ الإنشاء' : 'Created'}</p>
               <p className="text-gray-700 text-sm">{formatDate(user.createdAt)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{ar ? 'الباقة' : 'Plan'}</p>
+              {user.plan ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-[#8B6F47]">{ar ? user.plan.nameAr : user.plan.nameEn}</span>
+                  <span className="text-gray-500 text-sm">({user.plan.priceMonthly} {user.plan.currency})</span>
+                  {user.subscriptionEndAt && (
+                    <span className="text-xs text-gray-500">— {ar ? 'ينتهي' : 'ends'} {formatDate(user.subscriptionEndAt)}</span>
+                  )}
+                  <Link
+                    href={`/${locale}/admin/subscriptions`}
+                    className="text-xs text-[#8B6F47] hover:underline font-medium"
+                  >
+                    {ar ? 'تعديل الباقة' : 'Change plan'}
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-gray-400 text-sm">{ar ? 'لا توجد باقة معينة' : 'No plan assigned'}</span>
+                  <Link
+                    href={`/${locale}/admin/subscriptions`}
+                    className="text-sm text-[#8B6F47] hover:underline font-medium"
+                  >
+                    {ar ? 'تعيين باقة' : 'Assign plan'}
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 

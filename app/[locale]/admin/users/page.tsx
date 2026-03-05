@@ -14,6 +14,15 @@ import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { shortenUserSerial } from '@/lib/utils/serialNumber';
 import UserBarcode from '@/components/admin/UserBarcode';
 
+interface PlanInfo {
+  id: string;
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  priceMonthly: number;
+  currency: string;
+}
+
 interface UserRow {
   id: string;
   serialNumber: string;
@@ -22,6 +31,8 @@ interface UserRow {
   phone: string | null;
   role: string;
   createdAt: string;
+  plan?: PlanInfo | null;
+  subscriptionEndAt?: string | null;
 }
 
 const roleLabels: Record<string, string> = {
@@ -510,6 +521,7 @@ export default function UsersAdminPage() {
                   <th className="w-40 px-3 py-2 text-xs max-w-[160px]">{t('email')}</th>
                   <th className="w-28 px-3 py-2 text-xs">{t('phone')}</th>
                   <th className="w-24 px-3 py-2 text-xs">{t('role')}</th>
+                  <th className="w-32 px-3 py-2 text-xs">{locale === 'ar' ? 'الباقة' : 'Plan'}</th>
                   <th className="w-24 px-3 py-2 text-xs">{t('status')}</th>
                   <th className="w-48 px-3 py-2 text-xs">{t('actions')}</th>
                 </tr>
@@ -565,6 +577,18 @@ export default function UsersAdminPage() {
                       <span className={`admin-badge ${u.role === 'ADMIN' ? 'admin-badge-warning' : 'admin-badge-info'}`}>
                         {t(roleLabels[u.role] || 'roleClient')}
                       </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {u.plan ? (
+                        <Link
+                          href={`/${locale}/admin/subscriptions`}
+                          className="text-[#8B6F47] hover:text-[#6B5535] hover:underline text-xs font-medium"
+                        >
+                          {locale === 'ar' ? u.plan.nameAr : u.plan.nameEn}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400 text-xs">{locale === 'ar' ? '— لا باقة —' : '— No plan —'}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <span className="admin-badge admin-badge-success">{t('statusActive')}</span>

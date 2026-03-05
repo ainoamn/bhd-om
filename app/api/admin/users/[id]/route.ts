@@ -29,6 +29,19 @@ export async function GET(
         role: true,
         createdAt: true,
         updatedAt: true,
+        subscriptions: {
+          take: 1,
+          orderBy: { updatedAt: 'desc' },
+          where: { status: 'active' },
+          select: {
+            id: true,
+            planId: true,
+            status: true,
+            startAt: true,
+            endAt: true,
+            plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
+          },
+        },
       },
     });
 
@@ -36,11 +49,20 @@ export async function GET(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const sub = user.subscriptions?.[0];
     return NextResponse.json({
-      ...user,
-      dashboardType: null,
+      id: user.id,
+      serialNumber: user.serialNumber,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
+      dashboardType: null,
+      plan: sub?.plan ? { id: sub.plan.id, code: sub.plan.code, nameAr: sub.plan.nameAr, nameEn: sub.plan.nameEn, priceMonthly: sub.plan.priceMonthly, currency: sub.plan.currency } : null,
+      subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
+      subscriptionStatus: sub?.status ?? null,
     });
   } catch (e) {
     console.error('Get user error:', e);

@@ -42,10 +42,37 @@ export async function GET(req: NextRequest) {
         phone: true,
         role: true,
         createdAt: true,
+        subscriptions: {
+          take: 1,
+          orderBy: { updatedAt: 'desc' },
+          where: { status: 'active' },
+          select: {
+            id: true,
+            planId: true,
+            status: true,
+            endAt: true,
+            plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
+          },
+        },
       },
     });
 
-    return NextResponse.json(users);
+    const list = users.map((u) => {
+      const sub = u.subscriptions?.[0];
+      return {
+        id: u.id,
+        serialNumber: u.serialNumber,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        createdAt: u.createdAt,
+        plan: sub?.plan ? { id: sub.plan.id, code: sub.plan.code, nameAr: sub.plan.nameAr, nameEn: sub.plan.nameEn, priceMonthly: sub.plan.priceMonthly, currency: sub.plan.currency } : null,
+        subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
+      };
+    });
+
+    return NextResponse.json(list);
   } catch (e) {
     console.error('Users list error:', e);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
