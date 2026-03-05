@@ -8,6 +8,8 @@ export interface SubscriptionPlanDisplay {
   code: string;
   nameAr: string;
   nameEn: string;
+  descriptionAr?: string;
+  descriptionEn?: string;
   priceMonthly: number;
   priceYearly?: number;
   currency: string;
@@ -24,6 +26,7 @@ export interface UserSubscriptionDisplay {
   status: string;
   startAt: string;
   endAt: string;
+  remainingDays?: number;
   usage: Record<string, number>;
   plan: {
     id: string;
