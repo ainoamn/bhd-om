@@ -6,7 +6,7 @@
 const STORAGE_KEY = 'bhd-pages-visibility';
 const EVENT_NAME = 'bhd-pages-visibility-changed';
 
-export type PageId = 'home' | 'properties' | 'projects' | 'services' | 'about' | 'contact';
+export type PageId = 'home' | 'properties' | 'projects' | 'services' | 'about' | 'contact' | 'subscriptions';
 
 export interface PagesVisibility {
   home: boolean;
@@ -15,6 +15,7 @@ export interface PagesVisibility {
   services: boolean;
   about: boolean;
   contact: boolean;
+  subscriptions: boolean;
 }
 
 const defaultVisibility: PagesVisibility = {
@@ -24,6 +25,7 @@ const defaultVisibility: PagesVisibility = {
   services: true,
   about: true,
   contact: true,
+  subscriptions: true,
 };
 
 function loadFromStorage(): PagesVisibility {
@@ -91,4 +93,5 @@ export const PAGE_LABELS: Record<PageId, { ar: string; en: string }> = {
   services: { ar: 'صفحة الخدمات', en: 'Services Page' },
   about: { ar: 'صفحة عنا', en: 'About Page' },
   contact: { ar: 'صفحة التواصل', en: 'Contact Page' },
+  subscriptions: { ar: 'صفحة الباقات والاشتراكات', en: 'Subscriptions Page' },
 };

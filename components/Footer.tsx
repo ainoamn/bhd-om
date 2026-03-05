@@ -102,6 +102,15 @@ export default function Footer({ locale }: FooterProps) {
               </li>
               <li>
                 <Link 
+                  href={`/${locale}/subscriptions`} 
+                  className="text-gray-400 hover:text-primary transition-colors duration-200 text-sm flex items-center gap-2 group py-3 min-h-[44px] touch-manipulation"
+                >
+                  <span className="w-1.5 h-1.5 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                  {t('subscriptions')}
+                </Link>
+              </li>
+              <li>
+                <Link 
                   href={`/${locale}/contact`} 
                   className="text-gray-400 hover:text-primary transition-colors duration-200 text-sm flex items-center gap-2 group py-3 min-h-[44px] touch-manipulation"
                 >

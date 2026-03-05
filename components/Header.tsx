@@ -18,6 +18,7 @@ const NAV_ITEMS: { id: PageId; href: string }[] = [
   { id: 'properties', href: '/properties' },
   { id: 'projects', href: '/projects' },
   { id: 'services', href: '/services' },
+  { id: 'subscriptions', href: '/subscriptions' },
   { id: 'contact', href: '/contact' },
   { id: 'about', href: '/about' },
 ];

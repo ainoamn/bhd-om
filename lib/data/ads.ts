@@ -166,4 +166,4 @@ export const FLOATING_POSITION_LABELS: Record<FloatingPosition, { ar: string; en
   right: { ar: 'اليمين', en: 'Right' },
 };
 
-export const PAGE_IDS = ['home', 'properties', 'projects', 'services', 'about', 'contact'] as const;
+export const PAGE_IDS = ['home', 'properties', 'projects', 'services', 'about', 'contact', 'subscriptions'] as const;

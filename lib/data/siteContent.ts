@@ -311,6 +311,12 @@ export const sitePagesForAdmin: Array<{
       { id: 'cnt-hero-image', blockKey: 'pagesContact', pathAr: 'pagesContact.heroImage', labelAr: 'صورة الخلفية', labelEn: 'Background Image', type: 'image' },
     ],
   },
+  {
+    id: 'subscriptions',
+    labelAr: 'صفحة الباقات والاشتراكات',
+    labelEn: 'Subscriptions Page',
+    sections: [],
+  },
 ];
 
 export const siteSectionsForAdmin: SiteSectionItem[] = sitePagesForAdmin.flatMap((p) => p.sections);

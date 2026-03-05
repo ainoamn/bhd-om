@@ -25,23 +25,21 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (!subscription) {
-      return NextResponse.json({ subscription: null, plans: null });
-    }
-
     const plans = await prisma.plan.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
-      select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, sortOrder: true },
+      select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, priceYearly: true, currency: true, featuresJson: true, limitsJson: true, sortOrder: true },
     });
 
-    const pendingRequest = await prisma.subscriptionChangeRequest.findFirst({
-      where: { userId, status: 'pending' },
-      orderBy: { createdAt: 'desc' },
-    });
+    const pendingRequest = subscription
+      ? await prisma.subscriptionChangeRequest.findFirst({
+          where: { userId, status: 'pending' },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
 
     return NextResponse.json({
-      subscription: {
+      subscription: subscription ? {
         id: subscription.id,
         planId: subscription.planId,
         status: subscription.status,
@@ -61,8 +59,19 @@ export async function GET(req: NextRequest) {
               limits: subscription.plan.limitsJson ? (JSON.parse(subscription.plan.limitsJson) as Record<string, number>) : {},
             }
           : null,
-      },
-      plans,
+      } : null,
+      plans: plans.map((p) => ({
+        id: p.id,
+        code: p.code,
+        nameAr: p.nameAr,
+        nameEn: p.nameEn,
+        priceMonthly: p.priceMonthly,
+        priceYearly: p.priceYearly ?? undefined,
+        currency: p.currency,
+        features: p.featuresJson ? (JSON.parse(p.featuresJson) as string[]) : [],
+        limits: p.limitsJson ? (JSON.parse(p.limitsJson) as Record<string, number>) : {},
+        sortOrder: p.sortOrder,
+      })),
       pendingRequest: pendingRequest
         ? { id: pendingRequest.id, requestedPlanId: pendingRequest.requestedPlanId, direction: pendingRequest.direction, status: pendingRequest.status, createdAt: pendingRequest.createdAt.toISOString() }
         : null,
@@ -84,17 +93,48 @@ export async function POST(req: NextRequest) {
     }
     const userId = token.sub as string;
     const body = await req.json().catch(() => ({}));
-    const { requestedPlanId, direction, reason } = body as { requestedPlanId?: string; direction?: string; reason?: string };
-
-    if (!requestedPlanId || !direction || !['upgrade', 'downgrade'].includes(direction)) {
-      return NextResponse.json({ error: 'requestedPlanId and direction (upgrade|downgrade) required' }, { status: 400 });
-    }
+    const { requestedPlanId, direction, reason, planId, durationMonths } = body as {
+      requestedPlanId?: string;
+      direction?: string;
+      reason?: string;
+      planId?: string;
+      durationMonths?: number;
+    };
 
     const subscription = await prisma.subscription.findUnique({
       where: { userId },
     });
+
+    // إنشاء اشتراك جديد عند عدم وجود اشتراك (من صفحة الباقات العامة)
     if (!subscription) {
-      return NextResponse.json({ error: 'No active subscription' }, { status: 400 });
+      const initialPlanId = planId || requestedPlanId;
+      if (!initialPlanId) {
+        return NextResponse.json({ error: 'planId required for new subscription' }, { status: 400 });
+      }
+      const plan = await prisma.plan.findUnique({ where: { id: initialPlanId } });
+      if (!plan) {
+        return NextResponse.json({ error: 'Plan not found' }, { status: 400 });
+      }
+      const months = Math.max(1, Math.min(120, Number(durationMonths) || 12));
+      const startAt = new Date();
+      const endAt = new Date(startAt);
+      endAt.setMonth(endAt.getMonth() + months);
+      await prisma.subscription.create({
+        data: {
+          userId,
+          planId: initialPlanId,
+          status: 'active',
+          startAt,
+          endAt,
+          usageJson: JSON.stringify({ properties: 0, units: 0, bookings: 0, users: 1, storage: 0 }),
+        },
+      });
+      return NextResponse.json({ ok: true, message: 'تم تفعيل الاشتراك بنجاح' });
+    }
+
+    // طلب ترقية/تنزيل عند وجود اشتراك
+    if (!requestedPlanId || !direction || !['upgrade', 'downgrade'].includes(direction)) {
+      return NextResponse.json({ error: 'requestedPlanId and direction (upgrade|downgrade) required' }, { status: 400 });
     }
 
     const planExists = await prisma.plan.findUnique({ where: { id: requestedPlanId } });
