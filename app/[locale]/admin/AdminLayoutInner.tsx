@@ -46,9 +46,14 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const mockSession = (window as any)?.mockNextAuthSession;
   const currentUser = (window as any)?.currentUser;
   const { data: session, status, update: refetchSession } = useSession();
-  
-  // Use mock session if available, otherwise use real session
-  const currentSession = mockSession || session;
+
+  // آخر جلسة معروفة — للعرض الفوري عند التنقل دون انتظار إعادة التحقق
+  const lastKnownSessionRef = useRef<typeof session>(null);
+  if (session?.user) lastKnownSessionRef.current = session;
+  if (status === 'unauthenticated') lastKnownSessionRef.current = null;
+
+  // جلسة فعّالة: وهمية أو حقيقية أو آخر جلسة معروفة (لتنقل فوري)
+  const currentSession = mockSession || session || lastKnownSessionRef.current;
   
   const { tab: currentTab, action: currentAction } = useAccountingTab();
   const locale = (params?.locale as string) || 'ar';
@@ -184,7 +189,11 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const stillInGrace = status === 'unauthenticated' && isAdminPath && !hasMockSession && sessionGraceEnd === null;
   const showLoginRequired = !hasMockSession && status === 'unauthenticated' && isAdminPath && sessionGraceEnd !== null;
 
-  if ((status === 'loading' || stillInGrace) && !hasMockSession) {
+  // عرض شاشة التحميل فقط عند عدم وجود أي جلسة (أول تحميل أو بعد تسجيل الخروج) — لا عند التنقل
+  const hasAnySession = hasMockSession || currentSession?.user;
+  const mustShowLoading = !hasAnySession && ((status === 'loading') || stillInGrace);
+
+  if (mustShowLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <div className="text-center">
