@@ -6,9 +6,20 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrisma() {
+  const raw = process.env.DATABASE_URL?.trim();
   const connectionString =
-    process.env.DATABASE_URL?.trim() ||
-    'postgresql://postgres:postgres@127.0.0.1:5432/bhd_om';
+    raw && (raw.startsWith('postgresql://') || raw.startsWith('postgres://'))
+      ? raw
+      : process.env.NODE_ENV === 'production'
+        ? '' // في الإنتاج لا نستخدم localhost — يجب تعيين DATABASE_URL في Vercel
+        : 'postgresql://postgres:postgres@127.0.0.1:5432/bhd_om';
+
+  if (!connectionString) {
+    throw new Error(
+      'DATABASE_URL غير معرّف. أضفه في Vercel: Settings → Environment Variables (رابط PostgreSQL من Neon أو Vercel Postgres).'
+    );
+  }
+
   const adapter = new PrismaPg({
     connectionString,
     connectionTimeoutMillis: 10_000,
