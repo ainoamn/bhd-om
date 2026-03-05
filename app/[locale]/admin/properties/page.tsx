@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 
 import { properties, updateProperty, updatePropertyUnit, getPropertyOverrides, getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, type PropertyBusinessStatus, type Property } from '@/lib/data/properties';
@@ -47,12 +48,28 @@ function getUnits(prop: Property): UnitInfo[] {
   return units;
 }
 
+type DbPropertyItem = {
+  id: string;
+  serialNumber: string;
+  titleAr: string;
+  titleEn: string;
+  type: string;
+  status: string;
+  price: number;
+  governorateAr: string;
+  belongsToUser: { id: string; name: string; email: string; serialNumber: string } | null;
+  belongsToOrg: { id: string; nameAr: string; nameEn: string } | null;
+};
+
 export default function PropertiesAdminPage() {
+  const { data: session } = useSession();
   const [filter, setFilter] = useState<'all' | 'rent' | 'sale' | 'investment'>('all');
   const [businessFilter, setBusinessFilter] = useState<'all' | PropertyBusinessStatus>('all');
   const [searchSerial, setSearchSerial] = useState('');
   const [overrides, setOverrides] = useState<Record<string, { businessStatus?: PropertyBusinessStatus; isPublished?: boolean; units?: Record<string, { businessStatus?: PropertyBusinessStatus; isPublished?: boolean }> }>>({});
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [dbProperties, setDbProperties] = useState<DbPropertyItem[]>([]);
+  const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
 
   const dataOverrides = getPropertyDataOverrides();
   const displayProperties = properties.map((p) => getPropertyById(p.id, dataOverrides) ?? p) as Property[];
@@ -83,6 +100,14 @@ export default function PropertiesAdminPage() {
       window.removeEventListener('focus', onFocus);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch('/api/admin/properties')
+      .then((r) => r.json())
+      .then((data) => (Array.isArray(data?.list) ? setDbProperties(data.list) : setDbProperties([])))
+      .catch(() => setDbProperties([]));
+  }, [isAdmin]);
 
   /** هل للعقار/الوحدة حجز نشط (محجوز/مؤجر) - التعديل يكون من صفحة الحجوزات فقط */
   const hasActiveBooking = (propertyId: number, unitKey?: string) => {
@@ -205,6 +230,60 @@ export default function PropertiesAdminPage() {
           </div>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="admin-card overflow-hidden mb-6">
+          <h2 className="text-lg font-bold text-neutral-800 mb-3">عقارات من قاعدة البيانات (مع تابع لـ)</h2>
+          <div className="overflow-x-auto">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>الرقم</th>
+                  <th>العنوان</th>
+                  <th>النوع</th>
+                  <th>السعر</th>
+                  <th>المحافظة</th>
+                  <th>تابع لـ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dbProperties.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center text-gray-500 py-6">
+                      لا توجد عقارات مسجلة في قاعدة البيانات بعد، أو أنت غير مسجل دخول كأدمن.
+                    </td>
+                  </tr>
+                ) : (
+                  dbProperties.map((p) => (
+                    <tr key={p.id}>
+                      <td className="font-mono text-sm">{p.serialNumber}</td>
+                      <td className="font-medium">{p.titleAr}</td>
+                      <td>
+                        <span className={`admin-badge ${p.type === 'RENT' ? 'admin-badge-info' : p.type === 'SALE' ? 'admin-badge-success' : 'admin-badge-warning'}`}>
+                          {p.type === 'RENT' ? 'إيجار' : p.type === 'SALE' ? 'بيع' : p.type}
+                        </span>
+                      </td>
+                      <td className="font-semibold">{p.price.toLocaleString()} ر.ع</td>
+                      <td>{p.governorateAr || '—'}</td>
+                      <td className="text-sm">
+                        {p.belongsToUser ? (
+                          <span title={p.belongsToUser.email}>
+                            {p.belongsToUser.name} ({p.belongsToUser.serialNumber})
+                          </span>
+                        ) : p.belongsToOrg ? (
+                          <span>{p.belongsToOrg.nameAr}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="admin-card overflow-hidden">
         <div className="overflow-x-auto">
