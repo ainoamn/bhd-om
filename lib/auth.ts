@@ -139,6 +139,9 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  // في الإنتاج يجب تعيين NEXTAUTH_SECRET في Vercel (Environment Variables). محلياً يُستخدم مفتاح تطوير إن لم يُعرّف.
+  secret:
+    process.env.NEXTAUTH_SECRET ||
+    (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
   debug: process.env.NODE_ENV === 'development',
 };

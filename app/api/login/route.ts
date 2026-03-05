@@ -31,10 +31,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const secret = process.env.NEXTAUTH_SECRET;
+    // في الإنتاج مطلوب. محلياً يُستخدم مفتاح تطوير إن لم يُعرّف (مطابق لـ lib/auth.ts).
+    const secret =
+      process.env.NEXTAUTH_SECRET ||
+      (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : null);
     if (!secret) {
       return NextResponse.json(
-        { ok: false, error: 'config', message: 'NEXTAUTH_SECRET غير معرّف' },
+        {
+          ok: false,
+          error: 'config',
+          message:
+            'NEXTAUTH_SECRET غير معرّف. عيّنه في Vercel: Settings → Environment Variables ثم أعد النشر.',
+        },
         { status: 500 }
       );
     }

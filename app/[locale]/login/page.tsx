@@ -44,6 +44,18 @@ function LoginFormInner() {
   const autoLogin = searchParams.get('autoLogin');
   const returnToAdmin = searchParams.get('returnToAdmin');
 
+  // عند ظهور error=Configuration: NEXTAUTH_SECRET غير معرّف على السيرفر (مثلاً Vercel)
+  useEffect(() => {
+    const err = searchParams.get('error');
+    if (err === 'Configuration') {
+      const msg =
+        locale === 'ar'
+          ? 'إعدادات الخادم ناقصة: يرجى تعيين NEXTAUTH_SECRET و DATABASE_URL في متغيرات البيئة (Vercel: الإعدادات → Environment Variables) ثم إعادة النشر.'
+          : 'Server configuration missing: set NEXTAUTH_SECRET and DATABASE_URL in environment variables (Vercel: Settings → Environment Variables) then redeploy.';
+      setFormError(msg);
+    }
+  }, [searchParams, locale]);
+
   const {
     register,
     handleSubmit,

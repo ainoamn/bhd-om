@@ -1,12 +1,18 @@
 # نشر الموقع على Vercel (https://www.bhd-om.com)
 
+## ربط الموقع بـ PostgreSQL
+
+الموقع مربوط **بربط حقيقي** بقاعدة البيانات **PostgreSQL** فقط. لا يُستخدم SQLite أو ملفات محلية في الإنتاج:
+
+- **تسجيل الدخول والمستخدمون** → Prisma / PostgreSQL
+- **العقارات والحجوزات والإعدادات** → Prisma / PostgreSQL
+- **كل البيانات المستقبلية** تُخزَّن في PostgreSQL عبر `DATABASE_URL`
+
+التفاصيل في [docs/SCALING-DATABASE.md](docs/SCALING-DATABASE.md) و [docs/DATA-POLICY.md](docs/DATA-POLICY.md).
+
 ## سبب أن الموقع «لا يفتح» أو تسجيل الدخول يفشل
 
-المشروع كان يعتمد على **SQLite** (ملف `dev.db`) محلياً. على Vercel:
-- ملف قاعدة البيانات **لا يُرفع** مع المشروع (وملفات النظام للقراءة فقط).
-- لذلك تسجيل الدخول وكل ما يعتمد على قاعدة البيانات **يفشل في الإنتاج**.
-
-تم تعديل المشروع لاستخدام **PostgreSQL** قاعدة بيانات حقيقية قابلة للتوسع (أكثر من 10 ملايين عقار وأكثر من مليون مستخدم). التفاصيل في [docs/SCALING-DATABASE.md](docs/SCALING-DATABASE.md).
+بدون **متغيرات البيئة** الصحيحة على Vercel (خصوصاً `DATABASE_URL` و `NEXTAUTH_SECRET` و `NEXTAUTH_URL`) يفشل تسجيل الدخول وتفشل أي عملية تحتاج قاعدة البيانات. يجب إعدادها كما في القسم التالي.
 
 ---
 
@@ -51,6 +57,17 @@ npx prisma db seed
 - تشغيل البذرة يدوياً مرة واحدة من جهازك مع `DATABASE_URL` للإنتاج كما في الخيار أ.
 
 بعدها جرّب تسجيل الدخول بحساب المدير (مثلاً البريد وكلمة المرور من الـ seed).
+
+### 4. استكشاف الأخطاء: خطأ تسجيل الدخول (NEXTAUTH_SECRET / Configuration)
+
+إذا ظهرت رسالة **«NEXTAUTH_SECRET غير معرّف»** أو تم توجيهك إلى `/ar/login?error=Configuration`:
+
+1. ادخل إلى مشروعك على **Vercel** → **Settings** → **Environment Variables**.
+2. أضف المتغير **`NEXTAUTH_SECRET`** وقيمته سلسلة عشوائية (مثلاً من الأمر: `openssl rand -base64 32`).
+3. تأكد من وجود **`NEXTAUTH_URL`** = `https://www.bhd-om.com` و **`DATABASE_URL`** = رابط PostgreSQL المجمّع.
+4. احفظ ثم **Redeploy** للنشر الأخير.
+
+بدون `NEXTAUTH_SECRET` لا يعمل تسجيل الدخول في الإنتاج. التفاصيل في [docs/DATA-POLICY.md](docs/DATA-POLICY.md).
 
 ---
 
