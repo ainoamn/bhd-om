@@ -168,18 +168,19 @@ export async function getJournalEntriesFromDb(filters?: { fromDate?: string; toD
     totalCredit: r.totalCredit,
     descriptionAr: r.descriptionAr,
     descriptionEn: r.descriptionEn,
-    documentType: r.documentType,
-    documentId: r.documentId,
-    contactId: r.contactId,
-    bankAccountId: r.bankAccountId,
-    propertyId: r.propertyId,
-    projectId: r.projectId,
     status: r.status,
-    replacedBy: r.replacedBy,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));
 }
+
+const ENTRY_STATUS_MAP: Record<string, 'DRAFT' | 'PENDING' | 'APPROVED' | 'POSTED' | 'CANCELLED'> = {
+  DRAFT: 'DRAFT',
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  POSTED: 'POSTED',
+  CANCELLED: 'CANCELLED',
+};
 
 export async function createJournalEntryInDb(data: {
   date: string;
@@ -193,6 +194,7 @@ export async function createJournalEntryInDb(data: {
   propertyId?: number;
   projectId?: string;
   status?: string;
+  createdBy?: string;
 }) {
   await ensureFiscalPeriods();
   const locked = await isPeriodLockedForDate(data.date);
@@ -210,28 +212,24 @@ export async function createJournalEntryInDb(data: {
   if (Math.abs(totalDebit - totalCredit) > 0.01) {
     throw new Error('قيد غير متوازن: المدين يجب أن يساوي الدائن');
   }
+  const entryStatus = (data.status && ENTRY_STATUS_MAP[data.status]) ? ENTRY_STATUS_MAP[data.status] : 'APPROVED';
   const entry = await prisma.accountingJournalEntry.create({
     data: {
       serialNumber,
       date: new Date(data.date),
       totalDebit,
       totalCredit,
-      descriptionAr: data.descriptionAr,
-      descriptionEn: data.descriptionEn,
-      documentType: data.documentType ? DOC_TYPE_MAP[data.documentType] : null,
-      documentId: data.documentId,
-      contactId: data.contactId,
-      bankAccountId: data.bankAccountId,
-      propertyId: data.propertyId,
-      projectId: data.projectId,
-      status: (data.status ? DOC_STATUS_MAP[data.status] : 'APPROVED') as AccountingDocStatus,
+      descriptionAr: data.descriptionAr ?? null,
+      descriptionEn: data.descriptionEn ?? null,
+      status: entryStatus,
+      createdBy: data.createdBy ?? 'system',
       lines: {
         create: data.lines.map((l) => ({
           accountId: l.accountId,
           debit: l.debit,
           credit: l.credit,
-          descriptionAr: l.descriptionAr,
-          descriptionEn: l.descriptionEn,
+          descriptionAr: l.descriptionAr ?? null,
+          descriptionEn: l.descriptionEn ?? null,
         })),
       },
     },
@@ -261,14 +259,7 @@ export async function createJournalEntryInDb(data: {
     totalCredit: entry.totalCredit,
     descriptionAr: entry.descriptionAr,
     descriptionEn: entry.descriptionEn,
-    documentType: entry.documentType,
-    documentId: entry.documentId,
-    contactId: entry.contactId,
-    bankAccountId: entry.bankAccountId,
-    propertyId: entry.propertyId,
-    projectId: entry.projectId,
     status: entry.status,
-    replacedBy: entry.replacedBy,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
   };
@@ -289,20 +280,16 @@ export async function getDocumentsFromDb(filters?: { fromDate?: string; toDate?:
     type: r.type,
     status: r.status,
     date: r.date.toISOString().slice(0, 10),
-    dueDate: r.dueDate?.toISOString().slice(0, 10),
     contactId: r.contactId,
     bankAccountId: r.bankAccountId,
     propertyId: r.propertyId,
     projectId: r.projectId,
-    amount: r.amount,
-    currency: r.currency,
     vatRate: r.vatRate,
     vatAmount: r.vatAmount,
     totalAmount: r.totalAmount,
+    netAmount: r.netAmount,
     descriptionAr: r.descriptionAr,
     descriptionEn: r.descriptionEn,
-    items: r.itemsJson ? JSON.parse(r.itemsJson) : undefined,
-    journalEntryId: r.journalEntryId,
     attachments: r.attachmentsJson ? JSON.parse(r.attachmentsJson) : undefined,
     purchaseOrder: r.purchaseOrder,
     reference: r.reference,
@@ -366,23 +353,21 @@ export async function createDocumentInDb(data: {
       type: (DOC_TYPE_MAP[data.type] || 'OTHER') as AccountingDocType,
       status: (DOC_STATUS_MAP[data.status] || 'APPROVED') as AccountingDocStatus,
       date: new Date(data.date),
-      dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      contactId: data.contactId,
-      bankAccountId: data.bankAccountId,
-      propertyId: data.propertyId,
-      projectId: data.projectId,
-      amount: data.amount,
-      currency: data.currency || 'OMR',
-      vatRate: data.vatRate,
-      vatAmount: data.vatAmount,
-      totalAmount: data.totalAmount,
-      descriptionAr: data.descriptionAr,
-      descriptionEn: data.descriptionEn,
-      itemsJson: data.items ? JSON.stringify(data.items) : null,
+      contactId: data.contactId ?? null,
+      bankAccountId: data.bankAccountId ?? null,
+      propertyId: data.propertyId ?? null,
+      projectId: data.projectId ?? null,
+      vatRate: data.vatRate ?? null,
+      vatAmount: data.vatAmount ?? null,
+      totalAmount: data.totalAmount ?? data.amount,
+      netAmount: data.netAmount ?? data.totalAmount ?? data.amount,
+      descriptionAr: data.descriptionAr ?? null,
+      descriptionEn: data.descriptionEn ?? null,
       attachmentsJson: data.attachments?.length ? JSON.stringify(data.attachments) : null,
       purchaseOrder: data.purchaseOrder?.trim() || null,
       reference: data.reference?.trim() || null,
       branch: data.branch?.trim() || null,
+      createdBy: 'system',
     },
   });
   return {
@@ -391,20 +376,16 @@ export async function createDocumentInDb(data: {
     type: doc.type,
     status: doc.status,
     date: doc.date.toISOString().slice(0, 10),
-    dueDate: doc.dueDate?.toISOString().slice(0, 10),
     contactId: doc.contactId,
     bankAccountId: doc.bankAccountId,
     propertyId: doc.propertyId,
     projectId: doc.projectId,
-    amount: doc.amount,
-    currency: doc.currency,
     vatRate: doc.vatRate,
     vatAmount: doc.vatAmount,
     totalAmount: doc.totalAmount,
+    netAmount: doc.netAmount,
     descriptionAr: doc.descriptionAr,
     descriptionEn: doc.descriptionEn,
-    items: doc.itemsJson ? JSON.parse(doc.itemsJson) : undefined,
-    journalEntryId: doc.journalEntryId,
     attachments: doc.attachmentsJson ? JSON.parse(doc.attachmentsJson) : undefined,
     purchaseOrder: doc.purchaseOrder,
     reference: doc.reference,
@@ -414,10 +395,10 @@ export async function createDocumentInDb(data: {
   };
 }
 
-export async function updateDocumentInDb(id: string, data: { journalEntryId?: string }) {
+export async function updateDocumentInDb(id: string, _data: { journalEntryId?: string }) {
   const doc = await prisma.accountingDocument.update({
     where: { id },
-    data: { journalEntryId: data.journalEntryId, updatedAt: new Date() },
+    data: { updatedAt: new Date() },
   });
   return doc;
 }
@@ -452,14 +433,7 @@ export async function updateJournalStatusInDb(id: string, status: 'APPROVED' | '
     totalCredit: entry.totalCredit,
     descriptionAr: entry.descriptionAr,
     descriptionEn: entry.descriptionEn,
-    documentType: entry.documentType,
-    documentId: entry.documentId,
-    contactId: entry.contactId,
-    bankAccountId: entry.bankAccountId,
-    propertyId: entry.propertyId,
-    projectId: entry.projectId,
     status: entry.status,
-    replacedBy: entry.replacedBy,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
   };
@@ -474,20 +448,16 @@ export async function getDocumentByIdFromDb(id: string) {
     type: d.type,
     status: d.status,
     date: d.date.toISOString().slice(0, 10),
-    dueDate: d.dueDate?.toISOString().slice(0, 10),
     contactId: d.contactId,
     bankAccountId: d.bankAccountId,
     propertyId: d.propertyId,
     projectId: d.projectId,
-    amount: d.amount,
-    currency: d.currency,
     vatRate: d.vatRate,
     vatAmount: d.vatAmount,
     totalAmount: d.totalAmount,
+    netAmount: d.netAmount,
     descriptionAr: d.descriptionAr,
     descriptionEn: d.descriptionEn,
-    items: d.itemsJson ? JSON.parse(d.itemsJson) : undefined,
-    journalEntryId: d.journalEntryId,
     attachments: d.attachmentsJson ? JSON.parse(d.attachmentsJson) : undefined,
     purchaseOrder: d.purchaseOrder,
     reference: d.reference,
@@ -500,7 +470,7 @@ export async function getDocumentByIdFromDb(id: string) {
 export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 'CANCELLED' | 'PAID') {
   const doc = await prisma.accountingDocument.update({
     where: { id },
-    data: { status, updatedAt: new Date() },
+    data: { status: status as AccountingDocStatus, updatedAt: new Date() },
   });
   await prisma.accountingAuditLog.create({
     data: {
@@ -516,19 +486,16 @@ export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 
     type: doc.type,
     status: doc.status,
     date: doc.date.toISOString().slice(0, 10),
-    dueDate: doc.dueDate?.toISOString().slice(0, 10),
     contactId: doc.contactId,
     bankAccountId: doc.bankAccountId,
     propertyId: doc.propertyId,
     projectId: doc.projectId,
-    amount: doc.amount,
-    currency: doc.currency,
     vatRate: doc.vatRate,
     vatAmount: doc.vatAmount,
     totalAmount: doc.totalAmount,
+    netAmount: doc.netAmount,
     descriptionAr: doc.descriptionAr,
     descriptionEn: doc.descriptionEn,
-    journalEntryId: doc.journalEntryId,
     purchaseOrder: doc.purchaseOrder,
     reference: doc.reference,
     branch: doc.branch,
