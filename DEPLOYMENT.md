@@ -69,6 +69,10 @@ npx prisma db seed
 
 بدون `NEXTAUTH_SECRET` لا يعمل تسجيل الدخول في الإنتاج. التفاصيل في [docs/DATA-POLICY.md](docs/DATA-POLICY.md).
 
+**مهم:** بعد إضافة أو تعديل أي متغير بيئة في Vercel يجب تنفيذ **Redeploy** (إعادة النشر) حتى تُحمَّل القيم الجديدة. من **Deployments** → اختر آخر نشر → **⋮** → **Redeploy**.
+
+للتحقق من أن المتغيرات مُحمَّلة على السيرفر: افتح `https://www.bhd-om.com/api/check-env` — إن ظهر «NEXTAUTH_SECRET: غير معرّف» فالمتغير غير مضاف أو النشر الحالي تم قبل إضافته (نفّذ Redeploy).
+
 ---
 
 ## التطوير المحلي بعد التعديل
