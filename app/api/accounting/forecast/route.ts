@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
       let rev = 0, exp = 0, cashIn = 0, cashOut = 0;
       for (const entry of entries) {
-        if (entry.status === 'CANCELLED' || entry.replacedBy) continue;
+        if (entry.status === 'CANCELLED') continue;
         const d = new Date(entry.date);
         if (d < monthStart || d > monthEnd) continue;
         for (const line of entry.lines) {

@@ -40,9 +40,9 @@ export async function POST(
     const payableAcc = accounts.find((a: any) => a.code === '2000');
 
     const debitAcc = updatedDoc.bankAccountId ? bankAcc : cashAcc;
-    const totalAmount = updatedDoc.totalAmount || updatedDoc.amount || 0;
-    const amount = updatedDoc.amount || 0;
-    const vatAmount = updatedDoc.vatAmount || 0;
+    const totalAmount = updatedDoc.totalAmount ?? updatedDoc.netAmount ?? 0;
+    const amount = updatedDoc.netAmount ?? updatedDoc.totalAmount ?? 0;
+    const vatAmount = updatedDoc.vatAmount ?? 0;
 
     const descAr = updatedDoc.descriptionAr ?? undefined;
     const descEn = updatedDoc.descriptionEn ?? undefined;

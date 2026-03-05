@@ -136,12 +136,13 @@ export async function POST(request: NextRequest) {
       branch: body.branch,
     });
 
+    let journalEntryId: string | undefined;
     if (doc.status === 'APPROVED' || doc.status === 'PAID') {
       try {
         const entry = await postDocumentToDb(doc);
         if (entry) {
           await updateDocumentInDb(doc.id, { journalEntryId: entry.id });
-          doc.journalEntryId = entry.id;
+          journalEntryId = entry.id;
         }
       } catch (postErr) {
         console.error('Posting failed:', postErr);
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(doc);
+    return NextResponse.json({ ...doc, journalEntryId });
   } catch (err) {
     console.error('Accounting documents POST:', err);
     return NextResponse.json(

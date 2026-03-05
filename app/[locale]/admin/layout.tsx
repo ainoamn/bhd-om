@@ -10,7 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <SessionMiddleware>
       <SessionCheck>
-        <MockSessionProvider user={(window as any)?.currentUser}>
+        <MockSessionProvider user={typeof window !== 'undefined' ? (window as any)?.currentUser : undefined}>
           <UserSessionIndicator />
           <AdminLayoutWrapper>{children}</AdminLayoutWrapper>
         </MockSessionProvider>

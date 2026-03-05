@@ -9,7 +9,7 @@ import { z } from 'zod';
 const BackupDataSchema = z.object({
   version: z.string(),
   timestamp: z.number(),
-  data: z.record(z.unknown()),
+  data: z.record(z.string(), z.unknown()),
   checksum: z.string(),
 });
 

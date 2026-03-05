@@ -325,10 +325,11 @@ export async function createDocumentInDb(data: {
   propertyId?: number;
   projectId?: string;
   amount: number;
-  currency: string;
+  currency?: string;
   vatRate?: number;
   vatAmount?: number;
-  totalAmount: number;
+  totalAmount?: number;
+  netAmount?: number;
   descriptionAr?: string;
   descriptionEn?: string;
   items?: any[];

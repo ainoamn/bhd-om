@@ -202,7 +202,7 @@ export function closePeriod(
     const retainedEarningsAfter = retainedEarningsBefore + netIncome;
     
     // قفل الفترة
-    lockPeriod(period, userId, reason);
+    lockPeriod(period, userId);
     
     // تسجيل التدقيق
     appendAuditLog({
@@ -211,8 +211,8 @@ export function closePeriod(
       entityId: period,
       userId,
       reason,
-      previousState: { locked: false },
-      newState: { locked: true, netIncome, closedAt: new Date().toISOString() }
+      previousState: JSON.stringify({ locked: false }),
+      newState: JSON.stringify({ locked: true, netIncome, closedAt: new Date().toISOString() }),
     });
     
     return {
@@ -265,7 +265,7 @@ export function openPeriod(
     }
     
     // فتح الفترة
-    unlockPeriod(period, userId, reason);
+    unlockPeriod(period, userId);
     
     // تسجيل التدقيق
     appendAuditLog({
@@ -274,8 +274,8 @@ export function openPeriod(
       entityId: period,
       userId,
       reason,
-      previousState: { locked: true },
-      newState: { locked: false, openedAt: new Date().toISOString() }
+      previousState: JSON.stringify({ locked: true }),
+      newState: JSON.stringify({ locked: false, openedAt: new Date().toISOString() }),
     });
     
     return { success: true, errors };
