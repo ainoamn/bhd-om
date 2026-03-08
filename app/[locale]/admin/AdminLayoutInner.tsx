@@ -449,10 +449,14 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           <button
             type="button"
             onClick={toggleSidebar}
-            className="p-2 -m-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+            className="admin-menu-trigger"
             aria-label={t('openMenu')}
+            aria-expanded={sidebarOpen}
           >
             <Icon name="menu" className="w-6 h-6 text-gray-700 shrink-0" aria-hidden />
+            <span className="text-sm font-semibold">
+              {locale === 'ar' ? 'القائمة' : 'Menu'}
+            </span>
           </button>
           <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-2 overflow-hidden">
             <span className="font-semibold text-gray-900 truncate text-sm sm:text-base">

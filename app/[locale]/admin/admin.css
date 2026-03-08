@@ -15,9 +15,10 @@
   }
 }
 .admin-sidebar {
-  @apply flex-shrink-0 fixed top-0 bottom-0 z-40 h-full flex flex-col
+  @apply flex-shrink-0 fixed top-0 bottom-0 h-full flex flex-col
     transform transition-all duration-300 ease-out;
-  width: min(18rem, 85vw);
+  z-index: 110;
+  width: min(18rem, 90vw);
   max-width: 18rem;
   background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
   border-inline-start: 1px solid rgb(229 231 235 / 0.9);
@@ -86,7 +87,8 @@
   border-left: none;
 }
 .admin-sidebar-overlay {
-  @apply fixed inset-0 bg-black/40 z-30 lg:hidden touch-manipulation;
+  @apply fixed inset-0 bg-black/50 lg:hidden touch-manipulation;
+  z-index: 105;
 }
 .admin-sidebar-brand {
   padding: 0.625rem 0.75rem 0.5rem;
@@ -187,16 +189,32 @@
     padding-right: calc(2.5rem + env(safe-area-inset-right));
   }
 }
+/* شريط الجوال والتابلت: يظهر دائماً تحت 1024px مع زر القائمة لفتح الشريط الجانبي */
 .admin-mobile-header {
-  @apply lg:hidden sticky top-0 z-20 flex items-center justify-between gap-3 bg-white border-b border-gray-200 shadow-sm;
+  @apply flex items-center justify-between gap-3 bg-white border-b border-gray-200 shadow-md;
+  position: sticky;
+  top: 0;
+  z-index: 95;
   padding: 0.75rem 1rem;
   padding-top: max(0.75rem, env(safe-area-inset-top));
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
   min-height: 3.5rem;
 }
+@media (min-width: 1024px) {
+  .admin-mobile-header {
+    display: none;
+  }
+}
+.admin-root--has-user-bar .admin-mobile-header {
+  top: 2.75rem;
+}
 .admin-mobile-header .flex-1 {
   min-width: 0;
+}
+.admin-mobile-header .admin-menu-trigger {
+  @apply flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 px-3 py-2.5 touch-manipulation font-medium text-gray-700;
+  min-height: 44px;
 }
 
 /* Navigation - منظم وواضح */
