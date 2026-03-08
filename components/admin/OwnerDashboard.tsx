@@ -48,7 +48,14 @@ export default function OwnerDashboard() {
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
   const contractStatusKey = (s: string) => (s === 'ACTIVE' ? (locale === 'ar' ? 'نشط' : 'Active') : s === 'ENDED' ? (locale === 'ar' ? 'منتهي' : 'Ended') : s);
 
-  const hasAnyBlock = can('dashboard') || can('myProperties') || can('myContracts') || can('myInvoices') || can('notifications');
+  const hasAnyBlock = can('dashboard') || can('myProperties') || can('myContracts') || can('myInvoices') || can('notifications') || can('subscriptions');
+  const [subscription, setSubscription] = useState<{ planNameAr?: string; planNameEn?: string; status?: string; endAt?: string } | null>(null);
+  useEffect(() => {
+    if (!allowedSections.includes('subscriptions')) return;
+    fetch('/api/subscriptions/me', { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d && (d.plan || d.planNameAr || d.planNameEn) && setSubscription({ planNameAr: d.plan?.nameAr ?? d.planNameAr, planNameEn: d.plan?.nameEn ?? d.planNameEn, status: d.status, endAt: d.endAt }));
+  }, [allowedSections]);
 
   return (
     <div>
@@ -58,6 +65,37 @@ export default function OwnerDashboard() {
           <p className="admin-page-subtitle">
             {locale === 'ar' ? 'مرحباً، ' : 'Welcome, '}{user?.name || (locale === 'ar' ? 'المالك' : 'Owner')}
           </p>
+        </div>
+      )}
+
+      {can('subscriptions') && (
+        <div className="admin-card mb-8">
+          <div className="admin-card-header flex flex-wrap items-center justify-between gap-4">
+            <h2 className="admin-card-title">{locale === 'ar' ? 'اشتراكك' : 'Your subscription'}</h2>
+            <Link
+              href={`/${locale}/subscriptions`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-white transition-colors"
+              style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)' }}
+            >
+              <Icon name="creditCard" className="w-5 h-5" />
+              {locale === 'ar' ? 'ترقية أو تخفيض الباقة' : 'Upgrade or change plan'}
+            </Link>
+          </div>
+          <div className="admin-card-body">
+            {subscription?.planNameAr || subscription?.planNameEn ? (
+              <p className="text-gray-700">
+                {locale === 'ar' ? 'الباقة الحالية: ' : 'Current plan: '}
+                <strong>{locale === 'ar' ? (subscription.planNameAr || subscription.planNameEn) : (subscription.planNameEn || subscription.planNameAr)}</strong>
+                {subscription.endAt && (
+                  <span className="text-sm text-gray-500 block mt-1">
+                    {locale === 'ar' ? 'تنتهي في: ' : 'Ends: '}{new Date(subscription.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </p>
+            ) : (
+              <p className="text-gray-600">{locale === 'ar' ? 'لا يوجد اشتراك فعّال. يمكنك الاشتراك في باقة من صفحة الباقات.' : 'No active subscription. You can subscribe to a plan from the plans page.'}</p>
+            )}
+          </div>
         </div>
       )}
 

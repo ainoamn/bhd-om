@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import Icon from '@/components/icons/Icon';
 import { FEATURE_PERMISSIONS, PLAN_FEATURES, PLAN_COLORS, DEFAULT_PLANS_FOR_ADMIN } from '@/lib/featurePermissions';
@@ -291,8 +292,18 @@ export default function AdminSubscriptionsPage() {
 
   if (sessionStatus === 'unauthenticated' || (sessionStatus === 'authenticated' && !isAdmin)) {
     return (
-      <div className="p-6">
-        <p className="text-gray-600">{ar ? 'غير مصرح لك.' : 'Not authorized.'}</p>
+      <div className="admin-page-content p-6">
+        <div className="admin-card p-8 text-center max-w-md mx-auto">
+          <p className="text-gray-600 mb-4">{ar ? 'إدارة الباقات متاحة للإدارة فقط. يمكنك الاشتراك في الباقات أو عرض اشتراكك من الصفحة العامة.' : 'Plan management is for administrators only. You can subscribe or view your plan on the public page.'}</p>
+          <Link
+            href={`/${locale}/subscriptions`}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white transition-colors"
+            style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)' }}
+          >
+            <Icon name="creditCard" className="w-5 h-5" />
+            {ar ? 'الباقات والاشتراك' : 'Plans & Subscribe'}
+          </Link>
+        </div>
       </div>
     );
   }

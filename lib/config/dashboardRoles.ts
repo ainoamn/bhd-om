@@ -90,7 +90,7 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
   },
   CLIENT: {
     role: 'CLIENT',
-    sections: ['dashboard', 'myBookings', 'myContracts', 'myInvoices', 'myReceipts', 'notifications', 'myAccount'],
+    sections: ['dashboard', 'myBookings', 'myContracts', 'myInvoices', 'myReceipts', 'notifications', 'myAccount', 'subscriptions'],
     navItems: [
       { href: '/admin', labelKey: 'clientNav.dashboard', icon: 'dashboard', section: 'dashboard' },
       { href: '/admin/my-bookings', labelKey: 'clientNav.myBookings', icon: 'calendar', section: 'myBookings' },
@@ -99,12 +99,13 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
       { href: '/admin/my-receipts', labelKey: 'clientNav.myReceipts', icon: 'documentText', section: 'myReceipts' },
       { href: '/admin/notifications', labelKey: 'clientNav.notifications', icon: 'inbox', section: 'notifications' },
       { href: '/admin/my-account', labelKey: 'clientNav.myAccount', icon: 'users', section: 'myAccount' },
+      { href: '/subscriptions', labelKey: 'subscriptions', icon: 'creditCard', section: 'subscriptions' },
       { href: '/admin/address-book', labelKey: 'addressBook', icon: 'users', section: 'addressBook' },
     ],
   },
   OWNER: {
     role: 'OWNER',
-    sections: ['dashboard', 'myProperties', 'myContracts', 'myInvoices', 'notifications', 'myAccount'],
+    sections: ['dashboard', 'myProperties', 'myContracts', 'myInvoices', 'notifications', 'myAccount', 'subscriptions'],
     navItems: [
       { href: '/admin', labelKey: 'ownerNav.dashboard', icon: 'dashboard', section: 'dashboard' },
       { href: '/admin/my-properties', labelKey: 'ownerNav.myProperties', icon: 'building', section: 'myProperties' },
@@ -112,6 +113,7 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
       { href: '/admin/my-invoices', labelKey: 'ownerNav.myInvoices', icon: 'documentText', section: 'myInvoices' },
       { href: '/admin/notifications', labelKey: 'ownerNav.notifications', icon: 'inbox', section: 'notifications' },
       { href: '/admin/my-account', labelKey: 'ownerNav.myAccount', icon: 'users', section: 'myAccount' },
+      { href: '/subscriptions', labelKey: 'subscriptions', icon: 'creditCard', section: 'subscriptions' },
       { href: '/admin/address-book', labelKey: 'addressBook', icon: 'users', section: 'addressBook' },
     ],
   },

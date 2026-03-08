@@ -124,8 +124,9 @@ export default function RoleBasedSidebar({
           <div className="admin-nav-group">
             <ul className="admin-nav-list" role="list">
               {config.navItems.map((item) => {
-                const fullHref = `/${locale}${item.href}`;
-                const isActive = pathname === fullHref || (item.href !== '/admin' && pathname?.startsWith(fullHref));
+                const href = (item.href === '/admin/subscriptions' && role !== 'ADMIN') ? '/subscriptions' : item.href;
+                const fullHref = `/${locale}${href}`;
+                const isActive = pathname === fullHref || (href !== '/admin' && pathname?.startsWith(fullHref));
                 return (
                   <li key={item.href}>
                     <Link
