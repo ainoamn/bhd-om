@@ -89,16 +89,9 @@ export default function AdminDashboardPage() {
     .slice(0, 8);
   const activeContracts = contracts.filter((c) => c.status !== 'CANCELLED');
 
-  if (status === 'loading') {
-    return (
-      <div className="admin-page-header">
-        <div className="animate-pulse text-gray-500 py-12">{locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>
-      </div>
-    );
-  }
-  // لوحة المدير الكاملة للمسؤول فقط؛ المستأجر/العميل ومالك كل يرون لوحتهم حسب الصلاحيات
-  if (userRole === 'OWNER') return <OwnerDashboard />;
-  if (userRole !== 'ADMIN') return <ClientDashboard />;
+  // عرض فوري — لا حجب على تحميل الجلسة. "غير مصرح" فقط عند التأكد.
+  if (status === 'authenticated' && userRole === 'OWNER') return <OwnerDashboard />;
+  if (status === 'authenticated' && userRole !== 'ADMIN') return <ClientDashboard />;
 
   const now = new Date();
   const activeSubs = subscriptionList.filter((s) => s.status === 'active' && new Date(s.endAt) > now);

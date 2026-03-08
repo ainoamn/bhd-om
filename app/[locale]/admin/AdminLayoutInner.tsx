@@ -167,46 +167,8 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const hasMockSession = isLoginAsUser && (typeof window !== 'undefined' && ((window as any)?.mockNextAuthSession || (window as any)?.currentUser));
   const isAdminPath = pathname?.includes('/admin');
 
-  const [sessionGraceEnd, setSessionGraceEnd] = useState<number | null>(null);
-  useEffect(() => {
-    if (!isAdminPath || hasMockSession) return;
-    if (status === 'loading') {
-      setSessionGraceEnd(null);
-      return;
-    }
-    if (status === 'unauthenticated' && sessionGraceEnd === null) {
-      const t = window.setTimeout(() => setSessionGraceEnd(Date.now()), 15000);
-      return () => clearTimeout(t);
-    }
-    if (status === 'authenticated') setSessionGraceEnd(null);
-  }, [status, isAdminPath, hasMockSession, sessionGraceEnd]);
-
-  useEffect(() => {
-    if (!isAdminPath || hasMockSession || status !== 'unauthenticated' || sessionGraceEnd !== null) return;
-    const interval = window.setInterval(() => refetchSession(), 3000);
-    return () => clearInterval(interval);
-  }, [isAdminPath, hasMockSession, status, sessionGraceEnd, refetchSession]);
-
-  const stillInGrace = status === 'unauthenticated' && isAdminPath && !hasMockSession && sessionGraceEnd === null;
-  const showLoginRequired = !hasMockSession && status === 'unauthenticated' && isAdminPath && sessionGraceEnd !== null;
-
-  // عرض شاشة التحميل فقط عند عدم وجود أي جلسة (أول تحميل أو بعد تسجيل الخروج) — لا عند التنقل
-  const hasAnySession = hasMockSession || currentSession?.user;
-  const mustShowLoading = !hasAnySession && ((status === 'loading') || stillInGrace);
-
-  if (mustShowLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#8B6F47] border-t-transparent mx-auto mb-4" />
-          <p className="text-neutral-600">{locale === 'ar' ? 'جاري التحقق من الجلسة...' : 'Checking session...'}</p>
-          {stillInGrace && (
-            <p className="text-sm text-neutral-500 mt-2">{locale === 'ar' ? 'يرجى الانتظار...' : 'Please wait...'}</p>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // عدم حجب الواجهة أبداً — عرض اللوحة والمحتوى فوراً (سرعة التنقل). نعرض "يجب تسجيل الدخول" فقط عند التأكد من عدم المصادقة.
+  const showLoginRequired = !hasMockSession && status === 'unauthenticated' && isAdminPath;
 
   if (showLoginRequired) {
     const loginUrl = `/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`;

@@ -9,16 +9,9 @@ export default function ReportsPage() {
   const { data: session, status } = useSession();
   const locale = (params?.locale as string) || 'ar';
   const userRole = (session?.user as { role?: string })?.role;
+  const showAccessDenied = status === 'unauthenticated' || (status === 'authenticated' && userRole !== 'ADMIN');
 
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-[#8B6F47] border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (userRole !== 'ADMIN') {
+  if (showAccessDenied) {
     return (
       <div className="admin-page-content p-6">
         <div className="admin-card p-12 text-center">
