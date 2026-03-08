@@ -52,7 +52,7 @@ export default function AdminSubscriptionsPage() {
   const [plans, setPlans] = useState<PlanRow[]>(() => DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
   const [plansConfig, setPlansConfig] = useState<Record<string, string[]>>(getInitialPlansConfig);
   const [users, setUsers] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
   const [showEditPlanModal, setShowEditPlanModal] = useState(false);
@@ -68,7 +68,6 @@ export default function AdminSubscriptionsPage() {
 
   const loadData = async () => {
     if (!isAdmin) return;
-    setLoading(true);
     try {
       const [plansRes, usersRes, subRes] = await Promise.all([
         fetch('/api/admin/plans'),
@@ -158,7 +157,7 @@ export default function AdminSubscriptionsPage() {
   };
 
   useEffect(() => {
-    loadData();
+    if (isAdmin) loadData();
   }, [isAdmin]);
 
   const toggleFeature = (planId: string, featureId: string) => {
@@ -290,32 +289,10 @@ export default function AdminSubscriptionsPage() {
     }
   };
 
-  if (sessionStatus === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
-          <p className="text-gray-600">{ar ? 'جاري التحقق من الجلسة...' : 'Checking session...'}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
+  if (sessionStatus === 'unauthenticated' || (sessionStatus === 'authenticated' && !isAdmin)) {
     return (
       <div className="p-6">
         <p className="text-gray-600">{ar ? 'غير مصرح لك.' : 'Not authorized.'}</p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
-          <p className="text-gray-600">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
-        </div>
       </div>
     );
   }
