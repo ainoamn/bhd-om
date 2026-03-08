@@ -10,13 +10,13 @@ interface SessionMiddlewareProps {
   children: React.ReactNode;
 }
 
+/** يطبّق الجلسة الوهمية عند وجود "فتح حساب" في localStorage — يعمل عند التحديث والتنقل دون اشتراط isSwitchingUser */
 function applyImpersonationSession() {
   if (typeof window === 'undefined') return;
   try {
     const userSession = localStorage.getItem('userSession');
-    const isSwitchingUser = localStorage.getItem('isSwitchingUser');
-    if (!userSession || isSwitchingUser !== 'true') return;
-    const session = JSON.parse(userSession);
+    if (!userSession) return;
+    const session = JSON.parse(userSession) as { loginAsUser?: boolean; id?: string; name?: string; email?: string; role?: string; serialNumber?: string; adminId?: string };
     if (!session.loginAsUser || !session.id) return;
 
     const mockUser = {
@@ -33,7 +33,7 @@ function applyImpersonationSession() {
       user: mockUser,
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
-    localStorage.removeItem('isSwitchingUser');
+    if (localStorage.getItem('isSwitchingUser') === 'true') localStorage.removeItem('isSwitchingUser');
   } catch {
     try {
       localStorage.removeItem('userSession');
