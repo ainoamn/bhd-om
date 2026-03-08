@@ -67,15 +67,22 @@ export default function AdminSubscriptionsPage() {
 
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
 
-  const loadData = async () => {
+  const loadData = async (retryCount = 0) => {
     if (!isAdmin) return;
-    const cacheBust = Date.now();
-    try {
-      const [plansRes, usersRes, subRes] = await Promise.all([
-        fetch(`/api/admin/plans?_=${cacheBust}`, { cache: 'no-store', credentials: 'include', headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' } }),
-        fetch(`/api/admin/users?_=${cacheBust}`, { cache: 'no-store', credentials: 'include' }),
-        fetch(`/api/subscriptions?_=${cacheBust}`, { cache: 'no-store', credentials: 'include' }),
+    const doFetch = () => {
+      const t = Date.now();
+      return Promise.all([
+        fetch(`/api/admin/plans?_=${t}`, { cache: 'no-store', credentials: 'include', headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' } }),
+        fetch(`/api/admin/users?_=${t}`, { cache: 'no-store', credentials: 'include' }),
+        fetch(`/api/subscriptions?_=${t}`, { cache: 'no-store', credentials: 'include' }),
       ]);
+    };
+    try {
+      let [plansRes, usersRes, subRes] = await doFetch();
+      if ((plansRes.status === 403 || plansRes.status === 401) && retryCount < 2) {
+        await new Promise((r) => setTimeout(r, 400));
+        [plansRes, usersRes, subRes] = await doFetch();
+      }
       const subs: { userId: string; planId: string; status: string }[] = [];
       if (subRes.ok) {
         const d = await subRes.json();
