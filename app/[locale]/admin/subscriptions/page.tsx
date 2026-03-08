@@ -191,41 +191,42 @@ export default function AdminSubscriptionsPage() {
       return;
     }
     setSavingAll(true);
+    await new Promise((r) => setTimeout(r, 0));
     try {
-      const failed: string[] = [];
-      for (const plan of plans) {
-        const res = await fetch(`/api/plans/${plan.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            limitsJson: JSON.stringify({
-              maxProperties: plan.maxProperties,
-              maxUnits: plan.maxUnits,
-              maxBookings: plan.maxBookings,
-              maxUsers: plan.maxUsers,
-              storageGB: plan.storageGB,
+      const results = await Promise.all(
+        plans.map(async (plan) => {
+          const res = await fetch(`/api/plans/${plan.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              limitsJson: JSON.stringify({
+                maxProperties: plan.maxProperties,
+                maxUnits: plan.maxUnits,
+                maxBookings: plan.maxBookings,
+                maxUsers: plan.maxUsers,
+                storageGB: plan.storageGB,
+              }),
+              permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
+              nameAr: plan.nameAr,
+              nameEn: plan.nameEn,
+              priceMonthly: plan.priceMonthly,
+              priceYearly: plan.priceYearly ?? undefined,
+              featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
             }),
-            permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
-            nameAr: plan.nameAr,
-            nameEn: plan.nameEn,
-            priceMonthly: plan.priceMonthly,
-            priceYearly: plan.priceYearly ?? undefined,
-            featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
-          }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          failed.push(plan.nameAr + (err?.error ? `: ${err.error}` : ''));
-        }
-      }
+          });
+          return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
+        })
+      );
+      const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
       if (failed.length > 0) {
         alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n'));
         setSavingAll(false);
         return;
       }
-      alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!');
+      await new Promise((r) => setTimeout(r, 150));
       await loadData();
+      alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!');
     } catch (e) {
       console.error(e);
       alert(ar ? 'فشل الحفظ' : 'Save failed');
