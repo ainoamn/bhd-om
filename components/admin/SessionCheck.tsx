@@ -21,6 +21,18 @@ export default function SessionCheck({ children, onSessionReady }: SessionCheckP
   useEffect(() => {
     if (status === 'loading') return;
 
+    const role = (session?.user as { role?: string } | undefined)?.role;
+    if (!session?.user || role !== 'ADMIN') return;
+
+    // لا نمسح بيانات الانتحال أثناء "فتح حساب" — حتى بعد التحديث يبقى المستخدم على لوحة العميل
+    try {
+      const us = localStorage.getItem('userSession');
+      if (us) {
+        const p = JSON.parse(us) as { loginAsUser?: boolean; id?: string };
+        if (p.loginAsUser && p.id) return;
+      }
+    } catch {}
+
     const clearImpersonationStorage = () => {
       try {
         localStorage.removeItem('userSession');
@@ -31,12 +43,8 @@ export default function SessionCheck({ children, onSessionReady }: SessionCheckP
         delete (window as unknown as Record<string, unknown>).mockNextAuthSession;
       } catch {}
     };
-
-    const role = (session?.user as { role?: string } | undefined)?.role;
-    if (session?.user && role === 'ADMIN') {
-      clearImpersonationStorage();
-      if (onSessionReady) onSessionReady(session.user);
-    }
+    clearImpersonationStorage();
+    if (onSessionReady) onSessionReady(session.user);
   }, [session, status, onSessionReady]);
 
   return <>{children}</>;
