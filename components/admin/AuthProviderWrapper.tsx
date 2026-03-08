@@ -5,6 +5,7 @@
 
 'use client';
 
+import type { Session } from 'next-auth';
 import { SessionProvider } from 'next-auth/react';
 import { ReactNode } from 'react';
 
@@ -12,19 +13,20 @@ interface AuthProviderWrapperProps {
   children: ReactNode;
 }
 
-function getImpersonationSession(): unknown {
+function getImpersonationSession(): Session | null | undefined {
   if (typeof window === 'undefined') return undefined;
-  const mock = (window as any).mockNextAuthSession;
-  if (mock) return mock;
+  const mock = (window as any).mockNextAuthSession as Session | undefined;
+  if (mock && typeof mock === 'object' && mock.user && mock.expires) return mock;
   try {
     const us = localStorage.getItem('userSession');
     if (!us) return undefined;
     const p = JSON.parse(us) as { loginAsUser?: boolean; id?: string; name?: string; email?: string; role?: string; serialNumber?: string };
     if (!p.loginAsUser || !p.id) return undefined;
-    return {
-      user: { id: p.id, name: p.name, email: p.email, role: p.role || 'CLIENT', serialNumber: p.serialNumber },
+    const session: Session = {
+      user: { id: p.id, name: p.name ?? undefined, email: p.email ?? undefined, role: p.role || 'CLIENT', serialNumber: p.serialNumber ?? undefined },
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
+    return session;
   } catch {
     return undefined;
   }
