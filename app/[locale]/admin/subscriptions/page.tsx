@@ -292,157 +292,171 @@ export default function AdminSubscriptionsPage() {
 
   if (sessionStatus === 'unauthenticated' || (sessionStatus === 'authenticated' && !isAdmin)) {
     return (
-      <div className="admin-page-content p-6">
-        <div className="admin-card p-8 text-center max-w-md mx-auto">
-          <p className="text-gray-600 mb-4">{ar ? 'إدارة الباقات متاحة للإدارة فقط. يمكنك الاشتراك في الباقات أو عرض اشتراكك من الصفحة العامة.' : 'Plan management is for administrators only. You can subscribe or view your plan on the public page.'}</p>
-          <Link
-            href={`/${locale}/subscriptions`}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white transition-colors"
-            style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)' }}
-          >
-            <Icon name="creditCard" className="w-5 h-5" />
-            {ar ? 'الباقات والاشتراك' : 'Plans & Subscribe'}
-          </Link>
+      <div className="admin-page-content">
+        <div className="admin-card max-w-lg mx-auto overflow-hidden">
+          <div className="admin-card-body p-6 sm:p-8 text-center">
+            <p className="text-gray-600 mb-5" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>{ar ? 'إدارة الباقات متاحة للإدارة فقط. يمكنك الاشتراك في الباقات أو عرض اشتراكك من الصفحة العامة.' : 'Plan management is for administrators only. You can subscribe or view your plan on the public page.'}</p>
+            <Link
+              href={`/${locale}/subscriptions`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[var(--primary)] hover:opacity-90 transition-opacity"
+            >
+              <Icon name="creditCard" className="w-5 h-5" />
+              {ar ? 'الباقات والاشتراك' : 'Plans & Subscribe'}
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8" dir={ar ? 'rtl' : 'ltr'}>
-      <div className="max-w-[1800px] mx-auto px-4">
-        {/* Header — كما في الموقع القديم */}
-        <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] rounded-2xl shadow-xl p-8 mb-8 text-white">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="admin-page-content" dir={ar ? 'rtl' : 'ltr'}>
+      <div className="admin-page-header">
+        <div>
+          <h1 className="admin-page-title" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>
+            {ar ? 'إدارة الاشتراكات والصلاحيات' : 'Subscriptions & Permissions'}
+          </h1>
+          <p className="admin-page-subtitle" style={{ marginTop: 0 }}>
+            {ar ? 'التحكم الكامل في الباقات، الميزات، والصلاحيات' : 'Full control over plans, features and permissions'}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3" style={{ gap: '1.5rem' }}>
+          {useDefaultPlans && (
+            <button
+              type="button"
+              onClick={handleInitPlans}
+              disabled={initLoading}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-colors"
+            >
+              <Icon name="folder" className="w-5 h-5" />
+              {initLoading ? (ar ? 'جاري...' : '...') : (ar ? 'تهيئة الباقات الافتراضية' : 'Init default plans')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={saveChanges}
+            disabled={savingAll || useDefaultPlans}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[var(--primary)] bg-white border-2 border-[var(--primary)] hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            <Icon name="check" className="w-5 h-5" />
+            {savingAll ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ جميع التغييرات' : 'Save all changes')}
+          </button>
+        </div>
+      </div>
+
+      {/* إحصائيات */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" style={{ marginBottom: '1.5rem' }}>
+        <div className="admin-card overflow-hidden">
+          <div className="p-5 flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold mb-2">{ar ? 'إدارة الاشتراكات والصلاحيات' : 'Subscriptions & Permissions'}</h1>
-              <p className="text-white/80">{ar ? 'التحكم الكامل في الباقات، الميزات، والصلاحيات' : 'Full control over plans, features and permissions'}</p>
+              <p className="text-sm font-medium text-gray-500 mb-1" style={{ lineHeight: 1.5 }}>{ar ? 'الباقات' : 'Plans'}</p>
+              <p className="text-2xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{plans.length}</p>
             </div>
-            <div className="flex gap-3 flex-wrap">
-              {useDefaultPlans && (
-                <button
-                  type="button"
-                  onClick={handleInitPlans}
-                  disabled={initLoading}
-                  className="bg-amber-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-600"
-                >
-                  {initLoading ? (ar ? 'جاري...' : '...') : (ar ? 'تهيئة الباقات الافتراضية' : 'Init default plans')}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={saveChanges}
-                disabled={savingAll || useDefaultPlans}
-                className="bg-white text-[var(--primary)] px-6 py-3 rounded-xl font-bold hover:bg-gray-50 shadow-lg flex items-center gap-2 disabled:opacity-50"
-              >
-                <Icon name="check" className="w-5 h-5" />
-                {savingAll ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ جميع التغييرات' : 'Save all changes')}
-              </button>
+            <div className="w-12 h-12 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
+              <Icon name="folder" className="w-6 h-6 text-[var(--primary)]" />
             </div>
           </div>
         </div>
-
-        {/* إحصائيات */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-[var(--primary)] flex items-center justify-between">
+        <div className="admin-card overflow-hidden">
+          <div className="p-5 flex items-center justify-between gap-4">
             <div>
-              <div className="text-sm text-gray-600 mb-1">{ar ? 'الباقات' : 'Plans'}</div>
-              <div className="text-2xl font-bold text-gray-900">{plans.length}</div>
+              <p className="text-sm font-medium text-gray-500 mb-1" style={{ lineHeight: 1.5 }}>{ar ? 'المستخدمون' : 'Users'}</p>
+              <p className="text-2xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{users.length}</p>
             </div>
-            <Icon name="folder" className="w-8 h-8 text-[var(--primary)]" />
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500 flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-600 mb-1">{ar ? 'المستخدمون' : 'Users'}</div>
-              <div className="text-2xl font-bold text-gray-900">{users.length}</div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+              <Icon name="users" className="w-6 h-6 text-emerald-600" />
             </div>
-            <Icon name="users" className="w-8 h-8 text-green-500" />
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-purple-500 flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-600 mb-1">{ar ? 'الصلاحيات' : 'Permissions'}</div>
-              <div className="text-2xl font-bold text-gray-900">{allFeatures.length}</div>
-            </div>
-            <Icon name="lock" className="w-8 h-8 text-purple-500" />
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-500 flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-600 mb-1">{ar ? 'النشطة' : 'Active'}</div>
-              <div className="text-2xl font-bold text-gray-900">{users.filter((u) => u.subscription?.status === 'active').length}</div>
-            </div>
-            <Icon name="checkCircle" className="w-8 h-8 text-amber-500" />
           </div>
         </div>
-
-        {useDefaultPlans && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-amber-800">
-            {ar ? 'الباقات المعروضة افتراضية (كما في الموقع القديم). اضغط «تهيئة الباقات الافتراضية» لحفظها في النظام ثم يمكنك تعديلها وحفظ التغييرات.' : 'Plans shown are defaults. Click «Init default plans» to save them to the system, then you can edit and save.'}
+        <div className="admin-card overflow-hidden">
+          <div className="p-5 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-1" style={{ lineHeight: 1.5 }}>{ar ? 'الصلاحيات' : 'Permissions'}</p>
+              <p className="text-2xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{allFeatures.length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+              <Icon name="lock" className="w-6 h-6 text-violet-600" />
+            </div>
           </div>
-        )}
+        </div>
+        <div className="admin-card overflow-hidden">
+          <div className="p-5 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-1" style={{ lineHeight: 1.5 }}>{ar ? 'النشطة' : 'Active'}</p>
+              <p className="text-2xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{users.filter((u) => u.subscription?.status === 'active').length}</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+              <Icon name="checkCircle" className="w-6 h-6 text-amber-600" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* جدول الباقات — تفاصيل الباقات مع حدود قابلة للتعديل كما في الموقع القديم */}
+      {useDefaultPlans && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6 text-amber-800" style={{ marginBottom: '1.5rem', lineHeight: 1.5 }}>
+          {ar ? 'الباقات المعروضة افتراضية. اضغط «تهيئة الباقات الافتراضية» لحفظها في النظام ثم يمكنك تعديلها وحفظ التغييرات.' : 'Plans shown are defaults. Click «Init default plans» to save them, then edit and save.'}
+        </div>
+      )}
+
+        {/* تفاصيل الباقات */}
         {plans.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
-            <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-6">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Icon name="folder" className="w-6 h-6" />
+          <div className="admin-card mb-6" style={{ marginBottom: '1.5rem' }}>
+            <div className="admin-card-header border-b border-gray-100">
+              <h2 className="admin-card-title flex items-center gap-2 text-lg font-bold text-gray-900" style={{ lineHeight: 1.5, marginBottom: 0 }}>
+                <span className="w-9 h-9 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                  <Icon name="folder" className="w-5 h-5 text-[var(--primary)]" />
+                </span>
                 {ar ? 'تفاصيل الباقات' : 'Plan details'}
               </h2>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="admin-card-body p-4 sm:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 {plans.map((plan) => (
-                  <div key={plan.id} className="border-2 border-gray-200 rounded-2xl overflow-hidden hover:border-[var(--primary)]/30 transition-all">
-                    <div className={`${plan.color} p-4 text-white`}>
-                      <div className="text-xl font-bold mb-1">{plan.nameAr}</div>
-                      <div className="text-3xl font-extrabold">{plan.priceMonthly} {plan.currency}</div>
-                      <div className="text-sm opacity-90">{plan.duration === 'monthly' ? (ar ? 'شهرياً' : 'Monthly') : (ar ? 'سنوياً' : 'Yearly')}</div>
+                  <div key={plan.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden hover:border-[var(--primary)]/40 hover:shadow-md transition-all">
+                    <div className={`${plan.color} p-4 text-white`} style={{ lineHeight: 1.5 }}>
+                      <p className="text-lg font-bold mb-0.5">{plan.nameAr}</p>
+                      <p className="text-2xl font-extrabold">{plan.priceMonthly} {plan.currency}</p>
+                      <p className="text-sm opacity-90">{plan.duration === 'monthly' ? (ar ? 'شهرياً' : 'Monthly') : (ar ? 'سنوياً' : 'Yearly')}</p>
                     </div>
-                    <div className="p-4 space-y-4">
+                    <div className="p-4 space-y-4" style={{ lineHeight: 1.5 }}>
                       <div>
-                        <div className="text-xs font-bold text-gray-500 mb-2">{ar ? 'الحدود:' : 'Limits:'}</div>
-                        <div className="space-y-1 text-sm">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">{ar ? 'العقارات:' : 'Properties'}</span>
-                            <input type="number" value={plan.maxProperties} onChange={(e) => updatePlanLimit(plan.id, 'maxProperties', Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-xs" />
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">{ar ? 'الوحدات:' : 'Units'}</span>
-                            <input type="number" value={plan.maxUnits} onChange={(e) => updatePlanLimit(plan.id, 'maxUnits', Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-xs" />
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">{ar ? 'الحجوزات:' : 'Bookings'}</span>
-                            <input type="number" value={plan.maxBookings} onChange={(e) => updatePlanLimit(plan.id, 'maxBookings', Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-xs" />
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">{ar ? 'المستخدمون:' : 'Users'}</span>
-                            <input type="number" value={plan.maxUsers} onChange={(e) => updatePlanLimit(plan.id, 'maxUsers', Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-xs" />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-gray-500 mb-2">{ar ? 'الميزات' : 'Features'} ({(plan.featuresAr || []).length}):</div>
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                          {(plan.featuresAr || []).slice(0, 5).map((feature, idx) => (
-                            <div key={idx} className="flex items-start gap-2 text-xs text-gray-600">
-                              <span className="text-green-600">✓</span>
-                              <span className="line-clamp-1">{feature}</span>
+                        <p className="text-xs font-semibold text-gray-500 mb-2" style={{ marginBottom: '1.5rem' }}>{ar ? 'الحدود' : 'Limits'}</p>
+                        <div className="space-y-3">
+                          {[
+                            { key: 'maxProperties' as const, label: ar ? 'العقارات' : 'Properties' },
+                            { key: 'maxUnits' as const, label: ar ? 'الوحدات' : 'Units' },
+                            { key: 'maxBookings' as const, label: ar ? 'الحجوزات' : 'Bookings' },
+                            { key: 'maxUsers' as const, label: ar ? 'المستخدمون' : 'Users' },
+                          ].map(({ key, label }) => (
+                            <div key={key} className="flex justify-between items-center gap-2">
+                              <span className="text-sm text-gray-600">{label}</span>
+                              <input type="number" value={plan[key]} onChange={(e) => updatePlanLimit(plan.id, key, Number(e.target.value))} className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)]" />
                             </div>
                           ))}
-                          {(plan.featuresAr || []).length > 5 && <div className="text-xs text-gray-500">+{(plan.featuresAr || []).length - 5}</div>}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-gray-500 mb-2">{ar ? 'الصلاحيات' : 'Permissions'} ({plansConfig[plan.id]?.length || 0}):</div>
-                        <div className="text-sm text-gray-600">{plansConfig[plan.id]?.length || 0} {ar ? 'من' : 'of'} {allFeatures.length}</div>
+                        <p className="text-xs font-semibold text-gray-500 mb-1.5" style={{ marginBottom: '1.5rem' }}>{ar ? 'الميزات' : 'Features'} ({(plan.featuresAr || []).length})</p>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {(plan.featuresAr || []).slice(0, 5).map((feature, idx) => (
+                            <p key={idx} className="flex items-start gap-2 text-xs text-gray-600" style={{ lineHeight: 1.5 }}>
+                              <span className="text-emerald-600 shrink-0">✓</span>
+                              <span className="line-clamp-1">{feature}</span>
+                            </p>
+                          ))}
+                          {(plan.featuresAr || []).length > 5 && <p className="text-xs text-gray-500">+{(plan.featuresAr || []).length - 5}</p>}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-200">
-                        <button type="button" onClick={() => openEditModal(plan)} className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-xs font-bold flex items-center justify-center gap-1">
-                          <Icon name="pencil" className="w-3 h-3" />
+                      <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>
+                        {ar ? 'الصلاحيات' : 'Permissions'}: {plansConfig[plan.id]?.length || 0} / {allFeatures.length}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-100">
+                        <button type="button" onClick={() => openEditModal(plan)} className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm font-semibold transition-colors">
+                          <Icon name="pencil" className="w-4 h-4" />
                           {ar ? 'تعديل' : 'Edit'}
                         </button>
-                        <button type="button" onClick={() => openEditFeaturesModal(plan)} className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-xs font-bold flex items-center justify-center gap-1">
-                          <Icon name="folder" className="w-3 h-3" />
+                        <button type="button" onClick={() => openEditFeaturesModal(plan)} className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-sm font-semibold transition-colors">
+                          <Icon name="folder" className="w-4 h-4" />
                           {ar ? 'الميزات' : 'Features'}
                         </button>
                       </div>
@@ -454,47 +468,49 @@ export default function AdminSubscriptionsPage() {
           </div>
         )}
 
-        {/* مصفوفة الصلاحيات — كما في الموقع القديم */}
+        {/* مصفوفة الصلاحيات */}
         {plans.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
-            <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] p-6">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Icon name="lock" className="w-6 h-6" />
+          <div className="admin-card mb-6 overflow-hidden" style={{ marginBottom: '1.5rem' }}>
+            <div className="admin-card-header border-b border-gray-100">
+              <h2 className="admin-card-title flex items-center gap-2 text-lg font-bold text-gray-900" style={{ lineHeight: 1.5, marginBottom: 0 }}>
+                <span className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                  <Icon name="lock" className="w-5 h-5 text-violet-600" />
+                </span>
                 {ar ? 'مصفوفة الصلاحيات' : 'Permissions matrix'} ({allFeatures.length})
               </h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px]">
-                <thead className="bg-gray-50 border-b-2 border-gray-200">
+            <div className="admin-table-wrapper overflow-x-auto">
+              <table className="admin-table min-w-[600px]">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-4 text-right text-sm font-bold text-gray-900 sticky right-0 bg-gray-50 z-10">{ar ? 'الصلاحية' : 'Permission'}</th>
+                    <th className="px-4 py-4 text-right text-sm font-semibold text-gray-900 sticky right-0 bg-gray-50 z-10 min-w-[200px]" style={{ lineHeight: 1.5 }}>{ar ? 'الصلاحية' : 'Permission'}</th>
                     {plans.map((plan) => (
-                      <th key={plan.id} className="px-6 py-4 text-center min-w-[150px]">
-                        <div className={`inline-block px-3 py-1 rounded-lg text-white font-bold text-sm ${plan.color}`}>{plan.nameAr}</div>
-                        <div className="mt-2">
-                          <button type="button" onClick={() => toggleAllFeatures(plan.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${areAllFeaturesSelected(plan.id) ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
+                      <th key={plan.id} className="px-4 py-4 text-center min-w-[140px]">
+                        <div className={`inline-block px-3 py-1.5 rounded-xl text-white font-semibold text-sm ${plan.color}`} style={{ lineHeight: 1.5 }}>{plan.nameAr}</div>
+                        <div className="mt-2" style={{ marginTop: '1.5rem' }}>
+                          <button type="button" onClick={() => toggleAllFeatures(plan.id)} className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${areAllFeaturesSelected(plan.id) ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}>
                             {areAllFeaturesSelected(plan.id) ? (ar ? 'إلغاء الكل' : 'Deselect all') : (ar ? 'تحديد الكل' : 'Select all')}
                           </button>
-                          <div className="text-xs text-gray-600 mt-1">{(plansConfig[plan.id] || []).length}/{allFeatures.length}</div>
+                          <p className="text-xs text-gray-600 mt-1" style={{ lineHeight: 1.5 }}>{(plansConfig[plan.id] || []).length} / {allFeatures.length}</p>
                         </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {allFeatures.map((featureId) => {
                     const feature = FEATURE_PERMISSIONS[featureId];
                     if (!feature) return null;
                     return (
-                      <tr key={featureId} className="hover:bg-gray-50">
-                        <td className="px-6 py-3 sticky right-0 bg-white z-10">
-                          <div className="text-sm font-medium text-gray-900">{feature.nameAr}</div>
-                          <div className="text-xs text-gray-500">{feature.descriptionAr}</div>
+                      <tr key={featureId} className="hover:bg-gray-50/50">
+                        <td className="px-4 py-3 sticky right-0 bg-white z-10">
+                          <p className="text-sm font-medium text-gray-900" style={{ lineHeight: 1.5 }}>{feature.nameAr}</p>
+                          <p className="text-xs text-gray-500 mt-0.5" style={{ lineHeight: 1.5 }}>{feature.descriptionAr}</p>
                         </td>
                         {plans.map((plan) => (
-                          <td key={plan.id} className="px-6 py-3 text-center">
+                          <td key={plan.id} className="px-4 py-3 text-center">
                             <label className="inline-flex items-center cursor-pointer">
-                              <input type="checkbox" checked={hasFeature(plan.id, featureId)} onChange={() => toggleFeature(plan.id, featureId)} className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-2 focus:ring-green-500 cursor-pointer" />
+                              <input type="checkbox" checked={hasFeature(plan.id, featureId)} onChange={() => toggleFeature(plan.id, featureId)} className="w-5 h-5 text-[var(--primary)] border-gray-300 rounded focus:ring-2 focus:ring-[var(--primary)] cursor-pointer" />
                             </label>
                           </td>
                         ))}
@@ -504,9 +520,9 @@ export default function AdminSubscriptionsPage() {
                 </tbody>
               </table>
             </div>
-            <div className="bg-gray-50 p-6 border-t-2 border-gray-200 flex items-center justify-between flex-wrap gap-4">
-              <div className="text-sm text-gray-600">{allFeatures.length} {ar ? 'صلاحية' : 'permissions'} • {plans.length} {ar ? 'باقة' : 'plans'}</div>
-              <button type="button" onClick={saveChanges} disabled={savingAll || useDefaultPlans} className="bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] text-white px-8 py-3 rounded-xl font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50">
+            <div className="border-t border-gray-100 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50">
+              <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>{allFeatures.length} {ar ? 'صلاحية' : 'permissions'} · {plans.length} {ar ? 'باقة' : 'plans'}</p>
+              <button type="button" onClick={saveChanges} disabled={savingAll || useDefaultPlans} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 transition-opacity">
                 <Icon name="check" className="w-5 h-5" />
                 {ar ? 'حفظ جميع التغييرات' : 'Save all changes'}
               </button>
@@ -514,89 +530,96 @@ export default function AdminSubscriptionsPage() {
           </div>
         )}
 
-        {/* تعيين الباقات للمستخدمين — كما في الموقع القديم */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <Icon name="users" className="w-6 h-6 text-[var(--primary)]" />
-            {ar ? 'تعيين الباقات للمستخدمين' : 'Assign plans to users'}
-          </h2>
-          {useDefaultPlans && (
-            <p className="text-amber-700 bg-amber-50 rounded-lg p-3 mb-4 text-sm">{ar ? 'قم بـ «تهيئة الباقات الافتراضية» أولاً لتمكين تعيين الباقات للمستخدمين.' : 'Click «Init default plans» first to enable assigning plans to users.'}</p>
-          )}
-          <div className="space-y-4">
-            {users.length === 0 ? (
-              <p className="text-gray-500 py-4">{ar ? 'لا يوجد مستخدمون.' : 'No users.'}</p>
-            ) : (
-              users.map((user) => (
-                <div key={user.id} className="border-2 border-gray-200 rounded-xl p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <div>
-                      <div className="font-bold text-lg text-gray-900">{user.name}</div>
-                      <div className="text-sm text-gray-600">{user.email || user.serialNumber}</div>
-                    </div>
-                    {user.subscription && (
-                      <span className="inline-block px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-bold">
-                        ✓ {plans.find((p) => p.id === user.subscription!.planId)?.nameAr}
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {plans.map((plan) => (
-                      <button
-                        key={plan.id}
-                        type="button"
-                        onClick={() => assignPlanToUser(user.id, plan.id)}
-                        disabled={assigningUserId === user.id || useDefaultPlans}
-                        className={'p-4 rounded-xl border-2 transition-all text-left ' + (user.subscription?.planId === plan.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300')}
-                      >
-                        <div className="text-xs font-bold text-gray-700 mb-1">{plan.nameAr}</div>
-                        <div className="text-lg font-bold text-gray-900">{plan.priceMonthly} {plan.currency}</div>
-                        <div className="text-xs text-gray-500 mt-1">{(plansConfig[plan.id] || []).length} {ar ? 'صلاحية' : 'perms'}</div>
-                        {user.subscription?.planId === plan.id && <Icon name="checkCircle" className="w-5 h-5 text-green-600 mt-2" />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))
+        {/* تعيين الباقات للمستخدمين */}
+        <div className="admin-card">
+          <div className="admin-card-header border-b border-gray-100">
+            <h2 className="admin-card-title flex items-center gap-2 text-lg font-bold text-gray-900" style={{ lineHeight: 1.5, marginBottom: 0 }}>
+              <span className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <Icon name="users" className="w-5 h-5 text-emerald-600" />
+              </span>
+              {ar ? 'تعيين الباقات للمستخدمين' : 'Assign plans to users'}
+            </h2>
+          </div>
+          <div className="admin-card-body p-4 sm:p-6">
+            {useDefaultPlans && (
+              <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-5 text-sm" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>{ar ? 'قم بـ «تهيئة الباقات الافتراضية» أولاً لتمكين تعيين الباقات للمستخدمين.' : 'Click «Init default plans» first to enable assigning plans to users.'}</p>
             )}
+            <div className="space-y-5" style={{ lineHeight: 1.5 }}>
+              {users.length === 0 ? (
+                <p className="text-gray-500 py-6">{ar ? 'لا يوجد مستخدمون.' : 'No users.'}</p>
+              ) : (
+                users.map((user) => (
+                  <div key={user.id} className="rounded-2xl border border-gray-200 bg-gray-50/50 p-4 sm:p-5 hover:border-gray-300 transition-colors">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4" style={{ marginBottom: '1.5rem' }}>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-lg" style={{ lineHeight: 1.5 }}>{user.name}</p>
+                        <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>{user.email || user.serialNumber}</p>
+                      </div>
+                      {user.subscription && (
+                        <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-100 text-emerald-800 rounded-xl text-sm font-semibold">
+                          <Icon name="checkCircle" className="w-4 h-4" />
+                          {plans.find((p) => p.id === user.subscription!.planId)?.nameAr}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {plans.map((plan) => (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          onClick={() => assignPlanToUser(user.id, plan.id)}
+                          disabled={assigningUserId === user.id || useDefaultPlans}
+                          className={`p-4 rounded-xl border-2 transition-all text-left disabled:opacity-60 ${user.subscription?.planId === plan.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-[var(--primary)]/40 hover:bg-white'}`}
+                        >
+                          <p className="text-xs font-semibold text-gray-700 mb-1" style={{ lineHeight: 1.5 }}>{plan.nameAr}</p>
+                          <p className="text-base font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{plan.priceMonthly} {plan.currency}</p>
+                          <p className="text-xs text-gray-500 mt-1" style={{ lineHeight: 1.5 }}>{(plansConfig[plan.id] || []).length} {ar ? 'صلاحية' : 'perms'}</p>
+                          {user.subscription?.planId === plan.id && <Icon name="checkCircle" className="w-5 h-5 text-emerald-600 mt-2" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Modal: تعديل معلومات الباقة — كما في الموقع القديم */}
+      {/* Modal: تعديل معلومات الباقة */}
       {showEditPlanModal && editingPlan && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditPlanModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] p-6 text-white flex items-center justify-between rounded-t-2xl">
-              <h3 className="text-2xl font-bold">{ar ? 'تعديل:' : 'Edit:'} {editingPlan.nameAr}</h3>
-              <button type="button" onClick={() => setShowEditPlanModal(false)} className="p-2 hover:bg-white/20 rounded-lg">×</button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditPlanModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعديل الباقة' : 'Edit plan'}: {editingPlan.nameAr}</h3>
+              <button type="button" onClick={() => setShowEditPlanModal(false)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors" aria-label={ar ? 'إغلاق' : 'Close'}>×</button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-5 space-y-5" style={{ lineHeight: 1.5 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">{ar ? 'الاسم بالعربية' : 'Name (AR)'}</label>
-                  <input type="text" value={editingPlan.nameAr} onChange={(e) => setEditingPlan({ ...editingPlan, nameAr: e.target.value })} className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5" style={{ marginBottom: '1.5rem' }}>{ar ? 'الاسم بالعربية' : 'Name (AR)'}</label>
+                  <input type="text" value={editingPlan.nameAr} onChange={(e) => setEditingPlan({ ...editingPlan, nameAr: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">{ar ? 'الاسم بالإنجليزية' : 'Name (EN)'}</label>
-                  <input type="text" value={editingPlan.nameEn} onChange={(e) => setEditingPlan({ ...editingPlan, nameEn: e.target.value })} className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5" style={{ marginBottom: '1.5rem' }}>{ar ? 'الاسم بالإنجليزية' : 'Name (EN)'}</label>
+                  <input type="text" value={editingPlan.nameEn} onChange={(e) => setEditingPlan({ ...editingPlan, nameEn: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)]" />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">{ar ? 'السعر (ر.ع)' : 'Price'}</label>
-                  <input type="number" value={editingPlan.priceMonthly} onChange={(e) => setEditingPlan({ ...editingPlan, priceMonthly: Number(e.target.value) })} className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5" style={{ marginBottom: '1.5rem' }}>{ar ? 'السعر (ر.ع)' : 'Price'}</label>
+                  <input type="number" value={editingPlan.priceMonthly} onChange={(e) => setEditingPlan({ ...editingPlan, priceMonthly: Number(e.target.value) })} className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[var(--primary)]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">{ar ? 'المدة' : 'Duration'}</label>
-                  <select value={editingPlan.duration} onChange={(e) => setEditingPlan({ ...editingPlan, duration: e.target.value as 'monthly' | 'yearly' })} className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5" style={{ marginBottom: '1.5rem' }}>{ar ? 'المدة' : 'Duration'}</label>
+                  <select value={editingPlan.duration} onChange={(e) => setEditingPlan({ ...editingPlan, duration: e.target.value as 'monthly' | 'yearly' })} className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[var(--primary)]">
                     <option value="monthly">{ar ? 'شهري' : 'Monthly'}</option>
                     <option value="yearly">{ar ? 'سنوي' : 'Yearly'}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">{ar ? 'الأولوية' : 'Priority'}</label>
-                  <select value={editingPlan.priority} onChange={(e) => setEditingPlan({ ...editingPlan, priority: e.target.value })} className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5" style={{ marginBottom: '1.5rem' }}>{ar ? 'الأولوية' : 'Priority'}</label>
+                  <select value={editingPlan.priority} onChange={(e) => setEditingPlan({ ...editingPlan, priority: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[var(--primary)]">
                     <option value="basic">{ar ? 'أساسي' : 'Basic'}</option>
                     <option value="standard">{ar ? 'معياري' : 'Standard'}</option>
                     <option value="premium">{ar ? 'مميز' : 'Premium'}</option>
@@ -605,25 +628,25 @@ export default function AdminSubscriptionsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">{ar ? 'اللون (حسب الباقة)' : 'Color (by plan)'}</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5" style={{ marginBottom: '1.5rem' }}>{ar ? 'اللون (حسب الباقة)' : 'Color (by plan)'}</label>
                 <div className="flex gap-2 flex-wrap">
                   {['basic', 'standard', 'premium', 'enterprise'].map((code) => (
                     <button
                       key={code}
                       type="button"
                       onClick={() => setEditingPlan({ ...editingPlan, color: PLAN_COLORS[code] || 'bg-[var(--primary)]' })}
-                      className={`${PLAN_COLORS[code]} px-3 py-2 rounded-lg text-white text-xs font-bold ${editingPlan.color === (PLAN_COLORS[code]) ? 'ring-4 ring-gray-400' : ''}`}
+                      className={`${PLAN_COLORS[code]} px-3 py-2 rounded-xl text-white text-xs font-semibold transition-all ${editingPlan.color === (PLAN_COLORS[code]) ? 'ring-2 ring-offset-2 ring-gray-500' : 'opacity-80 hover:opacity-100'}`}
                     >
                       {code}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="flex gap-3 pt-4 border-t-2 border-gray-200">
-                <button type="button" onClick={() => setShowEditPlanModal(false)} className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-50">
+              <div className="flex gap-3 pt-4 border-t border-gray-200" style={{ paddingTop: '1.5rem' }}>
+                <button type="button" onClick={() => setShowEditPlanModal(false)} className="flex-1 px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
                   {ar ? 'إلغاء' : 'Cancel'}
                 </button>
-                <button type="button" onClick={saveEditedPlan} className="flex-1 px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-bold hover:opacity-90">
+                <button type="button" onClick={saveEditedPlan} className="flex-1 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
                   {ar ? 'حفظ' : 'Save'}
                 </button>
               </div>
@@ -632,17 +655,17 @@ export default function AdminSubscriptionsPage() {
         </div>
       )}
 
-      {/* Modal: تعديل الميزات — كما في الموقع القديم */}
+      {/* Modal: تعديل الميزات */}
       {showEditFeaturesModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditFeaturesModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] p-6 text-white flex items-center justify-between rounded-t-2xl">
-              <h3 className="text-2xl font-bold">{ar ? 'تعديل الميزات:' : 'Edit features:'} {plans.find((p) => p.id === editingPlanId)?.nameAr}</h3>
-              <button type="button" onClick={() => setShowEditFeaturesModal(false)} className="p-2 hover:bg-white/20 rounded-lg">×</button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditFeaturesModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعديل الميزات' : 'Edit features'}: {plans.find((p) => p.id === editingPlanId)?.nameAr}</h3>
+              <button type="button" onClick={() => setShowEditFeaturesModal(false)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors" aria-label={ar ? 'إغلاق' : 'Close'}>×</button>
             </div>
-            <div className="p-6">
-              <div className="mb-4">
-                <button type="button" onClick={addFeature} className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:opacity-90 font-bold flex items-center gap-2">
+            <div className="p-5">
+              <div className="mb-4" style={{ marginBottom: '1.5rem' }}>
+                <button type="button" onClick={addFeature} className="inline-flex items-center gap-2 px-4 py-2.5 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
                   <Icon name="plus" className="w-4 h-4" />
                   {ar ? 'إضافة ميزة' : 'Add feature'}
                 </button>
@@ -651,24 +674,24 @@ export default function AdminSubscriptionsPage() {
                 {editingFeaturesAr.map((featureAr, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                     <div className="col-span-5">
-                      <input type="text" value={editingFeatures[idx] || ''} onChange={(e) => { const n = [...editingFeatures]; n[idx] = e.target.value; setEditingFeatures(n); }} placeholder={ar ? 'بالإنجليزية' : 'English'} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <input type="text" value={editingFeatures[idx] || ''} onChange={(e) => { const n = [...editingFeatures]; n[idx] = e.target.value; setEditingFeatures(n); }} placeholder={ar ? 'بالإنجليزية' : 'English'} className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[var(--primary)]" />
                     </div>
                     <div className="col-span-6">
-                      <input type="text" value={featureAr} onChange={(e) => { const n = [...editingFeaturesAr]; n[idx] = e.target.value; setEditingFeaturesAr(n); }} placeholder={ar ? 'بالعربية' : 'Arabic'} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <input type="text" value={featureAr} onChange={(e) => { const n = [...editingFeaturesAr]; n[idx] = e.target.value; setEditingFeaturesAr(n); }} placeholder={ar ? 'بالعربية' : 'Arabic'} className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[var(--primary)]" />
                     </div>
                     <div className="col-span-1">
-                      <button type="button" onClick={() => removeFeature(idx)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">
+                      <button type="button" onClick={() => removeFeature(idx)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
                         <Icon name="trash" className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="flex gap-3 mt-6 pt-6 border-t-2 border-gray-200">
-                <button type="button" onClick={() => setShowEditFeaturesModal(false)} className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-50">
+              <div className="flex gap-3 mt-6 pt-5 border-t border-gray-200" style={{ marginTop: '1.5rem', paddingTop: '1.5rem' }}>
+                <button type="button" onClick={() => setShowEditFeaturesModal(false)} className="flex-1 px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
                   {ar ? 'إلغاء' : 'Cancel'}
                 </button>
-                <button type="button" onClick={saveFeaturesChanges} className="flex-1 px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-bold hover:opacity-90">
+                <button type="button" onClick={saveFeaturesChanges} className="flex-1 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
                   {ar ? 'حفظ الميزات' : 'Save features'}
                 </button>
               </div>
