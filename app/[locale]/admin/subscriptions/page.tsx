@@ -71,9 +71,9 @@ export default function AdminSubscriptionsPage() {
     if (!isAdmin) return;
     try {
       const [plansRes, usersRes, subRes] = await Promise.all([
-        fetch('/api/admin/plans'),
-        fetch('/api/admin/users'),
-        fetch('/api/subscriptions'),
+        fetch('/api/admin/plans', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/admin/users', { cache: 'no-store', credentials: 'include' }),
+        fetch('/api/subscriptions', { cache: 'no-store', credentials: 'include' }),
       ]);
       const subs: { userId: string; planId: string; status: string }[] = [];
       if (subRes.ok) {
@@ -181,12 +181,18 @@ export default function AdminSubscriptionsPage() {
   };
 
   const saveChanges = async () => {
+    if (useDefaultPlans) {
+      alert(ar ? 'يجب تهيئة الباقات الافتراضية أولاً من زر «تهيئة الباقات الافتراضية» ثم حفظ التغييرات.' : 'Please run «Init default plans» first, then save changes.');
+      return;
+    }
     setSavingAll(true);
     try {
+      const failed: string[] = [];
       for (const plan of plans) {
-        await fetch(`/api/plans/${plan.id}`, {
+        const res = await fetch(`/api/plans/${plan.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             limitsJson: JSON.stringify({
               maxProperties: plan.maxProperties,
@@ -203,6 +209,15 @@ export default function AdminSubscriptionsPage() {
             featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
           }),
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          failed.push(plan.nameAr + (err?.error ? `: ${err.error}` : ''));
+        }
+      }
+      if (failed.length > 0) {
+        alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n'));
+        setSavingAll(false);
+        return;
       }
       alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!');
       await loadData();

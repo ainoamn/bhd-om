@@ -53,13 +53,13 @@ export default function SubscriptionsPage() {
             if (data.subscription) setUserSubscription(data.subscription);
           }
         }
-        const resPlans = await fetch('/api/plans');
+        const resPlans = await fetch('/api/plans', { cache: 'no-store' });
         if (resPlans.ok) {
           const data = await resPlans.json();
           if (Array.isArray(data.list) && data.list.length > 0) setPlans((prev) => (prev.length > 0 ? prev : data.list));
         }
       } catch {
-        const resPlans = await fetch('/api/plans');
+        const resPlans = await fetch('/api/plans', { cache: 'no-store' });
         if (resPlans.ok) {
           const data = await resPlans.json();
           if (Array.isArray(data.list) && data.list.length > 0) setPlans(data.list);

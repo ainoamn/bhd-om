@@ -1,10 +1,13 @@
 /**
  * قائمة الباقات المتاحة — للجميع (أو للمصادقين فقط حسب الحاجة)
+ * لا تخزين مؤقت كي تنعكس التعديلات من لوحة الاشتراكات فوراً على /subscriptions
  */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   try {

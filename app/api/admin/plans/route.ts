@@ -1,11 +1,14 @@
 /**
  * قائمة الباقات للأدمن — تشمل كل الباقات (النشطة وغير النشطة) لإدارة التفاصيل
+ * لا تخزين مؤقت كي تظهر التعديلات المحفوظة فوراً بعد الحفظ
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
