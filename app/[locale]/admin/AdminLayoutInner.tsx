@@ -449,13 +449,13 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           <button
             type="button"
             onClick={toggleSidebar}
-            className="p-2 -m-2 rounded-lg hover:bg-gray-100 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+            className="p-2 -m-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
             aria-label={t('openMenu')}
           >
-            <Icon name="menu" className="w-6 h-6 text-gray-700" aria-hidden />
+            <Icon name="menu" className="w-6 h-6 text-gray-700 shrink-0" aria-hidden />
           </button>
-          <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-2">
-            <span className="font-semibold text-gray-900 truncate">
+          <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-2 overflow-hidden">
+            <span className="font-semibold text-gray-900 truncate text-sm sm:text-base">
               {currentSession?.user ? (
                 <>
                   {isAdminConfirmed
@@ -471,12 +471,12 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
               )}
             </span>
             {currentSession?.user && (
-              <span className="text-xs text-gray-500 truncate sm:border-s sm:border-gray-200 sm:ps-2">
+              <span className="text-xs text-gray-500 truncate sm:border-s sm:border-gray-200 sm:ps-2 mt-0.5 sm:mt-0">
                 {(currentSession.user as { name?: string }).name || (currentSession.user as { serialNumber?: string }).serialNumber || (currentSession.user as { email?: string }).email || (currentSession.user as { phone?: string }).phone || '—'}
               </span>
             )}
           </div>
-          <div className="w-10 shrink-0" aria-hidden />
+          <div className="w-8 sm:w-10 shrink-0" aria-hidden />
         </header>
         <div className="admin-main-inner">{children}</div>
       </main>
