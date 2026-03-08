@@ -69,11 +69,12 @@ export default function AdminSubscriptionsPage() {
 
   const loadData = async () => {
     if (!isAdmin) return;
+    const cacheBust = Date.now();
     try {
       const [plansRes, usersRes, subRes] = await Promise.all([
-        fetch('/api/admin/plans', { cache: 'no-store', credentials: 'include' }),
-        fetch('/api/admin/users', { cache: 'no-store', credentials: 'include' }),
-        fetch('/api/subscriptions', { cache: 'no-store', credentials: 'include' }),
+        fetch(`/api/admin/plans?_=${cacheBust}`, { cache: 'no-store', credentials: 'include', headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' } }),
+        fetch(`/api/admin/users?_=${cacheBust}`, { cache: 'no-store', credentials: 'include' }),
+        fetch(`/api/subscriptions?_=${cacheBust}`, { cache: 'no-store', credentials: 'include' }),
       ]);
       const subs: { userId: string; planId: string; status: string }[] = [];
       if (subRes.ok) {
@@ -124,6 +125,10 @@ export default function AdminSubscriptionsPage() {
           setPlansConfig(config);
         }
       } else {
+        if (plansRes.status === 403 || plansRes.status === 401) {
+          setLoading(false);
+          return;
+        }
         setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
         const config: Record<string, string[]> = {};
         (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {

@@ -42,34 +42,38 @@ export default function SubscriptionsPage() {
   })();
 
   useEffect(() => {
-    if (status === 'loading') return;
-    const load = async () => {
+    let cancelled = false;
+    const loadPlans = async () => {
       try {
-        if (session?.user) {
-          const res = await fetch('/api/subscriptions/me');
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.plans) && data.plans.length > 0) setPlans(data.plans);
-            if (data.subscription) setUserSubscription(data.subscription);
-          }
-        }
-        const resPlans = await fetch('/api/plans', { cache: 'no-store' });
-        if (resPlans.ok) {
-          const data = await resPlans.json();
-          if (Array.isArray(data.list) && data.list.length > 0) setPlans((prev) => (prev.length > 0 ? prev : data.list));
-        }
-      } catch {
-        const resPlans = await fetch('/api/plans', { cache: 'no-store' });
-        if (resPlans.ok) {
-          const data = await resPlans.json();
+        const res = await fetch('/api/plans', { cache: 'no-store' });
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
           if (Array.isArray(data.list) && data.list.length > 0) setPlans(data.list);
         }
+      } catch {
+        if (!cancelled) setPlans([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    load();
-  }, [status, session?.user]);
+    const loadSubscription = async () => {
+      try {
+        const res = await fetch('/api/subscriptions/me', { cache: 'no-store' });
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.subscription) setUserSubscription(data.subscription);
+          if (Array.isArray(data.plans) && data.plans.length > 0) setPlans((prev) => (prev.length > 0 ? prev : data.plans));
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    loadPlans();
+    if (session?.user) loadSubscription();
+    return () => { cancelled = true; };
+  }, [session?.user]);
 
   const handleSelectPlan = (planId: string) => {
     if (!session?.user) {

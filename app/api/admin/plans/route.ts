@@ -51,7 +51,9 @@ export async function GET(req: NextRequest) {
       isActive: p.isActive,
       sortOrder: p.sortOrder,
     }));
-    return NextResponse.json({ list });
+    return NextResponse.json({ list }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    });
   } catch (e) {
     console.error('GET /api/admin/plans:', e);
     return NextResponse.json({ error: 'Server error', list: [] }, { status: 500 });
