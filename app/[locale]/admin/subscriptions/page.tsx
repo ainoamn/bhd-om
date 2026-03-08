@@ -198,7 +198,9 @@ export default function AdminSubscriptionsPage() {
       return;
     }
     setSavingAll(true);
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise<void>((r) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => r()));
+    });
     try {
       const results = await Promise.all(
         plans.map(async (plan) => {
