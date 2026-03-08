@@ -343,6 +343,7 @@ export default function UserDetailPage() {
               userId={user.id}
               userName={user.name}
               userEmail={user.email}
+              userSerialNumber={user.serialNumber ?? undefined}
               userRole={user.role}
               className="px-4 py-2.5 rounded-xl font-semibold text-violet-700 bg-violet-100 hover:bg-violet-200 disabled:opacity-50 transition-colors"
             />
@@ -446,6 +447,7 @@ export default function UserDetailPage() {
               userId={user.id}
               userName={user.name}
               userEmail={user.email}
+              userSerialNumber={user.serialNumber ?? undefined}
               userRole={user.role}
               className="px-4 py-2.5 rounded-xl font-semibold text-violet-700 bg-violet-100 hover:bg-violet-200 disabled:opacity-50 transition-colors"
             />

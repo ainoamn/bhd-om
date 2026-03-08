@@ -14,6 +14,7 @@ interface LoginAsUserButtonProps {
   userId: string;
   userName: string;
   userEmail?: string;
+  userSerialNumber?: string;
   userRole: string;
   className?: string;
 }
@@ -22,6 +23,7 @@ export default function LoginAsUserButton({
   userId, 
   userName, 
   userEmail, 
+  userSerialNumber,
   userRole,
   className = "" 
 }: LoginAsUserButtonProps) {
@@ -66,15 +68,21 @@ export default function LoginAsUserButton({
         throw new Error(err?.error || 'Failed to switch session');
       }
 
-      // تخزين أننا في وضع "فتح حساب" لزر عودة للأدمن
+      // تخزين بيانات المستخدم المُختار (للعرض في لوحة التحكم) — SessionMiddleware يقرأ isSwitchingUser و userSession
       localStorage.setItem('userSession', JSON.stringify({
         id: userId,
         loginAsUser: true,
         adminId: session.user.id,
+        name: userName,
+        email: userEmail,
+        serialNumber: userSerialNumber ?? '',
+        role: userRole,
       }));
+      localStorage.setItem('isSwitchingUser', 'true');
 
-      // الانتقال للوحة التحكم بحساب المستخدم المختار (الكوكي الجديد مُعيّن في الاستجابة)
-      window.location.href = `/${locale}/admin`;
+      // إعطاء المتصفح وقتاً لتسجيل الكوكي ثم الانتقال للوحة المستخدم
+      await new Promise((r) => setTimeout(r, 200));
+      window.location.replace(`/${locale}/admin`);
       
     } catch (error) {
       console.error('Login as user error:', error);
