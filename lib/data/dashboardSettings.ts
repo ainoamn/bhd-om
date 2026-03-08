@@ -5,6 +5,7 @@
 
 import type { RoleKey, DashboardSectionKey, RoleDashboardConfig, DashboardType } from '@/lib/config/dashboardRoles';
 import { defaultDashboardConfigs, defaultDashboardConfigsByType, ROLE_TO_DASHBOARD_TYPE, ALL_DASHBOARD_TYPES, ALL_PERMISSION_SECTIONS } from '@/lib/config/dashboardRoles';
+import { getSectionsAllowedByPlan } from '@/lib/subscriptionPlanToDashboard';
 
 const STORAGE_KEY = 'bhd_dashboard_settings';
 export const DASHBOARD_SETTINGS_EVENT = 'bhd_dashboard_settings_changed';
@@ -147,16 +148,21 @@ export function enableAllForType(type: DashboardType): void {
   window.dispatchEvent(new CustomEvent(DASHBOARD_SETTINGS_EVENT));
 }
 
-/** إعداد لوحة التحكم الفعّال للدور (مع تطبيق إعدادات المدير) - للاستخدام في RoleBasedSidebar */
-/** الصلاحيات تُؤخذ دائماً حسب دور المستخدم: عميل → عمود "عميل"، مالك → عمود "مالك"، بغض النظر عن تصنيف جهة الاتصال. */
+/** إعداد لوحة التحكم الفعّال للدور (مع تطبيق إعدادات المدير والاشتراك) - للاستخدام في RoleBasedSidebar */
+/** المعيار الأول: الباقة (من لوحة الاشتراكات)، ثم إعدادات نوع المستخدم (من إعدادات لوحة التحكم). */
 export function getEffectiveDashboardConfig(
   role: RoleKey,
-  _contactDashboardType?: DashboardType
+  _contactDashboardType?: DashboardType,
+  planPermissionIds?: string[] | null
 ): RoleDashboardConfig {
   const base = defaultDashboardConfigs[role] ?? defaultDashboardConfigs.CLIENT;
   if (role === 'ADMIN') return base;
   const dashboardTypeForSections: DashboardType = ROLE_TO_DASHBOARD_TYPE[role];
-  const sections = getSectionsForRole(dashboardTypeForSections);
+  const typeSections = getSectionsForRole(dashboardTypeForSections);
+  const allowedByPlan = planPermissionIds && planPermissionIds.length > 0
+    ? getSectionsAllowedByPlan(planPermissionIds)
+    : new Set<DashboardSectionKey>(['dashboard', 'myAccount', 'subscriptions'] as DashboardSectionKey[]);
+  const sections = typeSections.filter((s) => allowedByPlan.has(s));
   const typeConfig = defaultDashboardConfigsByType[dashboardTypeForSections];
   const navItems = (typeConfig?.navItems ?? base.navItems).filter((item) => {
     const sec = (item as { section?: DashboardSectionKey }).section;

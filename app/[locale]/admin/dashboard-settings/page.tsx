@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
@@ -165,6 +166,28 @@ export default function DashboardSettingsPage() {
       />
 
       <div className="space-y-6">
+        <div className="admin-card overflow-hidden border-[var(--primary)]/30 bg-[var(--primary)]/5">
+          <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-bold text-gray-900 text-lg mb-1">
+                {ar ? 'الاشتراك هو المعيار الأول' : 'Subscription is the first criterion'}
+              </h2>
+              <p className="text-sm text-gray-600 max-w-2xl" style={{ lineHeight: 1.5 }}>
+                {ar
+                  ? 'تحديد الباقات والصلاحيات يتم من لوحة الاشتراكات. ما يظهر للمستخدم في لوحة التحكم يُحدد أولاً حسب باقته، ثم تُطبّق إعدادات نوع المستخدم (عميل، مالك، ...) هنا.'
+                  : 'Plans and permissions are set in the Subscriptions panel. What the user sees in the dashboard is determined first by their plan, then by the user type settings (client, landlord, …) on this page.'}
+              </p>
+            </div>
+            <Link
+              href={`/${locale}/admin/subscriptions`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-[var(--primary)] hover:opacity-90 transition-opacity shrink-0"
+            >
+              <Icon name="creditCard" className="w-5 h-5" />
+              {ar ? 'لوحة الاشتراكات والباقات' : 'Subscriptions & plans'}
+            </Link>
+          </div>
+        </div>
+
         <div className="admin-card overflow-hidden">
           <div className="p-6 border-b border-gray-200 bg-gray-50/50">
             <p className="text-gray-600 text-sm mb-1">

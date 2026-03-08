@@ -55,6 +55,9 @@ export type DashboardSectionKey =
   | 'dataManage'
   | 'projects'
   | 'services'
+  | 'analytics'
+  | 'reports'
+  | 'security'
   | 'contact'
   | 'submissions'
   | 'dashboardSettings'
@@ -62,7 +65,10 @@ export type DashboardSectionKey =
   | 'users'
   | 'subscriptions'
   | 'serialHistory'
-  | 'backup';
+  | 'backup'
+  | 'dataReset'
+  | 'propertiesAdd'
+  | 'projectsAdd';
 
 export interface NavItemWithSection {
   href: string;

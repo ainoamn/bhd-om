@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const subscription = await prisma.subscription.findUnique({
       where: { userId },
       include: {
-        plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, priceYearly: true, currency: true, featuresJson: true, limitsJson: true } },
+        plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, priceYearly: true, currency: true, featuresJson: true, limitsJson: true, permissionsJson: true } },
       },
     });
 
@@ -59,6 +59,16 @@ export async function GET(req: NextRequest) {
               limits: subscription.plan.limitsJson ? (JSON.parse(subscription.plan.limitsJson) as Record<string, number>) : {},
             }
           : null,
+      permissionIds: (() => {
+        try {
+          const raw = subscription?.plan?.permissionsJson;
+          if (!raw) return [];
+          const arr = JSON.parse(raw) as unknown;
+          return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [];
+        } catch {
+          return [];
+        }
+      })(),
       } : null,
       plans: plans.map((p) => ({
         id: p.id,

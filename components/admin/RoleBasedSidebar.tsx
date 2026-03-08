@@ -12,6 +12,9 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { getEffectiveDashboardConfig, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { RoleKey, DashboardType } from '@/lib/config/dashboardRoles';
 
+/** صلاحيات الباقة للمستخدم (من لوحة الاشتراكات) — المعيار الأول لفتح خصائص لوحة التحكم */
+const EMPTY_PLAN_IDS: string[] = [];
+
 const DASHBOARD_TYPE_LABEL_KEYS: Record<string, string> = {
   CLIENT: 'categoryClient',
   TENANT: 'categoryTenant',
@@ -51,6 +54,7 @@ export default function RoleBasedSidebar({
   const t = useTranslations('admin.nav');
   const tAddr = useTranslations('addressBook');
   const [, setSettingsVersion] = useState(0);
+  const [planPermissionIds, setPlanPermissionIds] = useState<string[] | null>(null);
 
   useEffect(() => {
     const handler = () => setSettingsVersion((v) => v + 1);
@@ -64,7 +68,25 @@ export default function RoleBasedSidebar({
     }
   }, [role]);
 
-  const config = getEffectiveDashboardConfig(role, contactDashboardType);
+  useEffect(() => {
+    if (role !== 'CLIENT' && role !== 'OWNER') {
+      setPlanPermissionIds(null);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/subscriptions/me', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { permissionIds?: string[] } | null) => {
+        if (!cancelled && Array.isArray(data?.permissionIds)) setPlanPermissionIds(data.permissionIds);
+        else if (!cancelled) setPlanPermissionIds(EMPTY_PLAN_IDS);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanPermissionIds(EMPTY_PLAN_IDS);
+      });
+    return () => { cancelled = true; };
+  }, [role]);
+
+  const config = getEffectiveDashboardConfig(role, contactDashboardType, planPermissionIds ?? undefined);
 
   const subtitle =
     contactDashboardType && DASHBOARD_TYPE_LABEL_KEYS[contactDashboardType]

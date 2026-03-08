@@ -1,11 +1,15 @@
 /**
  * تهيئة الباقات الافتراضية — للأدمن فقط، وتُنشأ فقط إذا لم توجد أي باقة في قاعدة البيانات.
+ * صلاحيات كل باقة من PLAN_FEATURES لربطها بإعدادات لوحة التحكم (الاشتراك = المعيار الأول).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
+import { PLAN_FEATURES } from '@/lib/featurePermissions';
 
 export const runtime = 'nodejs';
+
+const PLAN_CODES = ['basic', 'standard', 'premium', 'enterprise'] as const;
 
 const DEFAULT_PLANS = [
   { code: 'basic', nameAr: 'الخطة الأساسية', nameEn: 'Basic', priceMonthly: 29, priceYearly: 290, sortOrder: 1, featuresJson: '["حتى 5 عقارات","حتى 20 وحدة","إدارة حجوزات أساسية"]', limitsJson: '{"maxProperties":5,"maxUnits":20,"maxBookings":100,"maxUsers":1,"storageGB":1}' },
@@ -29,9 +33,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, created: 0, message: 'الباقات موجودة مسبقاً' });
     }
 
-    for (const p of DEFAULT_PLANS) {
+    for (let i = 0; i < DEFAULT_PLANS.length; i++) {
+      const p = DEFAULT_PLANS[i];
+      const code = PLAN_CODES[i];
+      const permissionIds = PLAN_FEATURES[code] ?? [];
       await prisma.plan.create({
-        data: { ...p, currency: 'OMR', isActive: true },
+        data: {
+          ...p,
+          currency: 'OMR',
+          isActive: true,
+          permissionsJson: JSON.stringify(permissionIds),
+        },
       });
     }
     return NextResponse.json({ ok: true, created: DEFAULT_PLANS.length, message: 'تم إنشاء الباقات الافتراضية' });
