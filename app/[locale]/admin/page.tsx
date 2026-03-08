@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -35,12 +35,31 @@ function formatTimeAgo(dateStr: string, locale: string): string {
   }
 }
 
+/** دور فعّال مع احترام وضع "فتح حساب" من localStorage حتى لا يعود العرض للأدمن بعد تحديث الجلسة */
+function useEffectiveRole(serverRole: string | undefined) {
+  const localRole = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const us = localStorage.getItem('userSession');
+      if (!us) return null;
+      const p = JSON.parse(us) as { loginAsUser?: boolean; role?: string };
+      // عند "فتح حساب": نعتمد دور المستخدم من localStorage إن كانت الجلسة أدمن أو لم تُحمّل بعد
+      if (p.loginAsUser && p.role && (serverRole === 'ADMIN' || serverRole === undefined)) return p.role;
+      return null;
+    } catch {
+      return null;
+    }
+  }, [serverRole]);
+  return localRole || serverRole;
+}
+
 export default function AdminDashboardPage() {
   const params = useParams();
   const { data: session, status } = useSession();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('dashboard');
-  const userRole = (session?.user as { role?: string })?.role;
+  const serverRole = (session?.user as { role?: string })?.role;
+  const userRole = useEffectiveRole(serverRole);
 
   const [bookings, setBookings] = useState<PropertyBooking[]>([]);
   const [contracts, setContracts] = useState<ReturnType<typeof getAllContracts>>([]);
@@ -89,9 +108,9 @@ export default function AdminDashboardPage() {
     .slice(0, 8);
   const activeContracts = contracts.filter((c) => c.status !== 'CANCELLED');
 
-  // عرض فوري — لا حجب على تحميل الجلسة. "غير مصرح" فقط عند التأكد.
-  if (status === 'authenticated' && userRole === 'OWNER') return <OwnerDashboard />;
-  if (status === 'authenticated' && userRole !== 'ADMIN') return <ClientDashboard />;
+  // عرض فوري — استخدام الدور الفعّال (من الجلسة أو من localStorage عند "فتح حساب") لئلا يعود عرض الأدمن
+  if (userRole === 'OWNER') return <OwnerDashboard />;
+  if (userRole === 'CLIENT') return <ClientDashboard />;
 
   const now = new Date();
   const activeSubs = subscriptionList.filter((s) => s.status === 'active' && new Date(s.endAt) > now);

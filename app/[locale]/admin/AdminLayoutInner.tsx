@@ -53,7 +53,20 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   if (status === 'unauthenticated') lastKnownSessionRef.current = null;
 
   // جلسة فعّالة: وهمية أو حقيقية أو آخر جلسة معروفة (لتنقل فوري)
-  const currentSession = mockSession || session || lastKnownSessionRef.current;
+  let currentSession = mockSession || session || lastKnownSessionRef.current;
+
+  // عند "فتح حساب": إذا الخادم أعاد جلسة الأدمن (لأن الكوكي لم يُحدّث في بعض البيئات)، نثبت عرض لوحة العميل من localStorage
+  if (typeof window !== 'undefined' && currentSession?.user && (currentSession.user as { role?: string })?.role === 'ADMIN') {
+    try {
+      const us = localStorage.getItem('userSession');
+      if (us) {
+        const p = JSON.parse(us) as { loginAsUser?: boolean; id?: string; name?: string; email?: string; role?: string; serialNumber?: string };
+        if (p.loginAsUser && p.id) {
+          currentSession = { user: { id: p.id, name: p.name, email: p.email, role: p.role || 'CLIENT', serialNumber: p.serialNumber } };
+        }
+      }
+    } catch {}
+  }
   
   const { tab: currentTab, action: currentAction } = useAccountingTab();
   const locale = (params?.locale as string) || 'ar';
