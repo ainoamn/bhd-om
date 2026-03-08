@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Icon from '@/components/icons/Icon';
-import { FEATURE_PERMISSIONS, PLAN_FEATURES, PLAN_COLORS } from '@/lib/featurePermissions';
+import { FEATURE_PERMISSIONS, PLAN_FEATURES, PLAN_COLORS, DEFAULT_PLANS_FOR_ADMIN } from '@/lib/featurePermissions';
 
 type PlanRow = {
   id: string;
@@ -36,13 +36,21 @@ type UserRow = {
 
 const allFeatures = Object.keys(FEATURE_PERMISSIONS);
 
+function getInitialPlansConfig(): Record<string, string[]> {
+  const config: Record<string, string[]> = {};
+  (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+    config[code] = [...(PLAN_FEATURES[code] || [])];
+  });
+  return config;
+}
+
 export default function AdminSubscriptionsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
-  const { data: session } = useSession();
-  const [plans, setPlans] = useState<PlanRow[]>([]);
-  const [plansConfig, setPlansConfig] = useState<Record<string, string[]>>({});
+  const { data: session, status: sessionStatus } = useSession();
+  const [plans, setPlans] = useState<PlanRow[]>(() => DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+  const [plansConfig, setPlansConfig] = useState<Record<string, string[]>>(getInitialPlansConfig);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingAll, setSavingAll] = useState(false);
@@ -54,6 +62,7 @@ export default function AdminSubscriptionsPage() {
   const [editingFeatures, setEditingFeatures] = useState<string[]>([]);
   const [editingFeaturesAr, setEditingFeaturesAr] = useState<string[]>([]);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
+  const [useDefaultPlans, setUseDefaultPlans] = useState(true);
 
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
 
@@ -74,35 +83,54 @@ export default function AdminSubscriptionsPage() {
       if (plansRes.ok) {
         const d = await plansRes.json();
         const list = Array.isArray(d.list) ? d.list : [];
-        const rows: PlanRow[] = list.map((p: {
-          id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; priceYearly?: number; currency: string;
-          features?: string[]; limits?: Record<string, number>; permissions?: string[]; isActive?: boolean;
-        }) => ({
-          id: p.id,
-          code: p.code,
-          nameAr: p.nameAr,
-          nameEn: p.nameEn,
-          priceMonthly: p.priceMonthly,
-          priceYearly: p.priceYearly,
-          currency: p.currency,
-          duration: 'monthly',
-          priority: p.code,
-          color: PLAN_COLORS[p.code] || 'bg-[var(--primary)]',
-          maxProperties: p.limits?.maxProperties ?? 0,
-          maxUnits: p.limits?.maxUnits ?? 0,
-          maxBookings: p.limits?.maxBookings ?? 0,
-          maxUsers: p.limits?.maxUsers ?? 0,
-          storageGB: p.limits?.storageGB ?? 0,
-          features: p.features || [],
-          featuresAr: p.features || [],
-          isActive: p.isActive,
-        }));
-        setPlans(rows);
+        if (list.length === 0) {
+          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+          const config: Record<string, string[]> = {};
+          (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+            config[code] = [...(PLAN_FEATURES[code] || [])];
+          });
+          setPlansConfig(config);
+          setUseDefaultPlans(true);
+        } else {
+          setUseDefaultPlans(false);
+          const rows: PlanRow[] = list.map((p: {
+            id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; priceYearly?: number; currency: string;
+            features?: string[]; limits?: Record<string, number>; permissions?: string[]; isActive?: boolean;
+          }) => ({
+            id: p.id,
+            code: p.code,
+            nameAr: p.nameAr,
+            nameEn: p.nameEn,
+            priceMonthly: p.priceMonthly,
+            priceYearly: p.priceYearly,
+            currency: p.currency,
+            duration: 'monthly',
+            priority: p.code,
+            color: PLAN_COLORS[p.code] || 'bg-[var(--primary)]',
+            maxProperties: p.limits?.maxProperties ?? 0,
+            maxUnits: p.limits?.maxUnits ?? 0,
+            maxBookings: p.limits?.maxBookings ?? 0,
+            maxUsers: p.limits?.maxUsers ?? 0,
+            storageGB: p.limits?.storageGB ?? 0,
+            features: p.features || [],
+            featuresAr: p.features || [],
+            isActive: p.isActive,
+          }));
+          setPlans(rows);
+          const config: Record<string, string[]> = {};
+          list.forEach((p: { id: string; code: string; permissions?: string[] }) => {
+            config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
+          });
+          setPlansConfig(config);
+        }
+      } else {
+        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
         const config: Record<string, string[]> = {};
-        list.forEach((p: { id: string; code: string; permissions?: string[] }) => {
-          config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
+        (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+          config[code] = [...(PLAN_FEATURES[code] || [])];
         });
         setPlansConfig(config);
+        setUseDefaultPlans(true);
       }
       if (usersRes.ok) {
         const uList = await usersRes.json();
@@ -117,6 +145,13 @@ export default function AdminSubscriptionsPage() {
       }
     } catch (e) {
       console.error(e);
+      setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+      const config: Record<string, string[]> = {};
+      (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+        config[code] = [...(PLAN_FEATURES[code] || [])];
+      });
+      setPlansConfig(config);
+      setUseDefaultPlans(true);
     } finally {
       setLoading(false);
     }
@@ -255,6 +290,17 @@ export default function AdminSubscriptionsPage() {
     }
   };
 
+  if (sessionStatus === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--primary)] mx-auto mb-4" />
+          <p className="text-gray-600">{ar ? 'جاري التحقق من الجلسة...' : 'Checking session...'}</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <div className="p-6">
@@ -284,8 +330,8 @@ export default function AdminSubscriptionsPage() {
               <h1 className="text-3xl font-bold mb-2">{ar ? 'إدارة الاشتراكات والصلاحيات' : 'Subscriptions & Permissions'}</h1>
               <p className="text-white/80">{ar ? 'التحكم الكامل في الباقات، الميزات، والصلاحيات' : 'Full control over plans, features and permissions'}</p>
             </div>
-            <div className="flex gap-3">
-              {plans.length === 0 && (
+            <div className="flex gap-3 flex-wrap">
+              {useDefaultPlans && (
                 <button
                   type="button"
                   onClick={handleInitPlans}
@@ -298,7 +344,7 @@ export default function AdminSubscriptionsPage() {
               <button
                 type="button"
                 onClick={saveChanges}
-                disabled={savingAll || plans.length === 0}
+                disabled={savingAll || useDefaultPlans}
                 className="bg-white text-[var(--primary)] px-6 py-3 rounded-xl font-bold hover:bg-gray-50 shadow-lg flex items-center gap-2 disabled:opacity-50"
               >
                 <Icon name="check" className="w-5 h-5" />
@@ -339,6 +385,12 @@ export default function AdminSubscriptionsPage() {
             <Icon name="checkCircle" className="w-8 h-8 text-amber-500" />
           </div>
         </div>
+
+        {useDefaultPlans && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-amber-800">
+            {ar ? 'الباقات المعروضة افتراضية (كما في الموقع القديم). اضغط «تهيئة الباقات الافتراضية» لحفظها في النظام ثم يمكنك تعديلها وحفظ التغييرات.' : 'Plans shown are defaults. Click «Init default plans» to save them to the system, then you can edit and save.'}
+          </div>
+        )}
 
         {/* جدول الباقات — تفاصيل الباقات مع حدود قابلة للتعديل كما في الموقع القديم */}
         {plans.length > 0 && (
@@ -466,7 +518,7 @@ export default function AdminSubscriptionsPage() {
             </div>
             <div className="bg-gray-50 p-6 border-t-2 border-gray-200 flex items-center justify-between flex-wrap gap-4">
               <div className="text-sm text-gray-600">{allFeatures.length} {ar ? 'صلاحية' : 'permissions'} • {plans.length} {ar ? 'باقة' : 'plans'}</div>
-              <button type="button" onClick={saveChanges} disabled={savingAll} className="bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] text-white px-8 py-3 rounded-xl font-bold hover:opacity-90 flex items-center gap-2">
+              <button type="button" onClick={saveChanges} disabled={savingAll || useDefaultPlans} className="bg-gradient-to-r from-[var(--primary)] to-[var(--primary-dark)] text-white px-8 py-3 rounded-xl font-bold hover:opacity-90 flex items-center gap-2 disabled:opacity-50">
                 <Icon name="check" className="w-5 h-5" />
                 {ar ? 'حفظ جميع التغييرات' : 'Save all changes'}
               </button>
@@ -480,6 +532,9 @@ export default function AdminSubscriptionsPage() {
             <Icon name="users" className="w-6 h-6 text-[var(--primary)]" />
             {ar ? 'تعيين الباقات للمستخدمين' : 'Assign plans to users'}
           </h2>
+          {useDefaultPlans && (
+            <p className="text-amber-700 bg-amber-50 rounded-lg p-3 mb-4 text-sm">{ar ? 'قم بـ «تهيئة الباقات الافتراضية» أولاً لتمكين تعيين الباقات للمستخدمين.' : 'Click «Init default plans» first to enable assigning plans to users.'}</p>
+          )}
           <div className="space-y-4">
             {users.length === 0 ? (
               <p className="text-gray-500 py-4">{ar ? 'لا يوجد مستخدمون.' : 'No users.'}</p>
@@ -503,10 +558,8 @@ export default function AdminSubscriptionsPage() {
                         key={plan.id}
                         type="button"
                         onClick={() => assignPlanToUser(user.id, plan.id)}
-                        disabled={assigningUserId === user.id}
-                        className={`p-4 rounded-xl border-2 transition-all text-left ${
-                          user.subscription?.planId === plan.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                        disabled={assigningUserId === user.id || useDefaultPlans}
+                        className={'p-4 rounded-xl border-2 transition-all text-left ' + (user.subscription?.planId === plan.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300')}
                       >
                         <div className="text-xs font-bold text-gray-700 mb-1">{plan.nameAr}</div>
                         <div className="text-lg font-bold text-gray-900">{plan.priceMonthly} {plan.currency}</div>

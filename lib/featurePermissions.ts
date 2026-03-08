@@ -57,3 +57,11 @@ export const PLAN_COLORS: Record<string, string> = {
   premium: 'bg-[var(--primary-dark)]',
   enterprise: 'bg-[var(--primary-dark)]',
 };
+
+/** باقات افتراضية لعرض الصفحة مثل الموقع القديم عند عدم وجود باقات في قاعدة البيانات */
+export const DEFAULT_PLANS_FOR_ADMIN = [
+  { id: 'basic', code: 'basic', nameAr: 'الخطة الأساسية', nameEn: 'Basic Plan', priceMonthly: 29, priceYearly: undefined as number | undefined, currency: 'OMR', duration: 'monthly' as const, priority: 'basic', color: 'bg-[var(--primary)]', maxProperties: 5, maxUnits: 20, maxBookings: 100, maxUsers: 1, storageGB: 1, features: ['Up to 5 properties', 'Up to 20 units'], featuresAr: ['حتى 5 عقارات', 'حتى 20 وحدة'], isActive: true },
+  { id: 'standard', code: 'standard', nameAr: 'الخطة المعيارية', nameEn: 'Standard Plan', priceMonthly: 79, priceYearly: undefined as number | undefined, currency: 'OMR', duration: 'monthly' as const, priority: 'standard', color: 'bg-[var(--primary)]', maxProperties: 25, maxUnits: 100, maxBookings: 500, maxUsers: 5, storageGB: 10, features: ['Up to 25 properties', 'Up to 100 units'], featuresAr: ['حتى 25 عقار', 'حتى 100 وحدة'], isActive: true },
+  { id: 'premium', code: 'premium', nameAr: 'الخطة المميزة', nameEn: 'Premium Plan', priceMonthly: 149, priceYearly: undefined as number | undefined, currency: 'OMR', duration: 'monthly' as const, priority: 'premium', color: 'bg-[var(--primary-dark)]', maxProperties: 100, maxUnits: 500, maxBookings: 2000, maxUsers: -1, storageGB: 50, features: ['Up to 100 properties', 'Unlimited users'], featuresAr: ['حتى 100 عقار', 'مستخدمون غير محدودين'], isActive: true },
+  { id: 'enterprise', code: 'enterprise', nameAr: 'الخطة المؤسسية', nameEn: 'Enterprise Plan', priceMonthly: 299, priceYearly: undefined as number | undefined, currency: 'OMR', duration: 'monthly' as const, priority: 'enterprise', color: 'bg-[var(--primary-dark)]', maxProperties: -1, maxUnits: -1, maxBookings: -1, maxUsers: -1, storageGB: 200, features: ['Unlimited', 'API access'], featuresAr: ['غير محدود', 'وصول API'], isActive: true },
+];
