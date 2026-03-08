@@ -84,7 +84,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const { tab: currentTab, action: currentAction } = useAccountingTab();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('admin.nav');
-  const hasUserBar = useUserBar();
+  const { hasUserBar } = useUserBar();
   const userRole = (currentSession?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
   const isNonAdmin = userRole === 'CLIENT' || userRole === 'OWNER';
   const isAdminConfirmed = !isImpersonating && status === 'authenticated' && userRole === 'ADMIN';
