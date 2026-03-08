@@ -36,10 +36,11 @@
   --space-xl: 32px;
   --space-2xl: 48px;
 
-  /* Typography & Layout - عنصر أساسي في بناء الموقع */
-  --line-height-min: 1.5;           /* مسافة بين السطور - لا تقل عن 1.5 */
-  --space-title-paragraph: 2rem;    /* بين العنوان والفقرة */
-  --space-heading-media: 2rem;      /* بين العناوين والصور والإطارات */
+  /* Typography & Layout - تنظيم الموقع */
+  --line-height-min: 1.5;           /* ارتفاع بين السطور - لا يقل عن 1 */
+  --space-title-paragraph: 1.5rem;   /* بين السطر والعنوان - لا يقل عن 1.5 */
+  --space-heading-block: 1.5rem;     /* بين العنوان والمربع/المستطيل (البطاقة أو القسم) - لا يقل عن 1.5 */
+  --space-heading-media: 1.5rem;     /* بين العناوين والصور والإطارات */
 }
 
 @theme inline {
@@ -97,29 +98,29 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Typography - Mantsion Style */
+/* Typography - ارتفاع بين السطور لا يقل عن 1 */
 h1, h2, h3, h4, h5, h6 {
-  line-height: 1.4;
+  line-height: 1.5;
   font-weight: 600;
   color: var(--neutral-800);
   letter-spacing: -0.01em;
 }
 
-h1 { 
+h1 {
   font-size: clamp(2.5rem, 6vw, 4.5rem);
-  line-height: 1.1;
+  line-height: 1.35;
   font-weight: 700;
 }
 
-h2 { 
+h2 {
   font-size: clamp(2rem, 5vw, 3.5rem);
-  line-height: 1.2;
+  line-height: 1.4;
   font-weight: 600;
 }
 
-h3 { 
+h3 {
   font-size: clamp(1.75rem, 4vw, 2.5rem);
-  line-height: 1.3;
+  line-height: 1.45;
   font-weight: 600;
 }
 
@@ -129,7 +130,7 @@ p {
   font-size: 1rem;
 }
 
-/* Spacing - بين العنوان والفقرة = 2rem */
+/* Spacing - بين السطر والعنوان لا يقل عن 1.5 */
 h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p {
   margin-top: var(--space-title-paragraph);
 }
@@ -138,10 +139,13 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: var(--space-title-paragraph);
 }
 
-/* Spacing - بين العناوين والصور والإطارات = 2rem */
+/* Spacing - بين العنوان والمربع/المستطيل (البطاقة أو القسم) لا يقل عن 1.5 */
 .space-heading-media > h1, .space-heading-media > h2, .space-heading-media > h3,
-.space-heading-media > h4, .space-heading-media > h5, .space-heading-media > h6 {
-  margin-bottom: var(--space-heading-media);
+.space-heading-media > h4, .space-heading-media > h5, .space-heading-media > h6,
+section > h1, section > h2, section > h3, section > h4, section > h5, section > h6,
+[class*="section"] > h1, [class*="section"] > h2, [class*="section"] > h3,
+[class*="section"] > h4, [class*="section"] > h5, [class*="section"] > h6 {
+  margin-bottom: var(--space-heading-block);
 }
 
 /* Utility classes للتباعد الموحد */
@@ -149,10 +153,10 @@ h1, h2, h3, h4, h5, h6 {
   line-height: var(--line-height-min);
 }
 .space-title-block {
-  margin-bottom: var(--space-heading-media);
+  margin-bottom: var(--space-heading-block);
 }
 .space-section {
-  margin-bottom: var(--space-heading-media);
+  margin-bottom: var(--space-heading-block);
 }
 
 /* OMR Symbol styling */
@@ -279,21 +283,24 @@ img[src="/omr-symbol.png"] {
   color: white;
 }
 
-/* Section Title Style */
+/* Section Title Style - بين العنوان والمربع لا يقل عن 1.5 */
 .section-title {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: var(--space-heading-block);
+  min-height: 0;
 }
 
 .section-title h2 {
   font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 600;
+  line-height: 1.5;
   color: var(--neutral-800);
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-title-paragraph);
 }
 
 .section-title p {
   font-size: 1.125rem;
+  line-height: var(--line-height-min);
   color: var(--neutral-600);
   max-width: 700px;
   margin: 0 auto;
