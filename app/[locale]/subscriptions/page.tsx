@@ -122,19 +122,19 @@ export default function SubscriptionsPage() {
           </p>
 
           <div className="mt-10 flex items-center justify-center gap-4">
-            <span className={`font-medium ${billingCycle === 'monthly' ? 'text-white' : 'text-white/60'}`}>
+            <span className={'font-medium ' + (billingCycle === 'monthly' ? 'text-white' : 'text-white/60')}>
               {ar ? 'شهرياً' : 'Monthly'}
             </span>
             <button
               type="button"
               onClick={() => setBillingCycle((c) => (c === 'monthly' ? 'yearly' : 'monthly'))}
-              className={`relative w-16 h-8 rounded-full transition-all ${billingCycle === 'yearly' ? 'bg-green-500' : 'bg-white/30'}`}
+              className={'relative w-16 h-8 rounded-full transition-all ' + (billingCycle === 'yearly' ? 'bg-green-500' : 'bg-white/30')}
             >
               <span
-                className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transition-all ${billingCycle === 'yearly' ? 'right-1' : 'right-9'}`}
+                className={'absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transition-all ' + (billingCycle === 'yearly' ? 'right-1' : 'right-9')}
               />
             </button>
-            <span className={`font-medium ${billingCycle === 'yearly' ? 'text-white' : 'text-white/60'}`}>
+            <span className={'font-medium ' + (billingCycle === 'yearly' ? 'text-white' : 'text-white/60')}>
               {ar ? 'سنوياً' : 'Yearly'}
             </span>
             {billingCycle === 'yearly' && (
@@ -162,7 +162,7 @@ export default function SubscriptionsPage() {
                   </div>
                   <div className="text-sm opacity-90 mt-1">
                     {userSubscription.status === 'active'
-                      ? `✓ ${ar ? 'نشط' : 'Active'}${userSubscription.remainingDays != null ? ` - ${userSubscription.remainingDays} ${ar ? 'يوم متبقي' : 'days left'}` : ` - ${ar ? 'حتى' : 'until'} ${new Date(userSubscription.endAt).toLocaleDateString(locale)}`}
+                      ? '✓ ' + (ar ? 'نشط' : 'Active') + (userSubscription.remainingDays != null ? ' - ' + userSubscription.remainingDays + ' ' + (ar ? 'يوم متبقي' : 'days left') : ' - ' + (ar ? 'حتى' : 'until') + ' ' + new Date(userSubscription.endAt).toLocaleDateString(locale))
                       : '⚠️ ' + (ar ? 'منتهي' : 'Expired')}
                   </div>
                 </div>
@@ -202,9 +202,7 @@ export default function SubscriptionsPage() {
               return (
                 <div
                   key={plan.id}
-                  className={`relative rounded-3xl shadow-2xl transition-all transform hover:scale-105 ${
-                    popular ? 'ring-2 ring-[var(--primary)] scale-110 z-10 bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-white' : 'bg-white hover:shadow-3xl'
-                  }`}
+                  className={'relative rounded-3xl shadow-2xl transition-all transform hover:scale-105 ' + (popular ? 'ring-2 ring-[var(--primary)] scale-110 z-10 bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-white' : 'bg-white hover:shadow-3xl')}
                 >
                   {popular && (
                     <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
@@ -226,21 +224,21 @@ export default function SubscriptionsPage() {
                       <div className="text-5xl mb-4">
                         {idx === 0 ? '🌱' : idx === 1 ? '🚀' : idx === 2 ? '💎' : '👑'}
                       </div>
-                      <h3 className={`text-2xl font-bold mb-2 ${popular ? 'text-white' : 'text-gray-900'}`}>
+                      <h3 className={'text-2xl font-bold mb-2 ' + (popular ? 'text-white' : 'text-gray-900')}>
                         {ar ? plan.nameAr : plan.nameEn}
                       </h3>
-                      <p className={`text-sm ${popular ? 'text-white/80' : 'text-gray-600'}`}>
+                      <p className={'text-sm ' + (popular ? 'text-white/80' : 'text-gray-600')}>
                         {plan.descriptionAr || plan.descriptionEn || ''}
                       </p>
                     </div>
 
                     <div className="text-center mb-8">
-                      <div className={`text-5xl font-extrabold mb-2 ${popular ? 'text-white' : 'text-gray-900'}`}>
+                      <div className={'text-5xl font-extrabold mb-2 ' + (popular ? 'text-white' : 'text-gray-900')}>
                         {formatPlanCurrency(price, plan.currency)}
                       </div>
-                      <div className={`text-sm ${popular ? 'text-white/80' : 'text-gray-600'}`}>{priceLabel}</div>
+                      <div className={'text-sm ' + (popular ? 'text-white/80' : 'text-gray-600')}>{priceLabel}</div>
                       {billingCycle === 'yearly' && (
-                        <div className={`text-xs mt-2 ${popular ? 'text-white/70' : 'text-gray-500'}`}>
+                        <div className={'text-xs mt-2 ' + (popular ? 'text-white/70' : 'text-gray-500')}>
                           <span className="line-through">{formatPlanCurrency(plan.priceMonthly * 12, plan.currency)}</span>
                           <span className="text-green-600 font-bold ms-2">{ar ? 'وفّر' : 'Save'} {formatPlanCurrency(plan.priceMonthly * 12 * 0.2, plan.currency)}</span>
                         </div>
@@ -250,24 +248,24 @@ export default function SubscriptionsPage() {
                     <div className="space-y-3 mb-8">
                       {(plan.features || []).map((feature: string, fidx: number) => (
                         <div key={fidx} className="flex items-start gap-3">
-                          <span className={`flex-shrink-0 mt-0.5 ${popular ? 'text-green-300' : 'text-green-600'}`}>✓</span>
-                          <span className={`text-sm ${popular ? 'text-white/90' : 'text-gray-700'}`}>{feature}</span>
+                          <span className={'flex-shrink-0 mt-0.5 ' + (popular ? 'text-green-300' : 'text-green-600')}>✓</span>
+                          <span className={'text-sm ' + (popular ? 'text-white/90' : 'text-gray-700')}>{feature}</span>
                         </div>
                       ))}
                     </div>
 
-                    <div className={`grid grid-cols-2 gap-3 mb-8 pb-8 border-b ${popular ? 'border-white/20' : 'border-gray-200'}`}>
-                      <div className={`text-center p-3 rounded-lg ${popular ? 'bg-white/10' : 'bg-gray-50'}`}>
-                        <div className={`text-2xl font-bold ${popular ? 'text-white' : 'text-gray-900'}`}>
+                    <div className={'grid grid-cols-2 gap-3 mb-8 pb-8 border-b ' + (popular ? 'border-white/20' : 'border-gray-200')}>
+                      <div className={'text-center p-3 rounded-lg ' + (popular ? 'bg-white/10' : 'bg-gray-50')}>
+                        <div className={'text-2xl font-bold ' + (popular ? 'text-white' : 'text-gray-900')}>
                           {plan.limits?.maxProperties === -1 || plan.limits?.maxProperties == null ? '∞' : plan.limits.maxProperties}
                         </div>
-                        <div className={`text-xs ${popular ? 'text-white/70' : 'text-gray-600'}`}>{ar ? 'عقار' : 'Properties'}</div>
+                        <div className={'text-xs ' + (popular ? 'text-white/70' : 'text-gray-600')}>{ar ? 'عقار' : 'Properties'}</div>
                       </div>
-                      <div className={`text-center p-3 rounded-lg ${popular ? 'bg-white/10' : 'bg-gray-50'}`}>
-                        <div className={`text-2xl font-bold ${popular ? 'text-white' : 'text-gray-900'}`}>
+                      <div className={'text-center p-3 rounded-lg ' + (popular ? 'bg-white/10' : 'bg-gray-50')}>
+                        <div className={'text-2xl font-bold ' + (popular ? 'text-white' : 'text-gray-900')}>
                           {plan.limits?.maxBookings === -1 || plan.limits?.maxBookings == null ? '∞' : plan.limits.maxBookings}
                         </div>
-                        <div className={`text-xs ${popular ? 'text-white/70' : 'text-gray-600'}`}>{ar ? 'حجز' : 'Bookings'}</div>
+                        <div className={'text-xs ' + (popular ? 'text-white/70' : 'text-gray-600')}>{ar ? 'حجز' : 'Bookings'}</div>
                       </div>
                     </div>
 
@@ -275,13 +273,7 @@ export default function SubscriptionsPage() {
                       type="button"
                       onClick={() => handleSelectPlan(plan.id)}
                       disabled={isCurrentPlan}
-                      className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${
-                        popular
-                          ? 'bg-white text-[var(--primary)] hover:bg-gray-50'
-                          : isCurrentPlan
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          : 'bg-[var(--primary)] text-white hover:opacity-90'
-                      }`}
+                      className={'w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ' + (popular ? 'bg-white text-[var(--primary)] hover:bg-gray-50' : isCurrentPlan ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-[var(--primary)] text-white hover:opacity-90')}
                     >
                       {isCurrentPlan ? (ar ? '✓ باقتك الحالية' : 'Current plan') : ar ? 'اشترك الآن' : 'Subscribe'}
                     </button>
@@ -305,7 +297,7 @@ export default function SubscriptionsPage() {
                     <th className="text-right px-6 py-4 text-sm font-bold text-gray-700">{ar ? 'الميزة' : 'Feature'}</th>
                     {plans.map((plan) => (
                       <th key={plan.id} className="text-center px-6 py-4">
-                        <div className={`inline-block px-4 py-2 ${PLAN_COLORS[plan.code] || 'bg-gray-500'} text-white rounded-lg font-bold`}>
+                        <div className={'inline-block px-4 py-2 ' + (PLAN_COLORS[plan.code] || 'bg-gray-500') + ' text-white rounded-lg font-bold'}>
                           {ar ? plan.nameAr : plan.nameEn}
                         </div>
                       </th>
@@ -324,7 +316,7 @@ export default function SubscriptionsPage() {
                       <td className="px-6 py-4 text-sm font-medium text-gray-700">{row.label}</td>
                       {plans.map((plan) => {
                         const val = plan.limits?.[row.key];
-                        const display = val === -1 || val == null ? '∞' : `${val}${row.suffix || ''}`;
+                        const display = val === -1 || val == null ? '∞' : String(val) + (row.suffix || '');
                         return (
                           <td key={plan.id} className="text-center px-6 py-4">
                             <span className="font-bold text-gray-900">{display}</span>
