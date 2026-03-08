@@ -91,6 +91,7 @@ export interface SiteContentStore {
   pagesServices: { heroTitleAr: string; heroTitleEn: string; heroSubtitleAr: string; heroSubtitleEn: string; heroImage: string };
   pagesAbout: { heroTitleAr: string; heroTitleEn: string; heroSubtitleAr: string; heroSubtitleEn: string; heroImage: string; mainTitleAr: string; mainTitleEn: string; contentAr: string; contentEn: string; image: string };
   pagesContact: { heroTitleAr: string; heroTitleEn: string; heroSubtitleAr: string; heroSubtitleEn: string; heroImage: string };
+  pagesSubscriptions: { heroTitleAr: string; heroTitleEn: string; heroSubtitleAr: string; heroSubtitleEn: string; heroImage: string };
 }
 
 export const siteContent: SiteContentStore = {
@@ -203,6 +204,13 @@ export const siteContent: SiteContentStore = {
     heroSubtitleAr: 'نحن هنا لمساعدتك في جميع احتياجاتك العقارية',
     heroSubtitleEn: 'We are here to help you with all your real estate needs',
     heroImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1920&q=80',
+  },
+  pagesSubscriptions: {
+    heroTitleAr: 'باقات الاشتراك',
+    heroTitleEn: 'Subscription Plans',
+    heroSubtitleAr: 'اختر الباقة المناسبة لإدارة عقاراتك في سلطنة عُمان',
+    heroSubtitleEn: 'Choose the right plan for your property management in Oman',
+    heroImage: 'https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=1920&q=80',
   },
 };
 

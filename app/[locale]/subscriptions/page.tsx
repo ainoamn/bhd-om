@@ -4,9 +4,19 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Icon from '@/components/icons/Icon';
-import { PLAN_COLORS } from '@/lib/featurePermissions';
+import PageHero from '@/components/shared/PageHero';
+import { getSiteContent } from '@/lib/data/siteContent';
 import { getYearlyPrice, formatPlanCurrency, type SubscriptionPlanDisplay, type UserSubscriptionDisplay } from '@/lib/subscriptionSystem';
+
+const HERO_SUBSCRIPTIONS = {
+  heroTitleAr: 'باقات الاشتراك',
+  heroTitleEn: 'Subscription Plans',
+  heroSubtitleAr: 'اختر الباقة المناسبة لإدارة عقاراتك في سلطنة عُمان',
+  heroSubtitleEn: 'Choose the right plan for your property management in Oman',
+  heroImage: 'https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=1920&q=80',
+};
 
 export default function SubscriptionsPage() {
   const params = useParams();
@@ -21,6 +31,15 @@ export default function SubscriptionsPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  const pageContent = (() => {
+    try {
+      const c = getSiteContent();
+      return (c as { pagesSubscriptions?: typeof HERO_SUBSCRIPTIONS }).pagesSubscriptions || HERO_SUBSCRIPTIONS;
+    } catch {
+      return HERO_SUBSCRIPTIONS;
+    }
+  })();
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -39,8 +58,7 @@ export default function SubscriptionsPage() {
           const data = await resPlans.json();
           if (Array.isArray(data.list) && data.list.length > 0) setPlans((prev) => (prev.length > 0 ? prev : data.list));
         }
-      } catch (e) {
-        console.error(e);
+      } catch {
         const resPlans = await fetch('/api/plans');
         if (resPlans.ok) {
           const data = await resPlans.json();
@@ -85,8 +103,7 @@ export default function SubscriptionsPage() {
         if (d.subscription) setUserSubscription(d.subscription);
       }
       router.push(`/${locale}/admin/my-account`);
-    } catch (e) {
-      console.error(e);
+    } catch {
       alert(ar ? 'حدث خطأ في عملية الدفع' : 'Payment error');
     } finally {
       setSubmitting(false);
@@ -95,187 +112,172 @@ export default function SubscriptionsPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-[var(--primary)]/5 via-white to-[var(--primary)]/5">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[var(--primary)] border-t-transparent mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+      <div className="min-h-screen bg-white" data-page="subscriptions">
+        <PageHero
+          title={ar ? pageContent.heroTitleAr : pageContent.heroTitleEn}
+          subtitle={ar ? pageContent.heroSubtitleAr : pageContent.heroSubtitleEn}
+          backgroundImage={pageContent.heroImage}
+          compact
+        />
+        <div className="flex justify-center items-center py-24">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-2 border-[#8B6F47] border-t-transparent mx-auto mb-4" />
+            <p className="text-gray-600 font-medium">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[var(--primary)]/5 via-white to-[var(--primary)]/10" dir={ar ? 'rtl' : 'ltr'}>
-      {/* Hero Header — كما في الموقع القديم */}
-      <div className="bg-gradient-to-r from-[var(--primary)] via-[var(--primary-light)] to-[var(--primary)] text-white">
-        <div className="max-w-7xl mx-auto px-6 py-20 text-center">
-          <div className="mb-6">
-            <span className="inline-block px-6 py-2 bg-white/20 backdrop-blur-lg rounded-full text-sm font-bold border border-white/30 mb-6">
-              {ar ? 'عرض خاص - خصم 20% على الاشتراك السنوي' : 'Special offer - 20% off yearly'}
-            </span>
-          </div>
-          <h1 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight">
-            {ar ? 'اختر الباقة المثالية' : 'Choose the right plan'}
-          </h1>
-          <p className="text-2xl opacity-95 max-w-3xl mx-auto leading-relaxed">
-            {ar ? 'باقات مرنة ومتنوعة تناسب جميع احتياجاتك في إدارة العقارات' : 'Flexible plans for property management'}
-          </p>
+    <div className="min-h-screen bg-white" data-page="subscriptions" dir={ar ? 'rtl' : 'ltr'}>
+      {/* هيدر متجانس مع الرئيسية والعقارات والمشاريع */}
+      <PageHero
+        title={ar ? pageContent.heroTitleAr : pageContent.heroTitleEn}
+        subtitle={ar ? pageContent.heroSubtitleAr : pageContent.heroSubtitleEn}
+        backgroundImage={pageContent.heroImage}
+        compact
+      />
 
-          <div className="mt-10 flex items-center justify-center gap-4">
-            <span className={'font-medium ' + (billingCycle === 'monthly' ? 'text-white' : 'text-white/60')}>
+      {/* شريط اختيار الفترة (شهري/سنوي) */}
+      <section className="bg-gray-50 border-b border-gray-100 py-6">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <span className={`text-base font-medium ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
               {ar ? 'شهرياً' : 'Monthly'}
             </span>
             <button
               type="button"
               onClick={() => setBillingCycle((c) => (c === 'monthly' ? 'yearly' : 'monthly'))}
-              className={'relative w-16 h-8 rounded-full transition-all ' + (billingCycle === 'yearly' ? 'bg-green-500' : 'bg-white/30')}
+              className="relative w-14 h-8 rounded-full transition-colors bg-gray-200 aria-pressed:bg-[#8B6F47]"
+              style={billingCycle === 'yearly' ? { backgroundColor: '#8B6F47' } : undefined}
+              aria-pressed={billingCycle === 'yearly'}
             >
               <span
-                className={'absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transition-all ' + (billingCycle === 'yearly' ? 'right-1' : 'right-9')}
+                className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-200 ${billingCycle === 'yearly' ? 'start-1' : 'end-1'}`}
               />
             </button>
-            <span className={'font-medium ' + (billingCycle === 'yearly' ? 'text-white' : 'text-white/60')}>
+            <span className={`text-base font-medium ${billingCycle === 'yearly' ? 'text-gray-900' : 'text-gray-500'}`}>
               {ar ? 'سنوياً' : 'Yearly'}
             </span>
             {billingCycle === 'yearly' && (
-              <span className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-bold animate-pulse">
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-sm font-semibold">
                 {ar ? 'وفّر 20%' : 'Save 20%'}
               </span>
             )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Current Subscription */}
+      {/* اشتراكك الحالي */}
       {userSubscription && userSubscription.plan && (
-        <div className="max-w-7xl mx-auto px-6 -mt-10 mb-8 relative z-10">
-          <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl shadow-2xl p-8">
+        <section className="container mx-auto px-4 py-8 max-w-5xl">
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl shadow-lg p-6 md:p-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-lg rounded-xl flex items-center justify-center">
-                  <Icon name="shieldCheck" className="w-8 h-8" />
+                <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                  <Icon name="shieldCheck" className="w-7 h-7" />
                 </div>
                 <div>
-                  <div className="text-sm opacity-90 mb-1">{ar ? 'اشتراكك الحالي' : 'Your plan'}</div>
-                  <div className="text-2xl font-bold">
-                    {userSubscription.plan.nameAr || userSubscription.plan.nameEn}
-                  </div>
+                  <div className="text-sm opacity-90 mb-0.5">{ar ? 'اشتراكك الحالي' : 'Your plan'}</div>
+                  <div className="text-xl font-bold">{userSubscription.plan.nameAr || userSubscription.plan.nameEn}</div>
                   <div className="text-sm opacity-90 mt-1">
                     {userSubscription.status === 'active'
-                      ? '✓ ' + (ar ? 'نشط' : 'Active') + (userSubscription.remainingDays != null ? ' - ' + userSubscription.remainingDays + ' ' + (ar ? 'يوم متبقي' : 'days left') : ' - ' + (ar ? 'حتى' : 'until') + ' ' + new Date(userSubscription.endAt).toLocaleDateString(locale))
-                      : '⚠️ ' + (ar ? 'منتهي' : 'Expired')}
+                      ? (ar ? 'نشط' : 'Active') + (userSubscription.remainingDays != null ? ` · ${userSubscription.remainingDays} ${ar ? 'يوم متبقي' : 'days left'}` : '')
+                      : (ar ? 'منتهي' : 'Expired')}
                   </div>
                 </div>
               </div>
               <Link
-                href={'/' + locale + '/admin/my-account'}
-                className="px-6 py-3 bg-white text-green-600 rounded-xl hover:bg-gray-50 font-bold shadow-lg transition-all"
+                href={`/${locale}/admin/my-account`}
+                className="px-5 py-2.5 bg-white text-emerald-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors shrink-0"
               >
-                {ar ? 'عرض لوحة التحكم' : 'Dashboard'}
+                {ar ? 'لوحة التحكم' : 'Dashboard'}
               </Link>
             </div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Plans Grid */}
-      <div className="max-w-7xl mx-auto px-6 py-12">
+      {/* الباقات */}
+      <section className="container mx-auto px-4 py-12 md:py-16 max-w-6xl">
         {plans.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-10 text-center mb-16">
-            <p className="text-lg text-gray-700 mb-4">{ar ? 'الباقات غير متوفرة حالياً.' : 'Plans not available.'}</p>
-            <p className="text-gray-600 mb-6">
-              {ar ? 'إذا كنت مسؤولاً، ادخل لوحة التحكم ← الاشتراكات واضغط «تهيئة الباقات الافتراضية».' : 'Go to Dashboard → Subscriptions and click «Initialize default plans».'}
-            </p>
-            <Link href={'/' + locale + '/admin/subscriptions'} className="inline-block px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90">
-              {ar ? 'لوحة التحكم — الاشتراكات' : 'Dashboard — Subscriptions'}
+          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 text-center">
+            <p className="text-lg text-gray-700 mb-2">{ar ? 'الباقات غير متوفرة حالياً.' : 'Plans not available.'}</p>
+            <p className="text-gray-600 text-sm mb-6">{ar ? 'يمكن للمسؤول تهيئة الباقات من لوحة التحكم ← الاشتراكات.' : 'Admin can initialize plans from Dashboard → Subscriptions.'}</p>
+            <Link href={`/${locale}/admin/subscriptions`} className="inline-block px-5 py-2.5 bg-[#8B6F47] text-white rounded-xl font-medium hover:opacity-90 transition-opacity">
+              {ar ? 'لوحة التحكم' : 'Dashboard'}
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {plans.map((plan, idx) => {
               const isCurrentPlan = userSubscription?.planId === plan.id;
               const price = billingCycle === 'yearly' ? getYearlyPrice(plan.priceMonthly) : plan.priceMonthly;
               const priceLabel = billingCycle === 'yearly' ? (ar ? 'سنوياً' : 'Yearly') : (ar ? 'شهرياً' : 'Monthly');
               const popular = plan.code === 'standard';
-              const color = PLAN_COLORS[plan.code] || 'bg-[var(--primary)]';
+              const colorClass = popular ? 'bg-[#8B6F47] text-white' : 'bg-white border border-gray-200';
 
               return (
                 <div
                   key={plan.id}
-                  className={'relative rounded-3xl shadow-2xl transition-all transform hover:scale-105 ' + (popular ? 'ring-2 ring-[var(--primary)] scale-110 z-10 bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] text-white' : 'bg-white hover:shadow-3xl')}
+                  className={`relative rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden ${popular ? 'ring-2 ring-[#8B6F47] md:-mt-2 md:mb-2' : ''} ${colorClass}`}
                 >
                   {popular && (
-                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                      <span className="px-6 py-2 bg-[var(--primary-light)] text-white rounded-full text-sm font-bold shadow-lg flex items-center justify-center gap-2">
-                        ★ {ar ? 'الأكثر شعبية' : 'Popular'}
-                      </span>
+                    <div className="absolute top-0 left-0 right-0 py-1.5 bg-[#8B6F47] text-white text-center text-sm font-bold">
+                      {ar ? 'الأكثر اختياراً' : 'Most popular'}
                     </div>
                   )}
                   {isCurrentPlan && (
-                    <div className="absolute -top-4 right-4">
-                      <span className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold shadow-lg">
-                        ✓ {ar ? 'باقتك الحالية' : 'Current plan'}
+                    <div className="absolute top-3 end-3">
+                      <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-xs font-semibold">
+                        {ar ? 'باقتك' : 'Current'}
                       </span>
                     </div>
                   )}
 
-                  <div className="p-8">
-                    <div className="text-center mb-8">
-                      <div className="text-5xl mb-4">
-                        {idx === 0 ? '🌱' : idx === 1 ? '🚀' : idx === 2 ? '💎' : '👑'}
+                  <div className={`p-6 ${popular ? 'pt-10' : ''}`}>
+                    <div className="text-center mb-6">
+                      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#8B6F47]/10 text-[#8B6F47] mb-4">
+                        <Icon name={idx === 0 ? 'building' : idx === 1 ? 'creditCard' : 'archive'} className="w-7 h-7" />
                       </div>
-                      <h3 className={'text-2xl font-bold mb-2 ' + (popular ? 'text-white' : 'text-gray-900')}>
+                      <h3 className={`text-xl font-bold mb-1 ${popular ? 'text-white' : 'text-gray-900'}`}>
                         {ar ? plan.nameAr : plan.nameEn}
                       </h3>
-                      <p className={'text-sm ' + (popular ? 'text-white/80' : 'text-gray-600')}>
+                      <p className={`text-sm ${popular ? 'text-white/80' : 'text-gray-500'}`}>
                         {plan.descriptionAr || plan.descriptionEn || ''}
                       </p>
                     </div>
 
-                    <div className="text-center mb-8">
-                      <div className={'text-5xl font-extrabold mb-2 ' + (popular ? 'text-white' : 'text-gray-900')}>
+                    <div className="text-center mb-6">
+                      <div className={`text-4xl font-bold ${popular ? 'text-white' : 'text-gray-900'}`}>
                         {formatPlanCurrency(price, plan.currency)}
                       </div>
-                      <div className={'text-sm ' + (popular ? 'text-white/80' : 'text-gray-600')}>{priceLabel}</div>
-                      {billingCycle === 'yearly' && (
-                        <div className={'text-xs mt-2 ' + (popular ? 'text-white/70' : 'text-gray-500')}>
-                          <span className="line-through">{formatPlanCurrency(plan.priceMonthly * 12, plan.currency)}</span>
-                          <span className="text-green-600 font-bold ms-2">{ar ? 'وفّر' : 'Save'} {formatPlanCurrency(plan.priceMonthly * 12 * 0.2, plan.currency)}</span>
-                        </div>
-                      )}
+                      <div className={`text-sm ${popular ? 'text-white/80' : 'text-gray-500'}`}>{priceLabel}</div>
                     </div>
 
-                    <div className="space-y-3 mb-8">
-                      {(plan.features || []).map((feature: string, fidx: number) => (
-                        <div key={fidx} className="flex items-start gap-3">
-                          <span className={'flex-shrink-0 mt-0.5 ' + (popular ? 'text-green-300' : 'text-green-600')}>✓</span>
-                          <span className={'text-sm ' + (popular ? 'text-white/90' : 'text-gray-700')}>{feature}</span>
-                        </div>
+                    <ul className="space-y-3 mb-6">
+                      {(plan.features || []).slice(0, 5).map((feature: string, fidx: number) => (
+                        <li key={fidx} className="flex items-start gap-2 text-sm">
+                          <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
+                          <span className={popular ? 'text-white/90' : 'text-gray-700'}>{feature}</span>
+                        </li>
                       ))}
-                    </div>
-
-                    <div className={'grid grid-cols-2 gap-3 mb-8 pb-8 border-b ' + (popular ? 'border-white/20' : 'border-gray-200')}>
-                      <div className={'text-center p-3 rounded-lg ' + (popular ? 'bg-white/10' : 'bg-gray-50')}>
-                        <div className={'text-2xl font-bold ' + (popular ? 'text-white' : 'text-gray-900')}>
-                          {plan.limits?.maxProperties === -1 || plan.limits?.maxProperties == null ? '∞' : plan.limits.maxProperties}
-                        </div>
-                        <div className={'text-xs ' + (popular ? 'text-white/70' : 'text-gray-600')}>{ar ? 'عقار' : 'Properties'}</div>
-                      </div>
-                      <div className={'text-center p-3 rounded-lg ' + (popular ? 'bg-white/10' : 'bg-gray-50')}>
-                        <div className={'text-2xl font-bold ' + (popular ? 'text-white' : 'text-gray-900')}>
-                          {plan.limits?.maxBookings === -1 || plan.limits?.maxBookings == null ? '∞' : plan.limits.maxBookings}
-                        </div>
-                        <div className={'text-xs ' + (popular ? 'text-white/70' : 'text-gray-600')}>{ar ? 'حجز' : 'Bookings'}</div>
-                      </div>
-                    </div>
+                    </ul>
 
                     <button
                       type="button"
                       onClick={() => handleSelectPlan(plan.id)}
                       disabled={isCurrentPlan}
-                      className={'w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ' + (popular ? 'bg-white text-[var(--primary)] hover:bg-gray-50' : isCurrentPlan ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-[var(--primary)] text-white hover:opacity-90')}
+                      className={`w-full py-3.5 rounded-xl font-semibold transition-all ${
+                        isCurrentPlan
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : popular
+                            ? 'bg-white text-[#8B6F47] hover:bg-gray-50'
+                            : 'bg-[#8B6F47] text-white hover:opacity-90'
+                      }`}
                     >
-                      {isCurrentPlan ? (ar ? '✓ باقتك الحالية' : 'Current plan') : ar ? 'اشترك الآن' : 'Subscribe'}
+                      {isCurrentPlan ? (ar ? 'باقتك الحالية' : 'Current plan') : ar ? 'اختر الباقة' : 'Choose plan'}
                     </button>
                   </div>
                 </div>
@@ -284,99 +286,102 @@ export default function SubscriptionsPage() {
           </div>
         )}
 
-        {/* Features Comparison — كما في الموقع القديم */}
+        {/* مقارنة الباقات */}
         {plans.length > 0 && (
-          <div className="mt-20 bg-white rounded-3xl shadow-2xl p-10">
-            <h2 className="text-4xl font-bold text-center text-gray-900 mb-12">
-              {ar ? 'مقارنة شاملة للباقات' : 'Plan comparison'}
+          <div className="mt-20">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-10">
+              {ar ? 'مقارنة الباقات' : 'Plan comparison'}
             </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <table className="w-full min-w-[600px] text-sm">
                 <thead>
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="text-right px-6 py-4 text-sm font-bold text-gray-700">{ar ? 'الميزة' : 'Feature'}</th>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="text-right px-4 py-4 font-semibold text-gray-700">{ar ? 'الميزة' : 'Feature'}</th>
                     {plans.map((plan) => (
-                      <th key={plan.id} className="text-center px-6 py-4">
-                        <div className={'inline-block px-4 py-2 ' + (PLAN_COLORS[plan.code] || 'bg-gray-500') + ' text-white rounded-lg font-bold'}>
-                          {ar ? plan.nameAr : plan.nameEn}
-                        </div>
+                      <th key={plan.id} className="text-center px-4 py-4 font-semibold text-gray-900">
+                        {ar ? plan.nameAr : plan.nameEn}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {[
-                    { label: '🏢 ' + (ar ? 'عدد العقارات' : 'Properties'), key: 'maxProperties' },
-                    { label: '🏠 ' + (ar ? 'عدد الوحدات' : 'Units'), key: 'maxUnits' },
-                    { label: '📅 ' + (ar ? 'عدد الحجوزات' : 'Bookings'), key: 'maxBookings' },
-                    { label: '👥 ' + (ar ? 'عدد المستخدمين' : 'Users'), key: 'maxUsers' },
-                    { label: '💾 ' + (ar ? 'مساحة التخزين' : 'Storage'), key: 'storageGB', suffix: ' GB' },
+                    { label: ar ? 'عدد العقارات' : 'Properties', key: 'maxProperties' },
+                    { label: ar ? 'عدد الحجوزات' : 'Bookings', key: 'maxBookings' },
+                    { label: ar ? 'عدد المستخدمين' : 'Users', key: 'maxUsers' },
                   ].map((row) => (
-                    <tr key={row.key} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-700">{row.label}</td>
+                    <tr key={row.key} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 font-medium text-gray-700">{row.label}</td>
                       {plans.map((plan) => {
                         const val = plan.limits?.[row.key];
-                        const display = val === -1 || val == null ? '∞' : String(val) + (row.suffix || '');
+                        const display = val === -1 || val == null ? '∞' : String(val);
                         return (
-                          <td key={plan.id} className="text-center px-6 py-4">
-                            <span className="font-bold text-gray-900">{display}</span>
+                          <td key={plan.id} className="text-center px-4 py-3 text-gray-900">
+                            {display}
                           </td>
                         );
                       })}
                     </tr>
                   ))}
-                  <tr className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-700">🔐 {ar ? 'عدد الصلاحيات' : 'Permissions'}</td>
-                    {plans.map((plan) => (
-                      <td key={plan.id} className="text-center px-6 py-4">
-                        <span className="font-bold text-[var(--primary)]">—</span>
-                      </td>
-                    ))}
-                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* لماذا بن حمود؟ — كما في الموقع القديم */}
-        <div className="mt-20 text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-6">{ar ? 'لماذا بن حمود؟' : 'Why BHD?'}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-            {[
-              { icon: '🚀', title: ar ? 'سريع وسهل' : 'Fast & easy', desc: ar ? 'واجهة بسيطة وسلسة' : 'Simple interface' },
-              { icon: '🔒', title: ar ? 'آمن ومحمي' : 'Secure', desc: ar ? 'أمان عالي لبياناتك' : 'Your data is safe' },
-              { icon: '🤖', title: ar ? 'ذكاء اصطناعي' : 'AI-powered', desc: ar ? 'توصيات وتحليلات ذكية' : 'Smart insights' },
-            ].map((item, idx) => (
-              <div key={idx} className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-2xl transition-all">
-                <div className="text-6xl mb-4">{item.icon}</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
-                <p className="text-gray-600">{item.desc}</p>
-              </div>
-            ))}
+        {/* لماذا بن حمود — مع صورة عمانية */}
+        <div className="mt-20 rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            <div className="relative h-64 lg:min-h-[320px]">
+              <Image
+                src="https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=800&q=80"
+                alt={ar ? 'سلطنة عُمان' : 'Sultanate of Oman'}
+                fill
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+            </div>
+            <div className="p-8 lg:p-10 flex flex-col justify-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">{ar ? 'لماذا بن حمود؟' : 'Why Bin Hamood?'}</h2>
+              <ul className="space-y-3 text-gray-700">
+                <li className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center shrink-0 text-[#8B6F47] font-bold">1</span>
+                  {ar ? 'واجهة بسيطة وسريعة لإدارة العقارات' : 'Simple, fast interface for property management'}
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center shrink-0 text-[#8B6F47] font-bold">2</span>
+                  {ar ? 'أمان عالٍ لبياناتك وحساباتك' : 'High security for your data and accounts'}
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center shrink-0 text-[#8B6F47] font-bold">3</span>
+                  {ar ? 'دعم محلي في سلطنة عُمان' : 'Local support in the Sultanate of Oman'}
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Payment Modal — كما في الموقع القديم */}
+      {/* نافذة الدفع */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-2xl w-full">
-            <h3 className="text-3xl font-bold text-gray-900 mb-6 text-center">
-              {ar ? 'إتمام عملية الدفع' : 'Complete payment'}
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 max-w-lg w-full">
+            <h3 className="text-xl font-bold text-gray-900 mb-6 text-center">
+              {ar ? 'إتمام الدفع' : 'Complete payment'}
             </h3>
 
             {selectedPlanId && (
-              <div className="bg-gradient-to-r from-[var(--primary)]/10 to-[var(--primary)]/5 rounded-2xl p-6 mb-8">
-                <div className="flex items-center justify-between">
+              <div className="bg-gray-50 rounded-xl p-5 mb-6">
+                <div className="flex justify-between items-center flex-wrap gap-2">
                   <div>
-                    <div className="text-sm text-gray-600 mb-1">{ar ? 'الباقة المختارة' : 'Selected plan'}</div>
-                    <div className="text-2xl font-bold text-gray-900">
+                    <div className="text-sm text-gray-500 mb-0.5">{ar ? 'الباقة' : 'Plan'}</div>
+                    <div className="font-bold text-gray-900">
                       {plans.find((p) => p.id === selectedPlanId)?.nameAr || plans.find((p) => p.id === selectedPlanId)?.nameEn}
                     </div>
                   </div>
-                  <div className="text-end">
-                    <div className="text-3xl font-bold text-[var(--primary)]">
+                  <div className="text-left">
+                    <div className="text-2xl font-bold text-[#8B6F47]">
                       {formatPlanCurrency(
                         billingCycle === 'yearly'
                           ? getYearlyPrice(plans.find((p) => p.id === selectedPlanId)?.priceMonthly || 0)
@@ -384,42 +389,25 @@ export default function SubscriptionsPage() {
                         plans.find((p) => p.id === selectedPlanId)?.currency || 'OMR'
                       )}
                     </div>
-                    <div className="text-sm text-gray-600">{billingCycle === 'yearly' ? (ar ? 'سنوياً' : 'Yearly') : (ar ? 'شهرياً' : 'Monthly')}</div>
+                    <div className="text-sm text-gray-500">{billingCycle === 'yearly' ? (ar ? 'سنوياً' : 'Yearly') : (ar ? 'شهرياً' : 'Monthly')}</div>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="mb-8">
-              <label className="block text-sm font-bold text-gray-700 mb-2">{ar ? 'طريقة الدفع' : 'Payment method'}</label>
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { id: 'credit', label: ar ? 'بطاقة ائتمان' : 'Card', icon: '💳' },
-                  { id: 'bank', label: ar ? 'تحويل بنكي' : 'Bank', icon: '🏦' },
-                  { id: 'cash', label: ar ? 'نقداً' : 'Cash', icon: '💵' },
-                ].map((method) => (
-                  <button key={method.id} type="button" className="p-4 border-2 border-gray-200 rounded-xl hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 transition-all text-center">
-                    <div className="text-3xl mb-2">{method.icon}</div>
-                    <div className="text-sm font-medium text-gray-700">{method.label}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => { setShowPaymentModal(false); setSelectedPlanId(''); }}
-                className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-bold text-lg transition-all"
+                className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
               >
-                <Icon name="x" className="w-5 h-5 inline-block ms-2" />
                 {ar ? 'إلغاء' : 'Cancel'}
               </button>
               <button
                 type="button"
                 onClick={handlePayment}
                 disabled={submitting}
-                className="flex-1 px-6 py-4 bg-[var(--primary)] text-white rounded-xl hover:opacity-90 font-bold text-lg transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-[#8B6F47] text-white rounded-xl hover:opacity-90 font-semibold transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Icon name="creditCard" className="w-5 h-5" />
                 {submitting ? (ar ? 'جاري...' : '...') : (ar ? 'إتمام الدفع' : 'Pay')}
