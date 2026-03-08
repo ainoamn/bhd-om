@@ -68,6 +68,12 @@ export default function LoginAsUserButton({
         throw new Error(err?.error || 'Failed to switch session');
       }
 
+      const data = await impRes.json().catch(() => ({}));
+      const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : null;
+      if (!sessionToken) {
+        throw new Error(ar ? 'لم يُرجَع رمز الجلسة' : 'Session token not returned');
+      }
+
       // تخزين بيانات المستخدم المُختار (للعرض في لوحة التحكم) — SessionMiddleware يقرأ isSwitchingUser و userSession
       localStorage.setItem('userSession', JSON.stringify({
         id: userId,
@@ -80,9 +86,8 @@ export default function LoginAsUserButton({
       }));
       localStorage.setItem('isSwitchingUser', 'true');
 
-      // إعطاء المتصفح وقتاً لتسجيل الكوكي ثم الانتقال للوحة المستخدم
-      await new Promise((r) => setTimeout(r, 200));
-      window.location.replace(`/${locale}/admin`);
+      // التوجيه إلى مسار يضبط الكوكي عبر 302 ثم يوجّه للوحة التحكم (يعمل بثقة في كل المتصفحات والإنتاج)
+      window.location.href = `/api/auth/set-impersonate?t=${encodeURIComponent(sessionToken)}&locale=${encodeURIComponent(locale)}`;
       
     } catch (error) {
       console.error('Login as user error:', error);

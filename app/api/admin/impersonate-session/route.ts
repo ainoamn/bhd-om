@@ -10,10 +10,6 @@ import { prisma } from '@/lib/prisma';
 export const runtime = 'nodejs';
 
 const SESSION_MAX_AGE = 24 * 60 * 60;
-const COOKIE_NAME =
-  process.env.NODE_ENV === 'production' && process.env.NEXTAUTH_URL?.startsWith('https://')
-    ? '__Secure-next-auth.session-token'
-    : 'next-auth.session-token';
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,17 +56,9 @@ export async function POST(req: NextRequest) {
       maxAge: SESSION_MAX_AGE,
     });
 
-    const res = NextResponse.json({ ok: true });
-    const isSecure = process.env.NODE_ENV === 'production' && process.env.NEXTAUTH_URL?.startsWith('https://');
-    res.cookies.set(COOKIE_NAME, sessionToken, {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: isSecure,
-      maxAge: SESSION_MAX_AGE,
-    });
-
-    return res;
+    // إرجاع التوكن في الجسد لاستخدامه في التوجيه عبر /api/auth/set-impersonate
+    // (ضبط الكوكي عبر استجابة توجيه 302 يعمل بشكل موثوق في كل المتصفحات بدل Set-Cookie من fetch)
+    return NextResponse.json({ ok: true, sessionToken });
   } catch (e) {
     console.error('Impersonate session error:', e);
     return NextResponse.json({ error: 'Failed to create session', ok: false }, { status: 500 });
