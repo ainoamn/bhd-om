@@ -345,7 +345,7 @@ export default function MyAccountPage() {
                 {fullContact.passportExpiry && <div><span className="font-semibold text-gray-600">{ar ? 'انتهاء الجواز:' : 'Passport expiry:'}</span> <span className="text-gray-900">{new Date(fullContact.passportExpiry).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</span></div>}
                 {fullContact.workplace && <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'جهة العمل:' : 'Workplace:'}</span> <span className="text-gray-900">{fullContact.workplace}</span></div>}
                 {fullContact.position && <div><span className="font-semibold text-gray-600">{ar ? 'المنصب:' : 'Position:'}</span> <span className="text-gray-900">{fullContact.position}</span></div>}
-                <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'العنوان:' : 'Address:'}</span> <span className="text-gray-900">{formatAddress(fullContact.address)}</span></div>}
+                <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'العنوان:' : 'Address:'}</span> <span className="text-gray-900">{formatAddress(fullContact.address)}</span></div>
                 {fullContact.notes && <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'ملاحظات:' : 'Notes:'}</span> <span className="text-gray-900">{fullContact.notes}</span></div>}
               </div>
             )
