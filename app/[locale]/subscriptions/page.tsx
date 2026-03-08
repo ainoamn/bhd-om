@@ -168,7 +168,7 @@ export default function SubscriptionsPage() {
                 </div>
               </div>
               <Link
-                href={`/${locale}/admin/my-account`}
+                href={'/' + locale + '/admin/my-account'}
                 className="px-6 py-3 bg-white text-green-600 rounded-xl hover:bg-gray-50 font-bold shadow-lg transition-all"
               >
                 {ar ? 'عرض لوحة التحكم' : 'Dashboard'}
@@ -186,7 +186,7 @@ export default function SubscriptionsPage() {
             <p className="text-gray-600 mb-6">
               {ar ? 'إذا كنت مسؤولاً، ادخل لوحة التحكم ← الاشتراكات واضغط «تهيئة الباقات الافتراضية».' : 'Go to Dashboard → Subscriptions and click «Initialize default plans».'}
             </p>
-            <Link href={`/${locale}/admin/subscriptions`} className="inline-block px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90">
+            <Link href={'/' + locale + '/admin/subscriptions'} className="inline-block px-6 py-3 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90">
               {ar ? 'لوحة التحكم — الاشتراكات' : 'Dashboard — Subscriptions'}
             </Link>
           </div>
