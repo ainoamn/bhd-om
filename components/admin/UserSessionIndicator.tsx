@@ -6,49 +6,53 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { signOut, useSession } from 'next-auth/react';
+import { useParams, usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import Icon from '@/components/icons/Icon';
+
+/** قراءة بيانات الانتحال من localStorage — مصدر واحد لئلا يظهر اسم/إيميل الأدمن */
+function getImpersonationDisplay(): { id: string; displayName: string } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const us = localStorage.getItem('userSession');
+    if (!us) return null;
+    const p = JSON.parse(us) as { loginAsUser?: boolean; id?: string; name?: string; email?: string; serialNumber?: string };
+    if (!p.loginAsUser || !p.id) return null;
+    const displayName =
+      (p.name || '').trim() ||
+      (p.serialNumber || '').trim() ||
+      (p.email || '').trim() ||
+      '—';
+    return { id: p.id, displayName };
+  } catch {
+    return null;
+  }
+}
 
 export default function UserSessionIndicator() {
   const params = useParams();
+  const pathname = usePathname();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
-  const { data: session } = useSession();
-  
-  const [storedImpersonationId, setStoredImpersonationId] = useState<string | null>(null);
+  const isAdminPath = pathname?.includes('/admin');
+
+  const [impersonation, setImpersonation] = useState<{ id: string; displayName: string } | null>(() => getImpersonationDisplay());
 
   useEffect(() => {
-    const role = (session?.user as { role?: string } | undefined)?.role;
-    if (session?.user && role === 'ADMIN') {
-      setStoredImpersonationId(null);
+    if (!isAdminPath) {
+      setImpersonation(null);
       return;
     }
-    const userSession = localStorage.getItem('userSession');
-    if (userSession) {
-      try {
-        const parsed = JSON.parse(userSession) as { loginAsUser?: boolean; id?: string };
-        if (parsed.loginAsUser && parsed.id) setStoredImpersonationId(parsed.id);
-        else setStoredImpersonationId(null);
-      } catch {
-        setStoredImpersonationId(null);
-      }
-    } else {
-      setStoredImpersonationId(null);
-    }
-  }, [session?.user]);
+    setImpersonation(getImpersonationDisplay());
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'userSession' || e.key === null) setImpersonation(getImpersonationDisplay());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [isAdminPath]);
 
-  const currentUserId = (session?.user as { id?: string } | undefined)?.id;
-  const isActuallyImpersonating =
-    Boolean(storedImpersonationId && session?.user && currentUserId === storedImpersonationId);
-
-  const displayName = session?.user
-    ? (session.user as { name?: string }).name?.trim() ||
-      (session.user as { serialNumber?: string }).serialNumber ||
-      (session.user as { email?: string }).email ||
-      (session.user as { phone?: string }).phone ||
-      "-"
-    : "";
+  const isActuallyImpersonating = !!impersonation?.id;
+  const displayName = impersonation?.displayName ?? '';
 
   const handleReturnToAdmin = () => {
     const returnToken = sessionStorage.getItem('adminReturnToken');
@@ -89,7 +93,7 @@ export default function UserSessionIndicator() {
     }
   };
 
-  if (!isActuallyImpersonating || !session?.user) {
+  if (!isActuallyImpersonating || !isAdminPath) {
     return null;
   }
 
@@ -101,7 +105,7 @@ export default function UserSessionIndicator() {
           {ar ? 'مسجل كمستخدم:' : 'Logged in as user:'}
         </span>
         <span className="font-bold">
-          {displayName}
+          {displayName || '—'}
         </span>
       </div>
       <button

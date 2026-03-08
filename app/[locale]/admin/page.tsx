@@ -35,7 +35,7 @@ function formatTimeAgo(dateStr: string, locale: string): string {
   }
 }
 
-/** دور فعّال مع احترام وضع "فتح حساب" من localStorage حتى لا يعود العرض للأدمن بعد تحديث الجلسة */
+/** دور فعّال — عند "فتح حساب" نعتمد دائماً دور المستخدم من localStorage لئلا تظهر لوحة الأدمن أو خصائصها */
 function useEffectiveRole(serverRole: string | undefined) {
   const localRole = useMemo(() => {
     if (typeof window === 'undefined') return null;
@@ -43,13 +43,12 @@ function useEffectiveRole(serverRole: string | undefined) {
       const us = localStorage.getItem('userSession');
       if (!us) return null;
       const p = JSON.parse(us) as { loginAsUser?: boolean; role?: string };
-      // عند "فتح حساب": نعتمد دور المستخدم من localStorage إن كانت الجلسة أدمن أو لم تُحمّل بعد
-      if (p.loginAsUser && p.role && (serverRole === 'ADMIN' || serverRole === undefined)) return p.role;
+      if (p.loginAsUser && p.role) return p.role;
       return null;
     } catch {
       return null;
     }
-  }, [serverRole]);
+  }, []);
   return localRole || serverRole;
 }
 

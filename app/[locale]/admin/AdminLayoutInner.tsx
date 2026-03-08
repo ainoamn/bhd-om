@@ -38,43 +38,56 @@ const isSubGroup = (x: ContentItem): x is NavItemWithSub => 'subItems' in x;
 /** القائمة الجانبية للأدمن - مُستمد من السجل المركزي (adminNav)، الصفحات الجديدة تُضاف تلقائياً */
 const navGroupsConfig = getAdminNavGroupsConfig() as { groupKey: string; items: ContentItem[] }[];
 
+/** جلسة الانتحال من localStorage — مصدر واحد للحقيقة عند "فتح حساب" لئلا تظهر بيانات الأدمن */
+function getImpersonationSessionFromStorage(): { user: { id: string; name?: string; email?: string; phone?: string; role: string; serialNumber?: string } } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const us = localStorage.getItem('userSession');
+    if (!us) return null;
+    const p = JSON.parse(us) as { loginAsUser?: boolean; id?: string; name?: string; email?: string; phone?: string; role?: string; serialNumber?: string };
+    if (!p.loginAsUser || !p.id) return null;
+    return {
+      user: {
+        id: p.id,
+        name: p.name ?? undefined,
+        email: p.email ?? undefined,
+        phone: p.phone ?? undefined,
+        role: p.role || 'CLIENT',
+        serialNumber: p.serialNumber ?? undefined,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams();
-  
-  // Check for mock session first (guard for SSR/prerender)
-  const mockSession = typeof window !== 'undefined' ? (window as any)?.mockNextAuthSession : undefined;
-  const currentUser = typeof window !== 'undefined' ? (window as any)?.currentUser : undefined;
-  const { data: session, status, update: refetchSession } = useSession();
+  const { data: session, status } = useSession();
 
-  // آخر جلسة معروفة — للعرض الفوري عند التنقل دون انتظار إعادة التحقق
+  // مصدر واحد: عند وجود "فتح حساب" في localStorage نعتمدها فقط — لا نعرض أبداً بيانات الأدمن أو قائمة الأدمن
+  const impersonationSession = getImpersonationSessionFromStorage();
+  const isImpersonating = !!impersonationSession;
+
+  // آخر جلسة معروفة (للحالات غير الانتحال)
   const lastKnownSessionRef = useRef<typeof session>(null);
   if (session?.user) lastKnownSessionRef.current = session;
   if (status === 'unauthenticated') lastKnownSessionRef.current = null;
 
-  // جلسة فعّالة: وهمية أو حقيقية أو آخر جلسة معروفة (لتنقل فوري)
-  let currentSession = mockSession || session || lastKnownSessionRef.current;
+  const mockSession = typeof window !== 'undefined' ? (window as any)?.mockNextAuthSession : undefined;
+  const fallbackSession = mockSession || session || lastKnownSessionRef.current;
 
-  // عند "فتح حساب": إذا الخادم أعاد جلسة الأدمن (لأن الكوكي لم يُحدّث في بعض البيئات)، نثبت عرض لوحة العميل من localStorage
-  if (typeof window !== 'undefined' && currentSession?.user && (currentSession.user as { role?: string })?.role === 'ADMIN') {
-    try {
-      const us = localStorage.getItem('userSession');
-      if (us) {
-        const p = JSON.parse(us) as { loginAsUser?: boolean; id?: string; name?: string; email?: string; role?: string; serialNumber?: string };
-        if (p.loginAsUser && p.id) {
-          currentSession = { user: { id: p.id, name: p.name, email: p.email, role: p.role || 'CLIENT', serialNumber: p.serialNumber } };
-        }
-      }
-    } catch {}
-  }
-  
+  // الجلسة الفعالة: إن كنا في وضع "فتح حساب" نعتمد localStorage فقط؛ وإلا الجلسة العادية
+  const currentSession = isImpersonating ? impersonationSession : fallbackSession;
+
   const { tab: currentTab, action: currentAction } = useAccountingTab();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('admin.nav');
   const hasUserBar = useUserBar();
   const userRole = (currentSession?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
   const isNonAdmin = userRole === 'CLIENT' || userRole === 'OWNER';
-  const isAdminConfirmed = (mockSession || currentUser) ? false : (status === 'authenticated' && userRole === 'ADMIN');
+  const isAdminConfirmed = !isImpersonating && status === 'authenticated' && userRole === 'ADMIN';
   const userName = (currentSession?.user as { name?: string })?.name || (currentSession?.user as { serialNumber?: string })?.serialNumber || (currentSession?.user as { email?: string })?.email || (currentSession?.user as { phone?: string })?.phone || '—';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -176,12 +189,10 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     }
   }, [currentSession?.user, effectiveRole]);
 
-  const isLoginAsUser = typeof window !== 'undefined' && (window as any)?.isLoginAsUser;
-  const hasMockSession = isLoginAsUser && (typeof window !== 'undefined' && ((window as any)?.mockNextAuthSession || (window as any)?.currentUser));
   const isAdminPath = pathname?.includes('/admin');
 
   // عدم حجب الواجهة أبداً — عرض اللوحة والمحتوى فوراً (سرعة التنقل). نعرض "يجب تسجيل الدخول" فقط عند التأكد من عدم المصادقة.
-  const showLoginRequired = !hasMockSession && status === 'unauthenticated' && isAdminPath;
+  const showLoginRequired = !currentSession && status === 'unauthenticated' && isAdminPath;
 
   if (showLoginRequired) {
     const loginUrl = `/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`;
