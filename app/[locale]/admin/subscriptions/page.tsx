@@ -310,6 +310,7 @@ export default function AdminSubscriptionsPage() {
   }
 
   return (
+    <>
     <div className="admin-page-content" dir={ar ? 'rtl' : 'ltr'}>
       <div className="admin-page-header">
         <div>
@@ -586,7 +587,7 @@ export default function AdminSubscriptionsPage() {
         </div>
       </div>
 
-      {/* Modal: تعديل معلومات الباقة */}
+      {/* Modal: Edit plan */}
       {showEditPlanModal && editingPlan && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditPlanModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -655,7 +656,7 @@ export default function AdminSubscriptionsPage() {
         </div>
       )}
 
-      {/* Modal: تعديل الميزات */}
+      {/* Modal: Edit features */}
       {showEditFeaturesModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditFeaturesModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -699,6 +700,6 @@ export default function AdminSubscriptionsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
