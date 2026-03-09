@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -272,10 +272,16 @@ export default function AdminSubscriptionsPage() {
   };
   const saveEditedPlan = () => {
     if (!editingPlan) return;
-    setPlans((prev) => prev.map((p) => (p.id === editingPlan.id ? editingPlan : p)));
-    setShowEditPlanModal(false);
-    setEditingPlan(null);
-    alert(ar ? 'تم حفظ التعديلات! لا تنسَ «حفظ جميع التغييرات»' : 'Saved! Remember to click «Save all changes»');
+    const planToSave = editingPlan;
+    const msg = ar ? 'تم حفظ التعديلات! لا تنسَ «حفظ جميع التغييرات»' : 'Saved! Remember to click «Save all changes»';
+    setTimeout(() => {
+      startTransition(() => {
+        setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
+        setShowEditPlanModal(false);
+        setEditingPlan(null);
+      });
+      setTimeout(() => alert(msg), 0);
+    }, 0);
   };
 
   const openEditFeaturesModal = (plan: PlanRow) => {
@@ -293,15 +299,21 @@ export default function AdminSubscriptionsPage() {
     setEditingFeaturesAr(editingFeaturesAr.filter((_, i) => i !== index));
   };
   const saveFeaturesChanges = () => {
-    setPlans((prev) =>
-      prev.map((p) =>
-        p.id === editingPlanId
-          ? { ...p, features: editingFeatures.filter((f) => f.trim() !== ''), featuresAr: editingFeaturesAr.filter((f) => f.trim() !== '') }
-          : p
-      )
-    );
-    setShowEditFeaturesModal(false);
-    alert(ar ? 'تم حفظ الميزات! لا تنسَ «حفظ جميع التغييرات»' : 'Features saved! Remember «Save all changes»');
+    const planId = editingPlanId;
+    const feats = editingFeatures.filter((f) => f.trim() !== '');
+    const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
+    const msg = ar ? 'تم حفظ الميزات! لا تنسَ «حفظ جميع التغييرات»' : 'Features saved! Remember «Save all changes»';
+    setTimeout(() => {
+      startTransition(() => {
+        setPlans((prev) =>
+          prev.map((p) =>
+            p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p
+          )
+        );
+        setShowEditFeaturesModal(false);
+      });
+      setTimeout(() => alert(msg), 0);
+    }, 0);
   };
 
   const handleInitPlans = async () => {
