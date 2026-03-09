@@ -353,14 +353,25 @@ export default function AdminSubscriptionsPage() {
   const handleInitPlans = async () => {
     setInitLoading(true);
     try {
-      const res = await fetch('/api/plans/init', { method: 'POST' });
-      const d = await res.json();
+      const res = await fetch('/api/plans/init', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const d = await res.json().catch(() => ({}));
       if (res.ok && d.ok) {
-        alert(ar ? `تم إنشاء ${d.created} باقة. حدّث الصفحة.` : `${d.created} plans created.`);
         await loadData();
-      } else alert(d.error || (ar ? 'فشل' : 'Failed'));
+        const msg = d.created > 0
+          ? (ar ? `تم إنشاء ${d.created} باقة. يمكنك التعديل والحفظ الآن.` : `${d.created} plans created. You can edit and save now.`)
+          : (ar ? 'الباقات موجودة. تم تحديث القائمة.' : 'Plans already exist. List updated.');
+        setTimeout(() => alert(msg), 0);
+      } else {
+        setTimeout(() => alert(d.error || (ar ? 'فشل التهيئة' : 'Init failed')), 0);
+      }
     } catch (e) {
       console.error(e);
+      setTimeout(() => alert(ar ? 'فشل التهيئة' : 'Init failed'), 0);
     } finally {
       setInitLoading(false);
     }
