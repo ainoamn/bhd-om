@@ -79,9 +79,9 @@ export default function AdminSubscriptionsPage() {
     };
     try {
       let [plansRes, usersRes, subRes] = await doFetch();
-      if ((plansRes.status === 403 || plansRes.status === 401) && retryCount < 2) {
-        await new Promise((r) => setTimeout(r, 400));
-        [plansRes, usersRes, subRes] = await doFetch();
+      if ((plansRes.status === 403 || plansRes.status === 401) && retryCount < 3) {
+        await new Promise((r) => setTimeout(r, 350 + retryCount * 250));
+        return loadData(retryCount + 1);
       }
       const subs: { userId: string; planId: string; status: string }[] = [];
       if (subRes.ok) {
@@ -192,56 +192,60 @@ export default function AdminSubscriptionsPage() {
     setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, [field]: value } : p)));
   };
 
-  const saveChanges = async () => {
+  const saveChanges = () => {
     if (useDefaultPlans) {
       alert(ar ? 'يجب تهيئة الباقات الافتراضية أولاً من زر «تهيئة الباقات الافتراضية» ثم حفظ التغييرات.' : 'Please run «Init default plans» first, then save changes.');
       return;
     }
     setSavingAll(true);
-    await new Promise<void>((r) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => r()));
-    });
-    try {
-      const results = await Promise.all(
-        plans.map(async (plan) => {
-          const res = await fetch(`/api/plans/${plan.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              limitsJson: JSON.stringify({
-                maxProperties: plan.maxProperties,
-                maxUnits: plan.maxUnits,
-                maxBookings: plan.maxBookings,
-                maxUsers: plan.maxUsers,
-                storageGB: plan.storageGB,
+    // تأجيل العمل الثقيل حتى تُرسم الواجهة (جاري الحفظ...) وتجنب INP
+    const runSave = async () => {
+      try {
+        const results = await Promise.all(
+          plans.map(async (plan) => {
+            const res = await fetch(`/api/plans/${plan.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              cache: 'no-store',
+              body: JSON.stringify({
+                limitsJson: JSON.stringify({
+                  maxProperties: plan.maxProperties,
+                  maxUnits: plan.maxUnits,
+                  maxBookings: plan.maxBookings,
+                  maxUsers: plan.maxUsers,
+                  storageGB: plan.storageGB,
+                }),
+                permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
+                nameAr: plan.nameAr,
+                nameEn: plan.nameEn,
+                priceMonthly: plan.priceMonthly,
+                priceYearly: plan.priceYearly ?? undefined,
+                featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
               }),
-              permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
-              nameAr: plan.nameAr,
-              nameEn: plan.nameEn,
-              priceMonthly: plan.priceMonthly,
-              priceYearly: plan.priceYearly ?? undefined,
-              featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
-            }),
-          });
-          return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
-        })
-      );
-      const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
-      if (failed.length > 0) {
-        alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n'));
+            });
+            return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
+          })
+        );
+        const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
+        if (failed.length > 0) {
+          setSavingAll(false);
+          alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n'));
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 200));
+        await loadData();
         setSavingAll(false);
-        return;
+        alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!');
+      } catch (e) {
+        console.error(e);
+        setSavingAll(false);
+        alert(ar ? 'فشل الحفظ' : 'Save failed');
       }
-      await new Promise((r) => setTimeout(r, 150));
-      await loadData();
-      alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!');
-    } catch (e) {
-      console.error(e);
-      alert(ar ? 'فشل الحفظ' : 'Save failed');
-    } finally {
-      setSavingAll(false);
-    }
+    };
+    setTimeout(() => {
+      runSave();
+    }, 0);
   };
 
   const assignPlanToUser = async (userId: string, planId: string) => {
