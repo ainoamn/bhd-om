@@ -90,7 +90,20 @@ export default function AdminSubscriptionsPage() {
       }
       if (plansRes.ok) {
         const d = await plansRes.json();
-        const list = Array.isArray(d.list) ? d.list : [];
+        let list = Array.isArray(d.list) ? d.list : [];
+        if (list.length === 0) {
+          try {
+            const initRes = await fetch('/api/plans/init', { method: 'POST', credentials: 'include', cache: 'no-store' });
+            const initData = await initRes.json().catch(() => ({}));
+            if (initRes.ok && initData?.ok) {
+              const [replansRes] = await doFetch();
+              if (replansRes.ok) {
+                const rej = await replansRes.json();
+                list = Array.isArray(rej.list) ? rej.list : [];
+              }
+            }
+          } catch (_) {}
+        }
         if (list.length === 0) {
           startTransition(() => {
             setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
@@ -202,16 +215,15 @@ export default function AdminSubscriptionsPage() {
 
   const saveChanges = () => {
     if (useDefaultPlans) {
-      alert(ar ? 'يجب تهيئة الباقات الافتراضية أولاً من زر «تهيئة الباقات الافتراضية» ثم حفظ التغييرات.' : 'Please run «Init default plans» first, then save changes.');
+      setTimeout(() => alert(ar ? 'لا توجد باقات في النظام بعد. سيتم إنشاؤها تلقائياً عند التحميل، أو استخدم زر «إعادة ضبط الباقات».' : 'No plans in system yet. They are created on load, or use «Reset plans» button.'), 0);
       return;
     }
     const planIds = plans.map((p) => p.id);
     const isCuid = (id: string) => id.length > 20 && !['basic', 'standard', 'premium', 'enterprise'].includes(id);
     if (!planIds.every(isCuid)) {
-      alert(ar ? 'الباقات غير محفوظة في النظام بعد. اضغط «تهيئة الباقات الافتراضية» أولاً ثم احفظ.' : 'Plans not in database yet. Click «Init default plans» first, then save.');
+      setTimeout(() => alert(ar ? 'الباقات غير جاهزة للحفظ. حدّث الصفحة أو استخدم «إعادة ضبط الباقات».' : 'Plans not ready to save. Refresh the page or use «Reset plans».'), 0);
       return;
     }
-    setSavingAll(true);
     const runSave = async () => {
       try {
         const results = await Promise.all(
@@ -247,20 +259,23 @@ export default function AdminSubscriptionsPage() {
           return;
         }
         await new Promise((r) => setTimeout(r, 200));
-        await loadData();
         setSavingAll(false);
         setTimeout(() => alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
+        setTimeout(() => loadData(), 200);
       } catch (e) {
         console.error(e);
         setSavingAll(false);
         setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
       }
     };
-    requestAnimationFrame(() => {
+    setTimeout(() => {
+      setSavingAll(true);
       requestAnimationFrame(() => {
-        setTimeout(runSave, 80);
+        requestAnimationFrame(() => {
+          runSave();
+        });
       });
-    });
+    }, 0);
   };
 
   const assignPlanToUser = async (userId: string, planId: string) => {
@@ -391,7 +406,7 @@ export default function AdminSubscriptionsPage() {
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-colors"
             >
               <Icon name="folder" className="w-5 h-5" />
-              {initLoading ? (ar ? 'جاري...' : '...') : (ar ? 'تهيئة الباقات الافتراضية' : 'Init default plans')}
+              {initLoading ? (ar ? 'جاري...' : '...') : (ar ? 'إعادة ضبط الباقات' : 'Reset plans')}
             </button>
           )}
           <button
@@ -456,7 +471,7 @@ export default function AdminSubscriptionsPage() {
 
       {useDefaultPlans && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6 text-amber-800" style={{ marginBottom: '1.5rem', lineHeight: 1.5 }}>
-          {ar ? 'الباقات المعروضة افتراضية. اضغط «تهيئة الباقات الافتراضية» لحفظها في النظام ثم يمكنك تعديلها وحفظ التغييرات.' : 'Plans shown are defaults. Click «Init default plans» to save them, then edit and save.'}
+          {ar ? 'الباقات المعروضة افتراضية. استخدم «إعادة ضبط الباقات» لاستعادتها في النظام ثم التعديل والحفظ.' : 'Plans shown are defaults. Use «Reset plans» to restore them, then edit and save.'}
         </div>
       )}
 
@@ -604,7 +619,7 @@ export default function AdminSubscriptionsPage() {
           </div>
           <div className="admin-card-body p-4 sm:p-6">
             {useDefaultPlans && (
-              <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-5 text-sm" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>{ar ? 'قم بـ «تهيئة الباقات الافتراضية» أولاً لتمكين تعيين الباقات للمستخدمين.' : 'Click «Init default plans» first to enable assigning plans to users.'}</p>
+              <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-5 text-sm" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>{ar ? 'استخدم «إعادة ضبط الباقات» لتمكين تعيين الباقات للمستخدمين إن لم تظهر.' : 'Use «Reset plans» to enable assigning plans if needed.'}</p>
             )}
             <div className="space-y-5" style={{ lineHeight: 1.5 }}>
               {users.length === 0 ? (
