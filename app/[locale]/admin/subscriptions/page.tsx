@@ -37,6 +37,85 @@ type UserRow = {
 
 const allFeatures = Object.keys(FEATURE_PERMISSIONS);
 
+function SaveAllButton({
+  disabled,
+  plans,
+  plansConfig,
+  onSuccess,
+  ar,
+  variant = 'outline',
+}: {
+  disabled: boolean;
+  plans: PlanRow[];
+  plansConfig: Record<string, string[]>;
+  onSuccess: () => void;
+  ar: boolean;
+  variant?: 'outline' | 'solid';
+}) {
+  const [saving, setSaving] = useState(false);
+  const handleClick = () => {
+    if (disabled) {
+      setTimeout(() => alert(ar ? 'لا توجد باقات في النظام بعد. استخدم «إعادة ضبط الباقات» ثم حدّث الصفحة.' : 'No plans in system yet. Use «Reset plans» then refresh.'), 0);
+      return;
+    }
+    setSaving(true);
+    (async () => {
+      try {
+        const results = await Promise.all(
+          plans.map(async (plan) => {
+            const res = await fetch(`/api/plans/${plan.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              cache: 'no-store',
+              body: JSON.stringify({
+                limitsJson: JSON.stringify({
+                  maxProperties: plan.maxProperties,
+                  maxUnits: plan.maxUnits,
+                  maxBookings: plan.maxBookings,
+                  maxUsers: plan.maxUsers,
+                  storageGB: plan.storageGB,
+                }),
+                permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
+                nameAr: plan.nameAr,
+                nameEn: plan.nameEn,
+                priceMonthly: plan.priceMonthly,
+                priceYearly: plan.priceYearly ?? undefined,
+                featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
+              }),
+            });
+            return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
+          })
+        );
+        const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
+        if (failed.length > 0) {
+          setSaving(false);
+          setTimeout(() => alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 200));
+        setSaving(false);
+        setTimeout(() => alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
+        setTimeout(onSuccess, 200);
+      } catch (e) {
+        console.error(e);
+        setSaving(false);
+        setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
+      }
+    })();
+  };
+  const baseClass = 'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-opacity disabled:opacity-50';
+  const className = variant === 'solid'
+    ? baseClass + ' text-white bg-[var(--primary)] hover:opacity-90'
+    : baseClass + ' text-[var(--primary)] bg-white border-2 border-[var(--primary)] hover:bg-gray-50';
+  return (
+    <button type="button" onClick={handleClick} disabled={saving} className={className}>
+      <Icon name="check" className="w-5 h-5" />
+      {saving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ جميع التغييرات' : 'Save all changes')}
+    </button>
+  );
+}
+
 function getInitialPlansConfig(): Record<string, string[]> {
   const config: Record<string, string[]> = {};
   (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
@@ -54,7 +133,6 @@ export default function AdminSubscriptionsPage() {
   const [plansConfig, setPlansConfig] = useState<Record<string, string[]>>(getInitialPlansConfig);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [savingAll, setSavingAll] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
   const [showEditPlanModal, setShowEditPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PlanRow | null>(null);
@@ -209,61 +287,6 @@ export default function AdminSubscriptionsPage() {
     setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, [field]: value } : p)));
   };
 
-  const saveChanges = () => {
-    if (!plansFromDb) {
-      setTimeout(() => alert(ar ? 'لا توجد باقات في النظام بعد. استخدم «إعادة ضبط الباقات» ثم حدّث الصفحة.' : 'No plans in system yet. Use «Reset plans» then refresh.'), 0);
-      return;
-    }
-    const runSave = async () => {
-      try {
-        const results = await Promise.all(
-          plans.map(async (plan) => {
-            const res = await fetch(`/api/plans/${plan.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              cache: 'no-store',
-              body: JSON.stringify({
-                limitsJson: JSON.stringify({
-                  maxProperties: plan.maxProperties,
-                  maxUnits: plan.maxUnits,
-                  maxBookings: plan.maxBookings,
-                  maxUsers: plan.maxUsers,
-                  storageGB: plan.storageGB,
-                }),
-                permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
-                nameAr: plan.nameAr,
-                nameEn: plan.nameEn,
-                priceMonthly: plan.priceMonthly,
-                priceYearly: plan.priceYearly ?? undefined,
-                featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
-              }),
-            });
-            return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
-          })
-        );
-        const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
-        if (failed.length > 0) {
-          setSavingAll(false);
-          setTimeout(() => alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
-          return;
-        }
-        await new Promise((r) => setTimeout(r, 200));
-        setSavingAll(false);
-        setTimeout(() => alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
-        setTimeout(() => loadData(), 200);
-      } catch (e) {
-        console.error(e);
-        setSavingAll(false);
-        setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
-      }
-    };
-    setTimeout(() => {
-      setSavingAll(true);
-      setTimeout(runSave, 80);
-    }, 0);
-  };
-
   const assignPlanToUser = async (userId: string, planId: string) => {
     setAssigningUserId(userId);
     try {
@@ -409,15 +432,7 @@ export default function AdminSubscriptionsPage() {
               {initLoading ? (ar ? 'جاري...' : '...') : (ar ? 'إعادة ضبط الباقات' : 'Reset plans')}
             </button>
           )}
-          <button
-            type="button"
-            onClick={saveChanges}
-            disabled={savingAll}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[var(--primary)] bg-white border-2 border-[var(--primary)] hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            <Icon name="check" className="w-5 h-5" />
-            {savingAll ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ جميع التغييرات' : 'Save all changes')}
-          </button>
+          <SaveAllButton disabled={!plansFromDb} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="outline" />
         </div>
       </div>
 
@@ -599,10 +614,7 @@ export default function AdminSubscriptionsPage() {
             </div>
             <div className="border-t border-gray-100 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50">
               <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>{allFeatures.length} {ar ? 'صلاحية' : 'permissions'} · {plans.length} {ar ? 'باقة' : 'plans'}</p>
-              <button type="button" onClick={saveChanges} disabled={savingAll} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 transition-opacity">
-                <Icon name="check" className="w-5 h-5" />
-                {ar ? 'حفظ جميع التغييرات' : 'Save all changes'}
-              </button>
+              <SaveAllButton disabled={!plansFromDb} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="solid" />
             </div>
           </div>
         )}
