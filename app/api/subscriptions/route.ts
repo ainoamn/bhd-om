@@ -6,6 +6,8 @@ import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,7 +46,9 @@ export async function GET(req: NextRequest) {
       pendingChangeRequests: s.changeRequests.length,
     }));
 
-    return NextResponse.json({ list });
+    return NextResponse.json({ list }, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    });
   } catch (e) {
     console.error('GET /api/subscriptions:', e);
     return NextResponse.json({ error: 'Server error', list: [] }, { status: 500 });

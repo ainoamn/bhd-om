@@ -6,6 +6,8 @@ import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
@@ -85,7 +87,7 @@ export async function GET(req: NextRequest) {
       pendingRequest: pendingRequest
         ? { id: pendingRequest.id, requestedPlanId: pendingRequest.requestedPlanId, direction: pendingRequest.direction, status: pendingRequest.status, createdAt: pendingRequest.createdAt.toISOString() }
         : null,
-    });
+    }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' } });
   } catch (e) {
     console.error('GET /api/subscriptions/me:', e);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

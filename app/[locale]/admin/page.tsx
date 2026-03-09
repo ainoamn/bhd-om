@@ -95,7 +95,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (userRole !== 'ADMIN') return;
-    fetch('/api/subscriptions')
+    fetch('/api/subscriptions', { cache: 'no-store', credentials: 'include' })
       .then((r) => r.ok ? r.json() : { list: [] })
       .then((d) => setSubscriptionList(Array.isArray(d?.list) ? d.list : []))
       .catch(() => setSubscriptionList([]));

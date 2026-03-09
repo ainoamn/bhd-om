@@ -127,7 +127,7 @@ export default function MyAccountPage() {
   }, [user?.id, user?.email, user?.phone]);
 
   useEffect(() => {
-    fetch('/api/subscriptions/me')
+    fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => setSubData(d))
       .catch(() => setSubData(null));
@@ -177,6 +177,7 @@ export default function MyAccountPage() {
       const res = await fetch('/api/subscriptions/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ requestedPlanId: requestPlanId, direction: requestDirection, reason: requestReason || undefined }),
       });
       const data = await res.json();
@@ -184,7 +185,7 @@ export default function MyAccountPage() {
         setShowRequestModal(false);
         setRequestPlanId('');
         setRequestReason('');
-        fetch('/api/subscriptions/me').then((r) => r.json()).then((d) => setSubData(d));
+        fetch('/api/subscriptions/me', { credentials: 'include' }).then((r) => r.json()).then((d) => setSubData(d));
       } else {
         alert(data.error || (ar ? 'فشل إرسال الطلب' : 'Request failed'));
       }

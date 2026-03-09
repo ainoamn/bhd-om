@@ -284,6 +284,8 @@ export default function AdminSubscriptionsPage() {
       const res = await fetch('/api/subscriptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        cache: 'no-store',
         body: JSON.stringify({ userId, planId, durationMonths: 12 }),
       });
       if (res.ok) {

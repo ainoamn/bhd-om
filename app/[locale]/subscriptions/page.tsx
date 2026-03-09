@@ -45,7 +45,7 @@ export default function SubscriptionsPage() {
     let cancelled = false;
     const loadPlans = async () => {
       try {
-        const res = await fetch('/api/plans', { cache: 'no-store' });
+        const res = await fetch('/api/plans', { cache: 'no-store', credentials: 'include' });
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
@@ -59,7 +59,7 @@ export default function SubscriptionsPage() {
     };
     const loadSubscription = async () => {
       try {
-        const res = await fetch('/api/subscriptions/me', { cache: 'no-store' });
+        const res = await fetch('/api/subscriptions/me', { cache: 'no-store', credentials: 'include' });
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
@@ -91,6 +91,7 @@ export default function SubscriptionsPage() {
       const res = await fetch('/api/subscriptions/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ planId: selectedPlanId, durationMonths: billingCycle === 'yearly' ? 12 : 1 }),
       });
       const data = await res.json();
@@ -101,7 +102,7 @@ export default function SubscriptionsPage() {
       setShowPaymentModal(false);
       setSelectedPlanId('');
       alert(ar ? 'تم تفعيل الاشتراك بنجاح!' : 'Subscription activated!');
-      const refetch = await fetch('/api/subscriptions/me');
+      const refetch = await fetch('/api/subscriptions/me', { credentials: 'include' });
       if (refetch.ok) {
         const d = await refetch.json();
         if (d.subscription) setUserSubscription(d.subscription);
