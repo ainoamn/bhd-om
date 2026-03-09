@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import Icon from '@/components/icons/Icon';
-import { FEATURE_PERMISSIONS, PLAN_FEATURES, PLAN_COLORS, DEFAULT_PLANS_FOR_ADMIN } from '@/lib/featurePermissions';
+import { FEATURE_PERMISSIONS, PLAN_FEATURES, PLAN_COLORS } from '@/lib/featurePermissions';
 
 type PlanRow = {
   id: string;
@@ -55,7 +55,7 @@ function SaveAllButton({
   const [saving, setSaving] = useState(false);
   const handleClick = () => {
     if (disabled) {
-      setTimeout(() => alert(ar ? 'لا توجد باقات في النظام بعد. استخدم «إعادة ضبط الباقات» ثم حدّث الصفحة.' : 'No plans in system yet. Use «Reset plans» then refresh.'), 0);
+      setTimeout(() => alert(ar ? 'لا توجد باقات في النظام. حدّث الصفحة.' : 'No plans in system. Refresh the page.'), 0);
       return;
     }
     setSaving(true);
@@ -116,24 +116,15 @@ function SaveAllButton({
   );
 }
 
-function getInitialPlansConfig(): Record<string, string[]> {
-  const config: Record<string, string[]> = {};
-  (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-    config[code] = [...(PLAN_FEATURES[code] || [])];
-  });
-  return config;
-}
-
 export default function AdminSubscriptionsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
   const { data: session, status: sessionStatus } = useSession();
-  const [plans, setPlans] = useState<PlanRow[]>(() => DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-  const [plansConfig, setPlansConfig] = useState<Record<string, string[]>>(getInitialPlansConfig);
+  const [plans, setPlans] = useState<PlanRow[]>([]);
+  const [plansConfig, setPlansConfig] = useState<Record<string, string[]>>({});
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [initLoading, setInitLoading] = useState(false);
   const [showEditPlanModal, setShowEditPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PlanRow | null>(null);
   const [showEditFeaturesModal, setShowEditFeaturesModal] = useState(false);
@@ -141,13 +132,7 @@ export default function AdminSubscriptionsPage() {
   const [editingFeatures, setEditingFeatures] = useState<string[]>([]);
   const [editingFeaturesAr, setEditingFeaturesAr] = useState<string[]>([]);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
-  const [useDefaultPlans, setUseDefaultPlans] = useState(true);
-
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
-
-  const isPlanIdFromDb = (id: string) => id.length > 20 && !['basic', 'standard', 'premium', 'enterprise'].includes(id);
-  const plansFromDb = plans.length > 0 && plans.every((p) => isPlanIdFromDb(p.id));
-  const showingDefaultPlans = plans.length > 0 && !plansFromDb;
 
   const loadData = async (retryCount = 0) => {
     if (!isAdmin) return;
@@ -187,13 +172,8 @@ export default function AdminSubscriptionsPage() {
           } catch (_) {}
         }
         if (list.length === 0) {
-          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-          const config: Record<string, string[]> = {};
-          (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-            config[code] = [...(PLAN_FEATURES[code] || [])];
-          });
-          setPlansConfig(config);
-          setUseDefaultPlans(true);
+          setPlans([]);
+          setPlansConfig({});
         } else {
           const rows: PlanRow[] = list.map((p: {
             id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; priceYearly?: number; currency: string;
@@ -222,7 +202,6 @@ export default function AdminSubscriptionsPage() {
           list.forEach((p: { id: string; code: string; permissions?: string[] }) => {
             config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
           });
-          setUseDefaultPlans(false);
           setPlans(rows);
           setPlansConfig(config);
         }
@@ -231,13 +210,8 @@ export default function AdminSubscriptionsPage() {
           setLoading(false);
           return;
         }
-        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-        const config: Record<string, string[]> = {};
-        (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-          config[code] = [...(PLAN_FEATURES[code] || [])];
-        });
-        setPlansConfig(config);
-        setUseDefaultPlans(true);
+        setPlans([]);
+        setPlansConfig({});
       }
       if (usersRes.ok) {
         const uList = await usersRes.json();
@@ -252,13 +226,8 @@ export default function AdminSubscriptionsPage() {
       }
     } catch (e) {
       console.error(e);
-      setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-      const config: Record<string, string[]> = {};
-      (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-        config[code] = [...(PLAN_FEATURES[code] || [])];
-      });
-      setPlansConfig(config);
-      setUseDefaultPlans(true);
+      setPlans([]);
+      setPlansConfig({});
     } finally {
       setLoading(false);
     }
@@ -361,34 +330,6 @@ export default function AdminSubscriptionsPage() {
     }, 0);
   };
 
-  const handleInitPlans = async () => {
-    setInitLoading(true);
-    try {
-      const res = await fetch('/api/plans/init', {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok && d.ok) {
-        await loadData();
-        await new Promise((r) => setTimeout(r, 150));
-        const msg = d.created > 0
-          ? (ar ? `تم إنشاء ${d.created} باقة. يمكنك التعديل والحفظ الآن.` : `${d.created} plans created. You can edit and save now.`)
-          : (ar ? 'تم تحديث القائمة. يمكنك التعديل والحفظ.' : 'List updated. You can edit and save.');
-        setTimeout(() => alert(msg), 0);
-      } else {
-        setTimeout(() => alert(d.error || (ar ? 'فشل التهيئة' : 'Init failed')), 0);
-      }
-    } catch (e) {
-      console.error(e);
-      setTimeout(() => alert(ar ? 'فشل التهيئة' : 'Init failed'), 0);
-    } finally {
-      setInitLoading(false);
-    }
-  };
-
   if (sessionStatus === 'unauthenticated' || (sessionStatus === 'authenticated' && !isAdmin)) {
     return (
       <div className="admin-page-content">
@@ -421,18 +362,7 @@ export default function AdminSubscriptionsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3" style={{ gap: '1.5rem' }}>
-          {showingDefaultPlans && (
-            <button
-              type="button"
-              onClick={handleInitPlans}
-              disabled={initLoading}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-colors"
-            >
-              <Icon name="folder" className="w-5 h-5" />
-              {initLoading ? (ar ? 'جاري...' : '...') : (ar ? 'إعادة ضبط الباقات' : 'Reset plans')}
-            </button>
-          )}
-          <SaveAllButton disabled={!plansFromDb} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="outline" />
+          <SaveAllButton disabled={plans.length === 0} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="outline" />
         </div>
       </div>
 
@@ -484,9 +414,9 @@ export default function AdminSubscriptionsPage() {
         </div>
       </div>
 
-      {showingDefaultPlans && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6 text-amber-800" style={{ marginBottom: '1.5rem', lineHeight: 1.5 }}>
-          {ar ? 'الباقات المعروضة افتراضية. اضغط «إعادة ضبط الباقات» ثم حدّث الصفحة إن لزم لتحميل الباقات من النظام.' : 'Plans shown are defaults. Click «Reset plans» then refresh if needed to load plans from system.'}
+      {!loading && plans.length === 0 && (
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 mb-6 text-center text-gray-600" style={{ lineHeight: 1.5 }}>
+          {ar ? 'لا توجد باقات في النظام. حدّث الصفحة لتحميل الباقات.' : 'No plans in system. Refresh the page to load plans.'}
         </div>
       )}
 
@@ -614,7 +544,7 @@ export default function AdminSubscriptionsPage() {
             </div>
             <div className="border-t border-gray-100 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50">
               <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>{allFeatures.length} {ar ? 'صلاحية' : 'permissions'} · {plans.length} {ar ? 'باقة' : 'plans'}</p>
-              <SaveAllButton disabled={!plansFromDb} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="solid" />
+              <SaveAllButton disabled={plans.length === 0} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="solid" />
             </div>
           </div>
         )}
@@ -630,9 +560,6 @@ export default function AdminSubscriptionsPage() {
             </h2>
           </div>
           <div className="admin-card-body p-4 sm:p-6">
-            {showingDefaultPlans && (
-              <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-5 text-sm" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>{ar ? 'استخدم «إعادة ضبط الباقات» ثم حدّث الصفحة لتمكين تعيين الباقات.' : 'Use «Reset plans» then refresh to enable assigning plans.'}</p>
-            )}
             <div className="space-y-5" style={{ lineHeight: 1.5 }}>
               {users.length === 0 ? (
                 <p className="text-gray-500 py-6">{ar ? 'لا يوجد مستخدمون.' : 'No users.'}</p>
@@ -657,7 +584,7 @@ export default function AdminSubscriptionsPage() {
                           key={plan.id}
                           type="button"
                           onClick={() => assignPlanToUser(user.id, plan.id)}
-                          disabled={assigningUserId === user.id || !plansFromDb}
+                          disabled={assigningUserId === user.id || plans.length === 0}
                           className={`p-4 rounded-xl border-2 transition-all text-left disabled:opacity-60 ${user.subscription?.planId === plan.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-[var(--primary)]/40 hover:bg-white'}`}
                         >
                           <p className="text-xs font-semibold text-gray-700 mb-1" style={{ lineHeight: 1.5 }}>{plan.nameAr}</p>
