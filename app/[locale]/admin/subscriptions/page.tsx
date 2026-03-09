@@ -92,15 +92,16 @@ export default function AdminSubscriptionsPage() {
         const d = await plansRes.json();
         const list = Array.isArray(d.list) ? d.list : [];
         if (list.length === 0) {
-          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-          const config: Record<string, string[]> = {};
-          (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-            config[code] = [...(PLAN_FEATURES[code] || [])];
+          startTransition(() => {
+            setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+            const config: Record<string, string[]> = {};
+            (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+              config[code] = [...(PLAN_FEATURES[code] || [])];
+            });
+            setPlansConfig(config);
+            setUseDefaultPlans(true);
           });
-          setPlansConfig(config);
-          setUseDefaultPlans(true);
         } else {
-          setUseDefaultPlans(false);
           const rows: PlanRow[] = list.map((p: {
             id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; priceYearly?: number; currency: string;
             features?: string[]; limits?: Record<string, number>; permissions?: string[]; isActive?: boolean;
@@ -124,25 +125,30 @@ export default function AdminSubscriptionsPage() {
             featuresAr: p.features || [],
             isActive: p.isActive,
           }));
-          setPlans(rows);
           const config: Record<string, string[]> = {};
           list.forEach((p: { id: string; code: string; permissions?: string[] }) => {
             config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
           });
-          setPlansConfig(config);
+          startTransition(() => {
+            setUseDefaultPlans(false);
+            setPlans(rows);
+            setPlansConfig(config);
+          });
         }
       } else {
         if (plansRes.status === 403 || plansRes.status === 401) {
           setLoading(false);
           return;
         }
-        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-        const config: Record<string, string[]> = {};
-        (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-          config[code] = [...(PLAN_FEATURES[code] || [])];
+        startTransition(() => {
+          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+          const config: Record<string, string[]> = {};
+          (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+            config[code] = [...(PLAN_FEATURES[code] || [])];
+          });
+          setPlansConfig(config);
+          setUseDefaultPlans(true);
         });
-        setPlansConfig(config);
-        setUseDefaultPlans(true);
       }
       if (usersRes.ok) {
         const uList = await usersRes.json();
@@ -153,17 +159,19 @@ export default function AdminSubscriptionsPage() {
           serialNumber: u.serialNumber,
           subscription: subs.find((s) => s.userId === u.id) ? { planId: subs.find((s) => s.userId === u.id)!.planId, status: subs.find((s) => s.userId === u.id)!.status } : undefined,
         }));
-        setUsers(userRows);
+        startTransition(() => setUsers(userRows));
       }
     } catch (e) {
       console.error(e);
-      setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-      const config: Record<string, string[]> = {};
-      (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-        config[code] = [...(PLAN_FEATURES[code] || [])];
+      startTransition(() => {
+        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+        const config: Record<string, string[]> = {};
+        (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+          config[code] = [...(PLAN_FEATURES[code] || [])];
+        });
+        setPlansConfig(config);
+        setUseDefaultPlans(true);
       });
-      setPlansConfig(config);
-      setUseDefaultPlans(true);
     } finally {
       setLoading(false);
     }
@@ -204,7 +212,6 @@ export default function AdminSubscriptionsPage() {
       return;
     }
     setSavingAll(true);
-    // تأجيل العمل الثقيل حتى تُرسم الواجهة (جاري الحفظ...) وتجنب INP
     const runSave = async () => {
       try {
         const results = await Promise.all(
@@ -236,22 +243,24 @@ export default function AdminSubscriptionsPage() {
         const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
         if (failed.length > 0) {
           setSavingAll(false);
-          alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n'));
+          setTimeout(() => alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
           return;
         }
         await new Promise((r) => setTimeout(r, 200));
         await loadData();
         setSavingAll(false);
-        alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!');
+        setTimeout(() => alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
       } catch (e) {
         console.error(e);
         setSavingAll(false);
-        alert(ar ? 'فشل الحفظ' : 'Save failed');
+        setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
       }
     };
-    setTimeout(() => {
-      runSave();
-    }, 0);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(runSave, 80);
+      });
+    });
   };
 
   const assignPlanToUser = async (userId: string, planId: string) => {
