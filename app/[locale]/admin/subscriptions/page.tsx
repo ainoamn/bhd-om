@@ -197,6 +197,12 @@ export default function AdminSubscriptionsPage() {
       alert(ar ? 'يجب تهيئة الباقات الافتراضية أولاً من زر «تهيئة الباقات الافتراضية» ثم حفظ التغييرات.' : 'Please run «Init default plans» first, then save changes.');
       return;
     }
+    const planIds = plans.map((p) => p.id);
+    const isCuid = (id: string) => id.length > 20 && !['basic', 'standard', 'premium', 'enterprise'].includes(id);
+    if (!planIds.every(isCuid)) {
+      alert(ar ? 'الباقات غير محفوظة في النظام بعد. اضغط «تهيئة الباقات الافتراضية» أولاً ثم احفظ.' : 'Plans not in database yet. Click «Init default plans» first, then save.');
+      return;
+    }
     setSavingAll(true);
     // تأجيل العمل الثقيل حتى تُرسم الواجهة (جاري الحفظ...) وتجنب INP
     const runSave = async () => {
@@ -382,7 +388,7 @@ export default function AdminSubscriptionsPage() {
           <button
             type="button"
             onClick={saveChanges}
-            disabled={savingAll || useDefaultPlans}
+            disabled={savingAll}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[var(--primary)] bg-white border-2 border-[var(--primary)] hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             <Icon name="check" className="w-5 h-5" />
@@ -569,7 +575,7 @@ export default function AdminSubscriptionsPage() {
             </div>
             <div className="border-t border-gray-100 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50">
               <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>{allFeatures.length} {ar ? 'صلاحية' : 'permissions'} · {plans.length} {ar ? 'باقة' : 'plans'}</p>
-              <button type="button" onClick={saveChanges} disabled={savingAll || useDefaultPlans} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 transition-opacity">
+              <button type="button" onClick={saveChanges} disabled={savingAll} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 transition-opacity">
                 <Icon name="check" className="w-5 h-5" />
                 {ar ? 'حفظ جميع التغييرات' : 'Save all changes'}
               </button>
