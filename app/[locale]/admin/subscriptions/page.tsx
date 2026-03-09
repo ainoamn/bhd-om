@@ -67,6 +67,10 @@ export default function AdminSubscriptionsPage() {
 
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
 
+  const isPlanIdFromDb = (id: string) => id.length > 20 && !['basic', 'standard', 'premium', 'enterprise'].includes(id);
+  const plansFromDb = plans.length > 0 && plans.every((p) => isPlanIdFromDb(p.id));
+  const showingDefaultPlans = plans.length > 0 && !plansFromDb;
+
   const loadData = async (retryCount = 0) => {
     if (!isAdmin) return;
     const doFetch = () => {
@@ -105,15 +109,13 @@ export default function AdminSubscriptionsPage() {
           } catch (_) {}
         }
         if (list.length === 0) {
-          startTransition(() => {
-            setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-            const config: Record<string, string[]> = {};
-            (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-              config[code] = [...(PLAN_FEATURES[code] || [])];
-            });
-            setPlansConfig(config);
-            setUseDefaultPlans(true);
+          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+          const config: Record<string, string[]> = {};
+          (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+            config[code] = [...(PLAN_FEATURES[code] || [])];
           });
+          setPlansConfig(config);
+          setUseDefaultPlans(true);
         } else {
           const rows: PlanRow[] = list.map((p: {
             id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; priceYearly?: number; currency: string;
@@ -142,26 +144,22 @@ export default function AdminSubscriptionsPage() {
           list.forEach((p: { id: string; code: string; permissions?: string[] }) => {
             config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
           });
-          startTransition(() => {
-            setUseDefaultPlans(false);
-            setPlans(rows);
-            setPlansConfig(config);
-          });
+          setUseDefaultPlans(false);
+          setPlans(rows);
+          setPlansConfig(config);
         }
       } else {
         if (plansRes.status === 403 || plansRes.status === 401) {
           setLoading(false);
           return;
         }
-        startTransition(() => {
-          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-          const config: Record<string, string[]> = {};
-          (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-            config[code] = [...(PLAN_FEATURES[code] || [])];
-          });
-          setPlansConfig(config);
-          setUseDefaultPlans(true);
+        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+        const config: Record<string, string[]> = {};
+        (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+          config[code] = [...(PLAN_FEATURES[code] || [])];
         });
+        setPlansConfig(config);
+        setUseDefaultPlans(true);
       }
       if (usersRes.ok) {
         const uList = await usersRes.json();
@@ -172,19 +170,17 @@ export default function AdminSubscriptionsPage() {
           serialNumber: u.serialNumber,
           subscription: subs.find((s) => s.userId === u.id) ? { planId: subs.find((s) => s.userId === u.id)!.planId, status: subs.find((s) => s.userId === u.id)!.status } : undefined,
         }));
-        startTransition(() => setUsers(userRows));
+        setUsers(userRows);
       }
     } catch (e) {
       console.error(e);
-      startTransition(() => {
-        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-        const config: Record<string, string[]> = {};
-        (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
-          config[code] = [...(PLAN_FEATURES[code] || [])];
-        });
-        setPlansConfig(config);
-        setUseDefaultPlans(true);
+      setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+      const config: Record<string, string[]> = {};
+      (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
+        config[code] = [...(PLAN_FEATURES[code] || [])];
       });
+      setPlansConfig(config);
+      setUseDefaultPlans(true);
     } finally {
       setLoading(false);
     }
@@ -214,14 +210,8 @@ export default function AdminSubscriptionsPage() {
   };
 
   const saveChanges = () => {
-    if (useDefaultPlans) {
-      setTimeout(() => alert(ar ? 'لا توجد باقات في النظام بعد. سيتم إنشاؤها تلقائياً عند التحميل، أو استخدم زر «إعادة ضبط الباقات».' : 'No plans in system yet. They are created on load, or use «Reset plans» button.'), 0);
-      return;
-    }
-    const planIds = plans.map((p) => p.id);
-    const isCuid = (id: string) => id.length > 20 && !['basic', 'standard', 'premium', 'enterprise'].includes(id);
-    if (!planIds.every(isCuid)) {
-      setTimeout(() => alert(ar ? 'الباقات غير جاهزة للحفظ. حدّث الصفحة أو استخدم «إعادة ضبط الباقات».' : 'Plans not ready to save. Refresh the page or use «Reset plans».'), 0);
+    if (!plansFromDb) {
+      setTimeout(() => alert(ar ? 'لا توجد باقات في النظام بعد. استخدم «إعادة ضبط الباقات» ثم حدّث الصفحة.' : 'No plans in system yet. Use «Reset plans» then refresh.'), 0);
       return;
     }
     const runSave = async () => {
@@ -270,11 +260,7 @@ export default function AdminSubscriptionsPage() {
     };
     setTimeout(() => {
       setSavingAll(true);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          runSave();
-        });
-      });
+      setTimeout(runSave, 80);
     }, 0);
   };
 
@@ -364,9 +350,10 @@ export default function AdminSubscriptionsPage() {
       const d = await res.json().catch(() => ({}));
       if (res.ok && d.ok) {
         await loadData();
+        await new Promise((r) => setTimeout(r, 150));
         const msg = d.created > 0
           ? (ar ? `تم إنشاء ${d.created} باقة. يمكنك التعديل والحفظ الآن.` : `${d.created} plans created. You can edit and save now.`)
-          : (ar ? 'الباقات موجودة. تم تحديث القائمة.' : 'Plans already exist. List updated.');
+          : (ar ? 'تم تحديث القائمة. يمكنك التعديل والحفظ.' : 'List updated. You can edit and save.');
         setTimeout(() => alert(msg), 0);
       } else {
         setTimeout(() => alert(d.error || (ar ? 'فشل التهيئة' : 'Init failed')), 0);
@@ -411,7 +398,7 @@ export default function AdminSubscriptionsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3" style={{ gap: '1.5rem' }}>
-          {useDefaultPlans && (
+          {showingDefaultPlans && (
             <button
               type="button"
               onClick={handleInitPlans}
@@ -482,9 +469,9 @@ export default function AdminSubscriptionsPage() {
         </div>
       </div>
 
-      {useDefaultPlans && (
+      {showingDefaultPlans && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6 text-amber-800" style={{ marginBottom: '1.5rem', lineHeight: 1.5 }}>
-          {ar ? 'الباقات المعروضة افتراضية. استخدم «إعادة ضبط الباقات» لاستعادتها في النظام ثم التعديل والحفظ.' : 'Plans shown are defaults. Use «Reset plans» to restore them, then edit and save.'}
+          {ar ? 'الباقات المعروضة افتراضية. اضغط «إعادة ضبط الباقات» ثم حدّث الصفحة إن لزم لتحميل الباقات من النظام.' : 'Plans shown are defaults. Click «Reset plans» then refresh if needed to load plans from system.'}
         </div>
       )}
 
@@ -631,8 +618,8 @@ export default function AdminSubscriptionsPage() {
             </h2>
           </div>
           <div className="admin-card-body p-4 sm:p-6">
-            {useDefaultPlans && (
-              <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-5 text-sm" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>{ar ? 'استخدم «إعادة ضبط الباقات» لتمكين تعيين الباقات للمستخدمين إن لم تظهر.' : 'Use «Reset plans» to enable assigning plans if needed.'}</p>
+            {showingDefaultPlans && (
+              <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-5 text-sm" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>{ar ? 'استخدم «إعادة ضبط الباقات» ثم حدّث الصفحة لتمكين تعيين الباقات.' : 'Use «Reset plans» then refresh to enable assigning plans.'}</p>
             )}
             <div className="space-y-5" style={{ lineHeight: 1.5 }}>
               {users.length === 0 ? (
@@ -658,7 +645,7 @@ export default function AdminSubscriptionsPage() {
                           key={plan.id}
                           type="button"
                           onClick={() => assignPlanToUser(user.id, plan.id)}
-                          disabled={assigningUserId === user.id || useDefaultPlans}
+                          disabled={assigningUserId === user.id || !plansFromDb}
                           className={`p-4 rounded-xl border-2 transition-all text-left disabled:opacity-60 ${user.subscription?.planId === plan.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-[var(--primary)]/40 hover:bg-white'}`}
                         >
                           <p className="text-xs font-semibold text-gray-700 mb-1" style={{ lineHeight: 1.5 }}>{plan.nameAr}</p>
