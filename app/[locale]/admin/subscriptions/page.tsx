@@ -53,13 +53,11 @@ function SaveAllButton({
   variant?: 'outline' | 'solid';
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const disabledRef = useRef(disabled);
-  disabledRef.current = disabled;
 
   const setButtonBusy = (busy: boolean) => {
     const btn = buttonRef.current;
     if (!btn) return;
-    btn.disabled = busy || disabledRef.current;
+    btn.disabled = busy; // only disable while saving so button is always clickable
     const span = btn.querySelector('[data-save-label]');
     if (span) span.textContent = busy ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ جميع التغييرات' : 'Save all changes');
   };
@@ -126,7 +124,7 @@ function SaveAllButton({
     ? baseClass + ' text-white bg-[var(--primary)] hover:opacity-90'
     : baseClass + ' text-[var(--primary)] bg-white border-2 border-[var(--primary)] hover:bg-gray-50';
   return (
-    <button ref={buttonRef} type="button" onClick={handleClick} disabled={disabled} className={className}>
+    <button ref={buttonRef} type="button" onClick={handleClick} className={className}>
       <Icon name="check" className="w-5 h-5" />
       <span data-save-label>{ar ? 'حفظ جميع التغييرات' : 'Save all changes'}</span>
     </button>
