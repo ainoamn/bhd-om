@@ -58,53 +58,58 @@ function SaveAllButton({
       setTimeout(() => alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام ثم احفظ.' : 'Refresh the page to load plans from system, then save.'), 0);
       return;
     }
-    setTimeout(() => {
-      setSaving(true);
-      (async () => {
-        try {
-          const results = await Promise.all(
-          plans.map(async (plan) => {
-            const res = await fetch(`/api/plans/${plan.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              cache: 'no-store',
-              body: JSON.stringify({
-                limitsJson: JSON.stringify({
-                  maxProperties: plan.maxProperties,
-                  maxUnits: plan.maxUnits,
-                  maxBookings: plan.maxBookings,
-                  maxUsers: plan.maxUsers,
-                  storageGB: plan.storageGB,
-                }),
-                permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
-                nameAr: plan.nameAr,
-                nameEn: plan.nameEn,
-                priceMonthly: plan.priceMonthly,
-                priceYearly: plan.priceYearly ?? undefined,
-                featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
-              }),
-            });
-            return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
-          })
-        );
-        const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
-        if (failed.length > 0) {
-          setSaving(false);
-          setTimeout(() => alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
-          return;
-        }
-        await new Promise((r) => setTimeout(r, 200));
-        setSaving(false);
-        setTimeout(() => alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
-        setTimeout(onSuccess, 200);
-      } catch (e) {
-        console.error(e);
-        setSaving(false);
-        setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
-      }
-    })();
-    }, 0);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setSaving(true);
+        (async () => {
+          try {
+            const results = await Promise.all(
+              plans.map(async (plan) => {
+                const res = await fetch(`/api/plans/${plan.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  cache: 'no-store',
+                  body: JSON.stringify({
+                    limitsJson: JSON.stringify({
+                      maxProperties: plan.maxProperties,
+                      maxUnits: plan.maxUnits,
+                      maxBookings: plan.maxBookings,
+                      maxUsers: plan.maxUsers,
+                      storageGB: plan.storageGB,
+                    }),
+                    permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
+                    nameAr: plan.nameAr,
+                    nameEn: plan.nameEn,
+                    priceMonthly: plan.priceMonthly,
+                    priceYearly: plan.priceYearly ?? undefined,
+                    featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
+                  }),
+                });
+                return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
+              })
+            );
+            const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
+            if (failed.length > 0) {
+              setSaving(false);
+              setTimeout(() => alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
+              return;
+            }
+            setSaving(false);
+            setTimeout(() => alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
+            if (typeof requestIdleCallback !== 'undefined') {
+              requestIdleCallback(() => onSuccess(), { timeout: 2500 });
+            } else {
+              setTimeout(onSuccess, 500);
+            }
+          } catch (e) {
+            console.error(e);
+            setSaving(false);
+            setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
+          }
+        })();
+      });
+    });
   };
   const baseClass = 'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-opacity disabled:opacity-50';
   const className = variant === 'solid'
