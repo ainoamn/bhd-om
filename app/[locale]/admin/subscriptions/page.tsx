@@ -53,89 +53,100 @@ function SaveAllButton({
   variant?: 'outline' | 'solid';
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const disabledRef = useRef(disabled);
+  const plansRef = useRef(plans);
+  const plansConfigRef = useRef(plansConfig);
+  const onSuccessRef = useRef(onSuccess);
+  const arRef = useRef(ar);
+  disabledRef.current = disabled;
+  plansRef.current = plans;
+  plansConfigRef.current = plansConfig;
+  onSuccessRef.current = onSuccess;
+  arRef.current = ar;
 
-  const setButtonBusy = (busy: boolean) => {
+  useEffect(() => {
     const btn = buttonRef.current;
     if (!btn) return;
-    btn.disabled = busy; // only disable while saving so button is always clickable
-    const span = btn.querySelector('[data-save-label]');
-    if (span) span.textContent = busy ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ جميع التغييرات' : 'Save all changes');
-  };
-
-  const handleClick = () => {
-    if (disabled) {
-      requestAnimationFrame(() => {
-        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام ثم احفظ.' : 'Refresh the page to load plans from system, then save.');
-      });
-      return;
-    }
-    // Yield to browser so INP sees a quick response: only schedule work, do nothing else
-    requestAnimationFrame(() => {
-      setButtonBusy(true);
+    const setButtonBusy = (busy: boolean) => {
+      const b = buttonRef.current;
+      if (!b) return;
+      b.disabled = busy;
+      const span = b.querySelector('[data-save-label]');
+      if (span) span.textContent = busy ? (arRef.current ? 'جاري الحفظ...' : 'Saving...') : (arRef.current ? 'حفظ جميع التغييرات' : 'Save all changes');
+    };
+    const handler = () => {
+      // INP: do zero work here — only schedule so handler returns in <1ms
+      if (disabledRef.current) {
+        setTimeout(() => alert(arRef.current ? 'حدّث الصفحة لتحميل الباقات من النظام ثم احفظ.' : 'Refresh the page to load plans from system, then save.'), 0);
+        return;
+      }
       setTimeout(() => {
-        (async () => {
-          try {
-            const results = await Promise.all(
-              plans.map(async (plan) => {
-                const res = await fetch(`/api/plans/${plan.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
-                  cache: 'no-store',
-                  body: JSON.stringify({
-                    limitsJson: JSON.stringify({
-                      maxProperties: plan.maxProperties,
-                      maxUnits: plan.maxUnits,
-                      maxBookings: plan.maxBookings,
-                      maxUsers: plan.maxUsers,
-                      storageGB: plan.storageGB,
+        setButtonBusy(true);
+        setTimeout(() => {
+          const plansList = plansRef.current;
+          const config = plansConfigRef.current;
+          const isAr = arRef.current;
+          const done = onSuccessRef.current;
+          (async () => {
+            try {
+              const results = await Promise.all(
+                plansList.map(async (plan) => {
+                  const res = await fetch(`/api/plans/${plan.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    cache: 'no-store',
+                    body: JSON.stringify({
+                      limitsJson: JSON.stringify({
+                        maxProperties: plan.maxProperties,
+                        maxUnits: plan.maxUnits,
+                        maxBookings: plan.maxBookings,
+                        maxUsers: plan.maxUsers,
+                        storageGB: plan.storageGB,
+                      }),
+                      permissionsJson: JSON.stringify(config[plan.id] || []),
+                      nameAr: plan.nameAr,
+                      nameEn: plan.nameEn,
+                      priceMonthly: plan.priceMonthly,
+                      priceYearly: plan.priceYearly ?? undefined,
+                      featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
                     }),
-                    permissionsJson: JSON.stringify(plansConfig[plan.id] || []),
-                    nameAr: plan.nameAr,
-                    nameEn: plan.nameEn,
-                    priceMonthly: plan.priceMonthly,
-                    priceYearly: plan.priceYearly ?? undefined,
-                    featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
-                  }),
-                });
-                return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
-              })
-            );
-            const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
-            if (failed.length > 0) {
-              requestAnimationFrame(() => {
+                  });
+                  return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
+                })
+              );
+              const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
+              if (failed.length > 0) {
                 setButtonBusy(false);
-                setTimeout(() => alert((ar ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
-              });
-              return;
-            }
-            requestAnimationFrame(() => {
-              setButtonBusy(false);
-              setTimeout(() => alert(ar ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
-              if (typeof requestIdleCallback !== 'undefined') {
-                requestIdleCallback(() => onSuccess(), { timeout: 2500 });
-              } else {
-                setTimeout(onSuccess, 500);
+                setTimeout(() => alert((isAr ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
+                return;
               }
-            });
-          } catch (e) {
-            console.error(e);
-            requestAnimationFrame(() => {
               setButtonBusy(false);
-              setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
-            });
-          }
-        })();
+              setTimeout(() => alert(isAr ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
+              if (typeof requestIdleCallback !== 'undefined') {
+                requestIdleCallback(() => done(), { timeout: 2500 });
+              } else {
+                setTimeout(done, 500);
+              }
+            } catch (e) {
+              console.error(e);
+              setButtonBusy(false);
+              setTimeout(() => alert(isAr ? 'فشل الحفظ' : 'Save failed'), 0);
+            }
+          })();
+        }, 0);
       }, 0);
-    });
-  };
+    };
+    btn.addEventListener('click', handler);
+    return () => btn.removeEventListener('click', handler);
+  }, []);
 
   const baseClass = 'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-opacity disabled:opacity-50';
   const className = variant === 'solid'
     ? baseClass + ' text-white bg-[var(--primary)] hover:opacity-90'
     : baseClass + ' text-[var(--primary)] bg-white border-2 border-[var(--primary)] hover:bg-gray-50';
   return (
-    <button ref={buttonRef} type="button" onClick={handleClick} className={className}>
+    <button ref={buttonRef} type="button" className={className}>
       <Icon name="check" className="w-5 h-5 pointer-events-none" />
       <span data-save-label className="pointer-events-none">{ar ? 'حفظ جميع التغييرات' : 'Save all changes'}</span>
     </button>
