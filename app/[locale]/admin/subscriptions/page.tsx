@@ -58,10 +58,11 @@ function SaveAllButton({
       setTimeout(() => alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام ثم احفظ.' : 'Refresh the page to load plans from system, then save.'), 0);
       return;
     }
-    setSaving(true);
-    (async () => {
-      try {
-        const results = await Promise.all(
+    setTimeout(() => {
+      setSaving(true);
+      (async () => {
+        try {
+          const results = await Promise.all(
           plans.map(async (plan) => {
             const res = await fetch(`/api/plans/${plan.id}`, {
               method: 'PATCH',
@@ -103,6 +104,7 @@ function SaveAllButton({
         setTimeout(() => alert(ar ? 'فشل الحفظ' : 'Save failed'), 0);
       }
     })();
+    }, 0);
   };
   const baseClass = 'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-opacity disabled:opacity-50';
   const className = variant === 'solid'
