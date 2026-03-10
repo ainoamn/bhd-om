@@ -301,20 +301,18 @@ export default function AdminSubscriptionsPage() {
   const onSaveEdit = () => {
     const planToSave = editingPlan;
     if (!planToSave) return;
+    if (!isDbPlan(planToSave.id)) {
+      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+      return;
+    }
+    // تحديث متفائل: إغلاق النافذة وتحديث القائمة فوراً (INP منخفض) ثم الحفظ في الخلفية
+    setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
+    setShowEditModal(false);
+    setEditingPlan(null);
     schedule(() => {
-      if (!isDbPlan(planToSave.id)) {
-        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
-        return;
-      }
-      (async () => {
-        const ok = await patchPlan(planToSave);
-        startTransition(() => {
-          setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
-          setShowEditModal(false);
-          setEditingPlan(null);
-        });
-        alert(ok ? (ar ? 'تم حفظ التعديلات.' : 'Changes saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
-      })();
+      patchPlan(planToSave).then((ok) => {
+        if (!ok) alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
+      });
     });
   };
 
@@ -329,24 +327,22 @@ export default function AdminSubscriptionsPage() {
     const planId = editingPlanId;
     const feats = editingFeatures.filter((f) => f.trim() !== '');
     const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) return;
+    if (!isDbPlan(plan.id)) {
+      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+      return;
+    }
+    // تحديث متفائل: إغلاق النافذة وتحديث القائمة فوراً (INP منخفض) ثم الحفظ في الخلفية
+    setPlans((prev) =>
+      prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
+    );
+    setShowFeaturesModal(false);
+    const featuresToSave = featsAr.length ? featsAr : feats;
     schedule(() => {
-      const plan = plansRef.current.find((p) => p.id === planId);
-      if (!plan) return;
-      if (!isDbPlan(plan.id)) {
-        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
-        return;
-      }
-      const featuresToSave = featsAr.length ? featsAr : feats;
-      (async () => {
-        const ok = await patchPlan(plan, { features: featuresToSave });
-        startTransition(() => {
-          setPlans((prev) =>
-            prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
-          );
-          setShowFeaturesModal(false);
-        });
-        alert(ok ? (ar ? 'تم حفظ الميزات.' : 'Features saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
-      })();
+      patchPlan(plan, { features: featuresToSave }).then((ok) => {
+        if (!ok) alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
+      });
     });
   };
 
