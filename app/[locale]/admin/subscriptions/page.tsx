@@ -82,14 +82,12 @@ function SaveAllButton({
       }
       setTimeout(() => {
         setButtonBusy(true);
-        // Yield one frame so browser paints "Saving..." before we block on network (fixes INP)
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            const plansList = plansRef.current;
-            const config = plansConfigRef.current;
-            const isAr = arRef.current;
-            const done = onSuccessRef.current;
-            (async () => {
+        setTimeout(() => {
+          const plansList = plansRef.current;
+          const config = plansConfigRef.current;
+          const isAr = arRef.current;
+          const done = onSuccessRef.current;
+          (async () => {
             try {
               const results = await Promise.all(
                 plansList.map(async (plan) => {
@@ -136,8 +134,7 @@ function SaveAllButton({
               setTimeout(() => alert(isAr ? 'فشل الحفظ' : 'Save failed'), 0);
             }
           })();
-          }, 0);
-        });
+        }, 0);
       }, 0);
     };
     btn.addEventListener('click', handler);
@@ -222,10 +219,8 @@ export default function AdminSubscriptionsPage() {
           } catch (_) {}
         }
         if (list.length === 0) {
-          startTransition(() => {
-            setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-            setPlansConfig(getInitialPlansConfig());
-          });
+          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+          setPlansConfig(getInitialPlansConfig());
         } else {
           const rows: PlanRow[] = list.map((p: {
             id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; priceYearly?: number; currency: string;
@@ -254,20 +249,16 @@ export default function AdminSubscriptionsPage() {
           list.forEach((p: { id: string; code: string; permissions?: string[] }) => {
             config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
           });
-          startTransition(() => {
-            setPlans(rows);
-            setPlansConfig(config);
-          });
+          setPlans(rows);
+          setPlansConfig(config);
         }
       } else {
         if (plansRes.status === 403 || plansRes.status === 401) {
           setLoading(false);
           return;
         }
-        startTransition(() => {
-          setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-          setPlansConfig(getInitialPlansConfig());
-        });
+        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+        setPlansConfig(getInitialPlansConfig());
       }
       if (usersRes.ok) {
         const uList = await usersRes.json();
@@ -278,7 +269,7 @@ export default function AdminSubscriptionsPage() {
           serialNumber: u.serialNumber,
           subscription: subs.find((s) => s.userId === u.id) ? { planId: subs.find((s) => s.userId === u.id)!.planId, status: subs.find((s) => s.userId === u.id)!.status } : undefined,
         }));
-        startTransition(() => setUsers(userRows));
+        setUsers(userRows);
       }
     } catch (e) {
       console.error(e);
