@@ -37,122 +37,6 @@ type UserRow = {
 
 const allFeatures = Object.keys(FEATURE_PERMISSIONS);
 
-function SaveAllButton({
-  disabled,
-  plans,
-  plansConfig,
-  onSuccess,
-  ar,
-  variant = 'outline',
-}: {
-  disabled: boolean;
-  plans: PlanRow[];
-  plansConfig: Record<string, string[]>;
-  onSuccess: () => void;
-  ar: boolean;
-  variant?: 'outline' | 'solid';
-}) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const disabledRef = useRef(disabled);
-  const plansRef = useRef(plans);
-  const plansConfigRef = useRef(plansConfig);
-  const onSuccessRef = useRef(onSuccess);
-  const arRef = useRef(ar);
-  disabledRef.current = disabled;
-  plansRef.current = plans;
-  plansConfigRef.current = plansConfig;
-  onSuccessRef.current = onSuccess;
-  arRef.current = ar;
-
-  useEffect(() => {
-    const btn = buttonRef.current;
-    if (!btn) return;
-    const setButtonBusy = (busy: boolean) => {
-      const b = buttonRef.current;
-      if (!b) return;
-      b.disabled = busy;
-      const span = b.querySelector('[data-save-label]');
-      if (span) span.textContent = busy ? (arRef.current ? 'جاري الحفظ...' : 'Saving...') : (arRef.current ? 'حفظ جميع التغييرات' : 'Save all changes');
-    };
-    const handler = () => {
-      // INP: do zero work here — only schedule so handler returns in <1ms
-      if (disabledRef.current) {
-        setTimeout(() => alert(arRef.current ? 'حدّث الصفحة لتحميل الباقات من النظام ثم احفظ.' : 'Refresh the page to load plans from system, then save.'), 0);
-        return;
-      }
-      setTimeout(() => {
-        setButtonBusy(true);
-        setTimeout(() => {
-          const plansList = plansRef.current;
-          const config = plansConfigRef.current;
-          const isAr = arRef.current;
-          const done = onSuccessRef.current;
-          (async () => {
-            try {
-              const results = await Promise.all(
-                plansList.map(async (plan) => {
-                  const res = await fetch(`/api/plans/${plan.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    cache: 'no-store',
-                    body: JSON.stringify({
-                      limitsJson: JSON.stringify({
-                        maxProperties: plan.maxProperties,
-                        maxUnits: plan.maxUnits,
-                        maxBookings: plan.maxBookings,
-                        maxUsers: plan.maxUsers,
-                        storageGB: plan.storageGB,
-                      }),
-                      permissionsJson: JSON.stringify(config[plan.id] || []),
-                      nameAr: plan.nameAr,
-                      nameEn: plan.nameEn,
-                      priceMonthly: plan.priceMonthly,
-                      priceYearly: plan.priceYearly ?? undefined,
-                      featuresJson: JSON.stringify(plan.featuresAr?.length ? plan.featuresAr : plan.features),
-                    }),
-                  });
-                  return { ok: res.ok, nameAr: plan.nameAr, error: res.ok ? null : (await res.json().catch(() => ({}))).error };
-                })
-              );
-              const failed = results.filter((r) => !r.ok).map((r) => r.nameAr + (r.error ? `: ${r.error}` : ''));
-              if (failed.length > 0) {
-                setButtonBusy(false);
-                setTimeout(() => alert((isAr ? 'فشل الحفظ: ' : 'Save failed: ') + failed.join('\n')), 0);
-                return;
-              }
-              setButtonBusy(false);
-              setTimeout(() => alert(isAr ? 'تم حفظ جميع التغييرات بنجاح!' : 'All changes saved!'), 0);
-              if (typeof requestIdleCallback !== 'undefined') {
-                requestIdleCallback(() => done(), { timeout: 2500 });
-              } else {
-                setTimeout(done, 500);
-              }
-            } catch (e) {
-              console.error(e);
-              setButtonBusy(false);
-              setTimeout(() => alert(isAr ? 'فشل الحفظ' : 'Save failed'), 0);
-            }
-          })();
-        }, 0);
-      }, 0);
-    };
-    btn.addEventListener('click', handler);
-    return () => btn.removeEventListener('click', handler);
-  }, []);
-
-  const baseClass = 'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-opacity disabled:opacity-50';
-  const className = variant === 'solid'
-    ? baseClass + ' text-white bg-[var(--primary)] hover:opacity-90'
-    : baseClass + ' text-[var(--primary)] bg-white border-2 border-[var(--primary)] hover:bg-gray-50';
-  return (
-    <button ref={buttonRef} type="button" className={className}>
-      <Icon name="check" className="w-5 h-5 pointer-events-none" />
-      <span data-save-label className="pointer-events-none">{ar ? 'حفظ جميع التغييرات' : 'Save all changes'}</span>
-    </button>
-  );
-}
-
 function getInitialPlansConfig(): Record<string, string[]> {
   const config: Record<string, string[]> = {};
   (['basic', 'standard', 'premium', 'enterprise'] as const).forEach((code) => {
@@ -284,23 +168,71 @@ export default function AdminSubscriptionsPage() {
     if (isAdmin) loadData();
   }, [isAdmin]);
 
+  const patchOnePlan = async (
+    plan: PlanRow,
+    opts?: { permissions?: string[]; features?: string[] }
+  ): Promise<boolean> => {
+    if (!isPlanIdFromDb(plan.id)) return false;
+    try {
+      const res = await fetch(`/api/plans/${plan.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        cache: 'no-store',
+        body: JSON.stringify({
+          limitsJson: JSON.stringify({
+            maxProperties: plan.maxProperties,
+            maxUnits: plan.maxUnits,
+            maxBookings: plan.maxBookings,
+            maxUsers: plan.maxUsers,
+            storageGB: plan.storageGB,
+          }),
+          permissionsJson: JSON.stringify(opts?.permissions ?? plansConfig[plan.id] ?? []),
+          nameAr: plan.nameAr,
+          nameEn: plan.nameEn,
+          priceMonthly: plan.priceMonthly,
+          priceYearly: plan.priceYearly ?? undefined,
+          featuresJson: JSON.stringify(
+            opts?.features ?? (plan.featuresAr?.length ? plan.featuresAr : plan.features)
+          ),
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
   const toggleFeature = (planId: string, featureId: string) => {
-    setPlansConfig((prev) => {
-      const arr = prev[planId] || [];
-      const has = arr.includes(featureId);
-      return { ...prev, [planId]: has ? arr.filter((f) => f !== featureId) : [...arr, featureId] };
-    });
+    const arr = plansConfig[planId] || [];
+    const has = arr.includes(featureId);
+    const newArr = has ? arr.filter((f) => f !== featureId) : [...arr, featureId];
+    setPlansConfig((prev) => ({ ...prev, [planId]: newArr }));
+    const plan = plans.find((p) => p.id === planId);
+    if (plan && isPlanIdFromDb(plan.id)) patchOnePlan(plan, { permissions: newArr });
   };
   const hasFeature = (planId: string, featureId: string) => (plansConfig[planId] || []).includes(featureId);
   const toggleAllFeatures = (planId: string) => {
     const current = plansConfig[planId] || [];
     const allSelected = current.length === allFeatures.length;
-    setPlansConfig((prev) => ({ ...prev, [planId]: allSelected ? [] : [...allFeatures] }));
+    const newArr = allSelected ? [] : [...allFeatures];
+    setPlansConfig((prev) => ({ ...prev, [planId]: newArr }));
+    const plan = plans.find((p) => p.id === planId);
+    if (plan && isPlanIdFromDb(plan.id)) patchOnePlan(plan, { permissions: newArr });
   };
   const areAllFeaturesSelected = (planId: string) => (plansConfig[planId] || []).length === allFeatures.length;
 
+  const plansRef = useRef(plans);
+  plansRef.current = plans;
+  const limitSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const updatePlanLimit = (planId: string, field: keyof PlanRow, value: number) => {
     setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, [field]: value } : p)));
+    if (limitSaveTimeoutRef.current) clearTimeout(limitSaveTimeoutRef.current);
+    limitSaveTimeoutRef.current = setTimeout(() => {
+      const plan = plansRef.current.find((p) => p.id === planId);
+      if (plan && isPlanIdFromDb(plan.id)) patchOnePlan(plan);
+      limitSaveTimeoutRef.current = null;
+    }, 800);
   };
 
   const assignPlanToUser = async (userId: string, planId: string) => {
@@ -331,18 +263,20 @@ export default function AdminSubscriptionsPage() {
     setEditingPlan({ ...plan });
     setShowEditPlanModal(true);
   };
-  const saveEditedPlan = () => {
+  const saveEditedPlan = async () => {
     if (!editingPlan) return;
     const planToSave = editingPlan;
-    const msg = ar ? 'تم حفظ التعديلات! لا تنسَ «حفظ جميع التغييرات»' : 'Saved! Remember to click «Save all changes»';
-    setTimeout(() => {
-      startTransition(() => {
-        setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
-        setShowEditPlanModal(false);
-        setEditingPlan(null);
-      });
-      setTimeout(() => alert(msg), 0);
-    }, 0);
+    if (!isPlanIdFromDb(planToSave.id)) {
+      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+      return;
+    }
+    const ok = await patchOnePlan(planToSave);
+    startTransition(() => {
+      setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
+      setShowEditPlanModal(false);
+      setEditingPlan(null);
+    });
+    alert(ok ? (ar ? 'تم حفظ التعديلات.' : 'Changes saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
   };
 
   const openEditFeaturesModal = (plan: PlanRow) => {
@@ -359,22 +293,25 @@ export default function AdminSubscriptionsPage() {
     setEditingFeatures(editingFeatures.filter((_, i) => i !== index));
     setEditingFeaturesAr(editingFeaturesAr.filter((_, i) => i !== index));
   };
-  const saveFeaturesChanges = () => {
+  const saveFeaturesChanges = async () => {
     const planId = editingPlanId;
     const feats = editingFeatures.filter((f) => f.trim() !== '');
     const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
-    const msg = ar ? 'تم حفظ الميزات! لا تنسَ «حفظ جميع التغييرات»' : 'Features saved! Remember «Save all changes»';
-    setTimeout(() => {
-      startTransition(() => {
-        setPlans((prev) =>
-          prev.map((p) =>
-            p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p
-          )
-        );
-        setShowEditFeaturesModal(false);
-      });
-      setTimeout(() => alert(msg), 0);
-    }, 0);
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) return;
+    if (!isPlanIdFromDb(plan.id)) {
+      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+      return;
+    }
+    const featuresToSave = featsAr.length ? featsAr : feats;
+    const ok = await patchOnePlan(plan, { features: featuresToSave });
+    startTransition(() => {
+      setPlans((prev) =>
+        prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
+      );
+      setShowEditFeaturesModal(false);
+    });
+    alert(ok ? (ar ? 'تم حفظ الميزات.' : 'Features saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
   };
 
   if (sessionStatus === 'unauthenticated' || (sessionStatus === 'authenticated' && !isAdmin)) {
@@ -407,9 +344,6 @@ export default function AdminSubscriptionsPage() {
           <p className="admin-page-subtitle" style={{ marginTop: 0 }}>
             {ar ? 'التحكم الكامل في الباقات، الميزات، والصلاحيات' : 'Full control over plans, features and permissions'}
           </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3" style={{ gap: '1.5rem' }}>
-          <SaveAllButton disabled={!plansFromDb} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="outline" />
         </div>
       </div>
 
@@ -585,7 +519,6 @@ export default function AdminSubscriptionsPage() {
             </div>
             <div className="border-t border-gray-100 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50">
               <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>{allFeatures.length} {ar ? 'صلاحية' : 'permissions'} · {plans.length} {ar ? 'باقة' : 'plans'}</p>
-              <SaveAllButton disabled={!plansFromDb} plans={plans} plansConfig={plansConfig} onSuccess={loadData} ar={ar} variant="solid" />
             </div>
           </div>
         )}
