@@ -263,20 +263,25 @@ export default function AdminSubscriptionsPage() {
     setEditingPlan({ ...plan });
     setShowEditPlanModal(true);
   };
-  const saveEditedPlan = async () => {
+  const saveEditedPlan = () => {
     if (!editingPlan) return;
     const planToSave = editingPlan;
-    if (!isPlanIdFromDb(planToSave.id)) {
-      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
-      return;
-    }
-    const ok = await patchOnePlan(planToSave);
-    startTransition(() => {
-      setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
-      setShowEditPlanModal(false);
-      setEditingPlan(null);
-    });
-    alert(ok ? (ar ? 'تم حفظ التعديلات.' : 'Changes saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
+    // لا تقم بعمل ثقيل داخل معالج النقر نفسه (تحسين INP)
+    setTimeout(() => {
+      if (!isPlanIdFromDb(planToSave.id)) {
+        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+        return;
+      }
+      (async () => {
+        const ok = await patchOnePlan(planToSave);
+        startTransition(() => {
+          setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
+          setShowEditPlanModal(false);
+          setEditingPlan(null);
+        });
+        alert(ok ? (ar ? 'تم حفظ التعديلات.' : 'Changes saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
+      })();
+    }, 0);
   };
 
   const openEditFeaturesModal = (plan: PlanRow) => {
@@ -293,25 +298,30 @@ export default function AdminSubscriptionsPage() {
     setEditingFeatures(editingFeatures.filter((_, i) => i !== index));
     setEditingFeaturesAr(editingFeaturesAr.filter((_, i) => i !== index));
   };
-  const saveFeaturesChanges = async () => {
+  const saveFeaturesChanges = () => {
     const planId = editingPlanId;
     const feats = editingFeatures.filter((f) => f.trim() !== '');
     const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
-    const plan = plans.find((p) => p.id === planId);
-    if (!plan) return;
-    if (!isPlanIdFromDb(plan.id)) {
-      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
-      return;
-    }
-    const featuresToSave = featsAr.length ? featsAr : feats;
-    const ok = await patchOnePlan(plan, { features: featuresToSave });
-    startTransition(() => {
-      setPlans((prev) =>
-        prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
-      );
-      setShowEditFeaturesModal(false);
-    });
-    alert(ok ? (ar ? 'تم حفظ الميزات.' : 'Features saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
+    // لا تقم بعمل ثقيل داخل معالج النقر نفسه (تحسين INP)
+    setTimeout(() => {
+      const plan = plans.find((p) => p.id === planId);
+      if (!plan) return;
+      if (!isPlanIdFromDb(plan.id)) {
+        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+        return;
+      }
+      const featuresToSave = featsAr.length ? featsAr : feats;
+      (async () => {
+        const ok = await patchOnePlan(plan, { features: featuresToSave });
+        startTransition(() => {
+          setPlans((prev) =>
+            prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
+          );
+          setShowEditFeaturesModal(false);
+        });
+        alert(ok ? (ar ? 'تم حفظ الميزات.' : 'Features saved.') : (ar ? 'فشل الحفظ.' : 'Save failed.'));
+      })();
+    }, 0);
   };
 
   if (sessionStatus === 'unauthenticated' || (sessionStatus === 'authenticated' && !isAdmin)) {
