@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -8,9 +8,19 @@ import Image from 'next/image';
 import Icon from '@/components/icons/Icon';
 import PageHero from '@/components/shared/PageHero';
 import { getSiteContent } from '@/lib/data/siteContent';
-import { getYearlyPrice, formatPlanCurrency, type SubscriptionPlanDisplay, type UserSubscriptionDisplay } from '@/lib/subscriptionSystem';
+import {
+  getYearlyPrice,
+  formatPlanCurrency,
+  type SubscriptionPlanDisplay,
+  type UserSubscriptionDisplay,
+} from '@/lib/subscriptionSystem';
 
-const HERO_SUBSCRIPTIONS = {
+/** تأجيل التنفيذ لتفادي انسداد واجهة المستخدم (INP) */
+function schedule(fn: () => void) {
+  setTimeout(fn, 0);
+}
+
+const HERO_DEFAULTS = {
   heroTitleAr: 'باقات الاشتراك',
   heroTitleEn: 'Subscription Plans',
   heroSubtitleAr: 'اختر الباقة المناسبة لإدارة عقاراتك في سلطنة عُمان',
@@ -23,33 +33,39 @@ export default function SubscriptionsPage() {
   const router = useRouter();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const [plans, setPlans] = useState<SubscriptionPlanDisplay[]>([]);
   const [userSubscription, setUserSubscription] = useState<UserSubscriptionDisplay | null>(null);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  const [selectedPlanId, setSelectedPlanId] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  const billingRef = useRef(billingCycle);
+  const selectedRef = useRef(selectedPlanId);
+  billingRef.current = billingCycle;
+  selectedRef.current = selectedPlanId;
+
   const pageContent = (() => {
     try {
       const c = getSiteContent();
-      return (c as { pagesSubscriptions?: typeof HERO_SUBSCRIPTIONS }).pagesSubscriptions || HERO_SUBSCRIPTIONS;
+      return (c as { pagesSubscriptions?: typeof HERO_DEFAULTS }).pagesSubscriptions ?? HERO_DEFAULTS;
     } catch {
-      return HERO_SUBSCRIPTIONS;
+      return HERO_DEFAULTS;
     }
   })();
 
   useEffect(() => {
     let cancelled = false;
+    const opts = { cache: 'no-store' as RequestCache, credentials: 'include' as RequestCredentials };
     const loadPlans = async () => {
       try {
-        const res = await fetch('/api/plans', { cache: 'no-store', credentials: 'include' });
+        const res = await fetch('/api/plans', opts);
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.list) && data.list.length > 0) setPlans(data.list);
+          if (Array.isArray(data?.list) && data.list.length > 0) setPlans(data.list);
         }
       } catch {
         if (!cancelled) setPlans([]);
@@ -59,16 +75,15 @@ export default function SubscriptionsPage() {
     };
     const loadSubscription = async () => {
       try {
-        const res = await fetch('/api/subscriptions/me', { cache: 'no-store', credentials: 'include' });
+        const res = await fetch('/api/subscriptions/me', opts);
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
-          if (data.subscription) setUserSubscription(data.subscription);
-          if (Array.isArray(data.plans) && data.plans.length > 0) setPlans((prev) => (prev.length > 0 ? prev : data.plans));
+          if (data?.subscription) setUserSubscription(data.subscription);
+          if (Array.isArray(data?.plans) && data.plans.length > 0)
+            setPlans((prev) => (prev.length > 0 ? prev : data.plans));
         }
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     };
     loadPlans();
     if (session?.user) loadSubscription();
@@ -84,35 +99,46 @@ export default function SubscriptionsPage() {
     setShowPaymentModal(true);
   };
 
-  const handlePayment = async () => {
+  const handlePayment = () => {
     if (!selectedPlanId) return;
     setSubmitting(true);
-    try {
-      const res = await fetch('/api/subscriptions/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ planId: selectedPlanId, durationMonths: billingCycle === 'yearly' ? 12 : 1 }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data?.error || (ar ? 'حدث خطأ' : 'An error occurred'));
-        return;
-      }
-      setShowPaymentModal(false);
-      setSelectedPlanId('');
-      alert(ar ? 'تم تفعيل الاشتراك بنجاح!' : 'Subscription activated!');
-      const refetch = await fetch('/api/subscriptions/me', { credentials: 'include' });
-      if (refetch.ok) {
-        const d = await refetch.json();
-        if (d.subscription) setUserSubscription(d.subscription);
-      }
-      router.push(`/${locale}/admin/my-account`);
-    } catch {
-      alert(ar ? 'حدث خطأ في عملية الدفع' : 'Payment error');
-    } finally {
-      setSubmitting(false);
-    }
+    schedule(() => {
+      (async () => {
+        const planId = selectedRef.current;
+        const cycle = billingRef.current;
+        try {
+          const res = await fetch('/api/subscriptions/me', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              planId,
+              durationMonths: cycle === 'yearly' ? 12 : 1,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setSubmitting(false);
+            alert(data?.error || (ar ? 'حدث خطأ' : 'An error occurred'));
+            return;
+          }
+          setShowPaymentModal(false);
+          setSelectedPlanId('');
+          alert(ar ? 'تم تفعيل الاشتراك بنجاح!' : 'Subscription activated!');
+          const refetch = await fetch('/api/subscriptions/me', { credentials: 'include' });
+          if (refetch.ok) {
+            const d = await refetch.json();
+            if (d?.subscription) setUserSubscription(d.subscription);
+          }
+          router.push(`/${locale}/admin/my-account`);
+        } catch {
+          setSubmitting(false);
+          alert(ar ? 'حدث خطأ في عملية الدفع' : 'Payment error');
+        } finally {
+          setSubmitting(false);
+        }
+      })();
+    });
   };
 
   if (loading) {
@@ -136,7 +162,6 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="min-h-screen bg-white" data-page="subscriptions" dir={ar ? 'rtl' : 'ltr'}>
-      {/* هيدر متجانس مع الرئيسية والعقارات والمشاريع */}
       <PageHero
         title={ar ? pageContent.heroTitleAr : pageContent.heroTitleEn}
         subtitle={ar ? pageContent.heroSubtitleAr : pageContent.heroSubtitleEn}
@@ -144,7 +169,6 @@ export default function SubscriptionsPage() {
         compact
       />
 
-      {/* شريط اختيار الفترة (شهري/سنوي) */}
       <section className="bg-gray-50 border-b border-gray-100 py-6">
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="flex flex-wrap items-center justify-center gap-4">
@@ -174,8 +198,7 @@ export default function SubscriptionsPage() {
         </div>
       </section>
 
-      {/* اشتراكك الحالي */}
-      {userSubscription && userSubscription.plan && (
+      {userSubscription?.plan && (
         <section className="container mx-auto px-4 py-8 max-w-5xl">
           <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl shadow-lg p-6 md:p-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -204,7 +227,6 @@ export default function SubscriptionsPage() {
         </section>
       )}
 
-      {/* الباقات */}
       <section className="container mx-auto px-4 py-12 md:py-16 max-w-6xl">
         {plans.length === 0 ? (
           <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 text-center">
@@ -291,7 +313,6 @@ export default function SubscriptionsPage() {
           </div>
         )}
 
-        {/* مقارنة الباقات */}
         {plans.length > 0 && (
           <div className="mt-20">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-10">
@@ -334,7 +355,6 @@ export default function SubscriptionsPage() {
           </div>
         )}
 
-        {/* لماذا بن حمود — مع صورة عمانية */}
         <div className="mt-20 rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
           <div className="grid grid-cols-1 lg:grid-cols-2">
             <div className="relative h-64 lg:min-h-[320px]">
@@ -368,7 +388,6 @@ export default function SubscriptionsPage() {
         </div>
       </section>
 
-      {/* نافذة الدفع */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 max-w-lg w-full">
