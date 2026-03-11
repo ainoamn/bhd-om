@@ -305,10 +305,12 @@ export default function AdminSubscriptionsPage() {
       alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
       return;
     }
-    // تحديث متفائل: إغلاق النافذة وتحديث القائمة فوراً (INP منخفض) ثم الحفظ في الخلفية
-    setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
-    setShowEditModal(false);
-    setEditingPlan(null);
+    // لا setState داخل النقر: الرسم التالي يُحسب INP. نؤجل التحديث لإطار لاحق.
+    requestAnimationFrame(() => {
+      setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
+      setShowEditModal(false);
+      setEditingPlan(null);
+    });
     schedule(() => {
       patchPlan(planToSave).then((ok) => {
         if (!ok) alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
@@ -333,12 +335,14 @@ export default function AdminSubscriptionsPage() {
       alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
       return;
     }
-    // تحديث متفائل: إغلاق النافذة وتحديث القائمة فوراً (INP منخفض) ثم الحفظ في الخلفية
-    setPlans((prev) =>
-      prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
-    );
-    setShowFeaturesModal(false);
     const featuresToSave = featsAr.length ? featsAr : feats;
+    // لا setState داخل النقر: نؤجل التحديث لإطار لاحق لتحسين INP.
+    requestAnimationFrame(() => {
+      setPlans((prev) =>
+        prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
+      );
+      setShowFeaturesModal(false);
+    });
     schedule(() => {
       patchPlan(plan, { features: featuresToSave }).then((ok) => {
         if (!ok) alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
