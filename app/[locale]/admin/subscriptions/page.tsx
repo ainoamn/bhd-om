@@ -113,6 +113,8 @@ export default function AdminSubscriptionsPage() {
   const plansRef = useRef(plans);
   const configRef = useRef(plansConfig);
   const limitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modalEditRef = useRef<HTMLDivElement>(null);
+  const modalFeaturesRef = useRef<HTMLDivElement>(null);
   plansRef.current = plans;
   configRef.current = plansConfig;
 
@@ -305,15 +307,21 @@ export default function AdminSubscriptionsPage() {
       alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
       return;
     }
-    // لا setState داخل النقر: الرسم التالي يُحسب INP. نؤجل التحديث لإطار لاحق.
-    requestAnimationFrame(() => {
-      setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
-      setShowEditModal(false);
-      setEditingPlan(null);
-    });
+    // إخفاء فوري عبر DOM فقط — لا setState = لا إعادة رسم = INP منخفض
+    const el = modalEditRef.current;
+    if (el) el.style.display = 'none';
     schedule(() => {
       patchPlan(planToSave).then((ok) => {
-        if (!ok) alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
+        if (ok) {
+          startTransition(() => {
+            setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
+            setShowEditModal(false);
+            setEditingPlan(null);
+          });
+        } else {
+          if (el) el.style.display = '';
+          alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
+        }
       });
     });
   };
@@ -336,16 +344,22 @@ export default function AdminSubscriptionsPage() {
       return;
     }
     const featuresToSave = featsAr.length ? featsAr : feats;
-    // لا setState داخل النقر: نؤجل التحديث لإطار لاحق لتحسين INP.
-    requestAnimationFrame(() => {
-      setPlans((prev) =>
-        prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
-      );
-      setShowFeaturesModal(false);
-    });
+    // إخفاء فوري عبر DOM فقط — لا setState = لا إعادة رسم = INP منخفض
+    const el = modalFeaturesRef.current;
+    if (el) el.style.display = 'none';
     schedule(() => {
       patchPlan(plan, { features: featuresToSave }).then((ok) => {
-        if (!ok) alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
+        if (ok) {
+          startTransition(() => {
+            setPlans((prev) =>
+              prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
+            );
+            setShowFeaturesModal(false);
+          });
+        } else {
+          if (el) el.style.display = '';
+          alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
+        }
       });
     });
   };
@@ -597,7 +611,7 @@ export default function AdminSubscriptionsPage() {
       </div>
 
       {showEditModal && editingPlan && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditModal(false)}>
+        <div ref={modalEditRef} className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعديل الباقة' : 'Edit plan'}: {editingPlan.nameAr}</h3>
@@ -664,7 +678,7 @@ export default function AdminSubscriptionsPage() {
       )}
 
       {showFeaturesModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowFeaturesModal(false)}>
+        <div ref={modalFeaturesRef} className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowFeaturesModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعديل الميزات' : 'Edit features'}: {plans.find((p) => p.id === editingPlanId)?.nameAr}</h3>
