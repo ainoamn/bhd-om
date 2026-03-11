@@ -292,7 +292,7 @@ export default function AdminSubscriptionsPage() {
     setShowEditModal(true);
   };
 
-  /** لا setState ولا DOM في النقر؛ الإخفاء والحفظ داخل schedule، وتحديث React في requestIdleCallback */
+  /** النقر يجدول فقط؛ الإخفاء والـ fetch في rAF حتى يُرسم الإطار فوراً ويقل INP */
   const onSaveEdit = () => {
     const plan = editingPlan;
     if (!plan) return;
@@ -301,23 +301,25 @@ export default function AdminSubscriptionsPage() {
       return;
     }
     schedule(() => {
-      const el = modalEditRef.current;
-      if (el) el.style.display = 'none';
-      patchPlan(plan).then((ok) => {
-        const done = () => {
-          if (ok) {
-            setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
-            setShowEditModal(false);
-            setEditingPlan(null);
-          } else {
-            if (el) el.style.display = '';
-            setShowEditModal(true);
-            setEditingPlan(plan);
-            alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
-          }
-        };
-        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
-        else setTimeout(done, 0);
+      requestAnimationFrame(() => {
+        const el = modalEditRef.current;
+        if (el) el.style.display = 'none';
+        patchPlan(plan).then((ok) => {
+          const done = () => {
+            if (ok) {
+              setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
+              setShowEditModal(false);
+              setEditingPlan(null);
+            } else {
+              if (el) el.style.display = '';
+              setShowEditModal(true);
+              setEditingPlan(plan);
+              alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
+            }
+          };
+          if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
+          else setTimeout(done, 0);
+        });
       });
     });
   };
@@ -329,7 +331,7 @@ export default function AdminSubscriptionsPage() {
     setShowFeaturesModal(true);
   };
 
-  /** لا setState ولا DOM في النقر؛ الإخفاء والحفظ داخل schedule، وتحديث React في requestIdleCallback */
+  /** النقر يجدول فقط؛ الإخفاء والـ fetch في rAF حتى يُرسم الإطار فوراً ويقل INP */
   const onSaveFeatures = () => {
     const planId = editingPlanId;
     const plan = plans.find((p) => p.id === planId);
@@ -342,21 +344,23 @@ export default function AdminSubscriptionsPage() {
     const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
     const featuresToSave = featsAr.length ? featsAr : feats;
     schedule(() => {
-      const el = modalFeaturesRef.current;
-      if (el) el.style.display = 'none';
-      patchPlan(plan, { features: featuresToSave }).then((ok) => {
-        const done = () => {
-          if (ok) {
-            setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
-            setShowFeaturesModal(false);
-          } else {
-            if (el) el.style.display = '';
-            setShowFeaturesModal(true);
-            alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
-          }
-        };
-        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
-        else setTimeout(done, 0);
+      requestAnimationFrame(() => {
+        const el = modalFeaturesRef.current;
+        if (el) el.style.display = 'none';
+        patchPlan(plan, { features: featuresToSave }).then((ok) => {
+          const done = () => {
+            if (ok) {
+              setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
+              setShowFeaturesModal(false);
+            } else {
+              if (el) el.style.display = '';
+              setShowFeaturesModal(true);
+              alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
+            }
+          };
+          if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
+          else setTimeout(done, 0);
+        });
       });
     });
   };
