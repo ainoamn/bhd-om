@@ -28,6 +28,8 @@ const HERO_DEFAULTS = {
   heroImage: 'https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=1920&q=80',
 };
 
+const FETCH_OPTS = { cache: 'no-store' as RequestCache, credentials: 'include' as RequestCredentials };
+
 export default function SubscriptionsPage() {
   const params = useParams();
   const router = useRouter();
@@ -42,10 +44,10 @@ export default function SubscriptionsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const billingRef = useRef(billingCycle);
   const selectedRef = useRef(selectedPlanId);
-  billingRef.current = billingCycle;
+  const cycleRef = useRef(billingCycle);
   selectedRef.current = selectedPlanId;
+  cycleRef.current = billingCycle;
 
   const pageContent = (() => {
     try {
@@ -58,14 +60,23 @@ export default function SubscriptionsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const opts = { cache: 'no-store' as RequestCache, credentials: 'include' as RequestCredentials };
-    const loadPlans = async () => {
+    const load = async () => {
       try {
-        const res = await fetch('/api/plans', opts);
+        const [plansRes, meRes] = await Promise.all([
+          fetch('/api/plans', FETCH_OPTS),
+          session?.user ? fetch('/api/subscriptions/me', FETCH_OPTS) : Promise.resolve(null),
+        ]);
         if (cancelled) return;
-        if (res.ok) {
-          const data = await res.json();
+        if (plansRes?.ok) {
+          const data = await plansRes.json();
           if (Array.isArray(data?.list) && data.list.length > 0) setPlans(data.list);
+        }
+        if (meRes?.ok) {
+          const data = await meRes.json();
+          if (data?.subscription) setUserSubscription(data.subscription);
+          if (Array.isArray(data?.plans) && data.plans.length > 0) {
+            setPlans((prev) => (prev.length > 0 ? prev : data.plans));
+          }
         }
       } catch {
         if (!cancelled) setPlans([]);
@@ -73,20 +84,7 @@ export default function SubscriptionsPage() {
         if (!cancelled) setLoading(false);
       }
     };
-    const loadSubscription = async () => {
-      try {
-        const res = await fetch('/api/subscriptions/me', opts);
-        if (cancelled) return;
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.subscription) setUserSubscription(data.subscription);
-          if (Array.isArray(data?.plans) && data.plans.length > 0)
-            setPlans((prev) => (prev.length > 0 ? prev : data.plans));
-        }
-      } catch {}
-    };
-    loadPlans();
-    if (session?.user) loadSubscription();
+    load();
     return () => { cancelled = true; };
   }, [session?.user]);
 
@@ -99,45 +97,41 @@ export default function SubscriptionsPage() {
     setShowPaymentModal(true);
   };
 
+  /** النقر لا يفعل إلا schedule — لا setState ثقيل ولا fetch في نفس النقر */
   const handlePayment = () => {
-    if (!selectedPlanId) return;
-    setSubmitting(true);
+    const planId = selectedRef.current;
+    if (!planId) return;
     schedule(() => {
-      (async () => {
-        const planId = selectedRef.current;
-        const cycle = billingRef.current;
-        try {
-          const res = await fetch('/api/subscriptions/me', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              planId,
-              durationMonths: cycle === 'yearly' ? 12 : 1,
-            }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            setSubmitting(false);
-            alert(data?.error || (ar ? 'حدث خطأ' : 'An error occurred'));
-            return;
+      setSubmitting(true);
+      const cycle = cycleRef.current;
+      fetch('/api/subscriptions/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          planId,
+          durationMonths: cycle === 'yearly' ? 12 : 1,
+        }),
+      })
+        .then((res) => res.json().catch(() => ({})))
+        .then((data) => {
+          if (data?.ok && !data?.error) {
+            setShowPaymentModal(false);
+            setSelectedPlanId('');
+            alert(ar ? 'تم تفعيل الاشتراك بنجاح!' : 'Subscription activated!');
+            return fetch('/api/subscriptions/me', { credentials: 'include' }).then((r) => r.json());
           }
-          setShowPaymentModal(false);
-          setSelectedPlanId('');
-          alert(ar ? 'تم تفعيل الاشتراك بنجاح!' : 'Subscription activated!');
-          const refetch = await fetch('/api/subscriptions/me', { credentials: 'include' });
-          if (refetch.ok) {
-            const d = await refetch.json();
-            if (d?.subscription) setUserSubscription(d.subscription);
-          }
-          router.push(`/${locale}/admin/my-account`);
-        } catch {
+          setSubmitting(false);
+          alert(data?.error || (ar ? 'حدث خطأ' : 'An error occurred'));
+        })
+        .then((d) => {
+          if (d?.subscription) setUserSubscription(d.subscription);
+          if (d) router.push(`/${locale}/admin/my-account`);
+        })
+        .catch(() => {
           setSubmitting(false);
           alert(ar ? 'حدث خطأ في عملية الدفع' : 'Payment error');
-        } finally {
-          setSubmitting(false);
-        }
-      })();
+        });
     });
   };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, startTransition } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -12,7 +12,7 @@ import {
   DEFAULT_PLANS_FOR_ADMIN,
 } from '@/lib/featurePermissions';
 
-/** تأجيل التنفيذ لتفادي انسداد واجهة المستخدم (INP) */
+/** تأجيل التنفيذ لتفادي انسداد واجهة المستخدم (INP) — لا setState ولا DOM داخل النقر */
 function schedule(fn: () => void) {
   setTimeout(fn, 0);
 }
@@ -91,6 +91,8 @@ function mapApiPlanToRow(p: {
   };
 }
 
+const FETCH_OPTS = { cache: 'no-store' as RequestCache, credentials: 'include' as RequestCredentials };
+
 export default function AdminSubscriptionsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
@@ -110,11 +112,9 @@ export default function AdminSubscriptionsPage() {
   const [editingFeaturesAr, setEditingFeaturesAr] = useState<string[]>([]);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
 
+  const limitDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const plansRef = useRef(plans);
   const configRef = useRef(plansConfig);
-  const limitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const modalEditRef = useRef<HTMLDivElement>(null);
-  const modalFeaturesRef = useRef<HTMLDivElement>(null);
   plansRef.current = plans;
   configRef.current = plansConfig;
 
@@ -124,62 +124,56 @@ export default function AdminSubscriptionsPage() {
   const loadData = useCallback(async (retry = 0) => {
     if (!isAdmin) return;
     const ts = Date.now();
-    const opts = { cache: 'no-store' as RequestCache, credentials: 'include' as RequestCredentials };
     try {
-      let [planRes, userRes, subRes] = await Promise.all([
-        fetch(`/api/admin/plans?_=${ts}`, { ...opts, headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' } }),
-        fetch(`/api/admin/users?_=${ts}`, opts),
-        fetch(`/api/subscriptions?_=${ts}`, opts),
+      const [planRes, userRes, subRes] = await Promise.all([
+        fetch(`/api/admin/plans?_=${ts}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' } }),
+        fetch(`/api/admin/users?_=${ts}`, FETCH_OPTS),
+        fetch(`/api/subscriptions?_=${ts}`, FETCH_OPTS),
       ]);
+
       if ((planRes.status === 403 || planRes.status === 401) && retry < 3) {
         await new Promise((r) => setTimeout(r, 350 + retry * 250));
         return loadData(retry + 1);
       }
+
       const subs: { userId: string; planId: string; status: string }[] = [];
       if (subRes.ok) {
         const d = await subRes.json();
-        if (Array.isArray(d.list)) d.list.forEach((s: { userId: string; planId: string; status: string }) => subs.push(s));
+        if (Array.isArray(d?.list)) d.list.forEach((s: { userId: string; planId: string; status: string }) => subs.push(s));
       }
+
+      let planList: Parameters<typeof mapApiPlanToRow>[0][] = [];
       if (planRes.ok) {
         const d = await planRes.json();
-        let list = Array.isArray(d.list) ? d.list : [];
-        if (list.length === 0) {
+        planList = Array.isArray(d?.list) ? d.list : [];
+        if (planList.length === 0) {
           try {
-            const initRes = await fetch('/api/plans/init', { method: 'POST', ...opts });
+            const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
             const initData = await initRes.json().catch(() => ({}));
             if (initRes.ok && initData?.ok) {
-              const [reRes] = await Promise.all([fetch(`/api/admin/plans?_=${Date.now()}`, { ...opts, headers: { Pragma: 'no-cache' } })]);
+              const reRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
               if (reRes.ok) {
                 const rej = await reRes.json();
-                list = Array.isArray(rej.list) ? rej.list : [];
+                planList = Array.isArray(rej?.list) ? rej.list : [];
               }
             }
           } catch {}
         }
-        if (list.length === 0) {
-          startTransition(() => {
-            setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-            setPlansConfig(getInitialConfig());
-          });
-        } else {
-          const rows = list.map((p: Parameters<typeof mapApiPlanToRow>[0]) => mapApiPlanToRow(p));
-          const config: Record<string, string[]> = {};
-          list.forEach((p: { id: string; code: string; permissions?: string[] }) => {
-            config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
-          });
-          startTransition(() => {
-            setPlans(rows);
-            setPlansConfig(config);
-          });
-        }
-      } else {
-        if (planRes.status !== 403 && planRes.status !== 401) {
-          startTransition(() => {
-            setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-            setPlansConfig(getInitialConfig());
-          });
-        }
       }
+
+      if (planList.length > 0) {
+        const rows = planList.map(mapApiPlanToRow);
+        const config: Record<string, string[]> = {};
+        planList.forEach((p: { id: string; code: string; permissions?: string[] }) => {
+          config[p.id] = Array.isArray(p.permissions) && p.permissions.length > 0 ? [...p.permissions] : [...(PLAN_FEATURES[p.code] || [])];
+        });
+        setPlans(rows);
+        setPlansConfig(config);
+      } else {
+        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+        setPlansConfig(getInitialConfig());
+      }
+
       if (userRes.ok) {
         const uList = await userRes.json();
         const arr = Array.isArray(uList) ? uList : [];
@@ -193,14 +187,12 @@ export default function AdminSubscriptionsPage() {
             subscription: sub ? { planId: sub.planId, status: sub.status } : undefined,
           };
         });
-        startTransition(() => setUsers(userRows));
+        setUsers(userRows);
       }
     } catch (e) {
       console.error(e);
-      startTransition(() => {
-        setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
-        setPlansConfig(getInitialConfig());
-      });
+      setPlans(DEFAULT_PLANS_FOR_ADMIN as PlanRow[]);
+      setPlansConfig(getInitialConfig());
     } finally {
       setLoading(false);
     }
@@ -216,8 +208,7 @@ export default function AdminSubscriptionsPage() {
       const res = await fetch(`/api/plans/${plan.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        cache: 'no-store',
+        ...FETCH_OPTS,
         body: JSON.stringify({
           limitsJson: JSON.stringify({
             maxProperties: plan.maxProperties,
@@ -261,11 +252,11 @@ export default function AdminSubscriptionsPage() {
 
   const onLimitChange = (planId: string, field: keyof PlanRow, value: number) => {
     setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, [field]: value } : p)));
-    if (limitTimeoutRef.current) clearTimeout(limitTimeoutRef.current);
-    limitTimeoutRef.current = setTimeout(() => {
+    if (limitDebounceRef.current) clearTimeout(limitDebounceRef.current);
+    limitDebounceRef.current = setTimeout(() => {
       const plan = plansRef.current.find((p) => p.id === planId);
       if (plan && isDbPlan(plan.id)) patchPlan(plan);
-      limitTimeoutRef.current = null;
+      limitDebounceRef.current = null;
     }, 800);
   };
 
@@ -276,8 +267,7 @@ export default function AdminSubscriptionsPage() {
         const res = await fetch('/api/subscriptions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          cache: 'no-store',
+          ...FETCH_OPTS,
           body: JSON.stringify({ userId, planId, durationMonths: 12 }),
         });
         const data = await res.json().catch(() => ({}));
@@ -300,26 +290,22 @@ export default function AdminSubscriptionsPage() {
     setShowEditModal(true);
   };
 
+  /** معالج النقر لا يفعل شيئاً إلا schedule — لا setState ولا DOM */
   const onSaveEdit = () => {
-    const planToSave = editingPlan;
-    if (!planToSave) return;
-    if (!isDbPlan(planToSave.id)) {
+    const plan = editingPlan;
+    if (!plan) return;
+    if (!isDbPlan(plan.id)) {
       alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
       return;
     }
-    // إخفاء فوري عبر DOM فقط — لا setState = لا إعادة رسم = INP منخفض
-    const el = modalEditRef.current;
-    if (el) el.style.display = 'none';
     schedule(() => {
-      patchPlan(planToSave).then((ok) => {
-        if (ok) {
-          startTransition(() => {
-            setPlans((prev) => prev.map((p) => (p.id === planToSave.id ? planToSave : p)));
-            setShowEditModal(false);
-            setEditingPlan(null);
-          });
-        } else {
-          if (el) el.style.display = '';
+      setShowEditModal(false);
+      setEditingPlan(null);
+      patchPlan(plan).then((ok) => {
+        if (ok) setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
+        else {
+          setShowEditModal(true);
+          setEditingPlan(plan);
           alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
         }
       });
@@ -333,31 +319,24 @@ export default function AdminSubscriptionsPage() {
     setShowFeaturesModal(true);
   };
 
+  /** معالج النقر لا يفعل شيئاً إلا schedule — لا setState ولا DOM */
   const onSaveFeatures = () => {
     const planId = editingPlanId;
-    const feats = editingFeatures.filter((f) => f.trim() !== '');
-    const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
     const plan = plans.find((p) => p.id === planId);
     if (!plan) return;
     if (!isDbPlan(plan.id)) {
       alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
       return;
     }
+    const feats = editingFeatures.filter((f) => f.trim() !== '');
+    const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
     const featuresToSave = featsAr.length ? featsAr : feats;
-    // إخفاء فوري عبر DOM فقط — لا setState = لا إعادة رسم = INP منخفض
-    const el = modalFeaturesRef.current;
-    if (el) el.style.display = 'none';
     schedule(() => {
+      setShowFeaturesModal(false);
       patchPlan(plan, { features: featuresToSave }).then((ok) => {
-        if (ok) {
-          startTransition(() => {
-            setPlans((prev) =>
-              prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))
-            );
-            setShowFeaturesModal(false);
-          });
-        } else {
-          if (el) el.style.display = '';
+        if (ok) setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
+        else {
+          setShowFeaturesModal(true);
           alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
         }
       });
@@ -370,7 +349,7 @@ export default function AdminSubscriptionsPage() {
         <div className="admin-card max-w-lg mx-auto overflow-hidden">
           <div className="admin-card-body p-6 sm:p-8 text-center">
             <p className="text-gray-600 mb-5" style={{ lineHeight: 1.5, marginBottom: '1.5rem' }}>
-              {ar ? 'إدارة الباقات متاحة للإدارة فقط. يمكنك الاشتراك أو العرض من الصفحة العامة.' : 'Plan management is for administrators only. Subscribe or view plans on the public page.'}
+              {ar ? 'إدارة الباقات متاحة للإدارة فقط.' : 'Plan management is for administrators only.'}
             </p>
             <Link
               href={`/${locale}/subscriptions`}
@@ -611,7 +590,7 @@ export default function AdminSubscriptionsPage() {
       </div>
 
       {showEditModal && editingPlan && (
-        <div ref={modalEditRef} className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditModal(false)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعديل الباقة' : 'Edit plan'}: {editingPlan.nameAr}</h3>
@@ -678,7 +657,7 @@ export default function AdminSubscriptionsPage() {
       )}
 
       {showFeaturesModal && (
-        <div ref={modalFeaturesRef} className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowFeaturesModal(false)}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowFeaturesModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-xl font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعديل الميزات' : 'Edit features'}: {plans.find((p) => p.id === editingPlanId)?.nameAr}</h3>
