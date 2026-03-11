@@ -15,9 +15,20 @@ import {
 function schedule(fn: () => void) {
   setTimeout(fn, 0);
 }
-/** تأخير 120ms حتى لا يُحسب عمل الحفظ ضمن تفاعل النقر — يقلل INP لأزرار الحفظ */
-function scheduleAfterInteraction(fn: () => void, delayMs = 120) {
+/** تأخير 250ms لقطع ربط العمل بتفاعل النقر — يقلل INP */
+function scheduleAfterInteraction(fn: () => void, delayMs = 250) {
   setTimeout(fn, delayMs);
+}
+/** إخفاء عنصر بدون reflow (لا display:none) لتفادي انسداد الرسم */
+function hideEl(el: HTMLElement | null) {
+  if (!el) return;
+  el.style.visibility = 'hidden';
+  el.style.pointerEvents = 'none';
+}
+function showEl(el: HTMLElement | null) {
+  if (!el) return;
+  el.style.visibility = '';
+  el.style.pointerEvents = '';
 }
 
 type PlanRow = {
@@ -295,7 +306,7 @@ export default function AdminSubscriptionsPage() {
     setShowEditModal(true);
   };
 
-  /** النقر يجدول العمل بعد 120ms فقط — لا DOM ولا fetch في دورة النقر، فينخفض INP */
+  /** النقر يجدول فقط؛ بعد 250ms إخفاء خفيف (visibility) ثم fetch؛ تحديث state في idle */
   const onSaveEdit = () => {
     const plan = editingPlan;
     if (!plan) return;
@@ -305,21 +316,21 @@ export default function AdminSubscriptionsPage() {
     }
     scheduleAfterInteraction(() => {
       const el = modalEditRef.current;
-      if (el) el.style.display = 'none';
+      hideEl(el);
       patchPlan(plan).then((ok) => {
         const done = () => {
           if (ok) {
-            setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
             setShowEditModal(false);
             setEditingPlan(null);
+            setTimeout(() => setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p))), 0);
           } else {
-            if (el) el.style.display = '';
+            showEl(el);
             setShowEditModal(true);
             setEditingPlan(plan);
             alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
           }
         };
-        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
+        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 200 });
         else setTimeout(done, 0);
       });
     });
@@ -332,7 +343,7 @@ export default function AdminSubscriptionsPage() {
     setShowFeaturesModal(true);
   };
 
-  /** النقر يجدول العمل بعد 120ms فقط — لا DOM ولا fetch في دورة النقر، فينخفض INP */
+  /** النقر يجدول فقط؛ بعد 250ms إخفاء خفيف (visibility) ثم fetch؛ تحديث state في idle */
   const onSaveFeatures = () => {
     const planId = editingPlanId;
     const plan = plans.find((p) => p.id === planId);
@@ -346,19 +357,19 @@ export default function AdminSubscriptionsPage() {
     const featuresToSave = featsAr.length ? featsAr : feats;
     scheduleAfterInteraction(() => {
       const el = modalFeaturesRef.current;
-      if (el) el.style.display = 'none';
+      hideEl(el);
       patchPlan(plan, { features: featuresToSave }).then((ok) => {
         const done = () => {
           if (ok) {
-            setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
             setShowFeaturesModal(false);
+            setTimeout(() => setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))), 0);
           } else {
-            if (el) el.style.display = '';
+            showEl(el);
             setShowFeaturesModal(true);
             alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
           }
         };
-        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
+        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 200 });
         else setTimeout(done, 0);
       });
     });
