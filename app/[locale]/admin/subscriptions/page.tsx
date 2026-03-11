@@ -12,9 +12,12 @@ import {
   DEFAULT_PLANS_FOR_ADMIN,
 } from '@/lib/featurePermissions';
 
-/** تأجيل التنفيذ لتفادي انسداد واجهة المستخدم (INP) — لا setState ولا DOM داخل النقر */
 function schedule(fn: () => void) {
   setTimeout(fn, 0);
+}
+/** تأخير 120ms حتى لا يُحسب عمل الحفظ ضمن تفاعل النقر — يقلل INP لأزرار الحفظ */
+function scheduleAfterInteraction(fn: () => void, delayMs = 120) {
+  setTimeout(fn, delayMs);
 }
 
 type PlanRow = {
@@ -292,7 +295,7 @@ export default function AdminSubscriptionsPage() {
     setShowEditModal(true);
   };
 
-  /** النقر يجدول فقط؛ الإخفاء والـ fetch في rAF حتى يُرسم الإطار فوراً ويقل INP */
+  /** النقر يجدول العمل بعد 120ms فقط — لا DOM ولا fetch في دورة النقر، فينخفض INP */
   const onSaveEdit = () => {
     const plan = editingPlan;
     if (!plan) return;
@@ -300,26 +303,24 @@ export default function AdminSubscriptionsPage() {
       alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
       return;
     }
-    schedule(() => {
-      requestAnimationFrame(() => {
-        const el = modalEditRef.current;
-        if (el) el.style.display = 'none';
-        patchPlan(plan).then((ok) => {
-          const done = () => {
-            if (ok) {
-              setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
-              setShowEditModal(false);
-              setEditingPlan(null);
-            } else {
-              if (el) el.style.display = '';
-              setShowEditModal(true);
-              setEditingPlan(plan);
-              alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
-            }
-          };
-          if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
-          else setTimeout(done, 0);
-        });
+    scheduleAfterInteraction(() => {
+      const el = modalEditRef.current;
+      if (el) el.style.display = 'none';
+      patchPlan(plan).then((ok) => {
+        const done = () => {
+          if (ok) {
+            setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
+            setShowEditModal(false);
+            setEditingPlan(null);
+          } else {
+            if (el) el.style.display = '';
+            setShowEditModal(true);
+            setEditingPlan(plan);
+            alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
+          }
+        };
+        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
+        else setTimeout(done, 0);
       });
     });
   };
@@ -331,7 +332,7 @@ export default function AdminSubscriptionsPage() {
     setShowFeaturesModal(true);
   };
 
-  /** النقر يجدول فقط؛ الإخفاء والـ fetch في rAF حتى يُرسم الإطار فوراً ويقل INP */
+  /** النقر يجدول العمل بعد 120ms فقط — لا DOM ولا fetch في دورة النقر، فينخفض INP */
   const onSaveFeatures = () => {
     const planId = editingPlanId;
     const plan = plans.find((p) => p.id === planId);
@@ -343,24 +344,22 @@ export default function AdminSubscriptionsPage() {
     const feats = editingFeatures.filter((f) => f.trim() !== '');
     const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
     const featuresToSave = featsAr.length ? featsAr : feats;
-    schedule(() => {
-      requestAnimationFrame(() => {
-        const el = modalFeaturesRef.current;
-        if (el) el.style.display = 'none';
-        patchPlan(plan, { features: featuresToSave }).then((ok) => {
-          const done = () => {
-            if (ok) {
-              setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
-              setShowFeaturesModal(false);
-            } else {
-              if (el) el.style.display = '';
-              setShowFeaturesModal(true);
-              alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
-            }
-          };
-          if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
-          else setTimeout(done, 0);
-        });
+    scheduleAfterInteraction(() => {
+      const el = modalFeaturesRef.current;
+      if (el) el.style.display = 'none';
+      patchPlan(plan, { features: featuresToSave }).then((ok) => {
+        const done = () => {
+          if (ok) {
+            setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
+            setShowFeaturesModal(false);
+          } else {
+            if (el) el.style.display = '';
+            setShowFeaturesModal(true);
+            alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
+          }
+        };
+        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 100 });
+        else setTimeout(done, 0);
       });
     });
   };
