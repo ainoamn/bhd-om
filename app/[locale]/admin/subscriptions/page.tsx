@@ -324,7 +324,10 @@ export default function AdminSubscriptionsPage() {
           listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
         }
         if (!listRes.ok) {
-          alert(ar ? `تعذر الحفظ (${listRes.status}). تحقق من تسجيل الدخول كمسؤول.` : `Save failed (${listRes.status}). Check admin login.`);
+          const errData = await listRes.json().catch(() => ({}));
+          const details = (errData?.details as string) || (errData?.error as string);
+          const msg = details ? `${listRes.status}: ${details}` : String(listRes.status);
+          alert(ar ? `تعذر تحميل الباقات (${msg}).` : `Could not load plans (${msg}).`);
           return;
         }
         const listData = await listRes.json();
@@ -396,7 +399,10 @@ export default function AdminSubscriptionsPage() {
           listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
         }
         if (!listRes.ok) {
-          alert(ar ? `تعذر الحفظ (${listRes.status}). تحقق من تسجيل الدخول كمسؤول.` : `Save failed (${listRes.status}). Check admin login.`);
+          const errData = await listRes.json().catch(() => ({}));
+          const details = (errData?.details as string) || (errData?.error as string);
+          const msg = details ? `${listRes.status}: ${details}` : String(listRes.status);
+          alert(ar ? `تعذر تحميل الباقات (${msg}).` : `Could not load plans (${msg}).`);
           return;
         }
         const listData = await listRes.json();
