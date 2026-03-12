@@ -290,6 +290,7 @@ export default function AdminSubscriptionsPage() {
     setSavingAll(true);
     try {
       let firstError: string | null = null;
+      let savedCount = 0;
       const list = plansRef.current;
       const config = configRef.current;
       for (const plan of list) {
@@ -297,16 +298,18 @@ export default function AdminSubscriptionsPage() {
         const permissions = config[plan.id] ?? [];
         const result = await patchPlan(plan, { permissions });
         if (!result.ok) firstError = result.error ?? (ar ? 'خطأ' : 'Error');
+        else savedCount += 1;
       }
       if (firstError) {
         alert(ar ? `فشل الحفظ: ${firstError}` : `Save failed: ${firstError}`);
-      } else {
-        await loadData();
+      } else if (savedCount > 0) {
+        // عدم استدعاء loadData() بعد الحفظ لئلا يفشل الطلب فيستبدل loadData البيانات الافتراضية وترجع الشاشة كما كانت
+        alert(ar ? 'تم حفظ جميع التغييرات.' : 'All changes saved.');
       }
     } finally {
       setSavingAll(false);
     }
-  }, [plansFromDb, isDbPlan, patchPlan, loadData, ar]);
+  }, [plansFromDb, isDbPlan, patchPlan, ar]);
 
   const onAssignPlan = (userId: string, planId: string) => {
     setAssigningUserId(userId);
