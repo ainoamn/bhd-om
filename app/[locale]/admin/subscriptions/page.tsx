@@ -239,7 +239,11 @@ export default function AdminSubscriptionsPage() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: (data?.error as string) || `HTTP ${res.status}` };
+      if (!res.ok) {
+        const msg = (data?.error as string) || `HTTP ${res.status}`;
+        const details = data?.details as string | undefined;
+        return { ok: false, error: details ? `${msg}: ${details}` : msg };
+      }
       return { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

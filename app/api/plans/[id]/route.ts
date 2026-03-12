@@ -51,16 +51,28 @@ export async function PATCH(
     };
 
     const updateData: Record<string, unknown> = {};
-    if (nameAr !== undefined) updateData.nameAr = nameAr;
-    if (nameEn !== undefined) updateData.nameEn = nameEn;
-    if (priceMonthly !== undefined) updateData.priceMonthly = Number(priceMonthly);
-    if (priceYearly !== undefined) updateData.priceYearly = priceYearly === null ? null : Number(priceYearly);
-    if (currency !== undefined) updateData.currency = currency;
-    if (featuresJson !== undefined) updateData.featuresJson = featuresJson;
-    if (limitsJson !== undefined) updateData.limitsJson = limitsJson;
-    if (permissionsJson !== undefined) updateData.permissionsJson = permissionsJson;
+    if (nameAr !== undefined && nameAr !== null) updateData.nameAr = String(nameAr);
+    if (nameEn !== undefined && nameEn !== null) updateData.nameEn = String(nameEn);
+    if (priceMonthly !== undefined && priceMonthly !== null) {
+      const n = Number(priceMonthly);
+      if (!Number.isNaN(n)) updateData.priceMonthly = n;
+    }
+    if (priceYearly !== undefined) {
+      if (priceYearly === null) updateData.priceYearly = null;
+      else {
+        const n = Number(priceYearly);
+        if (!Number.isNaN(n)) updateData.priceYearly = n;
+      }
+    }
+    if (currency !== undefined && currency !== null) updateData.currency = String(currency);
+    if (featuresJson !== undefined) updateData.featuresJson = featuresJson == null ? null : String(featuresJson);
+    if (limitsJson !== undefined) updateData.limitsJson = limitsJson == null ? null : String(limitsJson);
+    if (permissionsJson !== undefined) updateData.permissionsJson = permissionsJson == null ? null : String(permissionsJson);
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
-    if (sortOrder !== undefined) updateData.sortOrder = Number(sortOrder);
+    if (sortOrder !== undefined && sortOrder !== null) {
+      const n = Number(sortOrder);
+      if (!Number.isNaN(n)) updateData.sortOrder = Math.floor(n);
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -71,8 +83,13 @@ export async function PATCH(
       data: updateData,
     });
     return NextResponse.json({ ok: true, plan: { id: plan.id, code: plan.code } });
-  } catch (e) {
+  } catch (e: unknown) {
+    const err = e as { code?: string; message?: string };
+    const message = err?.message ?? (e instanceof Error ? e.message : String(e));
     console.error('PATCH /api/plans/[id]:', e);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    if (err?.code === 'P2025') {
+      return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
+    }
+    return NextResponse.json({ error: 'Server error', details: message }, { status: 500 });
   }
 }
