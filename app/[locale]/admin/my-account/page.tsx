@@ -235,21 +235,20 @@ export default function MyAccountPage() {
   const addressDisplay = fullContact ? formatAddress(fullContact.address) : '—';
 
   return (
-    <div className="space-y-6">
+    <div className="admin-main-inner space-y-6">
       <AdminPageHeader title={title} subtitle={ar ? 'بيانات حسابك وباقتك' : 'Your account details and plan'} />
 
       {/* زر الاشتراك في الباقات — للعميل والمالك */}
       {!isAdmin && (
-        <div className="admin-card border-2 border-[var(--primary)]/20 bg-[var(--primary)]/5">
+        <div className="admin-card">
+          <div className="admin-card-header">
+            <h2 className="admin-card-title">{ar ? 'الباقات والاشتراك' : 'Plans & subscription'}</h2>
+          </div>
           <div className="admin-card-body flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">{ar ? 'الباقات والاشتراك' : 'Plans & subscription'}</h2>
-              <p className="text-sm text-gray-600">{ar ? 'اشترك في باقة أو غيّر باقتك الحالية من صفحة الباقات.' : 'Subscribe to a plan or change your current plan from the plans page.'}</p>
-            </div>
+            <p className="text-sm text-gray-600 m-0">{ar ? 'اشترك في باقة أو غيّر باقتك الحالية من صفحة الباقات.' : 'Subscribe to a plan or change your current plan from the plans page.'}</p>
             <Link
               href={`/${locale}/subscriptions`}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white shadow-md hover:opacity-95 transition-opacity"
-              style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)' }}
+              className="admin-btn-primary inline-flex items-center gap-2 no-underline"
             >
               <Icon name="creditCard" className="w-5 h-5" />
               {ar ? 'الاشتراك في الباقات' : 'Subscribe to plans'}
@@ -265,15 +264,15 @@ export default function MyAccountPage() {
           {fullContact && (
             editing ? (
               <div className="flex gap-2">
-                <button type="button" onClick={() => setEditing(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                <button type="button" onClick={() => setEditing(false)} className="admin-btn-secondary">
                   {ar ? 'إلغاء' : 'Cancel'}
                 </button>
-                <button type="button" onClick={handleSaveContact} disabled={saving} className="px-4 py-2 rounded-lg font-medium text-white bg-[var(--primary)] hover:opacity-90">
+                <button type="button" onClick={handleSaveContact} disabled={saving} className="admin-btn-primary">
                   {saving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ' : 'Save')}
                 </button>
               </div>
             ) : (
-              <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-[var(--primary)] border border-[var(--primary)] hover:bg-[var(--primary)]/10">
+              <button type="button" onClick={() => setEditing(true)} className="admin-btn-secondary inline-flex items-center gap-2">
                 <Icon name="pencil" className="w-4 h-4" />
                 {ar ? 'تعديل' : 'Edit'}
               </button>
@@ -402,10 +401,13 @@ export default function MyAccountPage() {
       </div>
 
       {/* الباقة الحالية وطلب ترقية/تنزيل */}
-      <div className="admin-card max-w-md">
+      <div className="admin-card max-w-2xl">
+        <div className="admin-card-header">
+          <h2 className="admin-card-title">{ar ? 'نوع الحساب / الباقة' : 'Account / Plan type'}</h2>
+        </div>
         <div className="admin-card-body space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'نوع الحساب / الباقة' : 'Account / Plan type'}</label>
+            <label className="admin-form-label">{ar ? 'الباقة الحالية' : 'Current plan'}</label>
             {subData?.subscription?.plan ? (
               <p className="text-gray-900 font-medium">{ar ? subData.subscription.plan.nameAr : subData.subscription.plan.nameEn} — {subData.subscription.plan.priceMonthly} {subData.subscription.plan.currency}/{ar ? 'شهر' : 'mo'}</p>
             ) : (
@@ -416,11 +418,11 @@ export default function MyAccountPage() {
             )}
           </div>
           {subData?.subscription && !subData?.pendingRequest && subData?.plans?.length > 0 && (
-            <div className="pt-2 flex gap-2">
-              <button type="button" onClick={() => { setRequestDirection('upgrade'); setRequestPlanId(''); setRequestStep(1); setShowRequestModal(true); }} className="admin-btn-primary text-sm">
+            <div className="pt-2 flex flex-wrap gap-2">
+              <button type="button" onClick={() => { setRequestDirection('upgrade'); setRequestPlanId(''); setRequestStep(1); setShowRequestModal(true); }} className="admin-btn-primary">
                 {ar ? 'طلب ترقية الباقة' : 'Request upgrade'}
               </button>
-              <button type="button" onClick={() => { setRequestDirection('downgrade'); setRequestPlanId(''); setRequestStep(1); setShowRequestModal(true); }} className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <button type="button" onClick={() => { setRequestDirection('downgrade'); setRequestPlanId(''); setRequestStep(1); setShowRequestModal(true); }} className="admin-btn-secondary">
                 {ar ? 'طلب تنزيل الباقة' : 'Request downgrade'}
               </button>
             </div>
@@ -434,60 +436,61 @@ export default function MyAccountPage() {
       </div>
 
       {showRequestModal && subData?.plans && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className={`admin-card w-full ${requestStep === 1 ? 'max-w-4xl' : 'max-w-md'}`}>
-            <div className="admin-card-body">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">
+        <div className="admin-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
+          <div className={`admin-modal w-full ${requestStep === 1 ? 'max-w-4xl' : 'max-w-md'}`}>
+            <div className="admin-modal-header">
+              <h3 id="plan-modal-title" className="admin-modal-title">
                 {requestStep === 1
                   ? (requestDirection === 'upgrade' ? (ar ? 'اختر الباقة للترقية' : 'Choose plan to upgrade') : (ar ? 'اختر الباقة للتنزيل' : 'Choose plan to downgrade'))
                   : (requestDirection === 'upgrade' ? (ar ? 'إتمام الدفع' : 'Complete payment') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade'))}
               </h3>
-
+              <button type="button" onClick={() => { setShowRequestModal(false); setRequestStep(1); setRequestPlanId(''); }} className="admin-modal-close" aria-label={ar ? 'إغلاق' : 'Close'}>
+                <Icon name="x" className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="admin-modal-body">
               {requestStep === 1 && (
                 <>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="admin-text-sm admin-text-secondary mb-4" style={{ lineHeight: 'var(--admin-line-height, 1.5)' }}>
                     {ar ? 'اختر الباقة ثم انتقل إلى شاشة الدفع (نفس تجربة حجز العقار).' : 'Choose a plan then proceed to the payment screen (same as property booking).'}
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredPlans.map((plan) => (
                       <button
                         key={plan.id}
                         type="button"
                         onClick={() => handleSelectPlanForChange(plan.id)}
-                        className="text-right p-4 rounded-xl border-2 border-gray-200 hover:border-[#8B6F47] hover:bg-[#8B6F47]/5 transition-all"
+                        className="admin-bg-primary admin-border admin-rounded-lg text-right p-4 hover:shadow-md transition-all border-2 hover:border-[var(--admin-primary)]"
                       >
-                        <div className="font-bold text-gray-900">{ar ? plan.nameAr : plan.nameEn}</div>
-                        <div className="text-[#8B6F47] font-semibold mt-1">{plan.priceMonthly} {plan.currency ?? 'OMR'}/{ar ? 'شهر' : 'mo'}</div>
-                        <span className="text-sm text-gray-500 mt-2 block">{ar ? 'اختر ←' : 'Select ←'}</span>
+                        <div className="font-bold admin-text-primary">{ar ? plan.nameAr : plan.nameEn}</div>
+                        <div className="font-semibold mt-1" style={{ color: 'var(--admin-primary)' }}>{plan.priceMonthly} {plan.currency ?? 'OMR'}/{ar ? 'شهر' : 'mo'}</div>
+                        <span className="admin-text-sm admin-text-tertiary mt-2 block">{ar ? 'اختر ←' : 'Select ←'}</span>
                       </button>
                     ))}
                   </div>
                   {filteredPlans.length === 0 && (
-                    <p className="text-gray-500 py-4">{ar ? 'لا توجد باقات متاحة لهذا الاتجاه.' : 'No plans available for this direction.'}</p>
+                    <p className="admin-text-secondary py-4">{ar ? 'لا توجد باقات متاحة لهذا الاتجاه.' : 'No plans available for this direction.'}</p>
                   )}
-                  <div className="flex gap-2 mt-4">
-                    <button type="button" onClick={() => { setShowRequestModal(false); setRequestStep(1); setRequestPlanId(''); }} className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-50">{ar ? 'إلغاء' : 'Cancel'}</button>
-                  </div>
                 </>
               )}
 
               {requestStep === 2 && selectedPlan && (
                 <>
-                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                  <div className="admin-bg-secondary admin-rounded-lg p-4 mb-4">
                     <div className="flex justify-between items-center flex-wrap gap-2">
-                      <span className="font-bold text-gray-900">{ar ? selectedPlan.nameAr : selectedPlan.nameEn}</span>
-                      <span className="text-xl font-bold text-[#8B6F47]">
+                      <span className="font-bold admin-text-primary">{ar ? selectedPlan.nameAr : selectedPlan.nameEn}</span>
+                      <span className="text-xl font-bold" style={{ color: 'var(--admin-primary)' }}>
                         {paymentAmount.toLocaleString('en-US')} {selectedPlan.currency ?? 'OMR'}
                         {requestDirection === 'downgrade' && (
-                          <span className="text-sm font-normal text-gray-600 block">{ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end'}</span>
+                          <span className="admin-text-sm font-normal admin-text-secondary block">{ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end'}</span>
                         )}
                       </span>
                     </div>
                   </div>
                   {requestDirection === 'upgrade' && (
                     <div className="space-y-3 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'رقم البطاقة' : 'Card number'}</label>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">{ar ? 'رقم البطاقة' : 'Card number'}</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -498,8 +501,8 @@ export default function MyAccountPage() {
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'انتهاء الصلاحية' : 'Expiry'}</label>
+                        <div className="admin-form-group">
+                          <label className="admin-form-label">{ar ? 'انتهاء الصلاحية' : 'Expiry'}</label>
                           <input
                             type="text"
                             placeholder="MM/YY"
@@ -513,8 +516,8 @@ export default function MyAccountPage() {
                             className="admin-input w-full font-mono"
                           />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">CVV</label>
+                        <div className="admin-form-group">
+                          <label className="admin-form-label">CVV</label>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -526,8 +529,8 @@ export default function MyAccountPage() {
                           />
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'اسم حامل البطاقة' : 'Cardholder name'}</label>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">{ar ? 'اسم حامل البطاقة' : 'Cardholder name'}</label>
                         <input
                           type="text"
                           value={cardData.name}
@@ -538,12 +541,22 @@ export default function MyAccountPage() {
                       </div>
                     </div>
                   )}
-                  <div className="flex gap-2 mt-4">
-                    <button type="button" onClick={() => { setRequestStep(1); setRequestPlanId(''); }} className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-50">{ar ? '← رجوع' : '← Back'}</button>
-                    <button type="button" onClick={handleSubmitPayment} disabled={submitting} className="admin-btn-primary flex-1">
-                      {submitting ? (ar ? 'جاري المعالجة...' : 'Processing...') : requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade')}
-                    </button>
-                  </div>
+                </>
+              )}
+            </div>
+            <div className="admin-modal-footer">
+              {requestStep === 1 ? (
+                <button type="button" onClick={() => { setShowRequestModal(false); setRequestStep(1); setRequestPlanId(''); }} className="admin-btn-secondary">
+                  {ar ? 'إلغاء' : 'Cancel'}
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => { setRequestStep(1); setRequestPlanId(''); }} className="admin-btn-secondary">
+                    {ar ? '← رجوع' : '← Back'}
+                  </button>
+                  <button type="button" onClick={handleSubmitPayment} disabled={submitting} className="admin-btn-primary flex-1 min-w-0">
+                    {submitting ? (ar ? 'جاري المعالجة...' : 'Processing...') : requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade')}
+                  </button>
                 </>
               )}
             </div>
