@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -126,6 +126,8 @@ export default function AdminSubscriptionsPage() {
   const [editingFeaturesAr, setEditingFeaturesAr] = useState<string[]>([]);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
   const [savingAll, setSavingAll] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [userFilterPlan, setUserFilterPlan] = useState<string>('');
 
   const limitDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const plansRef = useRef(plans);
@@ -137,6 +139,23 @@ export default function AdminSubscriptionsPage() {
 
   const isDbPlan = useCallback((id: string) => id.length > 20 && !['basic', 'standard', 'premium', 'enterprise'].includes(id), []);
   const plansFromDb = plans.length > 0 && plans.every((p) => isDbPlan(p.id));
+
+  const filteredUsers = useMemo(() => {
+    let list = users;
+    const q = (userSearch || '').trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (u) =>
+          (u.name || '').toLowerCase().includes(q) ||
+          (u.email || '').toLowerCase().includes(q) ||
+          (u.serialNumber || '').toLowerCase().includes(q)
+      );
+    }
+    if (userFilterPlan) {
+      list = list.filter((u) => u.subscription?.planId === userFilterPlan);
+    }
+    return list;
+  }, [users, userSearch, userFilterPlan]);
 
   const loadData = useCallback(async (retry = 0) => {
     if (!isAdmin) return;
@@ -706,52 +725,103 @@ export default function AdminSubscriptionsPage() {
         )}
 
         <div className="admin-card">
-          <div className="admin-card-header border-b border-gray-100">
+          <div className="admin-card-header border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
             <h2 className="admin-card-title flex items-center gap-2 text-lg font-bold text-gray-900" style={{ lineHeight: 1.5, marginBottom: 0 }}>
               <span className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                 <Icon name="users" className="w-5 h-5 text-emerald-600" />
               </span>
               {ar ? 'تعيين الباقات للمستخدمين' : 'Assign plans to users'}
             </h2>
-          </div>
-          <div className="admin-card-body p-4 sm:p-6">
-            {users.length === 0 ? (
-              <p className="text-gray-500 py-6">{ar ? 'لا يوجد مستخدمون.' : 'No users.'}</p>
-            ) : (
-              <div className="space-y-5" style={{ lineHeight: 1.5 }}>
-                {users.map((user) => (
-                  <div key={user.id} className="rounded-2xl border border-gray-200 bg-gray-50/50 p-4 sm:p-5 hover:border-gray-300 transition-colors">
-                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4" style={{ marginBottom: '1.5rem' }}>
-                      <div>
-                        <p className="font-semibold text-gray-900 text-lg" style={{ lineHeight: 1.5 }}>{user.name}</p>
-                        <p className="text-sm text-gray-600" style={{ lineHeight: 1.5 }}>{user.email || user.serialNumber}</p>
-                      </div>
-                      {user.subscription && (
-                        <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-100 text-emerald-800 rounded-xl text-sm font-semibold">
-                          <Icon name="checkCircle" className="w-4 h-4" />
-                          {plans.find((p) => p.id === user.subscription!.planId)?.nameAr}
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {plans.map((plan) => (
-                        <button
-                          key={plan.id}
-                          type="button"
-                          onClick={() => onAssignPlan(user.id, plan.id)}
-                          disabled={assigningUserId === user.id || !plansFromDb}
-                          className={`p-4 rounded-xl border-2 transition-all text-left disabled:opacity-60 ${user.subscription?.planId === plan.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-[var(--primary)]/40 hover:bg-white'}`}
-                        >
-                          <p className="text-xs font-semibold text-gray-700 mb-1" style={{ lineHeight: 1.5 }}>{plan.nameAr}</p>
-                          <p className="text-base font-bold text-gray-900" style={{ lineHeight: 1.5 }}>{plan.priceMonthly} {plan.currency}</p>
-                          <p className="text-xs text-gray-500 mt-1" style={{ lineHeight: 1.5 }}>{(plansConfig[plan.id] || []).length} {ar ? 'صلاحية' : 'perms'}</p>
-                          {user.subscription?.planId === plan.id && <Icon name="checkCircle" className="w-5 h-5 text-emerald-600 mt-2" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <Icon name="magnifyingGlass" className="w-4 h-4" />
+                <input
+                  type="search"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder={ar ? 'بحث بالاسم أو البريد...' : 'Search by name or email...'}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-48 sm:w-56 focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)]"
+                />
+              </label>
+              <select
+                value={userFilterPlan}
+                onChange={(e) => setUserFilterPlan(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[var(--primary)]"
+                title={ar ? 'فلترة حسب الباقة الحالية' : 'Filter by current plan'}
+              >
+                <option value="">{ar ? 'كل الباقات' : 'All plans'}</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.nameAr}</option>
                 ))}
+              </select>
+            </div>
+          </div>
+          <div className="admin-card-body p-0 overflow-hidden">
+            {users.length === 0 ? (
+              <p className="text-gray-500 py-8 px-4 text-center">{ar ? 'لا يوجد مستخدمون.' : 'No users.'}</p>
+            ) : filteredUsers.length === 0 ? (
+              <p className="text-gray-500 py-8 px-4 text-center">{ar ? 'لا توجد نتائج للبحث أو الفلتر.' : 'No results for search or filter.'}</p>
+            ) : (
+              <div className="admin-table-wrapper overflow-x-auto">
+                <table className="admin-table min-w-[640px]">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'المستخدم' : 'User'}</th>
+                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'البريد / الرقم' : 'Email / Number'}</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'الباقة الحالية' : 'Current plan'}</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعيين الباقة' : 'Assign plan'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredUsers.map((user) => {
+                      const currentPlan = user.subscription ? plans.find((p) => p.id === user.subscription!.planId) : null;
+                      return (
+                        <tr key={user.id} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-gray-900" style={{ lineHeight: 1.5 }}>{user.name || (ar ? '—' : '—')}</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 text-sm" style={{ lineHeight: 1.5 }}>{user.email || user.serialNumber || '—'}</td>
+                          <td className="px-4 py-3 text-center">
+                            {currentPlan ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <Icon name="checkCircle" className="w-4 h-4 shrink-0" />
+                                {currentPlan.nameAr}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-sm">{ar ? 'بدون باقة' : 'No plan'}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap items-center justify-center gap-2">
+                              {plans.map((plan) => {
+                                const isCurrent = user.subscription?.planId === plan.id;
+                                return (
+                                  <button
+                                    key={plan.id}
+                                    type="button"
+                                    onClick={() => onAssignPlan(user.id, plan.id)}
+                                    disabled={assigningUserId === user.id || !plansFromDb}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all disabled:opacity-60 shrink-0 ${isCurrent ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200' : 'border-gray-200 hover:border-[var(--primary)]/50 hover:bg-gray-50'}`}
+                                    title={plan.nameAr}
+                                  >
+                                    {isCurrent && <Icon name="checkCircle" className="w-3.5 h-3.5" />}
+                                    {plan.nameAr}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+            )}
+            {filteredUsers.length > 0 && (
+              <p className="text-sm text-gray-500 px-4 py-3 border-t border-gray-100" style={{ lineHeight: 1.5 }}>
+                {ar ? `عرض ${filteredUsers.length} من ${users.length} مستخدم` : `${filteredUsers.length} of ${users.length} users`}
+              </p>
             )}
           </div>
         </div>
