@@ -313,19 +313,41 @@ export default function AdminSubscriptionsPage() {
     const plan = editingPlan;
     if (!plan) return;
     if (!isDbPlan(plan.id)) {
+      const saveBtn = modalEditRef.current?.querySelector('[data-save="edit"]') as HTMLButtonElement | null;
       try {
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري التحقق...' : 'Checking...'; }
         const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
-        const initData = await initRes.json().catch(() => ({}));
-        if (initRes.ok && initData?.ok) {
+        await initRes.json().catch(() => ({}));
+        const listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        if (!listRes.ok) {
+          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+          return;
+        }
+        const listData = await listRes.json();
+        const list = Array.isArray(listData?.list) ? listData.list : [];
+        const found = list.find((p: { code: string }) => p.code === plan.code);
+        if (!found) {
           await loadData();
           setShowEditModal(false);
           setEditingPlan(null);
-          alert(ar ? 'تم تحميل الباقات من النظام. اختر الباقة ثم انقر تعديل → حفظ.' : 'Plans loaded. Select a plan, click Edit then Save.');
-        } else {
-          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+          alert(ar ? 'تم تحميل الباقات. اختر الباقة ثم انقر تعديل → حفظ.' : 'Plans loaded. Select a plan, click Edit then Save.');
+          return;
         }
-      } catch {
-        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+        const planWithRealId = { ...plan, id: found.id };
+        const result = await patchPlan(planWithRealId);
+        if (result.ok) {
+          setShowEditModal(false);
+          setEditingPlan(null);
+          await loadData();
+          alert(ar ? 'تم حفظ التعديلات بنجاح!' : 'Changes saved successfully!');
+        } else {
+          alert(ar ? `فشل الحفظ: ${result.error || 'خطأ غير معروف'}` : `Save failed: ${result.error || 'Unknown error'}`);
+        }
+      } catch (e) {
+        console.error(e);
+        alert(ar ? 'حدث خطأ أثناء الحفظ' : 'An error occurred while saving');
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = ar ? 'حفظ' : 'Save'; }
       }
       return;
     }
@@ -363,18 +385,42 @@ export default function AdminSubscriptionsPage() {
     const plan = plans.find((p) => p.id === planId);
     if (!plan) return;
     if (!isDbPlan(plan.id)) {
+      const saveBtn = modalFeaturesRef.current?.querySelector('[data-save="features"]') as HTMLButtonElement | null;
       try {
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري التحقق...' : 'Checking...'; }
         const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
-        const initData = await initRes.json().catch(() => ({}));
-        if (initRes.ok && initData?.ok) {
+        await initRes.json().catch(() => ({}));
+        const listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        if (!listRes.ok) {
+          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+          return;
+        }
+        const listData = await listRes.json();
+        const list = Array.isArray(listData?.list) ? listData.list : [];
+        const found = list.find((p: { code: string }) => p.code === plan.code);
+        if (!found) {
           await loadData();
           setShowFeaturesModal(false);
-          alert(ar ? 'تم تحميل الباقات من النظام. اختر الباقة ثم انقر الميزات → حفظ.' : 'Plans loaded. Select a plan, click Features then Save.');
-        } else {
-          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+          alert(ar ? 'تم تحميل الباقات. اختر الباقة ثم انقر الميزات → حفظ.' : 'Plans loaded. Select a plan, click Features then Save.');
+          return;
         }
-      } catch {
-        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+        const feats = editingFeatures.filter((f) => f.trim() !== '');
+        const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
+        const featuresToSave = featsAr.length ? featsAr : feats;
+        const planWithRealId = { ...plan, id: found.id };
+        const result = await patchPlan(planWithRealId, { features: featuresToSave });
+        if (result.ok) {
+          setShowFeaturesModal(false);
+          await loadData();
+          alert(ar ? 'تم حفظ الميزات بنجاح!' : 'Features saved successfully!');
+        } else {
+          alert(ar ? `فشل حفظ الميزات: ${result.error || 'خطأ غير معروف'}` : `Features save failed: ${result.error || 'Unknown error'}`);
+        }
+      } catch (e) {
+        console.error(e);
+        alert(ar ? 'حدث خطأ أثناء حفظ الميزات' : 'An error occurred while saving features');
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = ar ? 'حفظ الميزات' : 'Save features'; }
       }
       return;
     }
