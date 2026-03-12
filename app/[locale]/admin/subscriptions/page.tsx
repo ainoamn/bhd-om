@@ -350,6 +350,11 @@ export default function AdminSubscriptionsPage() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === userId ? { ...u, subscription: { planId, status: 'active' } } : u
+            )
+          );
           alert(ar ? 'تم تعيين الباقة بنجاح!' : 'Plan assigned!');
           loadData();
         } else {
