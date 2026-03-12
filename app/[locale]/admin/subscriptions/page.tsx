@@ -125,6 +125,7 @@ export default function AdminSubscriptionsPage() {
   const [editingFeatures, setEditingFeatures] = useState<string[]>([]);
   const [editingFeaturesAr, setEditingFeaturesAr] = useState<string[]>([]);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
 
   const limitDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const plansRef = useRef(plans);
@@ -279,6 +280,22 @@ export default function AdminSubscriptionsPage() {
       limitDebounceRef.current = null;
     }, 800);
   };
+
+  const saveAllChanges = useCallback(async () => {
+    if (!plansFromDb) return;
+    setSavingAll(true);
+    schedule(async () => {
+      let firstError: string | null = null;
+      for (const plan of plansRef.current) {
+        if (!isDbPlan(plan.id)) continue;
+        const result = await patchPlan(plan);
+        if (!result.ok) firstError = result.error ?? (ar ? 'خطأ' : 'Error');
+      }
+      setSavingAll(false);
+      if (firstError) alert(ar ? `فشل الحفظ: ${firstError}` : `Save failed: ${firstError}`);
+      else await loadData();
+    });
+  }, [plansFromDb, isDbPlan, patchPlan, loadData, ar]);
 
   const onAssignPlan = (userId: string, planId: string) => {
     setAssigningUserId(userId);
@@ -486,6 +503,22 @@ export default function AdminSubscriptionsPage() {
           <p className="admin-page-subtitle" style={{ marginTop: 0 }}>
             {ar ? 'التحكم الكامل في الباقات، الميزات، والصلاحيات' : 'Full control over plans, features and permissions'}
           </p>
+          {plans.length > 0 && plansFromDb && (
+            <div className="mt-4" style={{ marginTop: '1.5rem' }}>
+              <button
+                type="button"
+                onClick={saveAllChanges}
+                disabled={savingAll}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-opacity disabled:opacity-50 text-white bg-[var(--primary)] hover:bg-[var(--primary)]/90 border-2 border-transparent"
+              >
+                <Icon name="checkCircle" className={`w-5 h-5 shrink-0 ${savingAll ? 'animate-spin opacity-80' : ''}`} />
+                {savingAll ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ جميع التغييرات' : 'Save all changes')}
+              </button>
+              <p className="text-sm text-gray-500 mt-2" style={{ lineHeight: 1.5 }}>
+                {ar ? 'يحفظ الحدود والصلاحيات لجميع الباقات' : 'Saves limits and permissions for all plans'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" style={{ marginBottom: '1.5rem' }}>
