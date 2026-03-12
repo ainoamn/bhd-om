@@ -258,7 +258,11 @@ export default function AdminSubscriptionsPage() {
   const onToggleFeature = (planId: string, featureId: string) => {
     const arr = plansConfig[planId] || [];
     const next = arr.includes(featureId) ? arr.filter((f) => f !== featureId) : [...arr, featureId];
-    setPlansConfig((prev) => ({ ...prev, [planId]: next }));
+    setPlansConfig((prev) => {
+      const nextConfig = { ...prev, [planId]: next };
+      configRef.current = nextConfig;
+      return nextConfig;
+    });
     const plan = plans.find((p) => p.id === planId);
     if (plan && isDbPlan(plan.id)) schedule(() => patchPlan(plan, { permissions: next }));
   };
@@ -266,7 +270,11 @@ export default function AdminSubscriptionsPage() {
   const onToggleAllFeatures = (planId: string) => {
     const current = plansConfig[planId] || [];
     const next = current.length === ALL_FEATURES.length ? [] : [...ALL_FEATURES];
-    setPlansConfig((prev) => ({ ...prev, [planId]: next }));
+    setPlansConfig((prev) => {
+      const nextConfig = { ...prev, [planId]: next };
+      configRef.current = nextConfig;
+      return nextConfig;
+    });
     const plan = plans.find((p) => p.id === planId);
     if (plan && isDbPlan(plan.id)) schedule(() => patchPlan(plan, { permissions: next }));
   };
