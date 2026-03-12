@@ -162,19 +162,16 @@ export default function AdminSubscriptionsPage() {
       if (planRes.ok) {
         const d = await planRes.json();
         planList = Array.isArray(d?.list) ? d.list : [];
-        if (planList.length === 0) {
-          try {
-            const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
-            const initData = await initRes.json().catch(() => ({}));
-            if (initRes.ok && initData?.ok) {
-              const reRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
-              if (reRes.ok) {
-                const rej = await reRes.json();
-                planList = Array.isArray(rej?.list) ? rej.list : [];
-              }
-            }
-          } catch {}
-        }
+      }
+      if (planList.length === 0) {
+        try {
+          await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS }).then((r) => r.json().catch(() => ({})));
+          const reRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+          if (reRes.ok) {
+            const rej = await reRes.json();
+            planList = Array.isArray(rej?.list) ? rej.list : [];
+          }
+        } catch {}
       }
 
       if (planList.length > 0) {
@@ -315,12 +312,15 @@ export default function AdminSubscriptionsPage() {
     if (!isDbPlan(plan.id)) {
       const saveBtn = modalEditRef.current?.querySelector('[data-save="edit"]') as HTMLButtonElement | null;
       try {
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري التحقق...' : 'Checking...'; }
-        const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
-        await initRes.json().catch(() => ({}));
-        const listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري الحفظ...' : 'Saving...'; }
+        await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS }).then((r) => r.json().catch(() => ({})));
+        let listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        for (let r = 0; r < 2 && (listRes.status === 403 || listRes.status === 401); r++) {
+          await new Promise((x) => setTimeout(x, 400));
+          listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        }
         if (!listRes.ok) {
-          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+          alert(ar ? `تعذر الحفظ (${listRes.status}). تحقق من تسجيل الدخول كمسؤول.` : `Save failed (${listRes.status}). Check admin login.`);
           return;
         }
         const listData = await listRes.json();
@@ -330,7 +330,6 @@ export default function AdminSubscriptionsPage() {
           await loadData();
           setShowEditModal(false);
           setEditingPlan(null);
-          alert(ar ? 'تم تحميل الباقات. اختر الباقة ثم انقر تعديل → حفظ.' : 'Plans loaded. Select a plan, click Edit then Save.');
           return;
         }
         const planWithRealId = { ...plan, id: found.id };
@@ -339,7 +338,6 @@ export default function AdminSubscriptionsPage() {
           setShowEditModal(false);
           setEditingPlan(null);
           await loadData();
-          alert(ar ? 'تم حفظ التعديلات بنجاح!' : 'Changes saved successfully!');
         } else {
           alert(ar ? `فشل الحفظ: ${result.error || 'خطأ غير معروف'}` : `Save failed: ${result.error || 'Unknown error'}`);
         }
@@ -361,7 +359,6 @@ export default function AdminSubscriptionsPage() {
         setEditingPlan(null);
         setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
         setTimeout(() => loadData(), 300);
-        alert(ar ? 'تم حفظ التعديلات بنجاح!' : 'Changes saved successfully!');
       } else {
         alert(ar ? `فشل الحفظ: ${result.error || 'خطأ غير معروف'}` : `Save failed: ${result.error || 'Unknown error'}`);
       }
@@ -387,12 +384,15 @@ export default function AdminSubscriptionsPage() {
     if (!isDbPlan(plan.id)) {
       const saveBtn = modalFeaturesRef.current?.querySelector('[data-save="features"]') as HTMLButtonElement | null;
       try {
-        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري التحقق...' : 'Checking...'; }
-        const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
-        await initRes.json().catch(() => ({}));
-        const listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري الحفظ...' : 'Saving...'; }
+        await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS }).then((r) => r.json().catch(() => ({})));
+        let listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        for (let r = 0; r < 2 && (listRes.status === 403 || listRes.status === 401); r++) {
+          await new Promise((x) => setTimeout(x, 400));
+          listRes = await fetch(`/api/admin/plans?_=${Date.now()}`, { ...FETCH_OPTS, headers: { Pragma: 'no-cache' } });
+        }
         if (!listRes.ok) {
-          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+          alert(ar ? `تعذر الحفظ (${listRes.status}). تحقق من تسجيل الدخول كمسؤول.` : `Save failed (${listRes.status}). Check admin login.`);
           return;
         }
         const listData = await listRes.json();
@@ -401,7 +401,6 @@ export default function AdminSubscriptionsPage() {
         if (!found) {
           await loadData();
           setShowFeaturesModal(false);
-          alert(ar ? 'تم تحميل الباقات. اختر الباقة ثم انقر الميزات → حفظ.' : 'Plans loaded. Select a plan, click Features then Save.');
           return;
         }
         const feats = editingFeatures.filter((f) => f.trim() !== '');
@@ -412,7 +411,6 @@ export default function AdminSubscriptionsPage() {
         if (result.ok) {
           setShowFeaturesModal(false);
           await loadData();
-          alert(ar ? 'تم حفظ الميزات بنجاح!' : 'Features saved successfully!');
         } else {
           alert(ar ? `فشل حفظ الميزات: ${result.error || 'خطأ غير معروف'}` : `Features save failed: ${result.error || 'Unknown error'}`);
         }
@@ -436,7 +434,6 @@ export default function AdminSubscriptionsPage() {
         setShowFeaturesModal(false);
         setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
         setTimeout(() => loadData(), 300);
-        alert(ar ? 'تم حفظ الميزات بنجاح!' : 'Features saved successfully!');
       } else {
         alert(ar ? `فشل حفظ الميزات: ${result.error || 'خطأ غير معروف'}` : `Features save failed: ${result.error || 'Unknown error'}`);
       }
