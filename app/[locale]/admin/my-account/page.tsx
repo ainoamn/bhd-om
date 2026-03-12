@@ -68,6 +68,8 @@ export default function MyAccountPage() {
   const [requestReason, setRequestReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [cardData, setCardData] = useState({ number: '', expiry: '', cvv: '', name: '' });
+  /** بعد نجاح الدفع يُعرض إيصال ثم زر إغلاق */
+  const [paymentSuccess, setPaymentSuccess] = useState<{ planNameAr: string; planNameEn: string; amount: number; currency: string; direction: 'upgrade' | 'downgrade' } | null>(null);
 
   const user = session?.user as { id?: string; name?: string; email?: string; phone?: string; role?: string } | undefined;
   const title = user?.role === 'OWNER' ? tOwner('myAccount') : tClient('myAccount');
@@ -183,10 +185,20 @@ export default function MyAccountPage() {
   const selectedPlan = requestPlanId ? subData?.plans?.find((p) => p.id === requestPlanId) : null;
   const paymentAmount = requestDirection === 'upgrade' && selectedPlan ? selectedPlan.priceMonthly : 0;
 
+  const closePlanModal = () => {
+    setShowRequestModal(false);
+    setRequestStep(1);
+    setRequestPlanId('');
+    setRequestReason('');
+    setCardData({ number: '', expiry: '', cvv: '', name: '' });
+    setPaymentSuccess(null);
+  };
+
   const handleSelectPlanForChange = (planId: string) => {
     setRequestPlanId(planId);
     setRequestStep(2);
     setCardData({ number: '', expiry: '', cvv: '', name: '' });
+    setPaymentSuccess(null);
   };
 
   const handleSubmitPayment = async () => {
@@ -215,13 +227,14 @@ export default function MyAccountPage() {
       });
       const data = await res.json();
       if (res.ok && data?.ok) {
-        setShowRequestModal(false);
-        setRequestStep(1);
-        setRequestPlanId('');
-        setRequestReason('');
-        setCardData({ number: '', expiry: '', cvv: '', name: '' });
+        setPaymentSuccess({
+          planNameAr: selectedPlan?.nameAr ?? '',
+          planNameEn: selectedPlan?.nameEn ?? '',
+          amount: paymentAmount,
+          currency: selectedPlan?.currency ?? 'OMR',
+          direction: requestDirection,
+        });
         fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).then((d) => setSubData(d));
-        alert(data.message || (ar ? 'تمت العملية بنجاح' : 'Done'));
       } else {
         alert(data?.error || data?.details || (ar ? 'فشل تنفيذ الطلب' : 'Request failed'));
       }
@@ -437,20 +450,65 @@ export default function MyAccountPage() {
       </div>
 
       {showRequestModal && subData?.plans && (
-        <div className="admin-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
-          <div className={`admin-modal w-full ${requestStep === 1 ? 'max-w-4xl' : 'max-w-md'}`}>
-            <div className="admin-modal-header">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-4 bg-black/60 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
+          <div
+            className={`admin-modal w-full flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden ${paymentSuccess ? 'max-w-md' : requestStep === 1 ? 'max-w-4xl' : 'max-w-5xl max-h-[95vh]'}`}
+          >
+            <div className="admin-modal-header flex items-center justify-between gap-4 flex-shrink-0">
               <h3 id="plan-modal-title" className="admin-modal-title">
-                {requestStep === 1
-                  ? (requestDirection === 'upgrade' ? (ar ? 'اختر الباقة للترقية' : 'Choose plan to upgrade') : (ar ? 'اختر الباقة للتنزيل' : 'Choose plan to downgrade'))
-                  : (requestDirection === 'upgrade' ? (ar ? 'إتمام الدفع' : 'Complete payment') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade'))}
+                {paymentSuccess
+                  ? (ar ? 'إيصال الدفع' : 'Payment receipt')
+                  : requestStep === 1
+                    ? (requestDirection === 'upgrade' ? (ar ? 'اختر الباقة للترقية' : 'Choose plan to upgrade') : (ar ? 'اختر الباقة للتنزيل' : 'Choose plan to downgrade'))
+                    : (requestDirection === 'upgrade' ? (ar ? 'إتمام الدفع' : 'Complete payment') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade'))}
               </h3>
-              <button type="button" onClick={() => { setShowRequestModal(false); setRequestStep(1); setRequestPlanId(''); }} className="admin-modal-close" aria-label={ar ? 'إغلاق' : 'Close'}>
-                <Icon name="x" className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={closePlanModal} className="admin-btn-secondary text-sm py-1.5 px-3">
+                  {ar ? 'إغلاق' : 'Close'}
+                </button>
+                <button type="button" onClick={closePlanModal} className="admin-modal-close" aria-label={ar ? 'إغلاق' : 'Close'}>
+                  <Icon name="x" className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-            <div className="admin-modal-body">
-              {requestStep === 1 && (
+            <div className="admin-modal-body flex-1 overflow-y-auto min-h-0">
+              {paymentSuccess ? (
+                <div className="p-6 space-y-6">
+                  <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-6 text-center">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center text-3xl mx-auto mb-4">✓</div>
+                    <h4 className="text-xl font-bold text-gray-900 mb-2">{ar ? 'تمت العملية بنجاح' : 'Payment successful'}</h4>
+                    <p className="text-gray-600 text-sm">{ar ? 'تم تسجيل الدفع وتحديث الباقة.' : 'Payment recorded and plan updated.'}</p>
+                  </div>
+                  <div className="admin-card">
+                    <div className="admin-card-header">
+                      <h4 className="admin-card-title text-base">{ar ? 'تفاصيل الإيصال' : 'Receipt details'}</h4>
+                    </div>
+                    <div className="admin-card-body space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">{ar ? 'الباقة' : 'Plan'}</span>
+                        <span className="font-semibold text-gray-900">{ar ? paymentSuccess.planNameAr : paymentSuccess.planNameEn}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">{ar ? 'المبلغ' : 'Amount'}</span>
+                        <span className="font-semibold text-gray-900">{paymentSuccess.amount.toLocaleString('en-US')} {paymentSuccess.currency}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">{ar ? 'النوع' : 'Type'}</span>
+                        <span className="font-semibold text-gray-900">{paymentSuccess.direction === 'upgrade' ? (ar ? 'ترقية' : 'Upgrade') : (ar ? 'تنزيل' : 'Downgrade')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">{ar ? 'التاريخ' : 'Date'}</span>
+                        <span className="font-semibold text-gray-900">{new Date().toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-center pt-2">
+                    <button type="button" onClick={closePlanModal} className="admin-btn-primary px-8">
+                      {ar ? 'إغلاق النافذة' : 'Close'}
+                    </button>
+                  </div>
+                </div>
+              ) : requestStep === 1 ? (
                 <>
                   <p className="admin-text-sm admin-text-secondary mb-4" style={{ lineHeight: 'var(--admin-line-height, 1.5)' }}>
                     {ar ? 'اختر الباقة ثم انتقل إلى شاشة الدفع (نفس تجربة حجز العقار).' : 'Choose a plan then proceed to the payment screen (same as property booking).'}
@@ -473,10 +531,8 @@ export default function MyAccountPage() {
                     <p className="admin-text-secondary py-4">{ar ? 'لا توجد باقات متاحة لهذا الاتجاه.' : 'No plans available for this direction.'}</p>
                   )}
                 </>
-              )}
-
-              {requestStep === 2 && selectedPlan && (
-                <div className="-m-6 -mb-0 md:-m-8 md:mb-0 bg-[#0f0d0b] rounded-b-2xl p-4 md:p-6">
+              ) : requestStep === 2 && selectedPlan ? (
+                <div className="bg-[#0f0d0b] min-h-[480px] p-4 md:p-6 rounded-b-xl">
                   <UnifiedPaymentForm
                     locale={locale}
                     amount={paymentAmount}
@@ -484,21 +540,20 @@ export default function MyAccountPage() {
                     cardData={cardData}
                     onCardDataChange={setCardData}
                     onSubmit={handleSubmitPayment}
-                    onCancel={() => { setRequestStep(1); setRequestPlanId(''); }}
+                    onCancel={() => { setRequestStep(1); setRequestPlanId(''); setPaymentSuccess(null); }}
                     submitLabel={requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade')}
                     cancelLabel={ar ? '← رجوع' : '← Back'}
                     loading={submitting}
                     disabled={submitting}
                     showSimulationBadge
-                    compact
                     amountNote={requestDirection === 'downgrade' ? (ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end') : undefined}
                   />
                 </div>
-              )}
+              ) : null}
             </div>
-            {requestStep === 1 && (
-              <div className="admin-modal-footer">
-                <button type="button" onClick={() => { setShowRequestModal(false); setRequestStep(1); setRequestPlanId(''); }} className="admin-btn-secondary">
+            {requestStep === 1 && !paymentSuccess && (
+              <div className="admin-modal-footer flex-shrink-0">
+                <button type="button" onClick={closePlanModal} className="admin-btn-secondary">
                   {ar ? 'إلغاء' : 'Cancel'}
                 </button>
               </div>
