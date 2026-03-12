@@ -10,6 +10,7 @@ import Icon from '@/components/icons/Icon';
 import {
   getContactForUser,
   updateContact,
+  createContact,
   getContactDisplayName,
   type Contact,
   type ContactAddress,
@@ -18,6 +19,7 @@ import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import UnifiedPaymentForm from '@/components/shared/UnifiedPaymentForm';
+import { openReceiptPrintWindow } from '@/lib/utils/receiptPrint';
 
 type PlanInfo = { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency: string; features?: string[] };
 type SubData = {
@@ -128,8 +130,19 @@ export default function MyAccountPage() {
         address: { ...emptyAddress, ...co.address },
         notes: co.notes ?? '',
       });
+    } else {
+      const { code, number } = parsePhoneToCountryAndNumber(user.phone || '968');
+      const nameParts = (user.name || '').trim().split(/\s+/).filter(Boolean);
+      setForm((prev) => ({
+        ...prev,
+        firstName: nameParts[0] ?? '',
+        familyName: nameParts.slice(1).join(' ') || prev.familyName,
+        email: user.email ?? prev.email,
+        phoneCountryCode: code || '968',
+        phone: number ?? prev.phone,
+      }));
     }
-  }, [user?.id, user?.email, user?.phone]);
+  }, [user?.id, user?.email, user?.phone, user?.name]);
 
   useEffect(() => {
     fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' })
@@ -139,37 +152,75 @@ export default function MyAccountPage() {
   }, []);
 
   const handleSaveContact = () => {
-    if (!contact || !('id' in contact) || !contact.id) return;
+    if (!user?.id) return;
+    const fullPhone = form.phoneCountryCode + (form.phone || '').replace(/\D/g, '');
+    if (!fullPhone || fullPhone.replace(/\D/g, '').length < 8) {
+      alert(ar ? 'الهاتف مطلوب (8 أرقام على الأقل)' : 'Phone required (at least 8 digits)');
+      return;
+    }
     setSaving(true);
     try {
-      const fullPhone = form.phoneCountryCode + (form.phone || '').replace(/\D/g, '');
-      const updates: Partial<Contact> = {
-        firstName: form.firstName.trim() || (contact as Contact).firstName,
-        secondName: form.secondName.trim() || undefined,
-        thirdName: form.thirdName.trim() || undefined,
-        familyName: form.familyName.trim() || (contact as Contact).familyName,
-        nameEn: form.nameEn.trim() || undefined,
-        email: form.email.trim() || undefined,
-        phone: fullPhone || (contact as Contact).phone,
-        phoneSecondary: form.phoneSecondary.trim() || undefined,
-        nationality: form.nationality.trim() || (contact as Contact).nationality,
-        gender: form.gender,
-        civilId: form.civilId.trim() || undefined,
-        civilIdExpiry: form.civilIdExpiry.trim() || undefined,
-        passportNumber: form.passportNumber.trim() || undefined,
-        passportExpiry: form.passportExpiry.trim() || undefined,
-        workplace: form.workplace.trim() || undefined,
-        position: form.position.trim() || undefined,
-        address: form.address,
-        notes: form.notes.trim() || undefined,
-      };
-      const updated = updateContact(contact.id, updates);
-      if (updated) {
-        setContact(updated);
+      if (fullContact) {
+        const updates: Partial<Contact> = {
+          firstName: form.firstName.trim() || fullContact.firstName,
+          secondName: form.secondName.trim() || undefined,
+          thirdName: form.thirdName.trim() || undefined,
+          familyName: form.familyName.trim() || fullContact.familyName,
+          nameEn: form.nameEn.trim() || undefined,
+          email: form.email.trim() || undefined,
+          phone: fullPhone,
+          phoneSecondary: form.phoneSecondary.trim() || undefined,
+          nationality: form.nationality.trim() || fullContact.nationality,
+          gender: form.gender,
+          civilId: form.civilId.trim() || undefined,
+          civilIdExpiry: form.civilIdExpiry.trim() || undefined,
+          passportNumber: form.passportNumber.trim() || undefined,
+          passportExpiry: form.passportExpiry.trim() || undefined,
+          workplace: form.workplace.trim() || undefined,
+          position: form.position.trim() || undefined,
+          address: form.address,
+          notes: form.notes.trim() || undefined,
+        };
+        const updated = updateContact(fullContact.id, updates);
+        if (updated) {
+          setContact(updated);
+          setEditing(false);
+        }
+      } else {
+        const firstName = form.firstName.trim() || (user?.name?.split(/\s+/)[0]) || '';
+        const familyName = form.familyName.trim() || (user?.name?.split(/\s+/).slice(1).join(' ')) || '—';
+        const created = createContact({
+          contactType: 'PERSONAL',
+          category: 'CLIENT',
+          firstName: firstName || '—',
+          familyName,
+          nationality: form.nationality.trim() || 'عماني',
+          gender: form.gender,
+          phone: fullPhone,
+          secondName: form.secondName.trim() || undefined,
+          thirdName: form.thirdName.trim() || undefined,
+          nameEn: form.nameEn.trim() || undefined,
+          email: form.email.trim() || undefined,
+          phoneSecondary: form.phoneSecondary.trim() || undefined,
+          civilId: form.civilId.trim() || undefined,
+          civilIdExpiry: form.civilIdExpiry.trim() || undefined,
+          passportNumber: form.passportNumber.trim() || undefined,
+          passportExpiry: form.passportExpiry.trim() || undefined,
+          workplace: form.workplace.trim() || undefined,
+          position: form.position.trim() || undefined,
+          address: form.address,
+          notes: form.notes.trim() || undefined,
+          userId: user.id,
+        });
+        setContact(created);
         setEditing(false);
       }
     } catch (e) {
-      alert(ar ? 'فشل الحفظ' : 'Save failed');
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'DUPLICATE_PHONE') alert(ar ? 'رقم الهاتف مسجّل لجهة اتصال أخرى' : 'Phone already registered');
+      else if (msg === 'DUPLICATE_CIVIL_ID') alert(ar ? 'الرقم المدني مسجّل' : 'Civil ID already registered');
+      else if (msg === 'DUPLICATE_PASSPORT') alert(ar ? 'رقم الجواز مسجّل' : 'Passport already registered');
+      else alert(ar ? 'فشل الحفظ' : 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -197,43 +248,22 @@ export default function MyAccountPage() {
   const handlePrintReceipt = () => {
     if (!paymentSuccess) return;
     const isAr = locale === 'ar';
-    const title = isAr ? 'إيصال الدفع' : 'Payment Receipt';
     const planName = isAr ? paymentSuccess.planNameAr : paymentSuccess.planNameEn;
     const typeLabel = isAr ? (paymentSuccess.direction === 'upgrade' ? 'ترقية' : 'تنزيل') : (paymentSuccess.direction === 'upgrade' ? 'Upgrade' : 'Downgrade');
-    const dateStr = new Date().toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' });
-    const dir = isAr ? 'rtl' : 'ltr';
-    const html = `<!DOCTYPE html><html dir="${dir}" lang="${locale}"><head><meta charset="utf-8"><title>${title}</title><style>
-      body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 480px; margin: 0 auto; color: #111; }
-      h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-      .success { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 0.5rem; padding: 1rem; text-align: center; margin-bottom: 1.5rem; }
-      .success h2 { color: #047857; margin: 0 0 0.25rem 0; font-size: 1.125rem; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
-      th, td { padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb; text-align: ${isAr ? 'right' : 'left'}; }
-      th { font-weight: 600; color: #4b5563; width: 40%; }
-      .footer { font-size: 0.875rem; color: #6b7280; margin-top: 1.5rem; }
-    </style></head><body>
-      <h1>${title}</h1>
-      <div class="success"><h2>${isAr ? 'تمت العملية بنجاح' : 'Payment successful'}</h2><p style="margin:0;font-size:0.875rem">${isAr ? 'تم تسجيل الدفع وتحديث الباقة.' : 'Payment recorded and plan updated.'}</p></div>
-      <table><tbody>
-        <tr><th>${isAr ? 'الباقة' : 'Plan'}</th><td>${planName}</td></tr>
-        <tr><th>${isAr ? 'المبلغ' : 'Amount'}</th><td>${paymentSuccess.amount.toLocaleString('en-US')} ${paymentSuccess.currency}</td></tr>
-        <tr><th>${isAr ? 'النوع' : 'Type'}</th><td>${typeLabel}</td></tr>
-        <tr><th>${isAr ? 'التاريخ' : 'Date'}</th><td>${dateStr}</td></tr>
-      </tbody></table>
-      <p class="footer">${isAr ? 'بن حمود للتطوير' : 'Bin Hamood Development'} — ${dateStr}</p>
-    </body></html>`;
-    const w = window.open('', '_blank');
-    if (!w) {
-      alert(isAr ? 'الرجاء السماح بالنوافذ المنبثقة لطباعة الإيصال.' : 'Please allow popups to print the receipt.');
-      return;
-    }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      w.print();
-      w.onafterprint = () => w.close();
-    }, 250);
+    const d = new Date();
+    openReceiptPrintWindow({
+      docTitleAr: 'إيصال الدفع',
+      docTitleEn: 'Payment Receipt',
+      date: d,
+      locale,
+      rows: [
+        { labelAr: 'الباقة', labelEn: 'Plan', value: planName },
+        { labelAr: 'المبلغ', labelEn: 'Amount', value: `${paymentSuccess.amount.toLocaleString('en-US')} ${paymentSuccess.currency}` },
+        { labelAr: 'النوع', labelEn: 'Type', value: typeLabel },
+        { labelAr: 'التاريخ', labelEn: 'Date', value: d.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+      ],
+      autoPrint: true,
+    });
   };
 
   const handleSelectPlanForChange = (planId: string) => {
@@ -294,59 +324,30 @@ export default function MyAccountPage() {
     <div className="admin-main-inner space-y-6">
       <AdminPageHeader title={title} subtitle={ar ? 'بيانات حسابك وباقتك' : 'Your account details and plan'} />
 
-      {/* زر الاشتراك في الباقات — للعميل والمالك */}
-      {!isAdmin && (
-        <div className="admin-card">
-          <div className="admin-card-header">
-            <h2 className="admin-card-title">{ar ? 'الباقات والاشتراك' : 'Plans & subscription'}</h2>
-          </div>
-          <div className="admin-card-body flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-gray-600 m-0">{ar ? 'اشترك في باقة أو غيّر باقتك الحالية من صفحة الباقات.' : 'Subscribe to a plan or change your current plan from the plans page.'}</p>
-            <Link
-              href={`/${locale}/subscriptions`}
-              className="admin-btn-primary inline-flex items-center gap-2 no-underline"
-            >
-              <Icon name="creditCard" className="w-5 h-5" />
-              {ar ? 'الاشتراك في الباقات' : 'Subscribe to plans'}
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* بياناتي من دفتر العناوين */}
+      {/* بياناتي — تعديل وتعبئة على نفس الصفحة (بيانات المستخدم فقط) */}
       <div className="admin-card max-w-3xl">
         <div className="admin-card-header flex flex-wrap items-center justify-between gap-3">
-          <h2 className="admin-card-title">{ar ? 'بياناتي (كما في دفتر العناوين)' : 'My data (as in address book)'}</h2>
+          <h2 className="admin-card-title">{ar ? 'بياناتي' : 'My data'}</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/${locale}/admin/address-book`}
-              className="admin-btn-primary inline-flex items-center gap-2 no-underline"
-            >
-              <Icon name="pencil" className="w-4 h-4" />
-              {ar ? 'تعديل وتعبئة البيانات (دفتر العناوين)' : 'Edit & fill data (Address book)'}
-            </Link>
-            {fullContact && (
-              editing ? (
-                <>
-                  <button type="button" onClick={() => setEditing(false)} className="admin-btn-secondary">
-                    {ar ? 'إلغاء' : 'Cancel'}
-                  </button>
-                  <button type="button" onClick={handleSaveContact} disabled={saving} className="admin-btn-secondary">
-                    {saving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ' : 'Save')}
-                  </button>
-                </>
-              ) : (
-                <button type="button" onClick={() => setEditing(true)} className="admin-btn-secondary inline-flex items-center gap-2">
-                  <Icon name="pencil" className="w-4 h-4" />
-                  {ar ? 'تعديل سريع' : 'Quick edit'}
+            {editing ? (
+              <>
+                <button type="button" onClick={() => setEditing(false)} className="admin-btn-secondary">
+                  {ar ? 'إلغاء' : 'Cancel'}
                 </button>
-              )
+                <button type="button" onClick={handleSaveContact} disabled={saving} className="admin-btn-primary">
+                  {saving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ' : 'Save')}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setEditing(true)} className="admin-btn-primary inline-flex items-center gap-2">
+                <Icon name="pencil" className="w-4 h-4" />
+                {ar ? 'تعديل وتعبئة البيانات' : 'Edit & fill data'}
+              </button>
             )}
           </div>
         </div>
         <div className="admin-card-body space-y-4">
-          {fullContact ? (
-            editing ? (
+          {editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم الأول' : 'First name'}</label>
@@ -427,7 +428,7 @@ export default function MyAccountPage() {
                   <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="admin-input w-full" rows={2} />
                 </div>
               </div>
-            ) : (
+          ) : fullContact ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 {fullContact.serialNumber && (
                   <div className="sm:col-span-2">
@@ -451,10 +452,9 @@ export default function MyAccountPage() {
                 <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'العنوان:' : 'Address:'}</span> <span className="text-gray-900">{addressDisplay}</span></div>
                 {fullContact.notes && <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'ملاحظات:' : 'Notes:'}</span> <span className="text-gray-900">{fullContact.notes}</span></div>}
               </div>
-            )
           ) : (
             <div className="space-y-2 text-gray-600">
-              <p>{ar ? 'لا توجد بيانات مرتبطة بك في دفتر العناوين بعد. الاسم والبريد والهاتف أدناه من حسابك.' : 'No address book entry linked yet. Name, email and phone below are from your account.'}</p>
+              <p>{ar ? 'عبّئ البيانات أدناه واضغط «حفظ» لربط سجلك بحسابك.' : 'Fill in the data below and click Save to link your record to your account.'}</p>
               <div className="pt-2 space-y-1">
                 <p><span className="font-semibold">{ar ? 'الاسم:' : 'Name:'}</span> {user?.name || '—'}</p>
                 <p><span className="font-semibold">{ar ? 'البريد:' : 'Email:'}</span> {user?.email || '—'}</p>
@@ -465,12 +465,21 @@ export default function MyAccountPage() {
         </div>
       </div>
 
-      {/* الباقة الحالية وطلب ترقية/تنزيل */}
+      {/* الباقة والاشتراك / نوع الحساب — نافذة واحدة */}
       <div className="admin-card max-w-2xl">
         <div className="admin-card-header">
-          <h2 className="admin-card-title">{ar ? 'نوع الحساب / الباقة' : 'Account / Plan type'}</h2>
+          <h2 className="admin-card-title">{ar ? 'الباقة والاشتراك / نوع الحساب' : 'Plan & subscription / Account type'}</h2>
         </div>
         <div className="admin-card-body space-y-4">
+          {!isAdmin && (
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-gray-200">
+              <p className="text-sm text-gray-600 m-0">{ar ? 'اشترك في باقة أو غيّر باقتك الحالية من صفحة الباقات.' : 'Subscribe to a plan or change your current plan from the plans page.'}</p>
+              <Link href={`/${locale}/subscriptions`} className="admin-btn-primary inline-flex items-center gap-2 no-underline">
+                <Icon name="creditCard" className="w-5 h-5" />
+                {ar ? 'الاشتراك في الباقات' : 'Subscribe to plans'}
+              </Link>
+            </div>
+          )}
           <div>
             <label className="admin-form-label">{ar ? 'الباقة الحالية' : 'Current plan'}</label>
             {subData?.subscription?.plan ? (
@@ -514,31 +523,22 @@ export default function MyAccountPage() {
                   onClick={() => {
                     const sub = subData.subscription!;
                     const plan = sub.plan!;
-                    const isAr = locale === 'ar';
-                    const title = isAr ? 'إيصال الاشتراك' : 'Subscription receipt';
-                    const html = `<!DOCTYPE html><html dir="${isAr ? 'rtl' : 'ltr'}" lang="${locale}"><head><meta charset="utf-8"><title>${title}</title><style>
-                      body{font-family:system-ui,sans-serif;padding:2rem;max-width:480px;margin:0 auto;color:#111}
-                      h1{font-size:1.5rem;margin-bottom:0.5rem}
-                      table{width:100%;border-collapse:collapse;margin:1rem 0}
-                      th,td{padding:0.5rem 0;border-bottom:1px solid #e5e7eb;text-align:${isAr ? 'right' : 'left'}}
-                      th{font-weight:600;color:#4b5563;width:45%}
-                      .footer{font-size:0.875rem;color:#6b7280;margin-top:1.5rem}
-                    </style></head><body>
-                      <h1>${title}</h1>
-                      <table><tbody>
-                        <tr><th>${isAr ? 'الباقة' : 'Plan'}</th><td>${isAr ? plan.nameAr : plan.nameEn}</td></tr>
-                        <tr><th>${isAr ? 'المبلغ الشهري' : 'Monthly amount'}</th><td>${plan.priceMonthly} ${plan.currency}</td></tr>
-                        <tr><th>${isAr ? 'تاريخ البدء' : 'Start date'}</th><td>${new Date(sub.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</td></tr>
-                        <tr><th>${isAr ? 'تاريخ الانتهاء' : 'End date'}</th><td>${new Date(sub.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</td></tr>
-                      </tbody></table>
-                      <p class="footer">${isAr ? 'بن حمود للتطوير' : 'Bin Hamood Development'} — ${new Date().toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</p>
-                    </body></html>`;
-                    const w = window.open('', '_blank');
-                    if (!w) { alert(isAr ? 'السماح بالنوافذ المنبثقة للطباعة.' : 'Allow popups to print.'); return; }
-                    w.document.write(html);
-                    w.document.close();
-                    w.focus();
-                    setTimeout(() => { w.print(); w.onafterprint = () => w.close(); }, 250);
+                    const startDate = new Date(sub.startAt);
+                    const endDate = new Date(sub.endAt);
+                    openReceiptPrintWindow({
+                      docTitleAr: 'إيصال الاشتراك',
+                      docTitleEn: 'Subscription receipt',
+                      date: startDate,
+                      locale,
+                      rows: [
+                        { labelAr: 'الباقة', labelEn: 'Plan', value: locale === 'ar' ? plan.nameAr : plan.nameEn },
+                        { labelAr: 'المبلغ الشهري', labelEn: 'Monthly amount', value: `${plan.priceMonthly} ${plan.currency}` },
+                        { labelAr: 'تاريخ الاشتراك والدفع', labelEn: 'Subscription / payment date', value: startDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                        { labelAr: 'تاريخ البدء', labelEn: 'Start date', value: startDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                        { labelAr: 'تاريخ الانتهاء', labelEn: 'End date', value: endDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                      ],
+                      autoPrint: true,
+                    });
                   }}
                   className="admin-btn-secondary inline-flex items-center gap-2"
                 >
