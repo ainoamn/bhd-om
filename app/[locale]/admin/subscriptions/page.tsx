@@ -15,8 +15,8 @@ import {
 function schedule(fn: () => void) {
   setTimeout(fn, 0);
 }
-/** تأخير 250ms لقطع ربط العمل بتفاعل النقر — يقلل INP */
-function scheduleAfterInteraction(fn: () => void, delayMs = 250) {
+/** تأخير قصير لقطع ربط العمل بتفاعل النقر — مع الحفاظ على عمل الحفظ */
+function scheduleAfterInteraction(fn: () => void, delayMs = 50) {
   setTimeout(fn, delayMs);
 }
 /** إخفاء عنصر بدون reflow (لا display:none) لتفادي انسداد الرسم */
@@ -218,8 +218,8 @@ export default function AdminSubscriptionsPage() {
     if (isAdmin) loadData();
   }, [isAdmin, loadData]);
 
-  const patchPlan = useCallback(async (plan: PlanRow, opts?: { permissions?: string[]; features?: string[] }): Promise<boolean> => {
-    if (!isDbPlan(plan.id)) return false;
+  const patchPlan = useCallback(async (plan: PlanRow, opts?: { permissions?: string[]; features?: string[] }): Promise<{ ok: boolean; error?: string }> => {
+    if (!isDbPlan(plan.id)) return { ok: false, error: 'Plan id not from DB' };
     try {
       const res = await fetch(`/api/plans/${plan.id}`, {
         method: 'PATCH',
@@ -241,9 +241,12 @@ export default function AdminSubscriptionsPage() {
           featuresJson: JSON.stringify(opts?.features ?? (plan.featuresAr?.length ? plan.featuresAr : plan.features)),
         }),
       });
-      return res.ok;
-    } catch {
-      return false;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: (data?.error as string) || `HTTP ${res.status}` };
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
     }
   }, [isDbPlan]);
 
@@ -306,7 +309,7 @@ export default function AdminSubscriptionsPage() {
     setShowEditModal(true);
   };
 
-  /** النقر يجدول فقط؛ بعد 250ms إخفاء خفيف (visibility) ثم fetch؛ تحديث state في idle */
+  /** بعد تأخير قصير: إخفاء النافذة ثم PATCH؛ عند النجاح إغلاق وتحديث القائمة وإعادة جلب البيانات */
   const onSaveEdit = () => {
     const plan = editingPlan;
     if (!plan) return;
@@ -317,21 +320,18 @@ export default function AdminSubscriptionsPage() {
     scheduleAfterInteraction(() => {
       const el = modalEditRef.current;
       hideEl(el);
-      patchPlan(plan).then((ok) => {
-        const done = () => {
-          if (ok) {
-            setShowEditModal(false);
-            setEditingPlan(null);
-            setTimeout(() => setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p))), 0);
-          } else {
-            showEl(el);
-            setShowEditModal(true);
-            setEditingPlan(plan);
-            alert(ar ? 'فشل الحفظ على الخادم.' : 'Save failed on server.');
-          }
-        };
-        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 200 });
-        else setTimeout(done, 0);
+      patchPlan(plan).then((result) => {
+        if (result.ok) {
+          setShowEditModal(false);
+          setEditingPlan(null);
+          setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
+          setTimeout(() => loadData(), 300);
+        } else {
+          showEl(el);
+          setShowEditModal(true);
+          setEditingPlan(plan);
+          alert(ar ? `فشل الحفظ: ${result.error || 'خطأ غير معروف'}` : `Save failed: ${result.error || 'Unknown error'}`);
+        }
       });
     });
   };
@@ -343,7 +343,7 @@ export default function AdminSubscriptionsPage() {
     setShowFeaturesModal(true);
   };
 
-  /** النقر يجدول فقط؛ بعد 250ms إخفاء خفيف (visibility) ثم fetch؛ تحديث state في idle */
+  /** بعد تأخير قصير: إخفاء النافذة ثم PATCH؛ عند النجاح إغلاق وتحديث القائمة وإعادة جلب البيانات */
   const onSaveFeatures = () => {
     const planId = editingPlanId;
     const plan = plans.find((p) => p.id === planId);
@@ -358,19 +358,16 @@ export default function AdminSubscriptionsPage() {
     scheduleAfterInteraction(() => {
       const el = modalFeaturesRef.current;
       hideEl(el);
-      patchPlan(plan, { features: featuresToSave }).then((ok) => {
-        const done = () => {
-          if (ok) {
-            setShowFeaturesModal(false);
-            setTimeout(() => setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p))), 0);
-          } else {
-            showEl(el);
-            setShowFeaturesModal(true);
-            alert(ar ? 'فشل حفظ الميزات على الخادم.' : 'Features save failed on server.');
-          }
-        };
-        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(done, { timeout: 200 });
-        else setTimeout(done, 0);
+      patchPlan(plan, { features: featuresToSave }).then((result) => {
+        if (result.ok) {
+          setShowFeaturesModal(false);
+          setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
+          setTimeout(() => loadData(), 300);
+        } else {
+          showEl(el);
+          setShowFeaturesModal(true);
+          alert(ar ? `فشل حفظ الميزات: ${result.error || 'خطأ غير معروف'}` : `Features save failed: ${result.error || 'Unknown error'}`);
+        }
       });
     });
   };
