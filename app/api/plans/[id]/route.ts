@@ -1,13 +1,27 @@
 /**
- * تحديث باقة — للأدمن فقط
+ * تحديث باقة — للأدمن فقط. يستخدم استعلاماً خاماً حسب الأعمدة الموجودة لتفادي خطأ "column does not exist".
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const COL_MAP: Record<string, string[]> = {
+  nameAr: ['nameAr', 'name_ar'],
+  nameEn: ['nameEn', 'name_en'],
+  priceMonthly: ['priceMonthly', 'price_monthly'],
+  priceYearly: ['priceYearly', 'price_yearly'],
+  currency: ['currency'],
+  featuresJson: ['featuresJson', 'features_json'],
+  limitsJson: ['limitsJson', 'limits_json'],
+  permissionsJson: ['permissionsJson', 'permissions_json'],
+  isActive: ['isActive', 'is_active'],
+  sortOrder: ['sortOrder', 'sort_order'],
+};
 
 export async function PATCH(
   req: NextRequest,
@@ -78,11 +92,54 @@ export async function PATCH(
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    const plan = await prisma.plan.update({
-      where: { id },
-      data: updateData,
-    });
-    return NextResponse.json({ ok: true, plan: { id: plan.id, code: plan.code } });
+    const tableResult = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND LOWER(table_name) = 'plan'
+      LIMIT 1
+    `;
+    const tableName = tableResult?.[0]?.table_name;
+    if (!tableName) {
+      return NextResponse.json({ error: 'Plan table not found' }, { status: 500 });
+    }
+
+    const columnsResult = await prisma.$queryRaw<{ column_name: string }[]>(
+      Prisma.sql`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${tableName} ORDER BY ordinal_position`
+    );
+    const existingCols = new Set((columnsResult ?? []).map((r) => r.column_name));
+
+    if (!existingCols.has('id')) {
+      return NextResponse.json({ error: 'Plan table missing id column' }, { status: 500 });
+    }
+
+    const setParts: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+    for (const [key, dbNames] of Object.entries(COL_MAP)) {
+      if (!(key in updateData)) continue;
+      const dbCol = dbNames.find((c) => existingCols.has(c));
+      if (!dbCol) continue;
+      const val = updateData[key];
+      setParts.push(`"${dbCol.replace(/"/g, '""')}" = $${paramIndex}`);
+      values.push(val === null || val === undefined ? null : val);
+      paramIndex += 1;
+    }
+
+    if (setParts.length === 0) {
+      return NextResponse.json({ error: 'No updatable columns exist in Plan table' }, { status: 400 });
+    }
+
+    const safeTable = `"${String(tableName).replace(/"/g, '""')}"`;
+    const sql = `UPDATE ${safeTable} SET ${setParts.join(', ')} WHERE id = $${paramIndex}`;
+    values.push(id);
+
+    await prisma.$executeRawUnsafe(sql, ...values);
+
+    const check = await prisma.$queryRawUnsafe<{ id: string; code: string }[]>(
+      `SELECT id, code FROM ${safeTable} WHERE id = $1`,
+      id
+    );
+    const plan = check?.[0];
+    return NextResponse.json({ ok: true, plan: plan ? { id: plan.id, code: plan.code } : { id, code: '' } });
   } catch (e: unknown) {
     const err = e as { code?: string; message?: string };
     const message = err?.message ?? (e instanceof Error ? e.message : String(e));
