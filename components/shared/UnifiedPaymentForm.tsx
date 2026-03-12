@@ -33,8 +33,8 @@ export type UnifiedPaymentFormProps = {
   currency?: string;
   cardData: CardData;
   onCardDataChange: (data: CardData) => void;
-  /** عند النقر على الدفع */
-  onSubmit: () => void;
+  /** عند النقر على الدفع (اختياري عند استخدام formId — الإرسال يتم عبر النموذج) */
+  onSubmit?: () => void;
   /** عند الإلغاء */
   onCancel: () => void;
   /** نص زر الدفع */
@@ -258,7 +258,7 @@ export default function UnifiedPaymentForm({
           ) : (
             <button
               type="button"
-              onClick={onSubmit}
+              onClick={() => onSubmit?.()}
               disabled={disabled || loading}
               className={PAYMENT_FORM_CLASSES.btnSubmit}
             >
