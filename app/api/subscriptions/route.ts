@@ -16,6 +16,8 @@ const SUB_COL_MAP: Record<string, string[]> = {
   userId: ['userId', 'user_id'],
   planId: ['planId', 'plan_id'],
   status: ['status'],
+  startAt: ['startAt', 'start_at'],
+  endAt: ['endAt', 'end_at'],
 };
 
 function getSubVal(row: Record<string, unknown>, col: string | undefined): unknown {
@@ -72,14 +74,51 @@ export async function GET(req: NextRequest) {
       `SELECT ${quoted} FROM ${safeTable} ORDER BY ${orderCol} DESC NULLS LAST`
     );
 
-    const list = (raw || []).map((r) => ({
-      id: String(getSubVal(r, keyToCol.id) ?? ''),
-      userId: String(getSubVal(r, keyToCol.userId) ?? ''),
-      planId: String(getSubVal(r, keyToCol.planId) ?? ''),
-      status: String(getSubVal(r, keyToCol.status) ?? 'active'),
+    const list = (raw || []).map((r) => {
+      const startVal = getSubVal(r, keyToCol.startAt);
+      const endVal = getSubVal(r, keyToCol.endAt);
+      return {
+        id: String(getSubVal(r, keyToCol.id) ?? ''),
+        userId: String(getSubVal(r, keyToCol.userId) ?? ''),
+        planId: String(getSubVal(r, keyToCol.planId) ?? ''),
+        status: String(getSubVal(r, keyToCol.status) ?? 'active'),
+        startAt: startVal != null ? new Date(startVal as string | Date).toISOString() : new Date().toISOString(),
+        endAt: endVal != null ? new Date(endVal as string | Date).toISOString() : new Date().toISOString(),
+      };
+    });
+
+    const userIds = [...new Set(list.map((s) => s.userId).filter(Boolean))];
+    const planIds = [...new Set(list.map((s) => s.planId).filter(Boolean))];
+
+    let usersMap: Record<string, { name: string; email: string; serialNumber: string }> = {};
+    let plansMap: Record<string, { nameAr: string; nameEn: string }> = {};
+
+    try {
+      if (userIds.length > 0) {
+        const users = await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true, email: true, serialNumber: true },
+        });
+        users.forEach((u) => { usersMap[u.id] = { name: u.name, email: u.email, serialNumber: u.serialNumber }; });
+      }
+      if (planIds.length > 0) {
+        const plans = await prisma.plan.findMany({
+          where: { id: { in: planIds } },
+          select: { id: true, nameAr: true, nameEn: true },
+        });
+        plans.forEach((p) => { plansMap[p.id] = { nameAr: p.nameAr, nameEn: p.nameEn }; });
+      }
+    } catch (enrichErr) {
+      console.error('GET /api/subscriptions enrich:', enrichErr);
+    }
+
+    const enriched = list.map((s) => ({
+      ...s,
+      user: usersMap[s.userId] ?? { name: '—', email: '—', serialNumber: '—' },
+      plan: plansMap[s.planId] ?? { nameAr: '—', nameEn: '—' },
     }));
 
-    return NextResponse.json({ list }, {
+    return NextResponse.json({ list: enriched }, {
       headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
     });
   } catch (e) {

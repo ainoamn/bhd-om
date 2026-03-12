@@ -62,7 +62,11 @@ export default function AdminDashboardPage() {
 
   const [bookings, setBookings] = useState<PropertyBooking[]>([]);
   const [contracts, setContracts] = useState<ReturnType<typeof getAllContracts>>([]);
-  const [subscriptionList, setSubscriptionList] = useState<Array<{ id: string; status: string; endAt: string; user: { name: string; email: string; serialNumber: string }; plan: { nameAr: string; nameEn: string } }>>([]);
+  type SubItem = { id: string; status: string; startAt: string; endAt: string; user: { name: string; email: string; serialNumber: string }; plan: { nameAr: string; nameEn: string } };
+  const [subscriptionList, setSubscriptionList] = useState<SubItem[]>([]);
+  const [subscriptionsExpanded, setSubscriptionsExpanded] = useState(false);
+  const [subscriptionsFilter, setSubscriptionsFilter] = useState<'all' | 'active' | 'expired'>('all');
+  const [subscriptionsSearch, setSubscriptionsSearch] = useState('');
 
   const loadRealData = () => {
     if (typeof window === 'undefined') return;
@@ -114,6 +118,28 @@ export default function AdminDashboardPage() {
   const now = new Date();
   const activeSubs = subscriptionList.filter((s) => s.status === 'active' && new Date(s.endAt) > now);
   const expiredSubs = subscriptionList.filter((s) => s.status !== 'active' || new Date(s.endAt) <= now);
+
+  const subscriptionsFiltered =
+    subscriptionsFilter === 'active'
+      ? subscriptionList.filter((s) => s.status === 'active' && new Date(s.endAt) > now)
+      : subscriptionsFilter === 'expired'
+        ? subscriptionList.filter((s) => s.status !== 'active' || new Date(s.endAt) <= now)
+        : subscriptionList;
+
+  const q = subscriptionsSearch.trim().toLowerCase();
+  const subscriptionsSearched = q
+    ? subscriptionsFiltered.filter(
+        (s) =>
+          (s.user?.name ?? '').toLowerCase().includes(q) ||
+          (s.user?.email ?? '').toLowerCase().includes(q) ||
+          (s.user?.serialNumber ?? '').toLowerCase().includes(q) ||
+          (s.plan?.nameAr ?? '').toLowerCase().includes(q) ||
+          (s.plan?.nameEn ?? '').toLowerCase().includes(q),
+      )
+    : subscriptionsFiltered;
+
+  const subscriptionsDisplayed = subscriptionsExpanded ? subscriptionsSearched : subscriptionsSearched.slice(0, 5);
+  const hasMoreSubscriptions = subscriptionsSearched.length > 5;
 
   const stats = [
     { label: t('stats.properties'), value: properties.length, href: '/admin/properties', icon: 'building' as const, color: 'from-blue-500 to-blue-600', bgColor: 'bg-blue-50' },
@@ -292,7 +318,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* الاشتراكات والباقات — نشطة / منتهية + آخر الاشتراكات */}
+      {/* الاشتراكات والباقات — آخر 5 مع توسيع + فلترة وبحث */}
       <div className="admin-card mb-8">
         <div className="admin-card-header flex items-center justify-between flex-wrap gap-2">
           <h2 className="admin-card-title">{locale === 'ar' ? 'الاشتراكات والباقات' : 'Subscriptions & Plans'}</h2>
@@ -317,29 +343,59 @@ export default function AdminDashboardPage() {
           </div>
           {subscriptionList.length > 0 ? (
             <>
-              <h3 className="text-sm font-bold text-gray-700 mb-3">{locale === 'ar' ? 'آخر الاشتراكات' : 'Recent subscriptions'}</h3>
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <select
+                  value={subscriptionsFilter}
+                  onChange={(e) => setSubscriptionsFilter(e.target.value as 'all' | 'active' | 'expired')}
+                  className="admin-select text-sm py-2 px-3 rounded-lg border border-gray-200"
+                >
+                  <option value="all">{locale === 'ar' ? 'الكل' : 'All'}</option>
+                  <option value="active">{locale === 'ar' ? 'نشطة فقط' : 'Active only'}</option>
+                  <option value="expired">{locale === 'ar' ? 'منتهية فقط' : 'Expired only'}</option>
+                </select>
+                <input
+                  type="search"
+                  placeholder={locale === 'ar' ? 'بحث: اسم، بريد، رقم متسلسل، أو اسم الباقة...' : 'Search: name, email, serial, or plan...'}
+                  value={subscriptionsSearch}
+                  onChange={(e) => setSubscriptionsSearch(e.target.value)}
+                  className="admin-input flex-1 min-w-[200px] max-w-sm text-sm py-2 px-3 rounded-lg"
+                />
+              </div>
+              <h3 className="text-sm font-bold text-gray-700 mb-3">
+                {locale === 'ar' ? 'آخر الاشتراكات' : 'Recent subscriptions'}
+                {subscriptionsSearched.length !== subscriptionList.length && (
+                  <span className="font-normal text-gray-500 mr-2">
+                    ({locale === 'ar' ? 'معروض' : 'showing'} {subscriptionsSearched.length})
+                  </span>
+                )}
+              </h3>
               <div className="overflow-x-auto">
                 <table className="admin-table">
                   <thead>
                     <tr>
                       <th>{locale === 'ar' ? 'المستخدم' : 'User'}</th>
                       <th>{locale === 'ar' ? 'الباقة' : 'Plan'}</th>
-                      <th>{locale === 'ar' ? 'نهاية الاشتراك' : 'End date'}</th>
+                      <th>{locale === 'ar' ? 'بداية / نهاية' : 'Start / End'}</th>
                       <th>{locale === 'ar' ? 'الحالة' : 'Status'}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {subscriptionList.slice(0, 5).map((s) => (
+                    {subscriptionsDisplayed.map((s) => (
                       <tr key={s.id}>
                         <td>
-                          <div className="font-medium">{s.user?.name}</div>
-                          <div className="text-xs text-gray-500">{s.user?.serialNumber}</div>
+                          <div className="font-medium">{s.user?.name ?? '—'}</div>
+                          <div className="text-xs text-gray-500">{s.user?.serialNumber ?? ''}</div>
+                          {s.user?.email && <div className="text-xs text-gray-500">{s.user.email}</div>}
                         </td>
-                        <td>{locale === 'ar' ? s.plan?.nameAr : s.plan?.nameEn}</td>
-                        <td className="text-sm">{new Date(s.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</td>
+                        <td>{locale === 'ar' ? (s.plan?.nameAr ?? '—') : (s.plan?.nameEn ?? '—')}</td>
+                        <td className="text-sm whitespace-nowrap">
+                          {new Date(s.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}
+                          <span className="text-gray-400 mx-1">→</span>
+                          {new Date(s.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}
+                        </td>
                         <td>
-                          <span className={`admin-badge ${s.status === 'active' ? 'admin-badge-success' : 'admin-badge-warning'}`}>
-                            {s.status}
+                          <span className={`admin-badge ${s.status === 'active' && new Date(s.endAt) > now ? 'admin-badge-success' : 'admin-badge-warning'}`}>
+                            {s.status === 'active' && new Date(s.endAt) > now ? (locale === 'ar' ? 'نشط' : 'Active') : locale === 'ar' ? 'منتهي' : 'Expired'}
                           </span>
                         </td>
                       </tr>
@@ -347,6 +403,23 @@ export default function AdminDashboardPage() {
                   </tbody>
                 </table>
               </div>
+              {hasMoreSubscriptions && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setSubscriptionsExpanded((e) => !e)}
+                    className="admin-btn-secondary inline-flex items-center gap-2"
+                  >
+                    <Icon name={subscriptionsExpanded ? 'chevronUp' : 'chevronDown'} className="w-5 h-5" />
+                    {subscriptionsExpanded
+                      ? (locale === 'ar' ? 'إخفاء القائمة' : 'Show less')
+                      : (locale === 'ar' ? `عرض كل الاشتراكات (${subscriptionsSearched.length})` : `Show all (${subscriptionsSearched.length})`)}
+                  </button>
+                </div>
+              )}
+              {subscriptionsSearched.length === 0 && (
+                <p className="text-sm text-gray-500 py-2">{locale === 'ar' ? 'لا توجد نتائج تطابق الفلتر أو البحث.' : 'No results match the filter or search.'}</p>
+              )}
             </>
           ) : (
             <p className="text-sm text-gray-500 py-4">{locale === 'ar' ? 'لا توجد اشتراكات مسجلة. انتقل إلى الاشتراكات والباقات لتعيين باقات للمستخدمين.' : 'No subscriptions yet. Go to Subscriptions & Plans to assign plans to users.'}</p>
