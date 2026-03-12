@@ -65,15 +65,47 @@ export async function GET(req: NextRequest) {
       `SELECT ${selectSub} FROM ${safeSubTable} WHERE "${userIdCol}" = $1 LIMIT 1`,
       userId
     );
-    const subRow = subRows?.[0];
+    let subRow = subRows?.[0];
     if (!subRow) return emptyRes();
 
-    const planId = String(subRow[planIdCol] ?? '');
+    let planId = String(subRow[planIdCol] ?? '');
     const subId = idCol ? String(subRow[idCol] ?? '') : '';
-    const status = statusCol ? String(subRow[statusCol] ?? 'active') : 'active';
-    const startAt = startCol && subRow[startCol] ? new Date(subRow[startCol] as string | Date).toISOString() : new Date().toISOString();
-    const endAt = endCol && subRow[endCol] ? new Date(subRow[endCol] as string | Date).toISOString() : new Date().toISOString();
-    const usage = usageCol && subRow[usageCol] ? parseJson(subRow[usageCol], {} as Record<string, number>) : {};
+    let status = statusCol ? String(subRow[statusCol] ?? 'active') : 'active';
+    let startAt = startCol && subRow[startCol] ? new Date(subRow[startCol] as string | Date).toISOString() : new Date().toISOString();
+    let endAt = endCol && subRow[endCol] ? new Date(subRow[endCol] as string | Date).toISOString() : new Date().toISOString();
+    let usage = usageCol && subRow[usageCol] ? parseJson(subRow[usageCol], {} as Record<string, number>) : {};
+
+    // تطبيق تنزيل مجدول عند انتهاء الفترة الحالية
+    if (subId && new Date(endAt) <= new Date()) {
+      const changeReq = await prisma.subscriptionChangeRequest.findFirst({
+        where: { subscriptionId: subId, status: 'approved' },
+      }).catch(() => null);
+      if (changeReq) {
+        const newStart = new Date();
+        const newEnd = new Date(newStart);
+        newEnd.setMonth(newEnd.getMonth() + 12);
+        await prisma.subscription.update({
+          where: { id: subId },
+          data: { planId: changeReq.requestedPlanId, startAt: newStart, endAt: newEnd },
+        }).catch(() => {});
+        await prisma.subscriptionChangeRequest.update({
+          where: { id: changeReq.id },
+          data: { status: 'applied' },
+        }).catch(() => {});
+        const refreshed = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+          `SELECT ${selectSub} FROM ${safeSubTable} WHERE "${userIdCol}" = $1 LIMIT 1`,
+          userId
+        );
+        subRow = refreshed?.[0];
+        if (subRow) {
+          planId = String(subRow[planIdCol] ?? '');
+          status = statusCol ? String(subRow[statusCol] ?? 'active') : 'active';
+          startAt = startCol && subRow[startCol] ? new Date(subRow[startCol] as string | Date).toISOString() : new Date().toISOString();
+          endAt = endCol && subRow[endCol] ? new Date(subRow[endCol] as string | Date).toISOString() : new Date().toISOString();
+          usage = usageCol && subRow[usageCol] ? parseJson(subRow[usageCol], {} as Record<string, number>) : {};
+        }
+      }
+    }
 
     let plan: { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; priceYearly?: number; currency: string; features: string[]; limits: Record<string, number> } | null = null;
     const planTable = await prisma.$queryRaw<{ table_name: string }[]>`
@@ -140,7 +172,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         subscription,
-        plans: plansList.map((p: { id: string; code: string; nameAr?: string; nameEn?: string; priceMonthly?: number; priceYearly?: number; currency?: string; features?: string[]; limits?: Record<string, number> }) => ({
+        plans: plansList.map((p: { id: string; code: string; nameAr?: string; nameEn?: string; priceMonthly?: number; priceYearly?: number; currency?: string; features?: string[]; limits?: Record<string, number>; sortOrder?: number }) => ({
           id: p.id,
           code: p.code,
           nameAr: p.nameAr ?? '',
@@ -150,7 +182,7 @@ export async function GET(req: NextRequest) {
           currency: p.currency ?? 'OMR',
           features: p.features ?? [],
           limits: p.limits ?? {},
-          sortOrder: 0,
+          sortOrder: typeof p.sortOrder === 'number' ? p.sortOrder : 0,
         })),
         pendingRequest: null,
       },

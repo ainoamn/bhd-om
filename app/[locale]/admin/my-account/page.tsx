@@ -28,7 +28,7 @@ type SubData = {
     endAt: string;
     plan: PlanInfo | null;
   } | null;
-  plans: Array<{ id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; sortOrder: number }>;
+  plans: Array<{ id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency?: string; sortOrder: number }>;
   pendingRequest: { id: string; direction: string; status: string } | null;
 };
 
@@ -61,10 +61,12 @@ export default function MyAccountPage() {
   const tOwner = useTranslations('admin.nav.ownerNav');
   const [subData, setSubData] = useState<SubData | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestStep, setRequestStep] = useState<1 | 2>(1);
   const [requestPlanId, setRequestPlanId] = useState('');
   const [requestDirection, setRequestDirection] = useState<'upgrade' | 'downgrade'>('upgrade');
   const [requestReason, setRequestReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [cardData, setCardData] = useState({ number: '', expiry: '', cvv: '', name: '' });
 
   const user = session?.user as { id?: string; name?: string; email?: string; phone?: string; role?: string } | undefined;
   const title = user?.role === 'OWNER' ? tOwner('myAccount') : tClient('myAccount');
@@ -170,25 +172,60 @@ export default function MyAccountPage() {
     }
   };
 
-  const handleSubmitRequest = async () => {
+  const filteredPlans = subData?.plans?.filter((p) => {
+    const currentSort = subData.subscription?.planId
+      ? (subData.plans.find((x) => x.id === subData.subscription?.planId)?.sortOrder ?? 0)
+      : requestDirection === 'upgrade' ? -1 : 99;
+    return requestDirection === 'upgrade' ? p.sortOrder > currentSort : p.sortOrder < currentSort;
+  }) ?? [];
+
+  const selectedPlan = requestPlanId ? subData?.plans?.find((p) => p.id === requestPlanId) : null;
+  const paymentAmount = requestDirection === 'upgrade' && selectedPlan ? selectedPlan.priceMonthly : 0;
+
+  const handleSelectPlanForChange = (planId: string) => {
+    setRequestPlanId(planId);
+    setRequestStep(2);
+    setCardData({ number: '', expiry: '', cvv: '', name: '' });
+  };
+
+  const handleSubmitPayment = async () => {
     if (!requestPlanId) return;
+    if (requestDirection === 'upgrade' && (!cardData.number.trim() || cardData.number.replace(/\s/g, '').length < 4)) {
+      alert(ar ? 'أدخل بيانات البطاقة' : 'Enter card details');
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/subscriptions/me', {
+      const res = await fetch('/api/subscriptions/me/change-with-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ requestedPlanId: requestPlanId, direction: requestDirection, reason: requestReason || undefined }),
+        body: JSON.stringify({
+          requestedPlanId: requestPlanId,
+          direction: requestDirection,
+          payment: {
+            cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
+            cardExpiry: cardData.expiry,
+            cardholderName: cardData.name.trim(),
+            amount: paymentAmount,
+            currency: selectedPlan?.currency ?? 'OMR',
+          },
+        }),
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data?.ok) {
         setShowRequestModal(false);
+        setRequestStep(1);
         setRequestPlanId('');
         setRequestReason('');
-        fetch('/api/subscriptions/me', { credentials: 'include' }).then((r) => r.json()).then((d) => setSubData(d));
+        setCardData({ number: '', expiry: '', cvv: '', name: '' });
+        fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).then((d) => setSubData(d));
+        alert(data.message || (ar ? 'تمت العملية بنجاح' : 'Done'));
       } else {
-        alert(data.error || (ar ? 'فشل إرسال الطلب' : 'Request failed'));
+        alert(data?.error || data?.details || (ar ? 'فشل تنفيذ الطلب' : 'Request failed'));
       }
+    } catch (e) {
+      alert(ar ? 'حدث خطأ في الاتصال' : 'Network error');
     } finally {
       setSubmitting(false);
     }
@@ -380,10 +417,10 @@ export default function MyAccountPage() {
           </div>
           {subData?.subscription && !subData?.pendingRequest && subData?.plans?.length > 0 && (
             <div className="pt-2 flex gap-2">
-              <button type="button" onClick={() => { setRequestDirection('upgrade'); setRequestPlanId(''); setShowRequestModal(true); }} className="admin-btn-primary text-sm">
+              <button type="button" onClick={() => { setRequestDirection('upgrade'); setRequestPlanId(''); setRequestStep(1); setShowRequestModal(true); }} className="admin-btn-primary text-sm">
                 {ar ? 'طلب ترقية الباقة' : 'Request upgrade'}
               </button>
-              <button type="button" onClick={() => { setRequestDirection('downgrade'); setRequestPlanId(''); setShowRequestModal(true); }} className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <button type="button" onClick={() => { setRequestDirection('downgrade'); setRequestPlanId(''); setRequestStep(1); setShowRequestModal(true); }} className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 {ar ? 'طلب تنزيل الباقة' : 'Request downgrade'}
               </button>
             </div>
@@ -397,33 +434,118 @@ export default function MyAccountPage() {
       </div>
 
       {showRequestModal && subData?.plans && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="admin-card max-w-md w-full">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className={`admin-card w-full ${requestStep === 1 ? 'max-w-4xl' : 'max-w-md'}`}>
             <div className="admin-card-body">
               <h3 className="text-lg font-bold text-gray-900 mb-4">
-                {requestDirection === 'upgrade' ? (ar ? 'طلب ترقية الباقة' : 'Request plan upgrade') : (ar ? 'طلب تنزيل الباقة' : 'Request plan downgrade')}
+                {requestStep === 1
+                  ? (requestDirection === 'upgrade' ? (ar ? 'اختر الباقة للترقية' : 'Choose plan to upgrade') : (ar ? 'اختر الباقة للتنزيل' : 'Choose plan to downgrade'))
+                  : (requestDirection === 'upgrade' ? (ar ? 'إتمام الدفع' : 'Complete payment') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade'))}
               </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'الباقة المطلوبة' : 'Requested plan'}</label>
-                  <select value={requestPlanId} onChange={(e) => setRequestPlanId(e.target.value)} className="admin-select w-full">
-                    <option value="">—</option>
-                    {subData.plans
-                      .filter((p) => requestDirection === 'upgrade' ? (p.sortOrder > (subData.subscription?.plan ? (subData.plans.find((x) => x.id === subData.subscription?.planId)?.sortOrder ?? 0) : -1)) : (p.sortOrder < (subData.subscription?.plan ? (subData.plans.find((x) => x.id === subData.subscription?.planId)?.sortOrder ?? 99) : 99)))
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>{ar ? p.nameAr : p.nameEn} — {p.priceMonthly} OMR</option>
-                      ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'السبب (اختياري)' : 'Reason (optional)'}</label>
-                  <textarea value={requestReason} onChange={(e) => setRequestReason(e.target.value)} className="admin-input w-full" rows={2} />
-                </div>
-              </div>
-              <div className="flex gap-2 mt-4">
-                <button type="button" onClick={() => setShowRequestModal(false)} className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-50">{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button type="button" onClick={handleSubmitRequest} disabled={!requestPlanId || submitting} className="admin-btn-primary">{submitting ? (ar ? 'جاري الإرسال...' : 'Sending...') : (ar ? 'إرسال الطلب' : 'Submit request')}</button>
-              </div>
+
+              {requestStep === 1 && (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {ar ? 'اختر الباقة ثم انتقل إلى شاشة الدفع (نفس تجربة حجز العقار).' : 'Choose a plan then proceed to the payment screen (same as property booking).'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto">
+                    {filteredPlans.map((plan) => (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => handleSelectPlanForChange(plan.id)}
+                        className="text-right p-4 rounded-xl border-2 border-gray-200 hover:border-[#8B6F47] hover:bg-[#8B6F47]/5 transition-all"
+                      >
+                        <div className="font-bold text-gray-900">{ar ? plan.nameAr : plan.nameEn}</div>
+                        <div className="text-[#8B6F47] font-semibold mt-1">{plan.priceMonthly} {plan.currency ?? 'OMR'}/{ar ? 'شهر' : 'mo'}</div>
+                        <span className="text-sm text-gray-500 mt-2 block">{ar ? 'اختر ←' : 'Select ←'}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {filteredPlans.length === 0 && (
+                    <p className="text-gray-500 py-4">{ar ? 'لا توجد باقات متاحة لهذا الاتجاه.' : 'No plans available for this direction.'}</p>
+                  )}
+                  <div className="flex gap-2 mt-4">
+                    <button type="button" onClick={() => { setShowRequestModal(false); setRequestStep(1); setRequestPlanId(''); }} className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-50">{ar ? 'إلغاء' : 'Cancel'}</button>
+                  </div>
+                </>
+              )}
+
+              {requestStep === 2 && selectedPlan && (
+                <>
+                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <div className="flex justify-between items-center flex-wrap gap-2">
+                      <span className="font-bold text-gray-900">{ar ? selectedPlan.nameAr : selectedPlan.nameEn}</span>
+                      <span className="text-xl font-bold text-[#8B6F47]">
+                        {paymentAmount.toLocaleString('en-US')} {selectedPlan.currency ?? 'OMR'}
+                        {requestDirection === 'downgrade' && (
+                          <span className="text-sm font-normal text-gray-600 block">{ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end'}</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  {requestDirection === 'upgrade' && (
+                    <div className="space-y-3 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'رقم البطاقة' : 'Card number'}</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={cardData.number}
+                          onChange={(e) => setCardData({ ...cardData, number: e.target.value.replace(/\D/g, '').slice(0, 19).replace(/(\d{4})/g, '$1 ').trim() })}
+                          placeholder="1234 5678 9012 3456"
+                          className="admin-input w-full font-mono"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'انتهاء الصلاحية' : 'Expiry'}</label>
+                          <input
+                            type="text"
+                            placeholder="MM/YY"
+                            maxLength={5}
+                            value={cardData.expiry}
+                            onChange={(e) => {
+                              let v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              if (v.length >= 2) v = v.slice(0, 2) + '/' + v.slice(2);
+                              setCardData({ ...cardData, expiry: v });
+                            }}
+                            className="admin-input w-full font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">CVV</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={4}
+                            value={cardData.cvv}
+                            onChange={(e) => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                            placeholder="123"
+                            className="admin-input w-full font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">{ar ? 'اسم حامل البطاقة' : 'Cardholder name'}</label>
+                        <input
+                          type="text"
+                          value={cardData.name}
+                          onChange={(e) => setCardData({ ...cardData, name: e.target.value })}
+                          placeholder={ar ? 'الاسم كما على البطاقة' : 'Name as on card'}
+                          className="admin-input w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-4">
+                    <button type="button" onClick={() => { setRequestStep(1); setRequestPlanId(''); }} className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-50">{ar ? '← رجوع' : '← Back'}</button>
+                    <button type="button" onClick={handleSubmitPayment} disabled={submitting} className="admin-btn-primary flex-1">
+                      {submitting ? (ar ? 'جاري المعالجة...' : 'Processing...') : requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade')}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
