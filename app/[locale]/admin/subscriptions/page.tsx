@@ -309,31 +309,46 @@ export default function AdminSubscriptionsPage() {
     setShowEditModal(true);
   };
 
-  /** بعد تأخير قصير: إخفاء النافذة ثم PATCH؛ عند النجاح إغلاق وتحديث القائمة وإعادة جلب البيانات */
-  const onSaveEdit = () => {
+  const onSaveEdit = async () => {
     const plan = editingPlan;
     if (!plan) return;
     if (!isDbPlan(plan.id)) {
-      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
-      return;
-    }
-    scheduleAfterInteraction(() => {
-      const el = modalEditRef.current;
-      hideEl(el);
-      patchPlan(plan).then((result) => {
-        if (result.ok) {
+      try {
+        const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
+        const initData = await initRes.json().catch(() => ({}));
+        if (initRes.ok && initData?.ok) {
+          await loadData();
           setShowEditModal(false);
           setEditingPlan(null);
-          setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
-          setTimeout(() => loadData(), 300);
+          alert(ar ? 'تم تحميل الباقات من النظام. اختر الباقة ثم انقر تعديل → حفظ.' : 'Plans loaded. Select a plan, click Edit then Save.');
         } else {
-          showEl(el);
-          setShowEditModal(true);
-          setEditingPlan(plan);
-          alert(ar ? `فشل الحفظ: ${result.error || 'خطأ غير معروف'}` : `Save failed: ${result.error || 'Unknown error'}`);
+          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
         }
-      });
-    });
+      } catch {
+        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+      }
+      return;
+    }
+    const el = modalEditRef.current;
+    const saveBtn = el?.querySelector('[data-save="edit"]') as HTMLButtonElement | null;
+    try {
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري الحفظ...' : 'Saving...'; }
+      const result = await patchPlan(plan);
+      if (result.ok) {
+        setShowEditModal(false);
+        setEditingPlan(null);
+        setPlans((prev) => prev.map((p) => (p.id === plan.id ? plan : p)));
+        setTimeout(() => loadData(), 300);
+        alert(ar ? 'تم حفظ التعديلات بنجاح!' : 'Changes saved successfully!');
+      } else {
+        alert(ar ? `فشل الحفظ: ${result.error || 'خطأ غير معروف'}` : `Save failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error saving plan:', error);
+      alert(ar ? 'حدث خطأ أثناء الحفظ' : 'An error occurred while saving');
+    } finally {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = ar ? 'حفظ' : 'Save'; }
+    }
   };
 
   const openFeatures = (plan: PlanRow) => {
@@ -343,33 +358,48 @@ export default function AdminSubscriptionsPage() {
     setShowFeaturesModal(true);
   };
 
-  /** بعد تأخير قصير: إخفاء النافذة ثم PATCH؛ عند النجاح إغلاق وتحديث القائمة وإعادة جلب البيانات */
-  const onSaveFeatures = () => {
+  const onSaveFeatures = async () => {
     const planId = editingPlanId;
     const plan = plans.find((p) => p.id === planId);
     if (!plan) return;
     if (!isDbPlan(plan.id)) {
-      alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+      try {
+        const initRes = await fetch('/api/plans/init', { method: 'POST', ...FETCH_OPTS });
+        const initData = await initRes.json().catch(() => ({}));
+        if (initRes.ok && initData?.ok) {
+          await loadData();
+          setShowFeaturesModal(false);
+          alert(ar ? 'تم تحميل الباقات من النظام. اختر الباقة ثم انقر الميزات → حفظ.' : 'Plans loaded. Select a plan, click Features then Save.');
+        } else {
+          alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+        }
+      } catch {
+        alert(ar ? 'حدّث الصفحة لتحميل الباقات من النظام.' : 'Refresh the page to load plans from system.');
+      }
       return;
     }
     const feats = editingFeatures.filter((f) => f.trim() !== '');
     const featsAr = editingFeaturesAr.filter((f) => f.trim() !== '');
     const featuresToSave = featsAr.length ? featsAr : feats;
-    scheduleAfterInteraction(() => {
-      const el = modalFeaturesRef.current;
-      hideEl(el);
-      patchPlan(plan, { features: featuresToSave }).then((result) => {
-        if (result.ok) {
-          setShowFeaturesModal(false);
-          setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
-          setTimeout(() => loadData(), 300);
-        } else {
-          showEl(el);
-          setShowFeaturesModal(true);
-          alert(ar ? `فشل حفظ الميزات: ${result.error || 'خطأ غير معروف'}` : `Features save failed: ${result.error || 'Unknown error'}`);
-        }
-      });
-    });
+    const el = modalFeaturesRef.current;
+    const saveBtn = el?.querySelector('[data-save="features"]') as HTMLButtonElement | null;
+    try {
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = ar ? 'جاري الحفظ...' : 'Saving...'; }
+      const result = await patchPlan(plan, { features: featuresToSave });
+      if (result.ok) {
+        setShowFeaturesModal(false);
+        setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, features: feats, featuresAr: featsAr } : p)));
+        setTimeout(() => loadData(), 300);
+        alert(ar ? 'تم حفظ الميزات بنجاح!' : 'Features saved successfully!');
+      } else {
+        alert(ar ? `فشل حفظ الميزات: ${result.error || 'خطأ غير معروف'}` : `Features save failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error saving features:', error);
+      alert(ar ? 'حدث خطأ أثناء حفظ الميزات' : 'An error occurred while saving features');
+    } finally {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = ar ? 'حفظ الميزات' : 'Save features'; }
+    }
   };
 
   if (sessionStatus === 'unauthenticated' || (sessionStatus === 'authenticated' && !isAdmin)) {
@@ -676,7 +706,7 @@ export default function AdminSubscriptionsPage() {
                 <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
                   {ar ? 'إلغاء' : 'Cancel'}
                 </button>
-                <button type="button" onClick={onSaveEdit} className="flex-1 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
+                <button type="button" data-save="edit" onClick={onSaveEdit} className="flex-1 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
                   {ar ? 'حفظ' : 'Save'}
                 </button>
               </div>
@@ -720,8 +750,8 @@ export default function AdminSubscriptionsPage() {
                 <button type="button" onClick={() => setShowFeaturesModal(false)} className="flex-1 px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors">
                   {ar ? 'إلغاء' : 'Cancel'}
                 </button>
-                <button type="button" onClick={onSaveFeatures} className="flex-1 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
-                  {ar ? 'حفظ الميزات' : 'Save features'}
+<button type="button" data-save="features" onClick={onSaveFeatures} className="flex-1 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl font-semibold hover:opacity-90 transition-opacity">
+                {ar ? 'حفظ الميزات' : 'Save features'}
                 </button>
               </div>
             </div>
