@@ -338,35 +338,32 @@ export default function AdminSubscriptionsPage() {
     }
   }, [plansFromDb, isDbPlan, patchPlan, ar]);
 
-  const onAssignPlan = (userId: string, planId: string) => {
+  const onAssignPlan = async (userId: string, planId: string) => {
     setAssigningUserId(userId);
-    schedule(async () => {
-      try {
-        const res = await fetch('/api/subscriptions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          ...FETCH_OPTS,
-          body: JSON.stringify({ userId, planId, durationMonths: 12 }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          setUsers((prev) =>
-            prev.map((u) =>
-              u.id === userId ? { ...u, subscription: { planId, status: 'active' } } : u
-            )
-          );
-          alert(ar ? 'تم تعيين الباقة بنجاح!' : 'Plan assigned!');
-          loadData();
-        } else {
-          const detail = (data?.details as string) || (data?.error as string);
-          alert(detail ? `${data?.error || (ar ? 'فشل التعيين' : 'Assign failed')}: ${detail}` : (data?.error || (ar ? 'فشل التعيين' : 'Assign failed')));
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setAssigningUserId(null);
+    try {
+      const res = await fetch('/api/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        ...FETCH_OPTS,
+        body: JSON.stringify({ userId, planId, durationMonths: 12 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === userId ? { ...u, subscription: { planId, status: 'active' } } : u
+          )
+        );
+        alert(ar ? 'تم تعيين الباقة بنجاح!' : 'Plan assigned!');
+      } else {
+        const detail = (data?.details as string) || (data?.error as string);
+        alert(detail ? `${data?.error || (ar ? 'فشل التعيين' : 'Assign failed')}: ${detail}` : (data?.error || (ar ? 'فشل التعيين' : 'Assign failed')));
       }
-    });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAssigningUserId(null);
+    }
   };
 
   const openEdit = (plan: PlanRow) => {
