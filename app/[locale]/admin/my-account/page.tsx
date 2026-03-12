@@ -286,7 +286,8 @@ export default function MyAccountPage() {
 
   const handleSubmitPayment = async () => {
     if (!requestPlanId) return;
-    if (requestDirection === 'upgrade' && (!cardData.number.trim() || cardData.number.replace(/\s/g, '').length < 4)) {
+    const isFree = paymentAmount === 0;
+    if (!isFree && requestDirection === 'upgrade' && (!cardData.number.trim() || cardData.number.replace(/\s/g, '').length < 4)) {
       alert(ar ? 'أدخل بيانات البطاقة' : 'Enter card details');
       return;
     }
@@ -299,13 +300,15 @@ export default function MyAccountPage() {
         body: JSON.stringify({
           requestedPlanId: requestPlanId,
           direction: requestDirection,
-          payment: {
-            cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
-            cardExpiry: cardData.expiry,
-            cardholderName: cardData.name.trim(),
-            amount: paymentAmount,
-            currency: selectedPlan?.currency ?? 'OMR',
-          },
+          payment: isFree
+            ? { amount: 0, currency: selectedPlan?.currency ?? 'OMR' }
+            : {
+                cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
+                cardExpiry: cardData.expiry,
+                cardholderName: cardData.name.trim(),
+                amount: paymentAmount,
+                currency: selectedPlan?.currency ?? 'OMR',
+              },
         }),
       });
       const data = await res.json();
@@ -678,23 +681,44 @@ export default function MyAccountPage() {
                   </div>
                 </div>
               ) : ((requestStep === 2 && requestDirection === 'upgrade') || (requestStep === 3 && requestDirection === 'downgrade')) && selectedPlan ? (
-                <div className="bg-[#0f0d0b] min-h-[480px] p-4 md:p-6 rounded-b-xl">
-                  <UnifiedPaymentForm
-                    locale={locale}
-                    amount={paymentAmount}
-                    currency={selectedPlan.currency ?? 'OMR'}
-                    cardData={cardData}
-                    onCardDataChange={setCardData}
-                    onSubmit={handleSubmitPayment}
-                    onCancel={() => { if (requestDirection === 'downgrade') setRequestStep(2); else { setRequestStep(1); setRequestPlanId(''); } setPaymentSuccess(null); }}
-                    submitLabel={requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل والدفع' : 'Confirm downgrade & pay')}
-                    cancelLabel={ar ? '← رجوع' : '← Back'}
-                    loading={submitting}
-                    disabled={submitting}
-                    showSimulationBadge
-                    amountNote={requestDirection === 'downgrade' ? (ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end') : undefined}
-                  />
-                </div>
+                paymentAmount === 0 ? (
+                  <div className="p-6 space-y-6">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+                      <p className="font-semibold text-emerald-900 mb-1">
+                        {ar ? 'الباقة المجانية — لا يلزم دفع' : 'Free plan — no payment required'}
+                      </p>
+                      <p className="text-sm text-emerald-800">
+                        {ar ? 'اضغط «حفظ الباقة الجديدة» لتأكيد تنزيل الباقة. ستُفعّل بعد انتهاء الفترة الحالية.' : 'Click «Save new plan» to confirm. It will apply after your current period ends.'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3 justify-center">
+                      <button type="button" onClick={() => { if (requestDirection === 'downgrade') setRequestStep(2); else setRequestStep(1); setRequestPlanId(''); setPaymentSuccess(null); }} className="admin-btn-secondary">
+                        {ar ? '← رجوع' : '← Back'}
+                      </button>
+                      <button type="button" onClick={handleSubmitPayment} disabled={submitting} className="admin-btn-primary inline-flex items-center gap-2">
+                        {submitting ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ الباقة الجديدة' : 'Save new plan')}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#0f0d0b] min-h-[480px] p-4 md:p-6 rounded-b-xl">
+                    <UnifiedPaymentForm
+                      locale={locale}
+                      amount={paymentAmount}
+                      currency={selectedPlan.currency ?? 'OMR'}
+                      cardData={cardData}
+                      onCardDataChange={setCardData}
+                      onSubmit={handleSubmitPayment}
+                      onCancel={() => { if (requestDirection === 'downgrade') setRequestStep(2); else { setRequestStep(1); setRequestPlanId(''); } setPaymentSuccess(null); }}
+                      submitLabel={requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل والدفع' : 'Confirm downgrade & pay')}
+                      cancelLabel={ar ? '← رجوع' : '← Back'}
+                      loading={submitting}
+                      disabled={submitting}
+                      showSimulationBadge
+                      amountNote={requestDirection === 'downgrade' ? (ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end') : undefined}
+                    />
+                  </div>
+                )
               ) : null}
             </div>
             {requestStep === 1 && !paymentSuccess && (

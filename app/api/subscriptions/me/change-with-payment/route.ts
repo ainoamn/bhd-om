@@ -178,7 +178,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الخطة المختارة ليست تنزيلاً' }, { status: 400 });
     }
 
-    const amount = payment && typeof payment.amount === 'number' ? payment.amount : direction === 'upgrade' ? planPrice : 0;
+    const amount =
+      payment != null && typeof (payment as { amount?: unknown }).amount === 'number'
+        ? (payment as { amount: number }).amount
+        : direction === 'upgrade'
+          ? planPrice
+          : 0;
     const currency = payment?.currency || 'OMR';
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
 
@@ -223,13 +228,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, message: 'تمت الترقية بنجاح' });
     }
 
+    if (!subId) {
+      return NextResponse.json({ error: 'Subscription id missing', details: 'Cannot schedule downgrade without subscription id' }, { status: 400 });
+    }
     const existingScheduled = await prisma.subscriptionChangeRequest.findFirst({
       where: { userId, subscriptionId: subId, status: 'approved' },
     });
+    const now = new Date();
     if (existingScheduled) {
       await prisma.subscriptionChangeRequest.updateMany({
         where: { userId, subscriptionId: subId },
-        data: { requestedPlanId, direction: 'downgrade', status: 'approved', reviewedAt: new Date(), reviewedById: userId },
+        data: { requestedPlanId, direction: 'downgrade', status: 'approved', reviewedAt: now, reviewedById: userId },
       });
     } else {
       await prisma.subscriptionChangeRequest.create({
@@ -239,7 +248,7 @@ export async function POST(req: NextRequest) {
           requestedPlanId,
           direction: 'downgrade',
           status: 'approved',
-          reviewedAt: new Date(),
+          reviewedAt: now,
           reviewedById: userId,
         },
       });
