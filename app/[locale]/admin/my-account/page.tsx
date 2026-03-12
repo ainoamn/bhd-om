@@ -194,6 +194,48 @@ export default function MyAccountPage() {
     setPaymentSuccess(null);
   };
 
+  const handlePrintReceipt = () => {
+    if (!paymentSuccess) return;
+    const isAr = locale === 'ar';
+    const title = isAr ? 'إيصال الدفع' : 'Payment Receipt';
+    const planName = isAr ? paymentSuccess.planNameAr : paymentSuccess.planNameEn;
+    const typeLabel = isAr ? (paymentSuccess.direction === 'upgrade' ? 'ترقية' : 'تنزيل') : (paymentSuccess.direction === 'upgrade' ? 'Upgrade' : 'Downgrade');
+    const dateStr = new Date().toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' });
+    const dir = isAr ? 'rtl' : 'ltr';
+    const html = `<!DOCTYPE html><html dir="${dir}" lang="${locale}"><head><meta charset="utf-8"><title>${title}</title><style>
+      body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 480px; margin: 0 auto; color: #111; }
+      h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+      .success { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 0.5rem; padding: 1rem; text-align: center; margin-bottom: 1.5rem; }
+      .success h2 { color: #047857; margin: 0 0 0.25rem 0; font-size: 1.125rem; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+      th, td { padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb; text-align: ${isAr ? 'right' : 'left'}; }
+      th { font-weight: 600; color: #4b5563; width: 40%; }
+      .footer { font-size: 0.875rem; color: #6b7280; margin-top: 1.5rem; }
+    </style></head><body>
+      <h1>${title}</h1>
+      <div class="success"><h2>${isAr ? 'تمت العملية بنجاح' : 'Payment successful'}</h2><p style="margin:0;font-size:0.875rem">${isAr ? 'تم تسجيل الدفع وتحديث الباقة.' : 'Payment recorded and plan updated.'}</p></div>
+      <table><tbody>
+        <tr><th>${isAr ? 'الباقة' : 'Plan'}</th><td>${planName}</td></tr>
+        <tr><th>${isAr ? 'المبلغ' : 'Amount'}</th><td>${paymentSuccess.amount.toLocaleString('en-US')} ${paymentSuccess.currency}</td></tr>
+        <tr><th>${isAr ? 'النوع' : 'Type'}</th><td>${typeLabel}</td></tr>
+        <tr><th>${isAr ? 'التاريخ' : 'Date'}</th><td>${dateStr}</td></tr>
+      </tbody></table>
+      <p class="footer">${isAr ? 'بن حمود للتطوير' : 'Bin Hamood Development'} — ${dateStr}</p>
+    </body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert(isAr ? 'الرجاء السماح بالنوافذ المنبثقة لطباعة الإيصال.' : 'Please allow popups to print the receipt.');
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => {
+      w.print();
+      w.onafterprint = () => w.close();
+    }, 250);
+  };
+
   const handleSelectPlanForChange = (planId: string) => {
     setRequestPlanId(planId);
     setRequestStep(2);
@@ -502,8 +544,12 @@ export default function MyAccountPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex justify-center pt-2">
-                    <button type="button" onClick={closePlanModal} className="admin-btn-primary px-8">
+                  <div className="flex flex-wrap justify-center gap-3 pt-2">
+                    <button type="button" onClick={handlePrintReceipt} className="admin-btn-primary px-6 inline-flex items-center gap-2">
+                      <Icon name="printer" className="w-5 h-5" />
+                      {ar ? 'طباعة الإيصال' : 'Print receipt'}
+                    </button>
+                    <button type="button" onClick={closePlanModal} className="admin-btn-secondary px-6">
                       {ar ? 'إغلاق النافذة' : 'Close'}
                     </button>
                   </div>
