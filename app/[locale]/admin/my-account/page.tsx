@@ -64,7 +64,8 @@ export default function MyAccountPage() {
   const tOwner = useTranslations('admin.nav.ownerNav');
   const [subData, setSubData] = useState<SubData | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
-  const [requestStep, setRequestStep] = useState<1 | 2>(1);
+  /** 1 = اختر الباقة، 2 = للترقية شاشة الدفع، للتنزيل نافذة التنبيه، 3 = للتنزيل فقط شاشة الدفع */
+  const [requestStep, setRequestStep] = useState<1 | 2 | 3>(1);
   const [requestPlanId, setRequestPlanId] = useState('');
   const [requestDirection, setRequestDirection] = useState<'upgrade' | 'downgrade'>('upgrade');
   const [requestReason, setRequestReason] = useState('');
@@ -245,6 +246,15 @@ export default function MyAccountPage() {
     setPaymentSuccess(null);
   };
 
+  /** تاريخ تفعيل الباقة الجديدة عند التنزيل = اليوم التالي لانتهاء الاشتراك الحالي */
+  const downgradeActivationDate = subData?.subscription?.endAt
+    ? (() => {
+        const d = new Date(subData.subscription.endAt);
+        d.setDate(d.getDate() + 1);
+        return d;
+      })()
+    : null;
+
   const handlePrintReceipt = () => {
     if (!paymentSuccess) return;
     const isAr = locale === 'ar';
@@ -268,9 +278,10 @@ export default function MyAccountPage() {
 
   const handleSelectPlanForChange = (planId: string) => {
     setRequestPlanId(planId);
-    setRequestStep(2);
     setCardData({ number: '', expiry: '', cvv: '', name: '' });
     setPaymentSuccess(null);
+    if (requestDirection === 'downgrade') setRequestStep(2);
+    else setRequestStep(2);
   };
 
   const handleSubmitPayment = async () => {
@@ -559,7 +570,7 @@ export default function MyAccountPage() {
       {showRequestModal && subData?.plans && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-4 bg-black/60 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
           <div
-            className={`admin-modal w-full flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden ${paymentSuccess ? 'max-w-md' : requestStep === 1 ? 'max-w-4xl' : 'max-w-5xl max-h-[95vh]'}`}
+            className={`admin-modal w-full flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden ${paymentSuccess ? 'max-w-md' : requestStep === 1 ? 'max-w-4xl' : requestStep === 2 && requestDirection === 'downgrade' ? 'max-w-2xl' : 'max-w-5xl max-h-[95vh]'}`}
           >
             <div className="admin-modal-header flex items-center justify-between gap-4 flex-shrink-0">
               <h3 id="plan-modal-title" className="admin-modal-title">
@@ -567,7 +578,9 @@ export default function MyAccountPage() {
                   ? (ar ? 'إيصال الدفع' : 'Payment receipt')
                   : requestStep === 1
                     ? (requestDirection === 'upgrade' ? (ar ? 'اختر الباقة للترقية' : 'Choose plan to upgrade') : (ar ? 'اختر الباقة للتنزيل' : 'Choose plan to downgrade'))
-                    : (requestDirection === 'upgrade' ? (ar ? 'إتمام الدفع' : 'Complete payment') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade'))}
+                    : requestStep === 2 && requestDirection === 'downgrade'
+                      ? (ar ? 'تنبيه تنزيل الباقة' : 'Downgrade notice')
+                      : (requestDirection === 'upgrade' ? (ar ? 'إتمام الدفع' : 'Complete payment') : (ar ? 'إتمام الدفع للباقة الجديدة' : 'Pay for new plan'))}
               </h3>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={closePlanModal} className="admin-btn-secondary text-sm py-1.5 px-3">
@@ -642,7 +655,29 @@ export default function MyAccountPage() {
                     <p className="admin-text-secondary py-4">{ar ? 'لا توجد باقات متاحة لهذا الاتجاه.' : 'No plans available for this direction.'}</p>
                   )}
                 </>
-              ) : requestStep === 2 && selectedPlan ? (
+              ) : requestStep === 2 && requestDirection === 'downgrade' && selectedPlan ? (
+                <div className="p-6 space-y-6">
+                  <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-5 text-right space-y-4">
+                    <p className="font-semibold text-amber-900">
+                      {ar
+                        ? `الباقة الجديدة (${selectedPlan.nameAr}) سيتم تفعيلها من تاريخ ${downgradeActivationDate ? downgradeActivationDate.toLocaleDateString('ar-OM', { dateStyle: 'long' }) : '—'}`
+                        : `The new plan (${selectedPlan.nameEn}) will be activated from ${downgradeActivationDate ? downgradeActivationDate.toLocaleDateString('en-GB', { dateStyle: 'long' }) : '—'}`}
+                    </p>
+                    <ul className="list-disc list-inside space-y-2 text-amber-900 text-sm">
+                      <li>{ar ? 'لن تتمكن من استخدام الميزات والصلاحيات الموجودة في الباقة الحالية بعد تاريخ التفعيل.' : 'You will not be able to use the features and permissions of your current plan after the activation date.'}</li>
+                      <li>{ar ? 'سيتم حذف كافة البيانات التي لا تتناسق مع الباقة التالية (مثل عقارات أو وحدات تتجاوز حد الباقة الجديدة).' : 'All data that does not comply with the new plan will be removed (e.g. properties or units exceeding the new plan limit).'}</li>
+                    </ul>
+                  </div>
+                  <div className="flex flex-wrap gap-3 justify-center">
+                    <button type="button" onClick={() => setRequestStep(1)} className="admin-btn-secondary">
+                      {ar ? '← رجوع' : '← Back'}
+                    </button>
+                    <button type="button" onClick={() => setRequestStep(3)} className="admin-btn-primary inline-flex items-center gap-2">
+                      {ar ? 'استمرار' : 'Continue'}
+                    </button>
+                  </div>
+                </div>
+              ) : ((requestStep === 2 && requestDirection === 'upgrade') || (requestStep === 3 && requestDirection === 'downgrade')) && selectedPlan ? (
                 <div className="bg-[#0f0d0b] min-h-[480px] p-4 md:p-6 rounded-b-xl">
                   <UnifiedPaymentForm
                     locale={locale}
@@ -651,8 +686,8 @@ export default function MyAccountPage() {
                     cardData={cardData}
                     onCardDataChange={setCardData}
                     onSubmit={handleSubmitPayment}
-                    onCancel={() => { setRequestStep(1); setRequestPlanId(''); setPaymentSuccess(null); }}
-                    submitLabel={requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade')}
+                    onCancel={() => { if (requestDirection === 'downgrade') setRequestStep(2); else { setRequestStep(1); setRequestPlanId(''); } setPaymentSuccess(null); }}
+                    submitLabel={requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل والدفع' : 'Confirm downgrade & pay')}
                     cancelLabel={ar ? '← رجوع' : '← Back'}
                     loading={submitting}
                     disabled={submitting}
