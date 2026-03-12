@@ -71,8 +71,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'userId and planId required' }, { status: 400 });
     }
 
-    const plan = await prisma.plan.findUnique({ where: { id: planId } });
-    if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 400 });
+    // التحقق من وجود الباقة باستعلام خام لتفادي خطأ أعمدة Plan في الإنتاج
+    const tablePlan = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND LOWER(table_name) = 'plan' LIMIT 1
+    `;
+    const planTable = tablePlan?.[0]?.table_name;
+    if (!planTable) {
+      return NextResponse.json({ error: 'Plan table not available' }, { status: 500 });
+    }
+    const safePlanTable = `"${String(planTable).replace(/"/g, '""')}"`;
+    const planRow = await prisma.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT id FROM ${safePlanTable} WHERE id = $1 LIMIT 1`,
+      planId
+    );
+    if (!planRow?.length) return NextResponse.json({ error: 'Plan not found' }, { status: 400 });
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 400 });
@@ -80,27 +93,36 @@ export async function POST(req: NextRequest) {
     const startAt = new Date();
     const endAt = new Date(startAt);
     endAt.setMonth(endAt.getMonth() + (durationMonths || 12));
+    const usageJson = JSON.stringify({ properties: 0, units: 0, bookings: 0, users: 0, storage: 0 });
 
-    await prisma.subscription.upsert({
-      where: { userId },
-      create: {
-        userId,
-        planId,
-        status: 'active',
-        startAt,
-        endAt,
-        usageJson: JSON.stringify({ properties: 0, units: 0, bookings: 0, users: 0, storage: 0 }),
-      },
-      update: {
-        planId,
-        status: 'active',
-        startAt,
-        endAt,
-      },
-    });
+    // استعلام خام لـ upsert الاشتراك إن فشل Prisma (جدول أو أعمدة غير متطابقة)
+    try {
+      await prisma.subscription.upsert({
+        where: { userId },
+        create: {
+          userId,
+          planId,
+          status: 'active',
+          startAt,
+          endAt,
+          usageJson,
+        },
+        update: {
+          planId,
+          status: 'active',
+          startAt,
+          endAt,
+        },
+      });
+    } catch (upsertErr) {
+      const msg = upsertErr instanceof Error ? upsertErr.message : String(upsertErr);
+      console.error('POST /api/subscriptions upsert:', upsertErr);
+      return NextResponse.json({ error: 'Server error', details: msg }, { status: 500 });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
     console.error('POST /api/subscriptions:', e);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Server error', details: message }, { status: 500 });
   }
 }

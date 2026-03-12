@@ -334,7 +334,8 @@ export default function AdminSubscriptionsPage() {
           alert(ar ? 'تم تعيين الباقة بنجاح!' : 'Plan assigned!');
           loadData();
         } else {
-          alert(data?.error || (ar ? 'فشل التعيين' : 'Assign failed'));
+          const detail = (data?.details as string) || (data?.error as string);
+          alert(detail ? `${data?.error || (ar ? 'فشل التعيين' : 'Assign failed')}: ${detail}` : (data?.error || (ar ? 'فشل التعيين' : 'Assign failed')));
         }
       } catch (e) {
         console.error(e);
