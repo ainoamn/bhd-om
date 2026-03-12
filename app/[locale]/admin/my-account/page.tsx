@@ -317,23 +317,32 @@ export default function MyAccountPage() {
       <div className="admin-card max-w-3xl">
         <div className="admin-card-header flex flex-wrap items-center justify-between gap-3">
           <h2 className="admin-card-title">{ar ? 'بياناتي (كما في دفتر العناوين)' : 'My data (as in address book)'}</h2>
-          {fullContact && (
-            editing ? (
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setEditing(false)} className="admin-btn-secondary">
-                  {ar ? 'إلغاء' : 'Cancel'}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/${locale}/admin/address-book`}
+              className="admin-btn-primary inline-flex items-center gap-2 no-underline"
+            >
+              <Icon name="pencil" className="w-4 h-4" />
+              {ar ? 'تعديل وتعبئة البيانات (دفتر العناوين)' : 'Edit & fill data (Address book)'}
+            </Link>
+            {fullContact && (
+              editing ? (
+                <>
+                  <button type="button" onClick={() => setEditing(false)} className="admin-btn-secondary">
+                    {ar ? 'إلغاء' : 'Cancel'}
+                  </button>
+                  <button type="button" onClick={handleSaveContact} disabled={saving} className="admin-btn-secondary">
+                    {saving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ' : 'Save')}
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={() => setEditing(true)} className="admin-btn-secondary inline-flex items-center gap-2">
+                  <Icon name="pencil" className="w-4 h-4" />
+                  {ar ? 'تعديل سريع' : 'Quick edit'}
                 </button>
-                <button type="button" onClick={handleSaveContact} disabled={saving} className="admin-btn-primary">
-                  {saving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ' : 'Save')}
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setEditing(true)} className="admin-btn-secondary inline-flex items-center gap-2">
-                <Icon name="pencil" className="w-4 h-4" />
-                {ar ? 'تعديل' : 'Edit'}
-              </button>
-            )
-          )}
+              )
+            )}
+          </div>
         </div>
         <div className="admin-card-body space-y-4">
           {fullContact ? (
@@ -481,6 +490,62 @@ export default function MyAccountPage() {
               <button type="button" onClick={() => { setRequestDirection('downgrade'); setRequestPlanId(''); setRequestStep(1); setShowRequestModal(true); }} className="admin-btn-secondary">
                 {ar ? 'طلب تنزيل الباقة' : 'Request downgrade'}
               </button>
+            </div>
+          )}
+          {subData?.subscription?.plan && subData?.subscription?.startAt && subData?.subscription?.endAt && (
+            <div className="pt-4 mt-4 border-t border-gray-200 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                  <div>
+                    <span className="text-gray-600">{ar ? 'تاريخ الاشتراك والدفع' : 'Subscription / payment date'}</span>
+                    <p className="font-medium text-gray-900">{new Date(subData.subscription.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">{ar ? 'تاريخ البدء' : 'Start date'}</span>
+                    <p className="font-medium text-gray-900">{new Date(subData.subscription.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">{ar ? 'تاريخ الانتهاء' : 'End date'}</span>
+                    <p className="font-medium text-gray-900">{new Date(subData.subscription.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sub = subData.subscription!;
+                    const plan = sub.plan!;
+                    const isAr = locale === 'ar';
+                    const title = isAr ? 'إيصال الاشتراك' : 'Subscription receipt';
+                    const html = `<!DOCTYPE html><html dir="${isAr ? 'rtl' : 'ltr'}" lang="${locale}"><head><meta charset="utf-8"><title>${title}</title><style>
+                      body{font-family:system-ui,sans-serif;padding:2rem;max-width:480px;margin:0 auto;color:#111}
+                      h1{font-size:1.5rem;margin-bottom:0.5rem}
+                      table{width:100%;border-collapse:collapse;margin:1rem 0}
+                      th,td{padding:0.5rem 0;border-bottom:1px solid #e5e7eb;text-align:${isAr ? 'right' : 'left'}}
+                      th{font-weight:600;color:#4b5563;width:45%}
+                      .footer{font-size:0.875rem;color:#6b7280;margin-top:1.5rem}
+                    </style></head><body>
+                      <h1>${title}</h1>
+                      <table><tbody>
+                        <tr><th>${isAr ? 'الباقة' : 'Plan'}</th><td>${isAr ? plan.nameAr : plan.nameEn}</td></tr>
+                        <tr><th>${isAr ? 'المبلغ الشهري' : 'Monthly amount'}</th><td>${plan.priceMonthly} ${plan.currency}</td></tr>
+                        <tr><th>${isAr ? 'تاريخ البدء' : 'Start date'}</th><td>${new Date(sub.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</td></tr>
+                        <tr><th>${isAr ? 'تاريخ الانتهاء' : 'End date'}</th><td>${new Date(sub.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</td></tr>
+                      </tbody></table>
+                      <p class="footer">${isAr ? 'بن حمود للتطوير' : 'Bin Hamood Development'} — ${new Date().toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</p>
+                    </body></html>`;
+                    const w = window.open('', '_blank');
+                    if (!w) { alert(isAr ? 'السماح بالنوافذ المنبثقة للطباعة.' : 'Allow popups to print.'); return; }
+                    w.document.write(html);
+                    w.document.close();
+                    w.focus();
+                    setTimeout(() => { w.print(); w.onafterprint = () => w.close(); }, 250);
+                  }}
+                  className="admin-btn-secondary inline-flex items-center gap-2"
+                >
+                  <Icon name="printer" className="w-4 h-4" />
+                  {ar ? 'طباعة الإيصال' : 'Print receipt'}
+                </button>
+              </div>
             </div>
           )}
           {isAdmin && (
