@@ -17,6 +17,7 @@ import {
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
+import UnifiedPaymentForm from '@/components/shared/UnifiedPaymentForm';
 
 type PlanInfo = { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency: string; features?: string[] };
 type SubData = {
@@ -475,91 +476,33 @@ export default function MyAccountPage() {
               )}
 
               {requestStep === 2 && selectedPlan && (
-                <>
-                  <div className="admin-bg-secondary admin-rounded-lg p-4 mb-4">
-                    <div className="flex justify-between items-center flex-wrap gap-2">
-                      <span className="font-bold admin-text-primary">{ar ? selectedPlan.nameAr : selectedPlan.nameEn}</span>
-                      <span className="text-xl font-bold" style={{ color: 'var(--admin-primary)' }}>
-                        {paymentAmount.toLocaleString('en-US')} {selectedPlan.currency ?? 'OMR'}
-                        {requestDirection === 'downgrade' && (
-                          <span className="admin-text-sm font-normal admin-text-secondary block">{ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end'}</span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                  {requestDirection === 'upgrade' && (
-                    <div className="space-y-3 mb-4">
-                      <div className="admin-form-group">
-                        <label className="admin-form-label">{ar ? 'رقم البطاقة' : 'Card number'}</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={cardData.number}
-                          onChange={(e) => setCardData({ ...cardData, number: e.target.value.replace(/\D/g, '').slice(0, 19).replace(/(\d{4})/g, '$1 ').trim() })}
-                          placeholder="1234 5678 9012 3456"
-                          className="admin-input w-full font-mono"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="admin-form-group">
-                          <label className="admin-form-label">{ar ? 'انتهاء الصلاحية' : 'Expiry'}</label>
-                          <input
-                            type="text"
-                            placeholder="MM/YY"
-                            maxLength={5}
-                            value={cardData.expiry}
-                            onChange={(e) => {
-                              let v = e.target.value.replace(/\D/g, '').slice(0, 4);
-                              if (v.length >= 2) v = v.slice(0, 2) + '/' + v.slice(2);
-                              setCardData({ ...cardData, expiry: v });
-                            }}
-                            className="admin-input w-full font-mono"
-                          />
-                        </div>
-                        <div className="admin-form-group">
-                          <label className="admin-form-label">CVV</label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={4}
-                            value={cardData.cvv}
-                            onChange={(e) => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                            placeholder="123"
-                            className="admin-input w-full font-mono"
-                          />
-                        </div>
-                      </div>
-                      <div className="admin-form-group">
-                        <label className="admin-form-label">{ar ? 'اسم حامل البطاقة' : 'Cardholder name'}</label>
-                        <input
-                          type="text"
-                          value={cardData.name}
-                          onChange={(e) => setCardData({ ...cardData, name: e.target.value })}
-                          placeholder={ar ? 'الاسم كما على البطاقة' : 'Name as on card'}
-                          className="admin-input w-full"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
+                <div className="-m-6 -mb-0 md:-m-8 md:mb-0 bg-[#0f0d0b] rounded-b-2xl p-4 md:p-6">
+                  <UnifiedPaymentForm
+                    locale={locale}
+                    amount={paymentAmount}
+                    currency={selectedPlan.currency ?? 'OMR'}
+                    cardData={cardData}
+                    onCardDataChange={setCardData}
+                    onSubmit={handleSubmitPayment}
+                    onCancel={() => { setRequestStep(1); setRequestPlanId(''); }}
+                    submitLabel={requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade')}
+                    cancelLabel={ar ? '← رجوع' : '← Back'}
+                    loading={submitting}
+                    disabled={submitting}
+                    showSimulationBadge
+                    compact
+                    amountNote={requestDirection === 'downgrade' ? (ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end') : undefined}
+                  />
+                </div>
               )}
             </div>
-            <div className="admin-modal-footer">
-              {requestStep === 1 ? (
+            {requestStep === 1 && (
+              <div className="admin-modal-footer">
                 <button type="button" onClick={() => { setShowRequestModal(false); setRequestStep(1); setRequestPlanId(''); }} className="admin-btn-secondary">
                   {ar ? 'إلغاء' : 'Cancel'}
                 </button>
-              ) : (
-                <>
-                  <button type="button" onClick={() => { setRequestStep(1); setRequestPlanId(''); }} className="admin-btn-secondary">
-                    {ar ? '← رجوع' : '← Back'}
-                  </button>
-                  <button type="button" onClick={handleSubmitPayment} disabled={submitting} className="admin-btn-primary flex-1 min-w-0">
-                    {submitting ? (ar ? 'جاري المعالجة...' : 'Processing...') : requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل' : 'Confirm downgrade')}
-                  </button>
-                </>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}
