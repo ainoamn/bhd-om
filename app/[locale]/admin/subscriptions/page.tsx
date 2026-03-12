@@ -283,18 +283,29 @@ export default function AdminSubscriptionsPage() {
 
   const saveAllChanges = useCallback(async () => {
     if (!plansFromDb) return;
+    if (limitDebounceRef.current) {
+      clearTimeout(limitDebounceRef.current);
+      limitDebounceRef.current = null;
+    }
     setSavingAll(true);
-    schedule(async () => {
+    try {
       let firstError: string | null = null;
-      for (const plan of plansRef.current) {
+      const list = plansRef.current;
+      const config = configRef.current;
+      for (const plan of list) {
         if (!isDbPlan(plan.id)) continue;
-        const result = await patchPlan(plan);
+        const permissions = config[plan.id] ?? [];
+        const result = await patchPlan(plan, { permissions });
         if (!result.ok) firstError = result.error ?? (ar ? 'خطأ' : 'Error');
       }
+      if (firstError) {
+        alert(ar ? `فشل الحفظ: ${firstError}` : `Save failed: ${firstError}`);
+      } else {
+        await loadData();
+      }
+    } finally {
       setSavingAll(false);
-      if (firstError) alert(ar ? `فشل الحفظ: ${firstError}` : `Save failed: ${firstError}`);
-      else await loadData();
-    });
+    }
   }, [plansFromDb, isDbPlan, patchPlan, loadData, ar]);
 
   const onAssignPlan = (userId: string, planId: string) => {
