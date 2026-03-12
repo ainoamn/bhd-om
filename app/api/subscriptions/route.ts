@@ -1,13 +1,27 @@
 /**
  * قائمة الاشتراكات (أدمن) + تعيين باقة لمستخدم
+ * GET يستخدم استعلاماً خاماً لقراءة الاشتراكات لتفادي خطأ أعمدة/جدول غير متطابق
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const SUB_COL_MAP: Record<string, string[]> = {
+  id: ['id'],
+  userId: ['userId', 'user_id'],
+  planId: ['planId', 'plan_id'],
+  status: ['status'],
+};
+
+function getSubVal(row: Record<string, unknown>, col: string | undefined): unknown {
+  if (!col) return undefined;
+  return row[col];
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,30 +34,49 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const subscriptions = await prisma.subscription.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: { select: { id: true, name: true, email: true, serialNumber: true, role: true } },
-        plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
-        changeRequests: {
-          where: { status: 'pending' },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-        },
-      },
-    });
+    const tableSub = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND LOWER(table_name) = 'subscription' LIMIT 1
+    `;
+    const subTableName = tableSub?.[0]?.table_name;
+    if (!subTableName) {
+      return NextResponse.json({ list: [] }, {
+        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+      });
+    }
 
-    const list = subscriptions.map((s) => ({
-      id: s.id,
-      userId: s.userId,
-      planId: s.planId,
-      status: s.status,
-      startAt: s.startAt.toISOString(),
-      endAt: s.endAt.toISOString(),
-      usage: s.usageJson ? (JSON.parse(s.usageJson) as Record<string, number>) : {},
-      user: s.user,
-      plan: s.plan,
-      pendingChangeRequests: s.changeRequests.length,
+    const colsResult = await prisma.$queryRaw<{ column_name: string }[]>(
+      Prisma.sql`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${subTableName} ORDER BY ordinal_position`
+    );
+    const colSet = new Set((colsResult || []).map((c) => c.column_name));
+
+    const selectCols: string[] = [];
+    const keyToCol: Record<string, string> = {};
+    for (const [key, candidates] of Object.entries(SUB_COL_MAP)) {
+      const found = candidates.find((c) => colSet.has(c));
+      if (found) {
+        selectCols.push(found);
+        keyToCol[key] = found;
+      }
+    }
+    if (selectCols.length < 4) {
+      return NextResponse.json({ list: [] }, {
+        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+      });
+    }
+
+    const quoted = selectCols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(', ');
+    const safeTable = `"${String(subTableName).replace(/"/g, '""')}"`;
+    const orderCol = colSet.has('createdAt') ? '"createdAt"' : '"id"';
+    const raw = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+      `SELECT ${quoted} FROM ${safeTable} ORDER BY ${orderCol} DESC NULLS LAST`
+    );
+
+    const list = (raw || []).map((r) => ({
+      id: String(getSubVal(r, keyToCol.id) ?? ''),
+      userId: String(getSubVal(r, keyToCol.userId) ?? ''),
+      planId: String(getSubVal(r, keyToCol.planId) ?? ''),
+      status: String(getSubVal(r, keyToCol.status) ?? 'active'),
     }));
 
     return NextResponse.json({ list }, {
