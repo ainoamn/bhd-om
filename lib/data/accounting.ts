@@ -631,9 +631,14 @@ export function cancelDocument(id: string): AccountingDocument | null {
 export { getAuditLog, getEntityAuditChain } from '@/lib/accounting/audit/auditEngine';
 export { getFiscalPeriods, lockPeriod, isPeriodLocked, createFiscalPeriod } from '@/lib/accounting/compliance/periodEngine';
 
-/** حساب رصيد حساب من القيود */
+/** حساب رصيد حساب من القيود، أو من الرصيد المخزّن في الحساب (عند تحميل البيانات من API) */
 export function getAccountBalance(accountId: string, asOfDate?: string, entriesOverride?: JournalEntry[], accountsOverride?: ChartAccount[]): { debit: number; credit: number; balance: number } {
   const entries = entriesOverride ?? getAllJournalEntries();
+  const account = accountsOverride?.find((a) => a.id === accountId) ?? getAccountById(accountId);
+  const storedBalance = account && 'balance' in account && typeof (account as { balance?: number }).balance === 'number' ? (account as { balance: number }).balance : undefined;
+  if (entries.length === 0 && storedBalance !== undefined) {
+    return { debit: 0, credit: 0, balance: storedBalance };
+  }
   let debit = 0;
   let credit = 0;
   for (const entry of entries) {
@@ -646,7 +651,6 @@ export function getAccountBalance(accountId: string, asOfDate?: string, entriesO
       }
     }
   }
-  const account = accountsOverride?.find((a) => a.id === accountId) ?? getAccountById(accountId);
   const isDebitNormal = account?.type === 'ASSET' || account?.type === 'EXPENSE';
   const balance = isDebitNormal ? debit - credit : credit - debit;
   return { debit, credit, balance };

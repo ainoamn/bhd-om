@@ -144,12 +144,47 @@ export async function isPeriodLockedForDate(date: string): Promise<boolean> {
   return period?.isLocked ?? false;
 }
 
+/** إعادة حساب أرصدة الحسابات من القيود (للمعاملات المسجلة قبل تفعيل تحديث الرصيد التلقائي) */
+export async function recomputeAccountBalances(): Promise<void> {
+  const entries = await prisma.accountingJournalEntry.findMany({
+    where: { status: { in: ['APPROVED', 'POSTED'] } },
+    include: { lines: true },
+  });
+  const balances: Record<string, number> = {};
+  for (const entry of entries) {
+    for (const line of entry.lines) {
+      balances[line.accountId] = (balances[line.accountId] ?? 0) + (line.debit - line.credit);
+    }
+  }
+  const accounts = await prisma.accountingAccount.findMany();
+  for (const acc of accounts) {
+    const delta = balances[acc.id] ?? 0;
+    const isDebitNormal = acc.type === 'ASSET' || acc.type === 'EXPENSE';
+    const targetBalance = isDebitNormal ? delta : -delta;
+    if (Math.abs((acc.balance ?? 0) - targetBalance) > 0.001) {
+      await prisma.accountingAccount.update({
+        where: { id: acc.id },
+        data: { balance: targetBalance },
+      });
+    }
+  }
+}
+
 export async function getAccountsFromDb() {
   await ensureAccountingAccounts();
-  const rows = await prisma.accountingAccount.findMany({
+  let rows = await prisma.accountingAccount.findMany({
     where: { isActive: true },
     orderBy: { code: 'asc' },
   });
+  const totalBalance = rows.reduce((s, r) => s + Math.abs(r.balance ?? 0), 0);
+  const entryCount = await prisma.accountingJournalEntry.count({ where: { status: { in: ['APPROVED', 'POSTED'] } } });
+  if (entryCount > 0 && totalBalance < 0.001) {
+    await recomputeAccountBalances();
+    rows = await prisma.accountingAccount.findMany({
+      where: { isActive: true },
+      orderBy: { code: 'asc' },
+    });
+  }
   return rows.map((r, i) => ({
     id: r.id,
     code: r.code,
@@ -159,6 +194,7 @@ export async function getAccountsFromDb() {
     parentId: r.parentId,
     isActive: r.isActive,
     sortOrder: i,
+    balance: r.balance ?? 0,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));
@@ -256,6 +292,16 @@ export async function createJournalEntryInDb(data: {
     },
     include: { lines: true },
   });
+  for (const line of entry.lines) {
+    const acc = await prisma.accountingAccount.findUnique({ where: { id: line.accountId } });
+    if (!acc) continue;
+    const isDebitNormal = acc.type === 'ASSET' || acc.type === 'EXPENSE';
+    const delta = isDebitNormal ? line.debit - line.credit : line.credit - line.debit;
+    await prisma.accountingAccount.update({
+      where: { id: acc.id },
+      data: { balance: { increment: delta } },
+    });
+  }
   await prisma.accountingAuditLog.create({
     data: {
       action: 'CREATE',
