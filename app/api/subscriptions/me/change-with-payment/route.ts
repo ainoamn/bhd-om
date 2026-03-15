@@ -44,7 +44,7 @@ async function createSubscriptionReceipt(params: {
   await ensureAccountingAccounts();
   const accounts = await getAccountsFromDb();
   const cashAcc = accounts.find((a: { code: string }) => a.code === '1000');
-  const revenueAcc = accounts.find((a: { code: string }) => a.code === '4250') || accounts.find((a: { code: string }) => a.code === '4200') || accounts.find((a: { code: string }) => a.code === '4000');
+  const revenueAcc = accounts.find((a: { code: string }) => a.code === '4250');
   if (!cashAcc || !revenueAcc) return null;
   const date = new Date().toISOString().slice(0, 10);
   const dirLabel = direction === 'upgrade' ? 'ترقية' : 'تنزيل';

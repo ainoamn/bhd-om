@@ -20,10 +20,10 @@ const DEFAULT_ACCOUNTS: Array<{ code: string; nameAr: string; nameEn: string; ty
   { code: '2300', nameAr: 'التزامات أخرى', nameEn: 'Other Liabilities', type: 'LIABILITY', sortOrder: 11 },
   { code: '3000', nameAr: 'رأس المال', nameEn: 'Capital', type: 'EQUITY', sortOrder: 12 },
   { code: '3100', nameAr: 'أرباح محتجزة', nameEn: 'Retained Earnings', type: 'EQUITY', sortOrder: 13 },
-  { code: '4000', nameAr: 'إيرادات الإيجار', nameEn: 'Rent Revenue', type: 'REVENUE', sortOrder: 14 },
+  { code: '4000', nameAr: 'إيرادات العقارات والإيجار', nameEn: 'Property & Rent Revenue', type: 'REVENUE', sortOrder: 14 },
   { code: '4100', nameAr: 'إيرادات المبيعات', nameEn: 'Sales Revenue', type: 'REVENUE', sortOrder: 15 },
   { code: '4200', nameAr: 'رسوم إدارية', nameEn: 'Administrative Fees', type: 'REVENUE', sortOrder: 16 },
-  { code: '4250', nameAr: 'إيرادات الاشتراكات', nameEn: 'Subscription Revenue', type: 'REVENUE', sortOrder: 17 },
+  { code: '4250', nameAr: 'إيرادات الاشتراكات (الباقات)', nameEn: 'Subscription Revenue', type: 'REVENUE', sortOrder: 17 },
   { code: '4300', nameAr: 'إيرادات أخرى', nameEn: 'Other Revenue', type: 'REVENUE', sortOrder: 18 },
   { code: '5000', nameAr: 'مصروفات التشغيل', nameEn: 'Operating Expenses', type: 'EXPENSE', sortOrder: 19 },
   { code: '5100', nameAr: 'مصروفات الصيانة', nameEn: 'Maintenance Expenses', type: 'EXPENSE', sortOrder: 20 },
@@ -64,9 +64,10 @@ export async function ensureAccountingAccounts() {
     }
   }
   await ensureSubscriptionRevenueAccount();
+  await ensurePropertyRentRevenueAccount();
 }
 
-/** إنشاء حساب إيرادات الاشتراكات (4250) إن لم يكن موجوداً — للربط مع دفعات الباقات */
+/** حساب مخصص للاشتراكات: إيرادات الباقات من المستخدمين (4250) — يُستخدم لكل دفعة اشتراك */
 export async function ensureSubscriptionRevenueAccount() {
   const existing = await prisma.accountingAccount.findUnique({
     where: { code: '4250' },
@@ -75,8 +76,26 @@ export async function ensureSubscriptionRevenueAccount() {
     await prisma.accountingAccount.create({
       data: {
         code: '4250',
-        nameAr: 'إيرادات الاشتراكات',
+        nameAr: 'إيرادات الاشتراكات (الباقات)',
         nameEn: 'Subscription Revenue',
+        type: 'REVENUE',
+        parentId: null,
+      },
+    });
+  }
+}
+
+/** حساب مخصص للعقارات: إيرادات حجوزات الوحدات والإيجار (4000) — يُستخدم لكل إيصال حجز عقار */
+export async function ensurePropertyRentRevenueAccount() {
+  const existing = await prisma.accountingAccount.findUnique({
+    where: { code: '4000' },
+  });
+  if (!existing) {
+    await prisma.accountingAccount.create({
+      data: {
+        code: '4000',
+        nameAr: 'إيرادات العقارات والإيجار',
+        nameEn: 'Property & Rent Revenue',
         type: 'REVENUE',
         parentId: null,
       },
@@ -663,7 +682,7 @@ export async function syncSubscriptionHistoryToAccountingDb(): Promise<number> {
     await ensureAccountingAccounts();
     const accounts = await getAccountsFromDb();
     const cashAcc = accounts.find((a: { code: string }) => a.code === '1000');
-    const revenueAcc = accounts.find((a: { code: string }) => a.code === '4250') || accounts.find((a: { code: string }) => a.code === '4200') || accounts.find((a: { code: string }) => a.code === '4000');
+    const revenueAcc = accounts.find((a: { code: string }) => a.code === '4250');
     if (!cashAcc || !revenueAcc) return 0;
     for (const h of list) {
       const amount = Number(h.amountPaid ?? 0);
