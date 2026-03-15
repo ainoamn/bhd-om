@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
   }
   try {
     const accounts = await getAccountsFromDb();
-    return NextResponse.json(accounts);
+    return NextResponse.json(accounts, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    });
   } catch (err) {
     console.error('Accounting accounts GET:', err);
     return NextResponse.json(

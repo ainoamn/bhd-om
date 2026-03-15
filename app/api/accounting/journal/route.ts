@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('fromDate') || undefined;
     const toDate = searchParams.get('toDate') || undefined;
     const entries = await getJournalEntriesFromDb({ fromDate, toDate });
-    return NextResponse.json(entries);
+    return NextResponse.json(entries, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    });
   } catch (err) {
     console.error('Accounting journal GET:', err);
     return NextResponse.json(

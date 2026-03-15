@@ -1,14 +1,16 @@
 /**
  * RBAC للـ API - يتحقق من الصلاحيات قبل تنفيذ العملية
- * يمكن استخدام X-Accounting-Role في التطوير، أو getServerSession عند تفعيل NextAuth
+ * يستخدم getToken مع الطلب لقراءة الجلسة من الكوكي في Route Handlers (App Router)
  */
 
 import { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 import { hasPermission, type AccountingPermission, type AccountingRole } from './permissions';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getRoleFromUserRole } from './permissions';
 
-/** يحصل على دور المستخدم من الطلب (الجلسة في الإنتاج، وHeader مسموح في التطوير فقط) */
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
+
+/** يحصل على دور المستخدم من الطلب (جلسة JWT من الكوكي أو Header في التطوير) */
 export async function getAccountingRoleFromRequest(request: NextRequest): Promise<AccountingRole | undefined> {
   const isDev = process.env.NODE_ENV !== 'production';
   if (isDev) {
@@ -17,12 +19,13 @@ export async function getAccountingRoleFromRequest(request: NextRequest): Promis
       return headerRole as AccountingRole;
     }
   }
-  const session = await getServerSession(authOptions);
-  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const token = await getToken({
+    req: request,
+    secret: NEXTAUTH_SECRET,
+  });
+  const userRole = token?.role as string | undefined;
   if (!userRole) return undefined;
-  // تحويل دور المستخدم العام إلى دور محاسبي
-  const mapped = (await import('./permissions')).getRoleFromUserRole(userRole);
-  return mapped;
+  return getRoleFromUserRole(userRole);
 }
 
 /** يتحقق من الصلاحية ويرجع 403 إن لم تكن متوفرة */
