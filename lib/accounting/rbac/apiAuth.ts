@@ -1,11 +1,13 @@
 /**
  * RBAC للـ API - يتحقق من الصلاحيات قبل تنفيذ العملية
- * يقرأ الجلسة من الكوكي بعدة طرق لضمان العمل في الإنتاج (App Router / Vercel)
+ * يقرأ الجلسة بعدة طرق: getToken، كوكي الطلب، next/headers، getServerSession (كما في الموقع السابق)
  */
 
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { getToken } from 'next-auth/jwt';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { hasPermission, type AccountingPermission, type AccountingRole } from './permissions';
 import { getRoleFromUserRole } from './permissions';
 
@@ -63,10 +65,17 @@ export async function getAccountingRoleFromRequest(request: NextRequest): Promis
     }
   }
 
-  if (!token) return undefined;
-  const userRole = (token.role as string | undefined) ?? (token.sub ? 'ACCOUNTANT' : undefined);
-  if (!userRole) return undefined;
-  return getRoleFromUserRole(userRole);
+  if (token) {
+    const userRole = (token.role as string | undefined) ?? (token.sub ? 'ACCOUNTANT' : undefined);
+    if (userRole) return getRoleFromUserRole(userRole);
+  }
+
+  const session = await getServerSession(authOptions);
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  if (session?.user && sessionRole) return getRoleFromUserRole(sessionRole);
+  if (session?.user) return 'ACCOUNTANT';
+
+  return undefined;
 }
 
 /** يتحقق من الصلاحية ويرجع 403 إن لم تكن متوفرة */
