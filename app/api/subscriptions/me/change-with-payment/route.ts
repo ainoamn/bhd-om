@@ -29,22 +29,29 @@ type PaymentPayload = {
 async function createSubscriptionReceipt(params: {
   userId: string;
   userEmail?: string;
+  subscriberName?: string;
   planNameAr: string;
   planNameEn: string;
   amount: number;
   currency: string;
   direction: 'upgrade' | 'downgrade';
+  periodStart?: string;
+  periodEnd?: string;
+  contactId?: string | null;
 }): Promise<{ doc: { id: string }; docId: string } | null> {
-  const { amount, planNameAr, planNameEn, direction } = params;
+  const { amount, planNameAr, planNameEn, direction, subscriberName, periodStart, periodEnd, contactId } = params;
   if (amount <= 0) return null;
   await ensureAccountingAccounts();
   const accounts = await getAccountsFromDb();
   const cashAcc = accounts.find((a: { code: string }) => a.code === '1000');
-  const revenueAcc = accounts.find((a: { code: string }) => a.code === '4200') || accounts.find((a: { code: string }) => a.code === '4000');
+  const revenueAcc = accounts.find((a: { code: string }) => a.code === '4250') || accounts.find((a: { code: string }) => a.code === '4200') || accounts.find((a: { code: string }) => a.code === '4000');
   if (!cashAcc || !revenueAcc) return null;
   const date = new Date().toISOString().slice(0, 10);
-  const descAr = `دفع اشتراك - ${direction === 'upgrade' ? 'ترقية' : 'تنزيل'} - ${planNameAr}`;
-  const descEn = `Subscription payment - ${direction} - ${planNameEn}`;
+  const dirLabel = direction === 'upgrade' ? 'ترقية' : 'تنزيل';
+  const subPart = subscriberName ? ` - المشترك: ${subscriberName}` : '';
+  const periodPart = periodStart && periodEnd ? ` - فترة: ${periodStart} إلى ${periodEnd}` : '';
+  const descAr = `دفع اشتراك - ${dirLabel} - ${planNameAr}${subPart}${periodPart}`;
+  const descEn = `Subscription payment - ${direction} - ${planNameEn}${subscriberName ? ` - Subscriber: ${subscriberName}` : ''}${periodStart && periodEnd ? ` - Period: ${periodStart} to ${periodEnd}` : ''}`;
   const doc = await createDocumentInDb({
     type: 'RECEIPT',
     status: 'APPROVED',
@@ -54,6 +61,7 @@ async function createSubscriptionReceipt(params: {
     totalAmount: amount,
     descriptionAr: descAr,
     descriptionEn: descEn,
+    contactId: contactId ?? undefined,
   });
   const lines = [
     { accountId: cashAcc.id, debit: amount, credit: 0, descriptionAr: descAr, descriptionEn: descEn },
@@ -66,6 +74,7 @@ async function createSubscriptionReceipt(params: {
     descriptionEn: descEn,
     documentType: 'RECEIPT',
     documentId: doc.id,
+    contactId: contactId ?? undefined,
     status: 'APPROVED',
     createdBy: 'subscription-payment',
   });
@@ -183,7 +192,8 @@ export async function POST(req: NextRequest) {
     }
 
     const currency = payment?.currency || 'OMR';
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }).catch(() => null);
+    const subscriberName = (user as { name?: string | null } | null)?.name?.trim() || undefined;
 
     let receiptDocId: string | null = null;
     const currentPlanPrice = currentPlanRows?.[0] && priceMC ? Number(currentPlanRows[0][priceMC]) : 0;
@@ -194,14 +204,20 @@ export async function POST(req: NextRequest) {
           : 0;
       if (amount > 0) {
         try {
+          const endAtDate = endAt instanceof Date ? endAt : new Date(endAt);
+          const periodStart = endAtDate.toISOString().slice(0, 10);
+          const periodEnd = new Date(endAtDate.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
           const receiptResult = await createSubscriptionReceipt({
             userId,
             userEmail: user?.email ?? undefined,
+            subscriberName,
             planNameAr,
             planNameEn,
             amount,
             currency,
             direction: 'downgrade',
+            periodStart,
+            periodEnd,
           });
           if (receiptResult?.docId) receiptDocId = receiptResult.docId;
         } catch (e) {
@@ -240,17 +256,25 @@ export async function POST(req: NextRequest) {
           ? (payment as { amount: number }).amount
           : chargeAmount;
 
+      const startAt = new Date();
+      const newEndAt = new Date(startAt);
+      newEndAt.setMonth(newEndAt.getMonth() + 12);
+      const periodStart = startAt.toISOString().slice(0, 10);
+      const periodEnd = newEndAt.toISOString().slice(0, 10);
       let receiptDocIdFinal: string | null = null;
       if (amount > 0) {
         try {
           const receiptResult = await createSubscriptionReceipt({
             userId,
             userEmail: user?.email ?? undefined,
+            subscriberName,
             planNameAr,
             planNameEn,
             amount,
             currency,
             direction: 'upgrade',
+            periodStart,
+            periodEnd,
           });
           if (receiptResult?.docId) receiptDocIdFinal = receiptResult.docId;
         } catch (e) {
@@ -274,9 +298,6 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error('Subscription history create (old period):', e);
       }
-      const startAt = new Date();
-      const newEndAt = new Date(startAt);
-      newEndAt.setMonth(newEndAt.getMonth() + 12);
       const usageJson = JSON.stringify({ properties: 0, units: 0, bookings: 0, users: 0, storage: 0 });
       await prisma.subscription.upsert({
         where: { userId },

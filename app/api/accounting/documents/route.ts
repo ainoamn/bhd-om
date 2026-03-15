@@ -89,13 +89,19 @@ async function postDocumentToDb(doc: any) {
 }
 
 export async function GET(request: NextRequest) {
+  const perm = await requirePermission(request, 'REPORT_VIEW');
+  if (!perm.ok) {
+    return NextResponse.json({ error: perm.message }, { status: perm.status });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const fromDate = searchParams.get('fromDate') || undefined;
     const toDate = searchParams.get('toDate') || undefined;
     const type = searchParams.get('type') || undefined;
     const docs = await getDocumentsFromDb({ fromDate, toDate, type });
-    return NextResponse.json(docs);
+    return NextResponse.json(docs, {
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    });
   } catch (err) {
     console.error('Accounting documents GET:', err);
     return NextResponse.json(

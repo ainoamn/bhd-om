@@ -23,13 +23,14 @@ const DEFAULT_ACCOUNTS: Array<{ code: string; nameAr: string; nameEn: string; ty
   { code: '4000', nameAr: 'إيرادات الإيجار', nameEn: 'Rent Revenue', type: 'REVENUE', sortOrder: 14 },
   { code: '4100', nameAr: 'إيرادات المبيعات', nameEn: 'Sales Revenue', type: 'REVENUE', sortOrder: 15 },
   { code: '4200', nameAr: 'رسوم إدارية', nameEn: 'Administrative Fees', type: 'REVENUE', sortOrder: 16 },
-  { code: '4300', nameAr: 'إيرادات أخرى', nameEn: 'Other Revenue', type: 'REVENUE', sortOrder: 17 },
-  { code: '5000', nameAr: 'مصروفات التشغيل', nameEn: 'Operating Expenses', type: 'EXPENSE', sortOrder: 18 },
-  { code: '5100', nameAr: 'مصروفات الصيانة', nameEn: 'Maintenance Expenses', type: 'EXPENSE', sortOrder: 19 },
-  { code: '5200', nameAr: 'مصروفات إدارية', nameEn: 'Administrative Expenses', type: 'EXPENSE', sortOrder: 20 },
-  { code: '5300', nameAr: 'إيجارات ومرافق', nameEn: 'Rent & Utilities', type: 'EXPENSE', sortOrder: 21 },
-  { code: '5400', nameAr: 'رواتب ومزايا', nameEn: 'Salaries & Benefits', type: 'EXPENSE', sortOrder: 22 },
-  { code: '5500', nameAr: 'مصروفات أخرى', nameEn: 'Other Expenses', type: 'EXPENSE', sortOrder: 23 },
+  { code: '4250', nameAr: 'إيرادات الاشتراكات', nameEn: 'Subscription Revenue', type: 'REVENUE', sortOrder: 17 },
+  { code: '4300', nameAr: 'إيرادات أخرى', nameEn: 'Other Revenue', type: 'REVENUE', sortOrder: 18 },
+  { code: '5000', nameAr: 'مصروفات التشغيل', nameEn: 'Operating Expenses', type: 'EXPENSE', sortOrder: 19 },
+  { code: '5100', nameAr: 'مصروفات الصيانة', nameEn: 'Maintenance Expenses', type: 'EXPENSE', sortOrder: 20 },
+  { code: '5200', nameAr: 'مصروفات إدارية', nameEn: 'Administrative Expenses', type: 'EXPENSE', sortOrder: 21 },
+  { code: '5300', nameAr: 'إيجارات ومرافق', nameEn: 'Rent & Utilities', type: 'EXPENSE', sortOrder: 22 },
+  { code: '5400', nameAr: 'رواتب ومزايا', nameEn: 'Salaries & Benefits', type: 'EXPENSE', sortOrder: 23 },
+  { code: '5500', nameAr: 'مصروفات أخرى', nameEn: 'Other Expenses', type: 'EXPENSE', sortOrder: 24 },
 ];
 
 const DOC_TYPE_MAP: Record<string, AccountingDocType> = {
@@ -54,11 +55,31 @@ const DOC_STATUS_MAP: Record<string, AccountingDocStatus> = {
 
 export async function ensureAccountingAccounts() {
   const count = await prisma.accountingAccount.count();
-  if (count > 0) return;
-  for (const a of DEFAULT_ACCOUNTS) {
-    const { sortOrder: _so, ...rest } = a;
+  if (count === 0) {
+    for (const a of DEFAULT_ACCOUNTS) {
+      const { sortOrder: _so, ...rest } = a;
+      await prisma.accountingAccount.create({
+        data: { ...rest, parentId: null },
+      });
+    }
+  }
+  await ensureSubscriptionRevenueAccount();
+}
+
+/** إنشاء حساب إيرادات الاشتراكات (4250) إن لم يكن موجوداً — للربط مع دفعات الباقات */
+export async function ensureSubscriptionRevenueAccount() {
+  const existing = await prisma.accountingAccount.findUnique({
+    where: { code: '4250' },
+  });
+  if (!existing) {
     await prisma.accountingAccount.create({
-      data: { ...rest, parentId: null },
+      data: {
+        code: '4250',
+        nameAr: 'إيرادات الاشتراكات',
+        nameEn: 'Subscription Revenue',
+        type: 'REVENUE',
+        parentId: null,
+      },
     });
   }
 }
