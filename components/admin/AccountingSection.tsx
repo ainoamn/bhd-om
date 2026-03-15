@@ -260,7 +260,9 @@ export default function AccountingSection() {
   const getPropertyDisplay = (p: Parameters<typeof getPropertyDisplayText>[0]) => getPropertyDisplayText(p);
 
   const loadData = async () => {
-    const preferApi = typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB !== 'false';
+    const preferApi =
+      typeof process !== 'undefined' &&
+      (process.env.NODE_ENV === 'production' || process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB !== 'false');
     if (preferApi) {
       try {
         const data = await fetchAccountingData({
@@ -277,7 +279,7 @@ export default function AccountingSection() {
           if (Array.isArray(auditRes)) setAuditLogs(auditRes);
           else setAuditLogs(getAuditLog());
         }
-      } catch {
+      } catch (e) {
         loadDataLocal();
         setDataSourceFromApi(false);
       }

@@ -1,6 +1,6 @@
 /**
  * RBAC للـ API - يتحقق من الصلاحيات قبل تنفيذ العملية
- * يقرأ الجلسة من الكوكي عبر getToken أو من next/headers (App Router)
+ * يقرأ الجلسة من الكوكي بعدة طرق لضمان العمل في الإنتاج (App Router / Vercel)
  */
 
 import { NextRequest } from 'next/server';
@@ -11,6 +11,20 @@ import { getRoleFromUserRole } from './permissions';
 
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
 
+const SESSION_COOKIE_NAMES = [
+  'next-auth.session-token',
+  '__Secure-next-auth.session-token',
+  '__Host-next-auth.session-token',
+];
+
+function getSessionCookie(request: NextRequest): { name: string; value: string } | null {
+  for (const name of SESSION_COOKIE_NAMES) {
+    const value = request.cookies.get(name)?.value;
+    if (value) return { name, value };
+  }
+  return null;
+}
+
 /** يحصل على دور المستخدم من الطلب (جلسة JWT من الكوكي أو Header في التطوير) */
 export async function getAccountingRoleFromRequest(request: NextRequest): Promise<AccountingRole | undefined> {
   const isDev = process.env.NODE_ENV !== 'production';
@@ -20,27 +34,37 @@ export async function getAccountingRoleFromRequest(request: NextRequest): Promis
       return headerRole as AccountingRole;
     }
   }
+
   let token = await getToken({
     req: request,
     secret: NEXTAUTH_SECRET,
   });
+
   if (!token) {
-    const cookieStore = await cookies();
-    const sessionCookie =
-      cookieStore.get('next-auth.session-token') ||
-      cookieStore.get('__Secure-next-auth.session-token');
-    if (sessionCookie?.value) {
-      const cookieHeader = `${sessionCookie.name}=${sessionCookie.value}`;
+    const fromRequest = getSessionCookie(request);
+    if (fromRequest) {
       const reqWithCookie = {
-        headers: new Headers({ cookie: cookieHeader }),
+        headers: new Headers({ cookie: `${fromRequest.name}=${fromRequest.value}` }),
       } as NextRequest;
-      token = await getToken({
-        req: reqWithCookie,
-        secret: NEXTAUTH_SECRET,
-      });
+      token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
     }
   }
-  const userRole = token?.role as string | undefined;
+
+  if (!token) {
+    const cookieStore = await cookies();
+    for (const name of SESSION_COOKIE_NAMES) {
+      const sessionCookie = cookieStore.get(name);
+      if (sessionCookie?.value) {
+        const cookieHeader = `${sessionCookie.name}=${sessionCookie.value}`;
+        const reqWithCookie = { headers: new Headers({ cookie: cookieHeader }) } as NextRequest;
+        token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
+        if (token) break;
+      }
+    }
+  }
+
+  if (!token) return undefined;
+  const userRole = (token.role as string | undefined) ?? (token.sub ? 'ACCOUNTANT' : undefined);
   if (!userRole) return undefined;
   return getRoleFromUserRole(userRole);
 }
