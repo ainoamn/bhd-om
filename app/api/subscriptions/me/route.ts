@@ -75,7 +75,8 @@ export async function GET(req: NextRequest) {
     let endAt = endCol && subRow[endCol] ? new Date(subRow[endCol] as string | Date).toISOString() : new Date().toISOString();
     let usage = usageCol && subRow[usageCol] ? parseJson(subRow[usageCol], {} as Record<string, number>) : {};
 
-    // تطبيق تنزيل مجدول عند انتهاء الفترة الحالية
+    // تطبيق تنزيل مجدول عند انتهاء الفترة الحالية (اليوم التالي لانتهاء الاشتراك يُطبّق تلقائياً عند الطلب أو من لوحة الإدارة).
+    // ملاحظة: الاحتفاظ بنسخة بيانات المستخدم لمدة شهر بعد انتهاء/تنزيل الباقة ثم أرشفتها يُنفّذ عبر job منفصل (راجع docs/subscription-data-retention إن وُجد).
     if (subId && new Date(endAt) <= new Date()) {
       const changeReq = await prisma.subscriptionChangeRequest.findFirst({
         where: { subscriptionId: subId, status: 'approved' },

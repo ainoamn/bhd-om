@@ -58,6 +58,10 @@ type UserRow = {
   email: string;
   serialNumber?: string;
   subscription?: { planId: string; status: string };
+  /** من قائمة الاشتراكات: سعر الباقة الحالية وترتيبها وحالة الاسترداد */
+  currentPlanPrice?: number;
+  currentPlanSortOrder?: number;
+  refundProcessedAt?: string | null;
 };
 
 const ALL_FEATURES = Object.keys(FEATURE_PERMISSIONS);
@@ -125,6 +129,7 @@ export default function AdminSubscriptionsPage() {
   const [editingFeatures, setEditingFeatures] = useState<string[]>([]);
   const [editingFeaturesAr, setEditingFeaturesAr] = useState<string[]>([]);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
+  const [refundingUserId, setRefundingUserId] = useState<string | null>(null);
   const [savingAll, setSavingAll] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userFilterPlan, setUserFilterPlan] = useState<string>('');
@@ -172,10 +177,10 @@ export default function AdminSubscriptionsPage() {
         return loadData(retry + 1);
       }
 
-      const subs: { userId: string; planId: string; status: string }[] = [];
+      const subs: { userId: string; planId: string; status: string; plan?: { priceMonthly?: number; sortOrder?: number }; refundProcessedAt?: string | null }[] = [];
       if (subRes.ok) {
         const d = await subRes.json();
-        if (Array.isArray(d?.list)) d.list.forEach((s: { userId: string; planId: string; status: string }) => subs.push(s));
+        if (Array.isArray(d?.list)) d.list.forEach((s: { userId: string; planId: string; status: string; plan?: { priceMonthly?: number; sortOrder?: number }; refundProcessedAt?: string | null }) => subs.push(s));
       }
 
       let planList: Parameters<typeof mapApiPlanToRow>[0][] = [];
@@ -218,6 +223,9 @@ export default function AdminSubscriptionsPage() {
             email: u.email || '',
             serialNumber: u.serialNumber,
             subscription: sub ? { planId: sub.planId, status: sub.status } : undefined,
+            currentPlanPrice: sub?.plan?.priceMonthly ?? 0,
+            currentPlanSortOrder: sub?.plan?.sortOrder ?? 0,
+            refundProcessedAt: sub?.refundProcessedAt ?? null,
           };
         });
         setUsers(userRows);
@@ -351,18 +359,49 @@ export default function AdminSubscriptionsPage() {
       if (res.ok) {
         setUsers((prev) =>
           prev.map((u) =>
-            u.id === userId ? { ...u, subscription: { planId, status: 'active' } } : u
+            u.id === userId ? { ...u, subscription: { planId, status: 'active' }, refundProcessedAt: null } : u
           )
         );
         alert(ar ? 'تم تعيين الباقة بنجاح!' : 'Plan assigned!');
       } else {
-        const detail = (data?.details as string) || (data?.error as string);
-        alert(detail ? `${data?.error || (ar ? 'فشل التعيين' : 'Assign failed')}: ${detail}` : (data?.error || (ar ? 'فشل التعيين' : 'Assign failed')));
+        const errCode = data?.error as string;
+        const msg = data?.message as string;
+        if (errCode === 'refund_required' && msg) {
+          alert(msg);
+        } else {
+          const detail = (data?.details as string) || (data?.error as string);
+          alert(detail ? `${data?.error || (ar ? 'فشل التعيين' : 'Assign failed')}: ${detail}` : (data?.error || (ar ? 'فشل التعيين' : 'Assign failed')));
+        }
       }
     } catch (e) {
       console.error(e);
     } finally {
       setAssigningUserId(null);
+    }
+  };
+
+  const onRefundDone = async (userId: string) => {
+    setRefundingUserId(userId);
+    try {
+      const res = await fetch('/api/subscriptions/refund-done', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        ...FETCH_OPTS,
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, refundProcessedAt: new Date().toISOString() } : u))
+        );
+        alert(ar ? 'تم تسجيل استرداد المبلغ. يمكنك الآن تعيين الباقة الأقل.' : 'Refund recorded. You can now assign the lower plan.');
+      } else {
+        alert(data?.error || data?.details || (ar ? 'فشل' : 'Failed'));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefundingUserId(null);
     }
   };
 
@@ -771,6 +810,7 @@ export default function AdminSubscriptionsPage() {
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'المستخدم' : 'User'}</th>
                       <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'البريد / الرقم' : 'Email / Number'}</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'الباقة الحالية' : 'Current plan'}</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'استرداد المبلغ' : 'Refund'}</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900" style={{ lineHeight: 1.5 }}>{ar ? 'تعيين الباقة' : 'Assign plan'}</th>
                     </tr>
                   </thead>
@@ -791,6 +831,25 @@ export default function AdminSubscriptionsPage() {
                               </span>
                             ) : (
                               <span className="text-gray-400 text-sm">{ar ? 'بدون باقة' : 'No plan'}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {(user.currentPlanPrice ?? 0) > 0 ? (
+                              user.refundProcessedAt ? (
+                                <span className="text-xs text-emerald-600 font-medium">{ar ? 'تم الاسترداد' : 'Refund done'}</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => onRefundDone(user.id)}
+                                  disabled={refundingUserId === user.id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium hover:bg-amber-100 disabled:opacity-60"
+                                  title={ar ? 'بعد تنفيذ استرداد المبلغ من لوحة المحاسبة اضغط هنا' : 'After processing refund in accounting, click here'}
+                                >
+                                  {refundingUserId === user.id ? (ar ? 'جاري...' : '...') : (ar ? 'تم استرداد المبلغ' : 'Refund done')}
+                                </button>
+                              )
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3">

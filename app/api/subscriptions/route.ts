@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     const planIds = [...new Set(list.map((s) => s.planId).filter(Boolean))];
 
     let usersMap: Record<string, { name: string; email: string; serialNumber: string }> = {};
-    let plansMap: Record<string, { nameAr: string; nameEn: string }> = {};
+    let plansMap: Record<string, { nameAr: string; nameEn: string; priceMonthly: number; sortOrder: number }> = {};
 
     try {
       if (userIds.length > 0) {
@@ -104,18 +104,78 @@ export async function GET(req: NextRequest) {
       if (planIds.length > 0) {
         const plans = await prisma.plan.findMany({
           where: { id: { in: planIds } },
-          select: { id: true, nameAr: true, nameEn: true },
+          select: { id: true, nameAr: true, nameEn: true, priceMonthly: true, sortOrder: true },
         });
-        plans.forEach((p) => { plansMap[p.id] = { nameAr: p.nameAr, nameEn: p.nameEn }; });
+        plans.forEach((p) => { plansMap[p.id] = { nameAr: p.nameAr, nameEn: p.nameEn, priceMonthly: p.priceMonthly ?? 0, sortOrder: p.sortOrder ?? 0 }; });
       }
     } catch (enrichErr) {
       console.error('GET /api/subscriptions enrich:', enrichErr);
     }
 
-    const enriched = list.map((s) => ({
+    const REFUNDS_KEY = 'subscription_refunds';
+    let refundsMap: Record<string, string> = {};
+    try {
+      const setting = await prisma.appSetting.findUnique({ where: { key: REFUNDS_KEY } });
+      if (setting?.value) {
+        refundsMap = JSON.parse(setting.value) as Record<string, string>;
+      }
+    } catch {
+      // ignore
+    }
+
+    const now = new Date();
+    for (const s of list) {
+      const endAt = new Date(s.endAt);
+      if (endAt <= now) {
+        const changeReq = await prisma.subscriptionChangeRequest.findFirst({
+          where: { subscriptionId: s.id, status: 'approved' },
+        });
+        if (changeReq) {
+          const newStart = new Date();
+          const newEnd = new Date(newStart);
+          newEnd.setMonth(newEnd.getMonth() + 12);
+          try {
+            await prisma.subscription.update({
+              where: { userId: s.userId },
+              data: { planId: changeReq.requestedPlanId, startAt: newStart, endAt: newEnd },
+            });
+            await prisma.subscriptionChangeRequest.update({
+              where: { id: changeReq.id },
+              data: { status: 'applied' },
+            });
+          } catch {
+            // skip
+          }
+        }
+      }
+    }
+
+    let listToEnrich = list;
+    try {
+      const listAfterApply = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+        `SELECT ${quoted} FROM ${safeTable} ORDER BY ${orderCol} DESC NULLS LAST`
+      );
+      listToEnrich = (listAfterApply || []).map((r) => {
+        const startVal = getSubVal(r, keyToCol.startAt);
+        const endVal = getSubVal(r, keyToCol.endAt);
+        return {
+          id: String(getSubVal(r, keyToCol.id) ?? ''),
+          userId: String(getSubVal(r, keyToCol.userId) ?? ''),
+          planId: String(getSubVal(r, keyToCol.planId) ?? ''),
+          status: String(getSubVal(r, keyToCol.status) ?? 'active'),
+          startAt: startVal != null ? new Date(startVal as string | Date).toISOString() : new Date().toISOString(),
+          endAt: endVal != null ? new Date(endVal as string | Date).toISOString() : new Date().toISOString(),
+        };
+      });
+    } catch {
+      // use original list if re-query fails
+    }
+
+    const enriched = listToEnrich.map((s) => ({
       ...s,
       user: usersMap[s.userId] ?? { name: '—', email: '—', serialNumber: '—' },
-      plan: plansMap[s.planId] ?? { nameAr: '—', nameEn: '—' },
+      plan: plansMap[s.planId] ?? { nameAr: '—', nameEn: '—', priceMonthly: 0, sortOrder: 0 },
+      refundProcessedAt: refundsMap[s.userId] ?? null,
     }));
 
     return NextResponse.json({ list: enriched }, {
@@ -162,6 +222,33 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 400 });
 
+    const existingSub = await prisma.subscription.findUnique({ where: { userId }, include: { plan: true } }).catch(() => null);
+    const currentPlanId = existingSub?.planId ?? null;
+    const currentPlan = existingSub?.plan;
+    const requestedPlan = await prisma.plan.findUnique({ where: { id: planId } }).catch(() => null);
+    if (currentPlanId && currentPlan && requestedPlan && requestedPlan.sortOrder < currentPlan.sortOrder) {
+      const currentPaid = (currentPlan.priceMonthly ?? 0) > 0;
+      if (currentPaid) {
+        const REFUNDS_KEY = 'subscription_refunds';
+        let refunds: Record<string, string> = {};
+        try {
+          const setting = await prisma.appSetting.findUnique({ where: { key: REFUNDS_KEY } });
+          if (setting?.value) refunds = JSON.parse(setting.value) as Record<string, string>;
+        } catch {
+          // ignore
+        }
+        if (!refunds[userId]) {
+          return NextResponse.json(
+            {
+              error: 'refund_required',
+              message: 'لا يمكن تنزيل الباقة إلا بعد استرداد المبلغ للمستخدم. نفّذ استرداد المبلغ من لوحة المحاسبة ثم اضغط «تم استرداد المبلغ» أمام المستخدم قبل تعيين الباقة الأقل.',
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const startAt = new Date();
     const endAt = new Date(startAt);
     endAt.setMonth(endAt.getMonth() + (durationMonths || 12));
@@ -191,6 +278,23 @@ export async function POST(req: NextRequest) {
       console.error('POST /api/subscriptions upsert:', upsertErr);
       return NextResponse.json({ error: 'Server error', details: msg }, { status: 500 });
     }
+
+    if (currentPlanId && currentPlan && requestedPlan && requestedPlan.sortOrder < currentPlan.sortOrder) {
+      const REFUNDS_KEY = 'subscription_refunds';
+      try {
+        const setting = await prisma.appSetting.findUnique({ where: { key: REFUNDS_KEY } });
+        let refunds: Record<string, string> = setting?.value ? (JSON.parse(setting.value) as Record<string, string>) : {};
+        delete refunds[userId];
+        await prisma.appSetting.upsert({
+          where: { key: REFUNDS_KEY },
+          create: { key: REFUNDS_KEY, value: JSON.stringify(refunds) },
+          update: { value: JSON.stringify(refunds) },
+        });
+      } catch {
+        // ignore
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
