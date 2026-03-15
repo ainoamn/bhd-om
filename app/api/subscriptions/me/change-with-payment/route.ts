@@ -96,10 +96,12 @@ export async function POST(req: NextRequest) {
       requestedPlanId,
       direction,
       payment,
+      contactId: bodyContactId,
     } = body as {
       requestedPlanId: string;
       direction: 'upgrade' | 'downgrade';
       payment?: PaymentPayload;
+      contactId?: string | null;
     };
     if (!requestedPlanId || !direction || !['upgrade', 'downgrade'].includes(direction)) {
       return NextResponse.json({ error: 'requestedPlanId and direction (upgrade|downgrade) required' }, { status: 400 });
@@ -275,6 +277,7 @@ export async function POST(req: NextRequest) {
             direction: 'upgrade',
             periodStart,
             periodEnd,
+            contactId: bodyContactId ?? undefined,
           });
           if (receiptResult?.docId) receiptDocIdFinal = receiptResult.docId;
         } catch (e) {

@@ -272,6 +272,7 @@ export default function PropertyBookPage() {
         phone: mainPhone,
         civilId: isCompany ? undefined : formData.civilId.trim() || undefined,
         passportNumber: isCompany ? undefined : formData.passportNumber.trim() || undefined,
+        contactId: contactIdForUpdate || undefined,
         companyData: isCompany ? {
           companyNameAr: companyForm.companyNameAr.trim(),
           companyNameEn: companyForm.companyNameEn?.trim() || undefined,

@@ -389,6 +389,7 @@ export default function MyAccountPage() {
     }
     setSubmitting(true);
     try {
+      const contactId = contact && typeof contact === 'object' && 'id' in contact && (contact as { id?: string }).id ? (contact as { id: string }).id : undefined;
       const res = await fetch('/api/subscriptions/me/change-with-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -396,6 +397,7 @@ export default function MyAccountPage() {
         body: JSON.stringify({
           requestedPlanId: requestPlanId,
           direction: requestDirection,
+          contactId: contactId || undefined,
           payment: isFree
             ? { amount: 0, currency: selectedPlan?.currency ?? 'OMR' }
             : {

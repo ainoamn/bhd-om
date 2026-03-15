@@ -477,6 +477,15 @@ export async function updateDocumentInDb(id: string, _data: { journalEntryId?: s
   return doc;
 }
 
+/** ربط مستند محاسبي بجهة اتصال (للبيانات القديمة التي لم تُربط عند الإنشاء) */
+export async function updateDocumentContactInDb(documentId: string, contactId: string | null): Promise<boolean> {
+  await prisma.accountingDocument.update({
+    where: { id: documentId },
+    data: { contactId, updatedAt: new Date() },
+  });
+  return true;
+}
+
 export async function updateJournalStatusInDb(id: string, status: 'APPROVED' | 'CANCELLED') {
   const entry = await prisma.accountingJournalEntry.update({
     where: { id },

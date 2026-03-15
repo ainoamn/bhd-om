@@ -57,6 +57,8 @@ export interface PropertyBooking {
   bankAccountId?: string;
   /** ربط بعقد الإيجار عند إنشائه */
   contractId?: string;
+  /** معرف جهة الاتصال في دفتر العناوين — لربط إيصال المحاسبة بالعميل */
+  contactId?: string;
   /** تاريخ تأكيد المحاسب/مدير الحسابات لاستلام المبلغ */
   accountantConfirmedAt?: string;
   /** رقم الإيصال المُعيّن من المحاسب عند تأكيد الاستلام — ينعكس في مستندات العقد */
@@ -318,6 +320,37 @@ export function createBooking(data: Omit<PropertyBooking, 'id' | 'createdAt' | '
     }
   }
   const isCompany = data.contactType === 'COMPANY' && data.companyData?.companyNameAr && data.companyData.authorizedRepresentatives?.length;
+  const prop = getPropertyById(data.propertyId, getPropertyDataOverrides());
+  const unitPart = data.unitKey && prop ? getUnitDisplayFromProperty(prop, data.unitKey, true) : null;
+  const unitDisplay = unitPart ? `${data.propertyTitleAr} - ${unitPart}` : data.propertyTitleAr;
+  let contactIdFromEnsure: string | undefined = (data as { contactId?: string }).contactId;
+  try {
+    if (isCompany) {
+      const contact = ensureCompanyContactFromBooking(
+        data.companyData!.companyNameAr,
+        data.phone,
+        data.email,
+        {
+          companyNameEn: data.companyData!.companyNameEn,
+          commercialRegistrationNumber: data.companyData!.commercialRegistrationNumber,
+          authorizedRepresentatives: data.companyData!.authorizedRepresentatives,
+        },
+        { propertyId: data.propertyId, unitKey: data.unitKey, unitDisplay }
+      );
+      contactIdFromEnsure = contact?.id;
+    } else {
+      const contact = ensureContactFromBooking(data.name, data.phone, data.email, {
+        propertyId: data.propertyId,
+        unitKey: data.unitKey,
+        unitDisplay,
+        civilId: data.civilId?.trim() || undefined,
+        passportNumber: data.passportNumber?.trim() || undefined,
+      });
+      contactIdFromEnsure = contact?.id;
+    }
+  } catch {
+    // الحجز مُسجّل؛ فشل ربط/تحديث دفتر العناوين فقط (لا نوقف العملية)
+  }
   const booking: PropertyBooking = {
     ...data,
     contactType: isCompany ? 'COMPANY' : (data.contactType || 'PERSONAL'),
@@ -338,39 +371,12 @@ export function createBooking(data: Omit<PropertyBooking, 'id' | 'createdAt' | '
     cardLast4: data.cardLast4?.trim().slice(-4) || undefined,
     cardExpiry: data.cardExpiry?.trim() || undefined,
     cardholderName: data.cardholderName?.trim() || undefined,
+    contactId: contactIdFromEnsure || (data as { contactId?: string }).contactId || undefined,
     createdAt: new Date().toISOString(),
   };
   const bookings = getStoredBookings();
   bookings.unshift(booking);
   saveBookings(bookings);
-  const prop = getPropertyById(data.propertyId, getPropertyDataOverrides());
-  const unitPart = data.unitKey && prop ? getUnitDisplayFromProperty(prop, data.unitKey, true) : null;
-  const unitDisplay = unitPart ? `${data.propertyTitleAr} - ${unitPart}` : data.propertyTitleAr;
-  try {
-    if (isCompany) {
-      ensureCompanyContactFromBooking(
-        data.companyData!.companyNameAr,
-        data.phone,
-        data.email,
-        {
-          companyNameEn: data.companyData!.companyNameEn,
-          commercialRegistrationNumber: data.companyData!.commercialRegistrationNumber,
-          authorizedRepresentatives: data.companyData!.authorizedRepresentatives,
-        },
-        { propertyId: data.propertyId, unitKey: data.unitKey, unitDisplay }
-      );
-    } else {
-      ensureContactFromBooking(data.name, data.phone, data.email, {
-        propertyId: data.propertyId,
-        unitKey: data.unitKey,
-        unitDisplay,
-        civilId: data.civilId?.trim() || undefined,
-        passportNumber: data.passportNumber?.trim() || undefined,
-      });
-    }
-  } catch {
-    // الحجز مُسجّل؛ فشل ربط/تحديث دفتر العناوين فقط (لا نوقف العملية)
-  }
   if (data.type === 'BOOKING' && data.paymentConfirmed) {
     setPropertyReservedOnPayment(data.propertyId, data.unitKey);
     createAccountingReceiptFromBooking(booking);
