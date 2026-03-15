@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { getDataScope, propertyScopeWhere } from '@/lib/auth/adminPermissions';
-import { createBookingReceiptInDb } from '@/lib/accounting/data/dbService';
+import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,6 +25,14 @@ export async function GET(req: NextRequest) {
         }
       : null;
     const scope = getDataScope(session);
+
+    if (scope.isAdmin) {
+      try {
+        await syncPaidBookingsToAccountingDb();
+      } catch {
+        // عدم إيقاف استجابة الحجوزات عند فشل المزامنة
+      }
+    }
 
     const rows = await prisma.bookingStorage.findMany({
       orderBy: { createdAt: 'desc' },

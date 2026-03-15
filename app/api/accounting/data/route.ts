@@ -1,6 +1,6 @@
 /**
- * نقطة نهاية موحّدة لجلب بيانات المحاسبة (حسابات، مستندات، قيود، فترات)
- * لضمان ربط صحيح وتجنّب خلط مصدر البيانات
+ * نقطة نهاية موحّدة لجلب بيانات المحاسبة (حسابات، مستندات، قيود، فترات).
+ * تُشغّل مزامنة الحجوزات المدفوعة تلقائياً قبل إرجاع البيانات — مؤتمت بالكامل بدون زر أو تدخل.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import {
@@ -8,6 +8,7 @@ import {
   getDocumentsFromDb,
   getJournalEntriesFromDb,
   getFiscalPeriodsFromDb,
+  syncPaidBookingsToAccountingDb,
 } from '@/lib/accounting/data/dbService';
 import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
 
@@ -22,6 +23,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fromDate = searchParams.get('fromDate') || undefined;
     const toDate = searchParams.get('toDate') || undefined;
+
+    await syncPaidBookingsToAccountingDb();
 
     const [accounts, documents, journalEntries, periods] = await Promise.all([
       getAccountsFromDb(),

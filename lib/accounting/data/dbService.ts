@@ -604,6 +604,41 @@ export async function createBookingReceiptInDb(booking: {
   return { docId: doc.id, serialNumber: doc.serialNumber };
 }
 
+/** مزامنة تلقائية: إنشاء إيصال محاسبة لكل حجز مدفوع في BookingStorage لم يُنشأ له إيصال بعد. تُستدعى من الخادم فقط (بدون زر أو تدخل مستخدم). */
+export async function syncPaidBookingsToAccountingDb(): Promise<number> {
+  const rows = await prisma.bookingStorage.findMany({ orderBy: { createdAt: 'desc' } });
+  let created = 0;
+  for (const r of rows) {
+    let b: { id?: string; type?: string; paymentConfirmed?: boolean; priceAtBooking?: number; propertyId?: number; unitKey?: string; propertyTitleAr?: string; propertyTitleEn?: string; name?: string; paymentDate?: string; paymentMethod?: string; paymentReferenceNo?: string; contactId?: string; bankAccountId?: string };
+    try {
+      b = JSON.parse(r.data);
+    } catch {
+      continue;
+    }
+    if (b.type !== 'BOOKING' || !b.paymentConfirmed || !b.priceAtBooking || b.priceAtBooking <= 0 || !b.id) continue;
+    try {
+      const result = await createBookingReceiptInDb({
+        id: b.id,
+        propertyId: Number(b.propertyId),
+        unitKey: b.unitKey,
+        propertyTitleAr: b.propertyTitleAr,
+        propertyTitleEn: b.propertyTitleEn,
+        name: b.name || '',
+        priceAtBooking: Number(b.priceAtBooking),
+        paymentDate: b.paymentDate,
+        paymentMethod: b.paymentMethod,
+        paymentReferenceNo: b.paymentReferenceNo,
+        contactId: b.contactId,
+        bankAccountId: b.bankAccountId,
+      });
+      if (result) created++;
+    } catch {
+      // تخطي عند خطأ (مثلاً فترة مغلقة) دون إيقاف المزامنة
+    }
+  }
+  return created;
+}
+
 export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 'CANCELLED' | 'PAID') {
   const doc = await prisma.accountingDocument.update({
     where: { id },
