@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { getDocumentByIdFromDb } from '@/lib/accounting/data/dbService';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -84,6 +85,7 @@ export async function GET(req: NextRequest) {
       }).catch(() => null);
       if (changeReq) {
         const currentPlan = await prisma.plan.findUnique({ where: { id: planId } }).catch(() => null);
+        const currentReceiptId = receiptDocCol && subRow[receiptDocCol] ? String(subRow[receiptDocCol]) : null;
         try {
           await prisma.subscriptionHistory.create({
             data: {
@@ -94,7 +96,7 @@ export async function GET(req: NextRequest) {
               startAt: new Date(startAt),
               endAt: new Date(endAt),
               amountPaid: null,
-              receiptDocumentId: null,
+              receiptDocumentId: currentReceiptId,
             },
           });
         } catch (e) {
@@ -175,6 +177,21 @@ export async function GET(req: NextRequest) {
     }
 
     const receiptDocumentId = receiptDocCol && subRow[receiptDocCol] ? String(subRow[receiptDocCol]) : null;
+    let receiptInfo: { serialNumber: string; totalAmount: number; date: string } | undefined;
+    if (receiptDocumentId) {
+      try {
+        const doc = await getDocumentByIdFromDb(receiptDocumentId);
+        if (doc) {
+          receiptInfo = {
+            serialNumber: doc.serialNumber ?? '',
+            totalAmount: Number(doc.totalAmount) ?? 0,
+            date: doc.date ?? startAt,
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
     const subscription = {
       id: subId,
       planId,
@@ -184,6 +201,7 @@ export async function GET(req: NextRequest) {
       usage,
       plan,
       receiptDocumentId: receiptDocumentId || undefined,
+      receiptInfo,
       permissionIds: [] as string[],
     };
 
@@ -195,6 +213,35 @@ export async function GET(req: NextRequest) {
       orderBy: { endAt: 'desc' },
       take: 50,
     }).catch(() => []);
+
+    const historyEnriched = await Promise.all(
+      subscriptionHistory.map(async (h) => {
+        let amountPaid = h.amountPaid ?? null;
+        let receiptSerialNumber: string | null = null;
+        if (h.receiptDocumentId) {
+          try {
+            const doc = await getDocumentByIdFromDb(h.receiptDocumentId);
+            if (doc) {
+              if (amountPaid == null) amountPaid = Number(doc.totalAmount) ?? null;
+              receiptSerialNumber = doc.serialNumber ?? null;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        return {
+          id: h.id,
+          planId: h.planId,
+          planNameAr: h.planNameAr,
+          planNameEn: h.planNameEn,
+          startAt: h.startAt.toISOString(),
+          endAt: h.endAt.toISOString(),
+          amountPaid,
+          receiptDocumentId: h.receiptDocumentId ?? null,
+          receiptSerialNumber,
+        };
+      })
+    );
 
     return NextResponse.json(
       {
@@ -212,16 +259,7 @@ export async function GET(req: NextRequest) {
           sortOrder: typeof p.sortOrder === 'number' ? p.sortOrder : 0,
         })),
         pendingRequest: null,
-        subscriptionHistory: subscriptionHistory.map((h) => ({
-          id: h.id,
-          planId: h.planId,
-          planNameAr: h.planNameAr,
-          planNameEn: h.planNameEn,
-          startAt: h.startAt.toISOString(),
-          endAt: h.endAt.toISOString(),
-          amountPaid: h.amountPaid ?? null,
-          receiptDocumentId: h.receiptDocumentId ?? null,
-        })),
+        subscriptionHistory: historyEnriched,
       },
       { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' } }
     );

@@ -31,6 +31,7 @@ type SubHistoryItem = {
   endAt: string;
   amountPaid: number | null;
   receiptDocumentId: string | null;
+  receiptSerialNumber?: string | null;
 };
 type SubData = {
   subscription: {
@@ -40,6 +41,7 @@ type SubData = {
     startAt: string;
     endAt: string;
     receiptDocumentId?: string;
+    receiptInfo?: { serialNumber: string; totalAmount: number; date: string };
     plan: PlanInfo | null;
   } | null;
   plans: Array<{ id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency?: string; sortOrder: number }>;
@@ -590,6 +592,18 @@ export default function MyAccountPage() {
                     <span className="text-gray-600">{ar ? 'تاريخ الانتهاء' : 'End date'}</span>
                     <p className="font-medium text-gray-900">{new Date(subData.subscription.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</p>
                   </div>
+                  {subData.subscription.receiptInfo && (
+                    <>
+                      <div>
+                        <span className="text-gray-600">{ar ? 'المبلغ المدفوع' : 'Amount paid'}</span>
+                        <p className="font-medium text-gray-900">{subData.subscription.receiptInfo.totalAmount.toLocaleString('en-US')} OMR</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">{ar ? 'رقم الإيصال' : 'Receipt number'}</span>
+                        <p className="font-medium text-gray-900">{subData.subscription.receiptInfo.serialNumber || '—'}</p>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -649,19 +663,22 @@ export default function MyAccountPage() {
                         <td className="px-3 py-2 text-gray-600">{h.amountPaid != null ? `${Number(h.amountPaid).toLocaleString('en-US')} OMR` : '—'}</td>
                         <td className="px-3 py-2 text-center">
                           {h.receiptDocumentId ? (
-                            <button
-                              type="button"
-                              onClick={() => printReceiptByDocumentId(h.receiptDocumentId!, [
+                            <span className="inline-flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
+                              {h.receiptSerialNumber && <span className="text-xs text-gray-600">{h.receiptSerialNumber}</span>}
+                              <button
+                                type="button"
+                                onClick={() => printReceiptByDocumentId(h.receiptDocumentId!, [
                                 { labelAr: 'الباقة', labelEn: 'Plan', value: locale === 'ar' ? h.planNameAr : h.planNameEn },
                                 { labelAr: 'تاريخ البدء', labelEn: 'Start', value: new Date(h.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
                                 { labelAr: 'تاريخ الانتهاء', labelEn: 'End', value: new Date(h.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
                                 { labelAr: 'المبلغ المدفوع', labelEn: 'Amount paid', value: h.amountPaid != null ? `${Number(h.amountPaid).toLocaleString('en-US')} OMR` : '—' },
                               ])}
-                              className="text-[#8B6F47] hover:underline inline-flex items-center gap-1"
-                            >
-                              <Icon name="printer" className="w-4 h-4" />
-                              {ar ? 'طباعة الإيصال' : 'Print receipt'}
-                            </button>
+                                className="text-[#8B6F47] hover:underline inline-flex items-center gap-1"
+                              >
+                                <Icon name="printer" className="w-4 h-4" />
+                                {ar ? 'طباعة الإيصال' : 'Print receipt'}
+                              </button>
+                            </span>
                           ) : (
                             <span className="text-gray-400 text-xs">—</span>
                           )}

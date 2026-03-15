@@ -18,6 +18,7 @@ const SUB_COL_MAP: Record<string, string[]> = {
   status: ['status'],
   startAt: ['startAt', 'start_at'],
   endAt: ['endAt', 'end_at'],
+  receiptDocumentId: ['receiptDocumentId'],
 };
 
 function getSubVal(row: Record<string, unknown>, col: string | undefined): unknown {
@@ -77,6 +78,7 @@ export async function GET(req: NextRequest) {
     const list = (raw || []).map((r) => {
       const startVal = getSubVal(r, keyToCol.startAt);
       const endVal = getSubVal(r, keyToCol.endAt);
+      const receiptDocId = keyToCol.receiptDocumentId ? getSubVal(r, keyToCol.receiptDocumentId) : undefined;
       return {
         id: String(getSubVal(r, keyToCol.id) ?? ''),
         userId: String(getSubVal(r, keyToCol.userId) ?? ''),
@@ -84,6 +86,7 @@ export async function GET(req: NextRequest) {
         status: String(getSubVal(r, keyToCol.status) ?? 'active'),
         startAt: startVal != null ? new Date(startVal as string | Date).toISOString() : new Date().toISOString(),
         endAt: endVal != null ? new Date(endVal as string | Date).toISOString() : new Date().toISOString(),
+        receiptDocumentId: receiptDocId != null ? String(receiptDocId) : null as string | null,
       };
     });
 
@@ -133,6 +136,7 @@ export async function GET(req: NextRequest) {
         if (changeReq) {
           try {
             const planInfo = plansMap[s.planId];
+            const currentReceiptId = (s as { receiptDocumentId?: string | null }).receiptDocumentId ?? null;
             await prisma.subscriptionHistory.create({
               data: {
                 userId: s.userId,
@@ -142,7 +146,7 @@ export async function GET(req: NextRequest) {
                 startAt: new Date(s.startAt),
                 endAt: new Date(s.endAt),
                 amountPaid: null,
-                receiptDocumentId: null,
+                receiptDocumentId: currentReceiptId,
               },
             });
           } catch {
@@ -175,6 +179,7 @@ export async function GET(req: NextRequest) {
       listToEnrich = (listAfterApply || []).map((r) => {
         const startVal = getSubVal(r, keyToCol.startAt);
         const endVal = getSubVal(r, keyToCol.endAt);
+        const receiptDocId = keyToCol.receiptDocumentId ? getSubVal(r, keyToCol.receiptDocumentId) : undefined;
         return {
           id: String(getSubVal(r, keyToCol.id) ?? ''),
           userId: String(getSubVal(r, keyToCol.userId) ?? ''),
@@ -182,6 +187,7 @@ export async function GET(req: NextRequest) {
           status: String(getSubVal(r, keyToCol.status) ?? 'active'),
           startAt: startVal != null ? new Date(startVal as string | Date).toISOString() : new Date().toISOString(),
           endAt: endVal != null ? new Date(endVal as string | Date).toISOString() : new Date().toISOString(),
+          receiptDocumentId: receiptDocId != null ? String(receiptDocId) : null as string | null,
         };
       });
     } catch {

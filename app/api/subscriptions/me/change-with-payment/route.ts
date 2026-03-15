@@ -147,10 +147,11 @@ export async function POST(req: NextRequest) {
     const idCol = subColSet.has('id') ? 'id' : null;
     const startCol = subColSet.has('startAt') ? 'startAt' : subColSet.has('start_at') ? 'start_at' : null;
     const endCol = subColSet.has('endAt') ? 'endAt' : subColSet.has('end_at') ? 'end_at' : null;
+    const receiptDocCol = subColSet.has('receiptDocumentId') ? 'receiptDocumentId' : null;
     if (!userIdCol || !planIdCol) {
       return NextResponse.json({ error: 'Subscription schema incomplete' }, { status: 500 });
     }
-    const selectSub = [idCol, userIdCol, planIdCol, startCol, endCol].filter(Boolean).map((c) => `"${c}"`).join(', ');
+    const selectSub = [idCol, userIdCol, planIdCol, startCol, endCol, receiptDocCol].filter(Boolean).map((c) => `"${c}"`).join(', ');
     const safeSubTable = `"${String(subTableName).replace(/"/g, '""')}"`;
     const subRows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
       `SELECT ${selectSub} FROM ${safeSubTable} WHERE "${userIdCol}" = $1 LIMIT 1`,
@@ -210,6 +211,7 @@ export async function POST(req: NextRequest) {
     const currentPlanNameAr = currentPlanRows?.[0] && nameArC ? String(currentPlanRows[0][nameArC] ?? '') : '';
     const currentPlanNameEn = currentPlanRows?.[0] && nameEnC ? String(currentPlanRows[0][nameEnC] ?? '') : '';
 
+    const currentSubReceiptId = receiptDocCol && subRow[receiptDocCol] ? String(subRow[receiptDocCol]) : null;
     if (direction === 'upgrade') {
       try {
         await prisma.subscriptionHistory.create({
@@ -221,7 +223,7 @@ export async function POST(req: NextRequest) {
             startAt: currentStartAt,
             endAt,
             amountPaid: null,
-            receiptDocumentId: null,
+            receiptDocumentId: currentSubReceiptId,
           },
         });
       } catch (e) {
