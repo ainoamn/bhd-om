@@ -276,6 +276,16 @@ export default function AccountingSection() {
           const auditRes = await fetch('/api/accounting/audit?limit=50', { credentials: 'include' }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
           if (Array.isArray(auditRes)) setAuditLogs(auditRes);
           else setAuditLogs(getAuditLog());
+          fetch('/api/accounting/sync-bookings', { method: 'POST', credentials: 'include' })
+            .then((r) => {
+              if (!r.ok) return;
+              return fetchAccountingData({ fromDate: filterFromDate || undefined, toDate: filterToDate || undefined }).then((data) => {
+                if (Array.isArray(data.accounts)) setAccounts(data.accounts);
+                if (Array.isArray(data.documents)) setDocuments(data.documents);
+                if (Array.isArray(data.journalEntries)) setJournalEntries(data.journalEntries);
+              });
+            })
+            .catch(() => {});
         }
       } catch {
         loadDataLocal();

@@ -537,6 +537,73 @@ export async function getDocumentByIdFromDb(id: string) {
   };
 }
 
+/** إنشاء إيصال حجز عقار في المحاسبة (من واجهة الحجز أو من API الحجوزات) — يمنع التكرار حسب reference */
+export async function createBookingReceiptInDb(booking: {
+  id: string;
+  propertyId: number;
+  unitKey?: string;
+  propertyTitleAr?: string;
+  propertyTitleEn?: string;
+  name: string;
+  priceAtBooking: number;
+  paymentDate?: string;
+  paymentMethod?: string;
+  paymentReferenceNo?: string;
+  contactId?: string | null;
+  bankAccountId?: string | null;
+}): Promise<{ docId: string; serialNumber: string } | null> {
+  if (!booking.priceAtBooking || booking.priceAtBooking <= 0) return null;
+  const ref = `booking:${booking.id}`;
+  const existing = await prisma.accountingDocument.findFirst({
+    where: { type: 'RECEIPT', reference: ref },
+  });
+  if (existing) return { docId: existing.id, serialNumber: existing.serialNumber };
+
+  await ensureAccountingAccounts();
+  const accounts = await getAccountsFromDb();
+  const cashAcc = accounts.find((a: { code: string }) => a.code === '1000');
+  const revenueAcc = accounts.find((a: { code: string }) => a.code === '4000');
+  if (!cashAcc || !revenueAcc) return null;
+
+  const date = (booking.paymentDate || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const unitPart = booking.unitKey ? ` - الوحدة: ${booking.unitKey}` : '';
+  const descAr = `إيصال حجز - رقم العقار: ${booking.propertyId}${unitPart} - ${booking.name}`;
+  const descEn = `Booking receipt - Property: ${booking.propertyId}${unitPart ? ` - Unit: ${booking.unitKey}` : ''} - ${booking.name}`;
+
+  const doc = await createDocumentInDb({
+    type: 'RECEIPT',
+    status: 'APPROVED',
+    date,
+    amount: booking.priceAtBooking,
+    currency: 'OMR',
+    totalAmount: booking.priceAtBooking,
+    descriptionAr: descAr,
+    descriptionEn: descEn,
+    contactId: booking.contactId ?? undefined,
+    bankAccountId: booking.bankAccountId ?? undefined,
+    propertyId: booking.propertyId,
+    reference: ref,
+  });
+
+  const lines = [
+    { accountId: cashAcc.id, debit: booking.priceAtBooking, credit: 0, descriptionAr: descAr, descriptionEn: descEn },
+    { accountId: revenueAcc.id, debit: 0, credit: booking.priceAtBooking, descriptionAr: descAr, descriptionEn: descEn },
+  ];
+  await createJournalEntryInDb({
+    date,
+    lines,
+    descriptionAr: descAr,
+    descriptionEn: descEn,
+    documentType: 'RECEIPT',
+    documentId: doc.id,
+    contactId: booking.contactId ?? undefined,
+    propertyId: booking.propertyId,
+    status: 'APPROVED',
+    createdBy: 'booking-payment',
+  });
+  return { docId: doc.id, serialNumber: doc.serialNumber };
+}
+
 export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 'CANCELLED' | 'PAID') {
   const doc = await prisma.accountingDocument.update({
     where: { id },

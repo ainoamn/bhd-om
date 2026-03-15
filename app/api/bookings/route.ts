@@ -1,12 +1,13 @@
 /**
  * تخزين واسترجاع الحجوزات على الخادم حتى تظهر في لوحة الإدارة والمحاسبة.
- * للمستخدمين غير الأدمن: تُرجَع فقط الحجوزات الخاصة بعقارات ضمن نطاقهم (ب، ر، د).
+ * عند حفظ حجز مدفوع: يُنشأ إيصال في المحاسبة (قاعدة البيانات) تلقائياً.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { getDataScope, propertyScopeWhere } from '@/lib/auth/adminPermissions';
+import { createBookingReceiptInDb } from '@/lib/accounting/data/dbService';
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,6 +72,28 @@ export async function POST(req: NextRequest) {
       create: { bookingId: id, data },
       update: { data, updatedAt: new Date() },
     });
+
+    if (body.paymentConfirmed && body.priceAtBooking > 0 && body.type === 'BOOKING') {
+      try {
+        await createBookingReceiptInDb({
+          id: body.id,
+          propertyId: Number(body.propertyId),
+          unitKey: body.unitKey,
+          propertyTitleAr: body.propertyTitleAr,
+          propertyTitleEn: body.propertyTitleEn,
+          name: body.name || '',
+          priceAtBooking: Number(body.priceAtBooking),
+          paymentDate: body.paymentDate,
+          paymentMethod: body.paymentMethod,
+          paymentReferenceNo: body.paymentReferenceNo,
+          contactId: body.contactId,
+          bankAccountId: body.bankAccountId,
+        });
+      } catch (accErr) {
+        console.error('Booking receipt (accounting) error:', accErr);
+      }
+    }
+
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     console.error('Bookings POST error:', e);
