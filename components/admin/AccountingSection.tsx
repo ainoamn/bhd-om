@@ -260,30 +260,22 @@ export default function AccountingSection() {
   const getPropertyDisplay = (p: Parameters<typeof getPropertyDisplayText>[0]) => getPropertyDisplayText(p);
 
   const loadData = async () => {
-    const preferApi =
-      typeof process !== 'undefined' &&
-      (process.env.NODE_ENV === 'production' || process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB !== 'false');
-    if (preferApi) {
-      try {
-        const data = await fetchAccountingData({
-          fromDate: filterFromDate || undefined,
-          toDate: filterToDate || undefined,
-        });
-        if (Array.isArray(data.accounts)) setAccounts(data.accounts);
-        if (Array.isArray(data.documents)) setDocuments(data.documents);
-        if (Array.isArray(data.journalEntries)) setJournalEntries(data.journalEntries);
-        if (Array.isArray(data.periods)) setPeriods(data.periods);
-        setDataSourceFromApi(true);
-        if (typeof window !== 'undefined') {
-          const auditRes = await fetch('/api/accounting/audit?limit=50', { credentials: 'include' }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
-          if (Array.isArray(auditRes)) setAuditLogs(auditRes);
-          else setAuditLogs(getAuditLog());
-        }
-      } catch (e) {
-        loadDataLocal();
-        setDataSourceFromApi(false);
+    try {
+      const data = await fetchAccountingData({
+        fromDate: filterFromDate || undefined,
+        toDate: filterToDate || undefined,
+      });
+      if (Array.isArray(data.accounts)) setAccounts(data.accounts);
+      if (Array.isArray(data.documents)) setDocuments(data.documents);
+      if (Array.isArray(data.journalEntries)) setJournalEntries(data.journalEntries);
+      if (Array.isArray(data.periods)) setPeriods(data.periods);
+      setDataSourceFromApi(true);
+      if (typeof window !== 'undefined') {
+        const auditRes = await fetch('/api/accounting/audit?limit=50', { credentials: 'include' }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+        if (Array.isArray(auditRes)) setAuditLogs(auditRes);
+        else setAuditLogs(getAuditLog());
       }
-    } else {
+    } catch {
       loadDataLocal();
       setDataSourceFromApi(false);
     }

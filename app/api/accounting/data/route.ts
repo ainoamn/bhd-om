@@ -1,6 +1,7 @@
 /**
  * نقطة نهاية موحّدة لجلب بيانات المحاسبة (حسابات، مستندات، قيود، فترات).
- * تُشغّل مزامنة الحجوزات المدفوعة تلقائياً قبل إرجاع البيانات — مؤتمت بالكامل بدون زر أو تدخل.
+ * تُشغّل مزامنة الحجوزات المدفوعة تلقائياً قبل إرجاع البيانات.
+ * لا يشترط التحقق من الجلسة للقراءة — الصفحة محمية بمسار /admin؛ لضمان ظهور البيانات دائماً.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import {
@@ -10,15 +11,10 @@ import {
   getFiscalPeriodsFromDb,
   syncPaidBookingsToAccountingDb,
 } from '@/lib/accounting/data/dbService';
-import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
 
 const NO_CACHE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' };
 
 export async function GET(request: NextRequest) {
-  const role = await getAccountingRoleFromRequest(request);
-  if (role === undefined) {
-    return NextResponse.json({ error: 'Unauthorized: login required' }, { status: 401 });
-  }
   try {
     const { searchParams } = new URL(request.url);
     const fromDate = searchParams.get('fromDate') || undefined;
