@@ -57,6 +57,7 @@ import { getDefaultTemplate } from '@/lib/data/documentTemplates';
 import { LOGO_SIZE_DEFAULT } from '@/lib/data/documentTemplateConstants';
 import styles from './accounting.module.css';
 import {
+  fetchAccountingData,
   fetchAccounts,
   fetchDocuments,
   fetchJournalEntries,
@@ -261,44 +262,25 @@ export default function AccountingSection() {
   const loadData = async () => {
     const preferApi = typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB !== 'false';
     if (preferApi) {
-      const [accsResult, entriesResult, docsResult, perdsResult, auditResult] = await Promise.allSettled([
-        fetchAccounts(),
-        fetchJournalEntries({ fromDate: filterFromDate || undefined, toDate: filterToDate || undefined }),
-        fetchDocuments({ fromDate: filterFromDate || undefined, toDate: filterToDate || undefined }),
-        fetchPeriods(),
-        fetchAuditLog({ limit: 50 }),
-      ]);
-      let anyApiOk = false;
-      if (accsResult.status === 'fulfilled' && Array.isArray(accsResult.value)) {
-        setAccounts(accsResult.value);
-        anyApiOk = true;
-      } else {
-        setAccounts(getChartOfAccounts());
+      try {
+        const data = await fetchAccountingData({
+          fromDate: filterFromDate || undefined,
+          toDate: filterToDate || undefined,
+        });
+        if (Array.isArray(data.accounts)) setAccounts(data.accounts);
+        if (Array.isArray(data.documents)) setDocuments(data.documents);
+        if (Array.isArray(data.journalEntries)) setJournalEntries(data.journalEntries);
+        if (Array.isArray(data.periods)) setPeriods(data.periods);
+        setDataSourceFromApi(true);
+        if (typeof window !== 'undefined') {
+          const auditRes = await fetch('/api/accounting/audit?limit=50', { credentials: 'include' }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+          if (Array.isArray(auditRes)) setAuditLogs(auditRes);
+          else setAuditLogs(getAuditLog());
+        }
+      } catch {
+        loadDataLocal();
+        setDataSourceFromApi(false);
       }
-      if (entriesResult.status === 'fulfilled' && Array.isArray(entriesResult.value)) {
-        setJournalEntries(entriesResult.value);
-        anyApiOk = true;
-      } else {
-        setJournalEntries(getAllJournalEntries());
-      }
-      if (docsResult.status === 'fulfilled' && Array.isArray(docsResult.value)) {
-        setDocuments(docsResult.value);
-        anyApiOk = true;
-      } else {
-        setDocuments(getAllDocuments());
-      }
-      if (perdsResult.status === 'fulfilled' && Array.isArray(perdsResult.value)) {
-        setPeriods(perdsResult.value);
-        anyApiOk = true;
-      } else if (typeof window !== 'undefined') {
-        setPeriods(getFiscalPeriods());
-      }
-      if (auditResult.status === 'fulfilled' && Array.isArray(auditResult.value)) {
-        setAuditLogs(auditResult.value);
-      } else if (typeof window !== 'undefined') {
-        setAuditLogs(getAuditLog());
-      }
-      setDataSourceFromApi(anyApiOk);
     } else {
       loadDataLocal();
       setDataSourceFromApi(false);

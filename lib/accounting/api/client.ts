@@ -17,6 +17,17 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** جلب كل بيانات المحاسبة دفعة واحدة (حسابات، مستندات، قيود، فترات) لضمان ربط صحيح */
+export async function fetchAccountingData(params?: { fromDate?: string; toDate?: string }) {
+  const sp = new URLSearchParams(params);
+  return fetchJson<{
+    accounts: any[];
+    documents: any[];
+    journalEntries: any[];
+    periods: any[];
+  }>(`${BASE}/data?${sp}`);
+}
+
 export async function fetchAccounts() {
   return fetchJson<any[]>(`${BASE}/accounts`);
 }

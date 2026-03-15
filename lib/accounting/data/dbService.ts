@@ -355,6 +355,8 @@ export async function getDocumentsFromDb(filters?: { fromDate?: string; toDate?:
     vatAmount: r.vatAmount,
     totalAmount: r.totalAmount,
     netAmount: r.netAmount,
+    amount: Number(r.totalAmount ?? r.netAmount ?? 0),
+    currency: 'OMR',
     descriptionAr: r.descriptionAr,
     descriptionEn: r.descriptionEn,
     attachments: r.attachmentsJson ? JSON.parse(r.attachmentsJson) : undefined,

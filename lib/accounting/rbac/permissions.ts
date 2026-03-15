@@ -64,7 +64,8 @@ export function hasPermission(
 }
 
 export function getRoleFromUserRole(userRole: string): AccountingRole {
-  if (userRole === 'ADMIN') return 'ADMIN';
-  if (userRole === 'OWNER') return 'APPROVER';
+  const r = (userRole || '').toUpperCase();
+  if (r === 'ADMIN') return 'ADMIN';
+  if (r === 'OWNER') return 'APPROVER';
   return 'ACCOUNTANT';
 }
