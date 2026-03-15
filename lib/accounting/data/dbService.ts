@@ -179,11 +179,15 @@ export async function getAccountsFromDb() {
   const totalBalance = rows.reduce((s, r) => s + Math.abs(r.balance ?? 0), 0);
   const entryCount = await prisma.accountingJournalEntry.count({ where: { status: { in: ['APPROVED', 'POSTED'] } } });
   if (entryCount > 0 && totalBalance < 0.001) {
-    await recomputeAccountBalances();
-    rows = await prisma.accountingAccount.findMany({
-      where: { isActive: true },
-      orderBy: { code: 'asc' },
-    });
+    try {
+      await recomputeAccountBalances();
+      rows = await prisma.accountingAccount.findMany({
+        where: { isActive: true },
+        orderBy: { code: 'asc' },
+      });
+    } catch {
+      // إبقاء الصفوف الحالية عند فشل إعادة الحساب
+    }
   }
   return rows.map((r, i) => ({
     id: r.id,

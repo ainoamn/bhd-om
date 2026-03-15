@@ -15,30 +15,43 @@ import {
 const NO_CACHE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' };
 
 export async function GET(request: NextRequest) {
+  const fromDate = new URL(request.url).searchParams.get('fromDate') || undefined;
+  const toDate = new URL(request.url).searchParams.get('toDate') || undefined;
+
   try {
-    const { searchParams } = new URL(request.url);
-    const fromDate = searchParams.get('fromDate') || undefined;
-    const toDate = searchParams.get('toDate') || undefined;
-
     await syncPaidBookingsToAccountingDb();
+  } catch (syncErr) {
+    console.error('Accounting sync bookings:', syncErr);
+  }
 
-    const [accounts, documents, journalEntries, periods] = await Promise.all([
+  let accounts: any[] = [];
+  let documents: any[] = [];
+  let journalEntries: any[] = [];
+  let periods: any[] = [];
+
+  try {
+    const [acc, doc, ent, per] = await Promise.all([
       getAccountsFromDb(),
       getDocumentsFromDb({ fromDate, toDate }),
       getJournalEntriesFromDb({ fromDate, toDate }),
       getFiscalPeriodsFromDb(),
     ]);
-
-    return NextResponse.json(
-      { accounts, documents, journalEntries, periods },
-      { headers: NO_CACHE }
-    );
+    accounts = acc;
+    documents = doc;
+    journalEntries = ent;
+    periods = per;
   } catch (err) {
     console.error('Accounting data GET:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to fetch accounting data' },
-      { status: 500 }
-    );
+    try {
+      accounts = await getAccountsFromDb();
+    } catch {
+      accounts = [];
+    }
   }
+
+  return NextResponse.json(
+    { accounts, documents, journalEntries, periods },
+    { headers: NO_CACHE }
+  );
 }
 

@@ -482,12 +482,12 @@ export default function AccountingSection() {
   const reportTo = filterToDate || new Date().toISOString().slice(0, 10);
   const reportAsOf = filterToDate || new Date().toISOString().slice(0, 10);
 
-  const ledgerLines = selectedAccountId
-    ? getAccountLedger(selectedAccountId, filterFromDate || undefined, filterToDate || undefined)
-    : [];
   /** استخدام بيانات الـ state للتقارير لضمان انعكاس التحديثات فوراً (محلي و API) */
   const entriesForReports = journalEntries;
   const accountsForReports = accounts;
+  const ledgerLines = selectedAccountId
+    ? getAccountLedger(selectedAccountId, filterFromDate || undefined, filterToDate || undefined, entriesForReports)
+    : [];
 
   const ledgerWithBalance = selectedAccountId
     ? getAccountLedgerWithBalance(selectedAccountId, filterFromDate || undefined, filterToDate || undefined, entriesForReports, accountsForReports)
@@ -521,7 +521,7 @@ export default function AccountingSection() {
     netIncome: incomeStatement.netIncome,
   };
 
-  const anomalies = aiDetectAnomalies();
+  const anomalies = aiDetectAnomalies(entriesForReports, accountsForReports);
 
   const cashSnapshot = getBankAccountBalance('CASH', reportAsOf, entriesForReports);
   const banksTotal = bankAccounts
@@ -1143,7 +1143,7 @@ export default function AccountingSection() {
                 </thead>
                 <tbody>
                   {sortedAccounts.map((a) => {
-                    const bal = getAccountBalance(a.id);
+                    const bal = getAccountBalance(a.id, undefined, entriesForReports, accountsForReports);
                     return (
                       <tr key={a.id}>
                         <td className="font-mono">{a.code}</td>

@@ -1011,11 +1011,11 @@ export function aiSuggestJournalLines(
 }
 
 /** الذكاء الاصطناعي: كشف شذوذ (رصيد سالب غير متوقع) */
-export function aiDetectAnomalies(): Array<{ accountId: string; accountCode: string; accountNameAr: string; balance: number; message: string }> {
-  const accounts = getChartOfAccounts().filter((a) => a.isActive);
+export function aiDetectAnomalies(entriesOverride?: JournalEntry[], accountsOverride?: ChartAccount[]): Array<{ accountId: string; accountCode: string; accountNameAr: string; balance: number; message: string }> {
+  const accounts = (accountsOverride ?? getChartOfAccounts()).filter((a) => a.isActive);
   const anomalies: Array<{ accountId: string; accountCode: string; accountNameAr: string; balance: number; message: string }> = [];
   for (const acc of accounts) {
-    const { balance } = getAccountBalance(acc.id);
+    const { balance } = getAccountBalance(acc.id, undefined, entriesOverride, accountsOverride);
     if (acc.type === 'ASSET' && balance < -0.01) {
       anomalies.push({ accountId: acc.id, accountCode: acc.code, accountNameAr: acc.nameAr, balance, message: 'رصيد أصول سالب - تحقق من القيود' });
     }
