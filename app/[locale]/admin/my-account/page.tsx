@@ -45,7 +45,16 @@ type SubData = {
     plan: PlanInfo | null;
   } | null;
   plans: Array<{ id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency?: string; sortOrder: number }>;
-  pendingRequest: { id: string; direction: string; status: string } | null;
+  pendingRequest: {
+    id: string;
+    direction: string;
+    status: string;
+    requestedPlanId?: string;
+    requestedPlanNameAr?: string;
+    requestedPlanNameEn?: string;
+    activationDate?: string;
+    amount?: number;
+  } | null;
   subscriptionHistory?: SubHistoryItem[];
 };
 
@@ -249,13 +258,22 @@ export default function MyAccountPage() {
   }) ?? [];
 
   const selectedPlan = requestPlanId ? subData?.plans?.find((p) => p.id === requestPlanId) : null;
-  const paymentAmount = requestDirection === 'upgrade' && selectedPlan ? selectedPlan.priceMonthly : 0;
+  const [upgradeQuote, setUpgradeQuote] = useState<{ remainingValue: number; chargeAmount: number; newPlanPrice: number; remainingDays: number } | null>(null);
+  const paymentAmount =
+    requestDirection === 'upgrade' && selectedPlan
+      ? upgradeQuote != null
+        ? upgradeQuote.chargeAmount
+        : selectedPlan.priceMonthly
+      : requestDirection === 'downgrade' && selectedPlan
+        ? selectedPlan.priceMonthly
+        : 0;
 
   const closePlanModal = () => {
     setShowRequestModal(false);
     setRequestStep(1);
     setRequestPlanId('');
     setRequestReason('');
+    setUpgradeQuote(null);
     setCardData({ number: '', expiry: '', cvv: '', name: '' });
     setPaymentSuccess(null);
   };
@@ -341,8 +359,25 @@ export default function MyAccountPage() {
     setRequestPlanId(planId);
     setCardData({ number: '', expiry: '', cvv: '', name: '' });
     setPaymentSuccess(null);
-    if (requestDirection === 'downgrade') setRequestStep(2);
-    else setRequestStep(2);
+    setUpgradeQuote(null);
+    if (requestDirection === 'downgrade') {
+      setRequestStep(2);
+    } else {
+      setRequestStep(2);
+      fetch(`/api/subscriptions/me/upgrade-quote?requestedPlanId=${encodeURIComponent(planId)}`, { credentials: 'include' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.chargeAmount != null) {
+            setUpgradeQuote({
+              remainingValue: data.remainingValue ?? 0,
+              chargeAmount: data.chargeAmount,
+              newPlanPrice: data.newPlanPrice ?? 0,
+              remainingDays: data.remainingDays ?? 0,
+            });
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   const handleSubmitPayment = async () => {
@@ -563,7 +598,18 @@ export default function MyAccountPage() {
               <p className="text-gray-500">{ar ? 'لا يوجد اشتراك فعّال' : 'No active subscription'}</p>
             )}
             {subData?.pendingRequest && (
-              <p className="text-amber-600 text-sm mt-1">{ar ? 'لديك طلب ترقية/تنزيل قيد المراجعة' : 'You have a pending upgrade/downgrade request'}</p>
+              <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                <p className="text-amber-800 font-medium text-sm mb-1">{ar ? 'لديك طلب تنزيل باقة قيد التفعيل' : 'You have a pending downgrade'}</p>
+                <p className="text-gray-700 text-sm">
+                  {ar ? 'الباقة الجديدة' : 'New plan'}: {locale === 'ar' ? (subData.pendingRequest.requestedPlanNameAr ?? subData.pendingRequest.requestedPlanId) : (subData.pendingRequest.requestedPlanNameEn ?? subData.pendingRequest.requestedPlanId)}
+                  {subData.pendingRequest.activationDate && (
+                    <> · {ar ? 'ستُفعّل من' : 'Activates on'} {new Date(subData.pendingRequest.activationDate).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</>
+                  )}
+                  {typeof subData.pendingRequest.amount === 'number' && (
+                    <> · {ar ? 'المبلغ' : 'Amount'}: {subData.pendingRequest.amount.toLocaleString('en-US')} OMR</>
+                  )}
+                </p>
+              </div>
             )}
           </div>
           {subData?.subscription && !subData?.pendingRequest && subData?.plans?.length > 0 && (
@@ -644,14 +690,15 @@ export default function MyAccountPage() {
             <div className="pt-4 mt-4 border-t border-gray-200">
               <h4 className="text-sm font-semibold text-gray-700 mb-3" style={{ lineHeight: 1.5 }}>{ar ? 'الباقات السابقة' : 'Previous plans'}</h4>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden admin-table">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'الباقة' : 'Plan'}</th>
-                      <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'تاريخ البدء' : 'Start'}</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'تاريخ الاشتراك' : 'Start'}</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'تاريخ الانتهاء' : 'End'}</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'المبلغ المدفوع' : 'Amount paid'}</th>
-                      <th className="px-3 py-2 text-center font-semibold text-gray-700">{ar ? 'إيصال' : 'Receipt'}</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'رقم الإيصال' : 'Receipt no.'}</th>
+                      <th className="px-3 py-2 text-center font-semibold text-gray-700">{ar ? 'طباعة' : 'Print'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -661,24 +708,22 @@ export default function MyAccountPage() {
                         <td className="px-3 py-2 text-gray-600">{new Date(h.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'medium' })}</td>
                         <td className="px-3 py-2 text-gray-600">{new Date(h.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'medium' })}</td>
                         <td className="px-3 py-2 text-gray-600">{h.amountPaid != null ? `${Number(h.amountPaid).toLocaleString('en-US')} OMR` : '—'}</td>
+                        <td className="px-3 py-2 text-gray-600">{h.receiptDocumentId ? (h.receiptSerialNumber ?? '—') : '—'}</td>
                         <td className="px-3 py-2 text-center">
                           {h.receiptDocumentId ? (
-                            <span className="inline-flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
-                              {h.receiptSerialNumber && <span className="text-xs text-gray-600">{h.receiptSerialNumber}</span>}
-                              <button
-                                type="button"
-                                onClick={() => printReceiptByDocumentId(h.receiptDocumentId!, [
+                            <button
+                              type="button"
+                              onClick={() => printReceiptByDocumentId(h.receiptDocumentId!, [
                                 { labelAr: 'الباقة', labelEn: 'Plan', value: locale === 'ar' ? h.planNameAr : h.planNameEn },
                                 { labelAr: 'تاريخ البدء', labelEn: 'Start', value: new Date(h.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
                                 { labelAr: 'تاريخ الانتهاء', labelEn: 'End', value: new Date(h.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
                                 { labelAr: 'المبلغ المدفوع', labelEn: 'Amount paid', value: h.amountPaid != null ? `${Number(h.amountPaid).toLocaleString('en-US')} OMR` : '—' },
                               ])}
-                                className="text-[#8B6F47] hover:underline inline-flex items-center gap-1"
-                              >
-                                <Icon name="printer" className="w-4 h-4" />
-                                {ar ? 'طباعة الإيصال' : 'Print receipt'}
-                              </button>
-                            </span>
+                              className="text-[#8B6F47] hover:underline inline-flex items-center gap-1"
+                            >
+                              <Icon name="printer" className="w-4 h-4" />
+                              {ar ? 'طباعة الإيصال' : 'Print receipt'}
+                            </button>
                           ) : (
                             <span className="text-gray-400 text-xs">—</span>
                           )}
@@ -829,6 +874,18 @@ export default function MyAccountPage() {
                     </div>
                   </div>
                 ) : (
+                  <>
+                  {requestDirection === 'upgrade' && upgradeQuote && upgradeQuote.remainingValue > 0 && (
+                    <div className="p-4 mb-4 rounded-xl bg-sky-50 border border-sky-200 text-sm mx-6">
+                      <p className="font-semibold text-sky-900 mb-1">
+                        {ar ? 'خصم المتبقي من اشتراكك الحالي' : 'Credit from your current subscription'}
+                      </p>
+                      <p className="text-sky-800">
+                        {ar ? 'متبقي من اشتراكك' : 'Remaining value'}: {upgradeQuote.remainingValue.toLocaleString('en-US')} OMR ({ar ? 'سيُخصم من المبلغ' : 'will be deducted'})
+                        {ar ? ' · المبلغ المطلوب' : ' · Amount due'}: <strong>{upgradeQuote.chargeAmount.toLocaleString('en-US')} OMR</strong>
+                      </p>
+                    </div>
+                  )}
                   <div className="bg-[#0f0d0b] min-h-[480px] p-4 md:p-6 rounded-b-xl">
                     <UnifiedPaymentForm
                       locale={locale}
@@ -841,11 +898,12 @@ export default function MyAccountPage() {
                       submitLabel={requestDirection === 'upgrade' ? (ar ? 'دفع وترقية الباقة' : 'Pay & upgrade') : (ar ? 'تأكيد التنزيل والدفع' : 'Confirm downgrade & pay')}
                       cancelLabel={ar ? '← رجوع' : '← Back'}
                       loading={submitting}
-                      disabled={submitting}
+                      disabled={submitting || (requestDirection === 'upgrade' && (selectedPlan?.priceMonthly ?? 0) > 0 && upgradeQuote === null)}
                       showSimulationBadge
                       amountNote={requestDirection === 'downgrade' ? (ar ? 'سيُطبّق بعد انتهاء الفترة الحالية' : 'Applied at period end') : undefined}
                     />
                   </div>
+                  </>
                 )
               ) : null}
             </div>

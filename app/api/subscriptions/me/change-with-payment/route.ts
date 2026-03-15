@@ -11,6 +11,7 @@ import {
   getAccountsFromDb,
   createDocumentInDb,
   createJournalEntryInDb,
+  getDocumentByIdFromDb,
 } from '@/lib/accounting/data/dbService';
 
 export const runtime = 'nodejs';
@@ -181,30 +182,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الخطة المختارة ليست تنزيلاً' }, { status: 400 });
     }
 
-    const amount =
-      payment != null && typeof (payment as { amount?: unknown }).amount === 'number'
-        ? (payment as { amount: number }).amount
-        : direction === 'upgrade'
-          ? planPrice
-          : 0;
     const currency = payment?.currency || 'OMR';
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
 
     let receiptDocId: string | null = null;
-    if (amount > 0) {
-      try {
-        const receiptResult = await createSubscriptionReceipt({
-          userId,
-          userEmail: user?.email ?? undefined,
-          planNameAr,
-          planNameEn,
-          amount,
-          currency,
-          direction,
-        });
-        if (receiptResult?.docId) receiptDocId = receiptResult.docId;
-      } catch (e) {
-        console.error('Subscription receipt creation:', e);
+    const currentPlanPrice = currentPlanRows?.[0] && priceMC ? Number(currentPlanRows[0][priceMC]) : 0;
+    if (direction === 'downgrade') {
+      const amount =
+        payment != null && typeof (payment as { amount?: unknown }).amount === 'number'
+          ? (payment as { amount: number }).amount
+          : 0;
+      if (amount > 0) {
+        try {
+          const receiptResult = await createSubscriptionReceipt({
+            userId,
+            userEmail: user?.email ?? undefined,
+            planNameAr,
+            planNameEn,
+            amount,
+            currency,
+            direction: 'downgrade',
+          });
+          if (receiptResult?.docId) receiptDocId = receiptResult.docId;
+        } catch (e) {
+          console.error('Subscription receipt creation:', e);
+        }
       }
     }
 
@@ -212,7 +214,50 @@ export async function POST(req: NextRequest) {
     const currentPlanNameEn = currentPlanRows?.[0] && nameEnC ? String(currentPlanRows[0][nameEnC] ?? '') : '';
 
     const currentSubReceiptId = receiptDocCol && subRow[receiptDocCol] ? String(subRow[receiptDocCol]) : null;
+    let amountPaidForHistory: number | null = null;
+    if (currentSubReceiptId) {
+      try {
+        const doc = await getDocumentByIdFromDb(currentSubReceiptId);
+        if (doc?.totalAmount != null) amountPaidForHistory = Number(doc.totalAmount);
+      } catch {
+        // ignore
+      }
+    }
+
     if (direction === 'upgrade') {
+      const now = new Date();
+      const endAtDate = endAt instanceof Date ? endAt : new Date(endAt);
+      const startAtDate = currentStartAt instanceof Date ? currentStartAt : new Date(currentStartAt);
+      const totalDays = Math.max(1, (endAtDate.getTime() - startAtDate.getTime()) / (24 * 60 * 60 * 1000));
+      const remainingMs = Math.max(0, endAtDate.getTime() - now.getTime());
+      const remainingDays = remainingMs / (24 * 60 * 60 * 1000);
+      const amountPaidCurrent = amountPaidForHistory ?? currentPlanPrice;
+      const remainingValue = totalDays > 0 ? (amountPaidCurrent * remainingDays) / totalDays : 0;
+      const chargeAmount = Math.max(0, Math.round((planPrice - remainingValue) * 100) / 100);
+
+      const amount =
+        payment != null && typeof (payment as { amount?: unknown }).amount === 'number'
+          ? (payment as { amount: number }).amount
+          : chargeAmount;
+
+      let receiptDocIdFinal: string | null = null;
+      if (amount > 0) {
+        try {
+          const receiptResult = await createSubscriptionReceipt({
+            userId,
+            userEmail: user?.email ?? undefined,
+            planNameAr,
+            planNameEn,
+            amount,
+            currency,
+            direction: 'upgrade',
+          });
+          if (receiptResult?.docId) receiptDocIdFinal = receiptResult.docId;
+        } catch (e) {
+          console.error('Subscription receipt (upgrade proration):', e);
+        }
+      }
+
       try {
         await prisma.subscriptionHistory.create({
           data: {
@@ -222,7 +267,7 @@ export async function POST(req: NextRequest) {
             planNameEn: currentPlanNameEn || currentPlanId,
             startAt: currentStartAt,
             endAt,
-            amountPaid: null,
+            amountPaid: amountPaidForHistory,
             receiptDocumentId: currentSubReceiptId,
           },
         });
@@ -242,14 +287,14 @@ export async function POST(req: NextRequest) {
           startAt,
           endAt: newEndAt,
           usageJson,
-          receiptDocumentId: receiptDocId,
+          receiptDocumentId: receiptDocIdFinal,
         },
         update: {
           planId: requestedPlanId,
           status: 'active',
           startAt,
           endAt: newEndAt,
-          receiptDocumentId: receiptDocId,
+          receiptDocumentId: receiptDocIdFinal,
         },
       });
       return NextResponse.json({ ok: true, message: 'تمت الترقية بنجاح' });

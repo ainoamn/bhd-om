@@ -86,6 +86,15 @@ export async function GET(req: NextRequest) {
       if (changeReq) {
         const currentPlan = await prisma.plan.findUnique({ where: { id: planId } }).catch(() => null);
         const currentReceiptId = receiptDocCol && subRow[receiptDocCol] ? String(subRow[receiptDocCol]) : null;
+        let amountPaidForHistory: number | null = null;
+        if (currentReceiptId) {
+          try {
+            const doc = await getDocumentByIdFromDb(currentReceiptId);
+            if (doc?.totalAmount != null) amountPaidForHistory = Number(doc.totalAmount);
+          } catch {
+            // ignore
+          }
+        }
         try {
           await prisma.subscriptionHistory.create({
             data: {
@@ -95,7 +104,7 @@ export async function GET(req: NextRequest) {
               planNameEn: currentPlan?.nameEn ?? planId,
               startAt: new Date(startAt),
               endAt: new Date(endAt),
-              amountPaid: null,
+              amountPaid: amountPaidForHistory,
               receiptDocumentId: currentReceiptId,
             },
           });
@@ -208,6 +217,27 @@ export async function GET(req: NextRequest) {
     const plansRes = await fetch(`${req.nextUrl.origin}/api/plans`, { cache: 'no-store', headers: { cookie: req.headers.get('cookie') || '' } }).then((r) => r.json()).catch(() => ({ list: [] }));
     const plansList = Array.isArray(plansRes?.list) ? plansRes.list : [];
 
+    let pendingRequest: { id: string; direction: string; status: string; requestedPlanId: string; requestedPlanNameAr: string; requestedPlanNameEn: string; activationDate: string; amount: number } | null = null;
+    const changeReq = await prisma.subscriptionChangeRequest.findFirst({
+      where: { subscriptionId: subId, status: 'approved' },
+      include: { subscription: false },
+    }).catch(() => null);
+    if (changeReq) {
+      const reqPlan = await prisma.plan.findUnique({ where: { id: changeReq.requestedPlanId } }).catch(() => null);
+      const endAtDate = new Date(endAt);
+      endAtDate.setDate(endAtDate.getDate() + 1);
+      pendingRequest = {
+        id: changeReq.id,
+        direction: changeReq.direction ?? 'downgrade',
+        status: changeReq.status,
+        requestedPlanId: changeReq.requestedPlanId,
+        requestedPlanNameAr: reqPlan?.nameAr ?? changeReq.requestedPlanId,
+        requestedPlanNameEn: reqPlan?.nameEn ?? changeReq.requestedPlanId,
+        activationDate: endAtDate.toISOString(),
+        amount: reqPlan?.priceMonthly ?? 0,
+      };
+    }
+
     const subscriptionHistory = await prisma.subscriptionHistory.findMany({
       where: { userId },
       orderBy: { endAt: 'desc' },
@@ -258,7 +288,7 @@ export async function GET(req: NextRequest) {
           limits: p.limits ?? {},
           sortOrder: typeof p.sortOrder === 'number' ? p.sortOrder : 0,
         })),
-        pendingRequest: null,
+        pendingRequest,
         subscriptionHistory: historyEnriched,
       },
       { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' } }
