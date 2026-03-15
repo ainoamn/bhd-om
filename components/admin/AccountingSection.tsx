@@ -152,7 +152,15 @@ function BookingCancellationCompleteForm({ requestId, onComplete, ar }: { reques
   );
 }
 
-export default function AccountingSection() {
+export type AccountingInitialData = {
+  accounts?: any[];
+  documents?: any[];
+  journalEntries?: any[];
+  periods?: any[];
+};
+
+export default function AccountingSection(props: { initialData?: AccountingInitialData }) {
+  const { initialData } = props;
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -172,10 +180,10 @@ export default function AccountingSection() {
   const actionFromUrl = searchParams?.get('action');
 
   const [activeTab, setActiveTab] = useState<TabId>(tabFromUrl);
-  const [accounts, setAccounts] = useState<ChartAccount[]>([]);
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [documents, setDocuments] = useState<AccountingDocument[]>([]);
-  const [periods, setPeriods] = useState<Array<{ id: string; code: string; startDate: string; endDate: string; isLocked: boolean }>>([]);
+  const [accounts, setAccounts] = useState<ChartAccount[]>(initialData?.accounts ?? []);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(initialData?.journalEntries ?? []);
+  const [documents, setDocuments] = useState<AccountingDocument[]>(initialData?.documents ?? []);
+  const [periods, setPeriods] = useState<Array<{ id: string; code: string; startDate: string; endDate: string; isLocked: boolean }>>(initialData?.periods ?? []);
   const [auditLogs, setAuditLogs] = useState<Array<{ id: string; timestamp: string; action: string; entityType: string; entityId: string; reason?: string }>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterFromDate, setFilterFromDate] = useState('');
@@ -244,9 +252,10 @@ export default function AccountingSection() {
   const [sortJournal, setSortJournal] = useState<SortOption>('dateDesc');
   const [sortAccounts, setSortAccounts] = useState<SortOption>('number');
 
-  const [dataSourceFromApi, setDataSourceFromApi] = useState<boolean | null>(null);
+  const [dataSourceFromApi, setDataSourceFromApi] = useState<boolean | null>(initialData ? true : null);
   const useDb = dataSourceFromApi === true;
   const syncRetryRef = useRef(false);
+  const skipFirstLoadRef = useRef(!!initialData);
   const contacts = typeof window !== 'undefined' ? getAllContacts() : [];
   const bankAccounts = typeof window !== 'undefined' ? getAllBankAccounts() : [];
   const mergedProperties = useMemo(() => propertiesList.map((p) => getPropertyById(p.id) || p), []);
@@ -349,6 +358,10 @@ export default function AccountingSection() {
     }
   }, [showAddDocument, docForm.type]);
   useEffect(() => {
+    if (skipFirstLoadRef.current && !filterFromDate && !filterToDate) {
+      skipFirstLoadRef.current = false;
+      return;
+    }
     loadData();
   }, [filterFromDate, filterToDate]);
   useEffect(() => {

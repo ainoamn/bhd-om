@@ -751,3 +751,20 @@ export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 
     updatedAt: doc.updatedAt.toISOString(),
   };
 }
+
+/** جلب كل بيانات المحاسبة من الخادم (مزامنة + قراءة) — للعرض المباشر من الصفحة دون الاعتماد على طلب API من المتصفح */
+export async function getAccountingDataForPage(filters?: { fromDate?: string; toDate?: string }) {
+  try {
+    await syncPaidBookingsToAccountingDb();
+  } catch (_) {}
+  try {
+    await syncSubscriptionHistoryToAccountingDb();
+  } catch (_) {}
+  const [accounts, documents, journalEntries, periods] = await Promise.all([
+    getAccountsFromDb(),
+    getDocumentsFromDb({ fromDate: filters?.fromDate, toDate: filters?.toDate }),
+    getJournalEntriesFromDb({ fromDate: filters?.fromDate, toDate: filters?.toDate }),
+    getFiscalPeriodsFromDb(),
+  ]);
+  return { accounts, documents, journalEntries, periods };
+}
