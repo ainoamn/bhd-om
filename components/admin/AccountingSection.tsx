@@ -501,6 +501,18 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     return list;
   }, [accounts, sortAccounts]);
 
+  /** تجميع الحسابات حسب النوع للعرض المنظم (أصول → التزامات → حقوق ملكية → إيرادات → مصروفات) */
+  const ACCOUNT_TYPE_ORDER: AccountType[] = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'];
+  const accountsByType = useMemo(() => {
+    const map = new Map<AccountType, typeof sortedAccounts>();
+    for (const t of ACCOUNT_TYPE_ORDER) map.set(t, []);
+    for (const a of sortedAccounts) {
+      const list = map.get(a.type as AccountType);
+      if (list) list.push(a);
+    }
+    return ACCOUNT_TYPE_ORDER.map((t) => ({ type: t, accounts: map.get(t) || [] }));
+  }, [sortedAccounts]);
+
   const reportFrom = filterFromDate || new Date().getFullYear() + '-01-01';
   const reportTo = filterToDate || new Date().toISOString().slice(0, 10);
   const reportAsOf = filterToDate || new Date().toISOString().slice(0, 10);
@@ -744,6 +756,37 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               <p className="mt-1 text-2xl font-bold text-amber-700 tabular-nums">{chequesReceivable.toLocaleString()} ر.ع</p>
             </div>
           </div>
+          {/* الحسابات الرئيسية: إيرادات العقارات، الاشتراكات */}
+          {(() => {
+            const acc4000 = accounts.find((a: { code: string }) => a.code === '4000');
+            const acc4250 = accounts.find((a: { code: string }) => a.code === '4250');
+            const bal4000 = acc4000 ? getAccountBalance(acc4000.id, undefined, entriesForReports, accountsForReports).balance : 0;
+            const bal4250 = acc4250 ? getAccountBalance(acc4250.id, undefined, entriesForReports, accountsForReports).balance : 0;
+            if (accounts.length === 0) return null;
+            return (
+              <div className="rounded-2xl border border-[#8B6F47]/20 bg-[#8B6F47]/5 p-5 shadow-sm">
+                <p className="text-xs font-semibold text-[#8B6F47] mb-3">{ar ? 'الحسابات الرئيسية للنظام' : 'Key system accounts'}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-600">1000 — {ar ? 'الصندوق' : 'Cash'}</p>
+                    <p className="text-lg font-bold text-gray-900 tabular-nums">{cashSnapshot.balance.toLocaleString()} ر.ع</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">4000 — {ar ? 'إيرادات العقارات والإيجار' : 'Property & Rent Revenue'}</p>
+                    <p className="text-lg font-bold text-emerald-700 tabular-nums">{bal4000.toLocaleString()} ر.ع</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">4250 — {ar ? 'إيرادات الاشتراكات (الباقات)' : 'Subscription Revenue'}</p>
+                    <p className="text-lg font-bold text-emerald-700 tabular-nums">{bal4250.toLocaleString()} ر.ع</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">{ar ? 'إجمالي الإيرادات' : 'Total Revenue'}</p>
+                    <p className="text-lg font-bold text-emerald-700 tabular-nums">{(bal4000 + bal4250).toLocaleString()} ر.ع</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           {/* Revenue vs Expense bar */}
           {(stats.totalRevenue > 0 || stats.totalExpenses > 0) && (
             <div className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm">
@@ -1155,29 +1198,43 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>{ar ? 'الرمز' : 'Code'}</th>
-                    <th>{ar ? 'اسم الحساب' : 'Account'}</th>
-                    <th>{ar ? 'النوع' : 'Type'}</th>
-                    <th>{ar ? 'الرصيد' : 'Balance'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedAccounts.map((a) => {
-                    const bal = getAccountBalance(a.id, undefined, entriesForReports, accountsForReports);
-                    return (
-                      <tr key={a.id}>
-                        <td className="font-mono">{a.code}</td>
-                        <td className="font-semibold">{ar ? a.nameAr : a.nameEn || a.nameAr}</td>
-                        <td><span className="admin-badge">{ar ? ACCOUNT_TYPE_LABELS[a.type].ar : ACCOUNT_TYPE_LABELS[a.type].en}</span></td>
-                        <td className={bal.balance >= 0 ? 'text-emerald-700' : 'text-red-600'}>{bal.balance.toLocaleString()} ر.ع</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {accountsByType.map(({ type, accounts: typeAccounts }) => {
+                if (typeAccounts.length === 0) return null;
+                const typeLabel = ar ? ACCOUNT_TYPE_LABELS[type].ar : ACCOUNT_TYPE_LABELS[type].en;
+                const typeTotal = typeAccounts.reduce((sum, a) => {
+                  const bal = getAccountBalance(a.id, undefined, entriesForReports, accountsForReports);
+                  return sum + bal.balance;
+                }, 0);
+                return (
+                  <div key={type} className="border-b border-gray-100 last:border-b-0">
+                    <div className="px-6 py-3 bg-gray-50/80 flex justify-between items-center">
+                      <h5 className="font-semibold text-gray-800">{typeLabel}</h5>
+                      <span className="text-sm font-bold tabular-nums text-gray-700">{typeTotal.toLocaleString()} ر.ع</span>
+                    </div>
+                    <table className="admin-table w-full">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">{ar ? 'الرمز' : 'Code'}</th>
+                          <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">{ar ? 'اسم الحساب' : 'Account'}</th>
+                          <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">{ar ? 'الرصيد' : 'Balance'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {typeAccounts.map((a) => {
+                          const bal = getAccountBalance(a.id, undefined, entriesForReports, accountsForReports);
+                          return (
+                            <tr key={a.id} className="border-t border-gray-100 hover:bg-gray-50/50">
+                              <td className="py-3 px-4 font-mono text-sm text-gray-800">{a.code}</td>
+                              <td className="py-3 px-4 font-medium text-gray-900">{ar ? a.nameAr : a.nameEn || a.nameAr}</td>
+                              <td className={`py-3 px-4 text-right font-semibold tabular-nums ${bal.balance >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{bal.balance.toLocaleString()} ر.ع</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
