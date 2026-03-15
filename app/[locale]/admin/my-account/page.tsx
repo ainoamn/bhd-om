@@ -22,6 +22,16 @@ import UnifiedPaymentForm from '@/components/shared/UnifiedPaymentForm';
 import { openReceiptPrintWindow } from '@/lib/utils/receiptPrint';
 
 type PlanInfo = { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency: string; features?: string[] };
+type SubHistoryItem = {
+  id: string;
+  planId: string;
+  planNameAr: string;
+  planNameEn: string;
+  startAt: string;
+  endAt: string;
+  amountPaid: number | null;
+  receiptDocumentId: string | null;
+};
 type SubData = {
   subscription: {
     id: string;
@@ -29,10 +39,12 @@ type SubData = {
     status: string;
     startAt: string;
     endAt: string;
+    receiptDocumentId?: string;
     plan: PlanInfo | null;
   } | null;
   plans: Array<{ id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency?: string; sortOrder: number }>;
   pendingRequest: { id: string; direction: string; status: string } | null;
+  subscriptionHistory?: SubHistoryItem[];
 };
 
 const emptyAddress: ContactAddress = {
@@ -274,6 +286,53 @@ export default function MyAccountPage() {
       ],
       autoPrint: true,
     });
+  };
+
+  const printReceiptByDocumentId = async (documentId: string, fallbackRows?: { labelAr: string; labelEn: string; value: string }[]) => {
+    try {
+      const res = await fetch(`/api/subscriptions/me/receipt/${documentId}`, { credentials: 'include' });
+      const doc = await res.json();
+      if (!res.ok || !doc?.id) {
+        if (fallbackRows?.length) {
+          openReceiptPrintWindow({
+            docTitleAr: 'إيصال الاشتراك',
+            docTitleEn: 'Subscription receipt',
+            date: new Date(doc?.date || Date.now()),
+            locale,
+            rows: fallbackRows,
+            serialNumber: doc?.serialNumber,
+            autoPrint: true,
+          });
+        }
+        return;
+      }
+      const date = doc.date ? new Date(doc.date) : new Date();
+      const rows = [
+        { labelAr: 'الوصف', labelEn: 'Description', value: (locale === 'ar' ? doc.descriptionAr : doc.descriptionEn) || doc.descriptionAr || doc.descriptionEn || '—' },
+        { labelAr: 'المبلغ', labelEn: 'Amount', value: doc.totalAmount != null ? `${Number(doc.totalAmount).toLocaleString('en-US')} ${doc.currency || 'OMR'}` : '—' },
+        { labelAr: 'التاريخ', labelEn: 'Date', value: date.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+      ];
+      openReceiptPrintWindow({
+        docTitleAr: 'إيصال الاشتراك',
+        docTitleEn: 'Subscription receipt',
+        serialNumber: doc.serialNumber,
+        date,
+        locale,
+        rows,
+        autoPrint: true,
+      });
+    } catch {
+      if (fallbackRows?.length) {
+        openReceiptPrintWindow({
+          docTitleAr: 'إيصال الاشتراك',
+          docTitleEn: 'Subscription receipt',
+          date: new Date(),
+          locale,
+          rows: fallbackRows,
+          autoPrint: true,
+        });
+      }
+    }
   };
 
   const handleSelectPlanForChange = (planId: string) => {
@@ -539,26 +598,78 @@ export default function MyAccountPage() {
                     const plan = sub.plan!;
                     const startDate = new Date(sub.startAt);
                     const endDate = new Date(sub.endAt);
-                    openReceiptPrintWindow({
-                      docTitleAr: 'إيصال الاشتراك',
-                      docTitleEn: 'Subscription receipt',
-                      date: startDate,
-                      locale,
-                      rows: [
-                        { labelAr: 'الباقة', labelEn: 'Plan', value: locale === 'ar' ? plan.nameAr : plan.nameEn },
-                        { labelAr: 'المبلغ الشهري', labelEn: 'Monthly amount', value: `${plan.priceMonthly} ${plan.currency}` },
-                        { labelAr: 'تاريخ الاشتراك والدفع', labelEn: 'Subscription / payment date', value: startDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
-                        { labelAr: 'تاريخ البدء', labelEn: 'Start date', value: startDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
-                        { labelAr: 'تاريخ الانتهاء', labelEn: 'End date', value: endDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
-                      ],
-                      autoPrint: true,
-                    });
+                    const fallbackRows = [
+                      { labelAr: 'الباقة', labelEn: 'Plan', value: locale === 'ar' ? plan.nameAr : plan.nameEn },
+                      { labelAr: 'المبلغ الشهري', labelEn: 'Monthly amount', value: `${plan.priceMonthly} ${plan.currency}` },
+                      { labelAr: 'تاريخ الاشتراك والدفع', labelEn: 'Subscription / payment date', value: startDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                      { labelAr: 'تاريخ البدء', labelEn: 'Start date', value: startDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                      { labelAr: 'تاريخ الانتهاء', labelEn: 'End date', value: endDate.toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                    ];
+                    if (sub.receiptDocumentId) {
+                      printReceiptByDocumentId(sub.receiptDocumentId, fallbackRows);
+                    } else {
+                      openReceiptPrintWindow({
+                        docTitleAr: 'إيصال الاشتراك',
+                        docTitleEn: 'Subscription receipt',
+                        date: startDate,
+                        locale,
+                        rows: fallbackRows,
+                        autoPrint: true,
+                      });
+                    }
                   }}
                   className="admin-btn-secondary inline-flex items-center gap-2"
                 >
                   <Icon name="printer" className="w-4 h-4" />
                   {ar ? 'طباعة الإيصال' : 'Print receipt'}
                 </button>
+              </div>
+            </div>
+          )}
+          {Array.isArray(subData?.subscriptionHistory) && subData.subscriptionHistory.length > 0 && (
+            <div className="pt-4 mt-4 border-t border-gray-200">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3" style={{ lineHeight: 1.5 }}>{ar ? 'الباقات السابقة' : 'Previous plans'}</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'الباقة' : 'Plan'}</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'تاريخ البدء' : 'Start'}</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'تاريخ الانتهاء' : 'End'}</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">{ar ? 'المبلغ المدفوع' : 'Amount paid'}</th>
+                      <th className="px-3 py-2 text-center font-semibold text-gray-700">{ar ? 'إيصال' : 'Receipt'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {subData.subscriptionHistory.map((h) => (
+                      <tr key={h.id} className="hover:bg-gray-50/50">
+                        <td className="px-3 py-2 text-gray-900">{locale === 'ar' ? h.planNameAr : h.planNameEn}</td>
+                        <td className="px-3 py-2 text-gray-600">{new Date(h.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'medium' })}</td>
+                        <td className="px-3 py-2 text-gray-600">{new Date(h.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'medium' })}</td>
+                        <td className="px-3 py-2 text-gray-600">{h.amountPaid != null ? `${Number(h.amountPaid).toLocaleString('en-US')} OMR` : '—'}</td>
+                        <td className="px-3 py-2 text-center">
+                          {h.receiptDocumentId ? (
+                            <button
+                              type="button"
+                              onClick={() => printReceiptByDocumentId(h.receiptDocumentId!, [
+                                { labelAr: 'الباقة', labelEn: 'Plan', value: locale === 'ar' ? h.planNameAr : h.planNameEn },
+                                { labelAr: 'تاريخ البدء', labelEn: 'Start', value: new Date(h.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                                { labelAr: 'تاريخ الانتهاء', labelEn: 'End', value: new Date(h.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
+                                { labelAr: 'المبلغ المدفوع', labelEn: 'Amount paid', value: h.amountPaid != null ? `${Number(h.amountPaid).toLocaleString('en-US')} OMR` : '—' },
+                              ])}
+                              className="text-[#8B6F47] hover:underline inline-flex items-center gap-1"
+                            >
+                              <Icon name="printer" className="w-4 h-4" />
+                              {ar ? 'طباعة الإيصال' : 'Print receipt'}
+                            </button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

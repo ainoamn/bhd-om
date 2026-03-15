@@ -131,13 +131,30 @@ export async function GET(req: NextRequest) {
           where: { subscriptionId: s.id, status: 'approved' },
         });
         if (changeReq) {
+          try {
+            const planInfo = plansMap[s.planId];
+            await prisma.subscriptionHistory.create({
+              data: {
+                userId: s.userId,
+                planId: s.planId,
+                planNameAr: planInfo?.nameAr ?? s.planId,
+                planNameEn: planInfo?.nameEn ?? s.planId,
+                startAt: new Date(s.startAt),
+                endAt: new Date(s.endAt),
+                amountPaid: null,
+                receiptDocumentId: null,
+              },
+            });
+          } catch {
+            // skip
+          }
           const newStart = new Date();
           const newEnd = new Date(newStart);
           newEnd.setMonth(newEnd.getMonth() + 12);
           try {
             await prisma.subscription.update({
               where: { userId: s.userId },
-              data: { planId: changeReq.requestedPlanId, startAt: newStart, endAt: newEnd },
+              data: { planId: changeReq.requestedPlanId, startAt: newStart, endAt: newEnd, receiptDocumentId: null },
             });
             await prisma.subscriptionChangeRequest.update({
               where: { id: changeReq.id },
@@ -246,6 +263,25 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
+      }
+    }
+
+    if (existingSub && currentPlanId && currentPlanId !== planId && currentPlan) {
+      try {
+        await prisma.subscriptionHistory.create({
+          data: {
+            userId,
+            planId: currentPlanId,
+            planNameAr: currentPlan.nameAr ?? currentPlanId,
+            planNameEn: currentPlan.nameEn ?? currentPlanId,
+            startAt: existingSub.startAt,
+            endAt: existingSub.endAt,
+            amountPaid: null,
+            receiptDocumentId: null,
+          },
+        });
+      } catch (e) {
+        console.error('Subscription history create (admin assign):', e);
       }
     }
 

@@ -33,7 +33,7 @@ async function createSubscriptionReceipt(params: {
   amount: number;
   currency: string;
   direction: 'upgrade' | 'downgrade';
-}) {
+}): Promise<{ doc: { id: string }; docId: string } | null> {
   const { amount, planNameAr, planNameEn, direction } = params;
   if (amount <= 0) return null;
   await ensureAccountingAccounts();
@@ -68,7 +68,7 @@ async function createSubscriptionReceipt(params: {
     status: 'APPROVED',
     createdBy: 'subscription-payment',
   });
-  return { doc };
+  return { doc, docId: doc.id };
 }
 
 export async function POST(req: NextRequest) {
@@ -145,11 +145,12 @@ export async function POST(req: NextRequest) {
     const userIdCol = subColSet.has('userId') ? 'userId' : subColSet.has('user_id') ? 'user_id' : null;
     const planIdCol = subColSet.has('planId') ? 'planId' : 'plan_id';
     const idCol = subColSet.has('id') ? 'id' : null;
+    const startCol = subColSet.has('startAt') ? 'startAt' : subColSet.has('start_at') ? 'start_at' : null;
     const endCol = subColSet.has('endAt') ? 'endAt' : subColSet.has('end_at') ? 'end_at' : null;
     if (!userIdCol || !planIdCol) {
       return NextResponse.json({ error: 'Subscription schema incomplete' }, { status: 500 });
     }
-    const selectSub = [idCol, userIdCol, planIdCol, endCol].filter(Boolean).map((c) => `"${c}"`).join(', ');
+    const selectSub = [idCol, userIdCol, planIdCol, startCol, endCol].filter(Boolean).map((c) => `"${c}"`).join(', ');
     const safeSubTable = `"${String(subTableName).replace(/"/g, '""')}"`;
     const subRows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
       `SELECT ${selectSub} FROM ${safeSubTable} WHERE "${userIdCol}" = $1 LIMIT 1`,
@@ -161,6 +162,7 @@ export async function POST(req: NextRequest) {
     }
     const currentPlanId = String(subRow[planIdCol] ?? '');
     const subId = idCol ? String(subRow[idCol] ?? '') : '';
+    const currentStartAt = startCol && subRow[startCol] ? new Date(subRow[startCol] as string | Date) : new Date();
     const endAt = endCol && subRow[endCol] ? new Date(subRow[endCol] as string | Date) : new Date();
 
     const currentPlanRows = currentPlanId
@@ -187,9 +189,10 @@ export async function POST(req: NextRequest) {
     const currency = payment?.currency || 'OMR';
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null);
 
+    let receiptDocId: string | null = null;
     if (amount > 0) {
       try {
-        await createSubscriptionReceipt({
+        const receiptResult = await createSubscriptionReceipt({
           userId,
           userEmail: user?.email ?? undefined,
           planNameAr,
@@ -198,12 +201,32 @@ export async function POST(req: NextRequest) {
           currency,
           direction,
         });
+        if (receiptResult?.docId) receiptDocId = receiptResult.docId;
       } catch (e) {
         console.error('Subscription receipt creation:', e);
       }
     }
 
+    const currentPlanNameAr = currentPlanRows?.[0] && nameArC ? String(currentPlanRows[0][nameArC] ?? '') : '';
+    const currentPlanNameEn = currentPlanRows?.[0] && nameEnC ? String(currentPlanRows[0][nameEnC] ?? '') : '';
+
     if (direction === 'upgrade') {
+      try {
+        await prisma.subscriptionHistory.create({
+          data: {
+            userId,
+            planId: currentPlanId,
+            planNameAr: currentPlanNameAr || currentPlanId,
+            planNameEn: currentPlanNameEn || currentPlanId,
+            startAt: currentStartAt,
+            endAt,
+            amountPaid: null,
+            receiptDocumentId: null,
+          },
+        });
+      } catch (e) {
+        console.error('Subscription history create (old period):', e);
+      }
       const startAt = new Date();
       const newEndAt = new Date(startAt);
       newEndAt.setMonth(newEndAt.getMonth() + 12);
@@ -217,12 +240,14 @@ export async function POST(req: NextRequest) {
           startAt,
           endAt: newEndAt,
           usageJson,
+          receiptDocumentId: receiptDocId,
         },
         update: {
           planId: requestedPlanId,
           status: 'active',
           startAt,
           endAt: newEndAt,
+          receiptDocumentId: receiptDocId,
         },
       });
       return NextResponse.json({ ok: true, message: 'تمت الترقية بنجاح' });

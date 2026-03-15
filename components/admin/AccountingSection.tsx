@@ -243,7 +243,8 @@ export default function AccountingSection() {
   const [sortJournal, setSortJournal] = useState<SortOption>('dateDesc');
   const [sortAccounts, setSortAccounts] = useState<SortOption>('number');
 
-  const useDb = typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB === 'true';
+  const [dataSourceFromApi, setDataSourceFromApi] = useState<boolean | null>(null);
+  const useDb = dataSourceFromApi === true;
   const contacts = typeof window !== 'undefined' ? getAllContacts() : [];
   const bankAccounts = typeof window !== 'undefined' ? getAllBankAccounts() : [];
   const mergedProperties = useMemo(() => propertiesList.map((p) => getPropertyById(p.id) || p), []);
@@ -258,7 +259,8 @@ export default function AccountingSection() {
   const getPropertyDisplay = (p: Parameters<typeof getPropertyDisplayText>[0]) => getPropertyDisplayText(p);
 
   const loadData = async () => {
-    if (useDb) {
+    const preferApi = typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB !== 'false';
+    if (preferApi) {
       try {
         const [accs, entries, docs, perds, audit] = await Promise.all([
           fetchAccounts(),
@@ -267,16 +269,19 @@ export default function AccountingSection() {
           fetchPeriods(),
           fetchAuditLog({ limit: 50 }),
         ]);
-        setAccounts(accs);
-        setJournalEntries(entries);
-        setDocuments(docs);
-        setPeriods(perds);
-        setAuditLogs(audit);
+        setAccounts(Array.isArray(accs) ? accs : []);
+        setJournalEntries(Array.isArray(entries) ? entries : []);
+        setDocuments(Array.isArray(docs) ? docs : []);
+        setPeriods(Array.isArray(perds) ? perds : []);
+        setAuditLogs(Array.isArray(audit) ? audit : []);
+        setDataSourceFromApi(true);
       } catch {
         loadDataLocal();
+        setDataSourceFromApi(false);
       }
     } else {
       loadDataLocal();
+      setDataSourceFromApi(false);
     }
   };
 
@@ -348,6 +353,8 @@ export default function AccountingSection() {
   }, [showAddDocument, docForm.type]);
   useEffect(() => {
     loadData();
+  }, [filterFromDate, filterToDate]);
+  useEffect(() => {
     if (!useDb && typeof window !== 'undefined') ensureDefaultPeriods();
     if (!useDb) {
       const onStorage = (e: StorageEvent) => {
@@ -357,7 +364,7 @@ export default function AccountingSection() {
       window.addEventListener('storage', onStorage);
       return () => window.removeEventListener('storage', onStorage);
     }
-  }, [useDb, filterFromDate, filterToDate]);
+  }, [useDb]);
 
   const filteredEntries = useMemo(() => {
     if (useDb) {

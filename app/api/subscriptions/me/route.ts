@@ -58,7 +58,8 @@ export async function GET(req: NextRequest) {
     const startCol = subColSet.has('startAt') ? 'startAt' : subColSet.has('start_at') ? 'start_at' : null;
     const endCol = subColSet.has('endAt') ? 'endAt' : subColSet.has('end_at') ? 'end_at' : null;
     const usageCol = subColSet.has('usageJson') ? 'usageJson' : subColSet.has('usage_json') ? 'usage_json' : null;
-    const selectSub = [idCol, userIdCol, planIdCol, statusCol, startCol, endCol, usageCol].filter(Boolean).map((c) => `"${c}"`).join(', ');
+    const receiptDocCol = subColSet.has('receiptDocumentId') ? 'receiptDocumentId' : null;
+    const selectSub = [idCol, userIdCol, planIdCol, statusCol, startCol, endCol, usageCol, receiptDocCol].filter(Boolean).map((c) => `"${c}"`).join(', ');
     const safeSubTable = `"${String(subTableName).replace(/"/g, '""')}"`;
 
     const subRows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
@@ -82,12 +83,29 @@ export async function GET(req: NextRequest) {
         where: { subscriptionId: subId, status: 'approved' },
       }).catch(() => null);
       if (changeReq) {
+        const currentPlan = await prisma.plan.findUnique({ where: { id: planId } }).catch(() => null);
+        try {
+          await prisma.subscriptionHistory.create({
+            data: {
+              userId,
+              planId,
+              planNameAr: currentPlan?.nameAr ?? planId,
+              planNameEn: currentPlan?.nameEn ?? planId,
+              startAt: new Date(startAt),
+              endAt: new Date(endAt),
+              amountPaid: null,
+              receiptDocumentId: null,
+            },
+          });
+        } catch (e) {
+          console.error('Subscription history create (on downgrade apply):', e);
+        }
         const newStart = new Date();
         const newEnd = new Date(newStart);
         newEnd.setMonth(newEnd.getMonth() + 12);
         await prisma.subscription.update({
           where: { id: subId },
-          data: { planId: changeReq.requestedPlanId, startAt: newStart, endAt: newEnd },
+          data: { planId: changeReq.requestedPlanId, startAt: newStart, endAt: newEnd, receiptDocumentId: null },
         }).catch(() => {});
         await prisma.subscriptionChangeRequest.update({
           where: { id: changeReq.id },
@@ -156,6 +174,7 @@ export async function GET(req: NextRequest) {
       plan = { id: planId, code: '', nameAr: '', nameEn: '', priceMonthly: 0, currency: 'OMR', features: [], limits: {} };
     }
 
+    const receiptDocumentId = receiptDocCol && subRow[receiptDocCol] ? String(subRow[receiptDocCol]) : null;
     const subscription = {
       id: subId,
       planId,
@@ -164,11 +183,18 @@ export async function GET(req: NextRequest) {
       endAt,
       usage,
       plan,
+      receiptDocumentId: receiptDocumentId || undefined,
       permissionIds: [] as string[],
     };
 
     const plansRes = await fetch(`${req.nextUrl.origin}/api/plans`, { cache: 'no-store', headers: { cookie: req.headers.get('cookie') || '' } }).then((r) => r.json()).catch(() => ({ list: [] }));
     const plansList = Array.isArray(plansRes?.list) ? plansRes.list : [];
+
+    const subscriptionHistory = await prisma.subscriptionHistory.findMany({
+      where: { userId },
+      orderBy: { endAt: 'desc' },
+      take: 50,
+    }).catch(() => []);
 
     return NextResponse.json(
       {
@@ -186,6 +212,16 @@ export async function GET(req: NextRequest) {
           sortOrder: typeof p.sortOrder === 'number' ? p.sortOrder : 0,
         })),
         pendingRequest: null,
+        subscriptionHistory: subscriptionHistory.map((h) => ({
+          id: h.id,
+          planId: h.planId,
+          planNameAr: h.planNameAr,
+          planNameEn: h.planNameEn,
+          startAt: h.startAt.toISOString(),
+          endAt: h.endAt.toISOString(),
+          amountPaid: h.amountPaid ?? null,
+          receiptDocumentId: h.receiptDocumentId ?? null,
+        })),
       },
       { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' } }
     );
