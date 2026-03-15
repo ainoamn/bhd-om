@@ -4,8 +4,13 @@ import {
   createJournalEntryInDb,
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
+import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
 
 export async function GET(request: NextRequest) {
+  const role = await getAccountingRoleFromRequest(request);
+  if (role === undefined) {
+    return NextResponse.json({ error: 'Unauthorized: login required' }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const fromDate = searchParams.get('fromDate') || undefined;

@@ -683,6 +683,14 @@ export default function AccountingSection() {
             )}
         </div>
 
+      {activeTab === 'dashboard' && useDb && documents.length === 0 && journalEntries.length === 0 && (
+        <div className="rounded-xl bg-sky-50 border border-sky-200 p-4 text-sm text-sky-800">
+          {ar
+            ? 'البيانات مُحمّلة من قاعدة البيانات. مبالغ الاشتراكات ودفعات الحجوزات ستظهر هنا تلقائياً عند إتمام أي دفعة من صفحة الباقات أو حسابي أو حجز وحدة.'
+            : 'Data is loaded from the database. Subscription and booking payments will appear here automatically when completed from the Plans page, My Account, or unit booking.'}
+        </div>
+      )}
+
       {activeTab === 'dashboard' && (
         <div className={`space-y-6 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
           <div className={styles.rangeBar}>
