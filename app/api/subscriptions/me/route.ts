@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { getDocumentByIdFromDb } from '@/lib/accounting/data/dbService';
+import { getDocumentByIdFromDb, getDocumentsFromDb } from '@/lib/accounting/data/dbService';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -248,12 +248,33 @@ export async function GET(req: NextRequest) {
       subscriptionHistory.map(async (h) => {
         let amountPaid = h.amountPaid ?? null;
         let receiptSerialNumber: string | null = null;
+        let receiptDocumentId = h.receiptDocumentId ?? null;
         if (h.receiptDocumentId) {
           try {
             const doc = await getDocumentByIdFromDb(h.receiptDocumentId);
             if (doc) {
               if (amountPaid == null) amountPaid = Number(doc.totalAmount) ?? null;
               receiptSerialNumber = doc.serialNumber ?? null;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if ((amountPaid == null || !receiptSerialNumber) && !h.receiptDocumentId) {
+          try {
+            const startStr = h.startAt.toISOString().slice(0, 10);
+            const endStr = h.endAt.toISOString().slice(0, 10);
+            const docs = await getDocumentsFromDb({ type: 'RECEIPT', fromDate: startStr, toDate: endStr });
+            const planNameAr = (h.planNameAr || '').trim();
+            const planNameEn = (h.planNameEn || '').trim();
+            const match = (Array.isArray(docs) ? docs : []).find((d: { descriptionAr?: string | null; descriptionEn?: string | null; totalAmount?: unknown; serialNumber?: string | null; id?: string }) => {
+              const desc = (d.descriptionAr || '') + ' ' + (d.descriptionEn || '');
+              return (planNameAr && desc.includes(planNameAr)) || (planNameEn && desc.includes(planNameEn)) || desc.includes('اشتراك') || desc.includes('Subscription');
+            });
+            if (match) {
+              if (amountPaid == null && match.totalAmount != null) amountPaid = Number(match.totalAmount);
+              if (!receiptSerialNumber && match.serialNumber) receiptSerialNumber = match.serialNumber;
+              if (!receiptDocumentId && match.id) receiptDocumentId = match.id;
             }
           } catch {
             // ignore
@@ -267,7 +288,7 @@ export async function GET(req: NextRequest) {
           startAt: h.startAt.toISOString(),
           endAt: h.endAt.toISOString(),
           amountPaid,
-          receiptDocumentId: h.receiptDocumentId ?? null,
+          receiptDocumentId,
           receiptSerialNumber,
         };
       })

@@ -599,8 +599,12 @@ export default function MyAccountPage() {
             )}
             {subData?.pendingRequest && (
               <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
-                <p className="text-amber-800 font-medium text-sm mb-1">{ar ? 'لديك طلب تنزيل باقة قيد التفعيل' : 'You have a pending downgrade'}</p>
-                <p className="text-gray-700 text-sm">
+                <p className="text-amber-800 font-medium text-sm mb-1">
+                  {subData.pendingRequest.direction === 'downgrade'
+                    ? (ar ? 'لديك طلب تنزيل باقة قيد التفعيل' : 'You have a pending downgrade')
+                    : (ar ? 'لديك طلب ترقية باقة قيد التفعيل' : 'You have a pending upgrade')}
+                </p>
+                <p className="text-gray-700 text-sm mb-2">
                   {ar ? 'الباقة الجديدة' : 'New plan'}: {locale === 'ar' ? (subData.pendingRequest.requestedPlanNameAr ?? subData.pendingRequest.requestedPlanId) : (subData.pendingRequest.requestedPlanNameEn ?? subData.pendingRequest.requestedPlanId)}
                   {subData.pendingRequest.activationDate && (
                     <> · {ar ? 'ستُفعّل من' : 'Activates on'} {new Date(subData.pendingRequest.activationDate).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' })}</>
@@ -609,6 +613,28 @@ export default function MyAccountPage() {
                     <> · {ar ? 'المبلغ' : 'Amount'}: {subData.pendingRequest.amount.toLocaleString('en-US')} OMR</>
                   )}
                 </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!confirm(ar ? 'هل تريد إلغاء طلب الترقية/التنزيل؟' : 'Cancel this upgrade/downgrade request?')) return;
+                    try {
+                      const res = await fetch('/api/subscriptions/me/cancel-change-request', { method: 'POST', credentials: 'include' });
+                      const data = await res.json();
+                      if (res.ok && data?.ok) {
+                        const r = await fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' });
+                        const d = await r.json();
+                        setSubData(d);
+                      } else {
+                        alert(data?.message || data?.error || (ar ? 'فشل الإلغاء' : 'Cancel failed'));
+                      }
+                    } catch {
+                      alert(ar ? 'حدث خطأ في الاتصال' : 'Network error');
+                    }
+                  }}
+                  className="admin-btn-secondary text-sm"
+                >
+                  {ar ? 'إلغاء طلب الترقية/التنزيل' : 'Cancel upgrade/downgrade request'}
+                </button>
               </div>
             )}
           </div>

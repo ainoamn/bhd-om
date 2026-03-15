@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { getDocumentByIdFromDb } from '@/lib/accounting/data/dbService';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -137,6 +138,15 @@ export async function GET(req: NextRequest) {
           try {
             const planInfo = plansMap[s.planId];
             const currentReceiptId = (s as { receiptDocumentId?: string | null }).receiptDocumentId ?? null;
+            let amountPaidForHistory: number | null = null;
+            if (currentReceiptId) {
+              try {
+                const doc = await getDocumentByIdFromDb(currentReceiptId);
+                if (doc?.totalAmount != null) amountPaidForHistory = Number(doc.totalAmount);
+              } catch {
+                // ignore
+              }
+            }
             await prisma.subscriptionHistory.create({
               data: {
                 userId: s.userId,
@@ -145,7 +155,7 @@ export async function GET(req: NextRequest) {
                 planNameEn: planInfo?.nameEn ?? s.planId,
                 startAt: new Date(s.startAt),
                 endAt: new Date(s.endAt),
-                amountPaid: null,
+                amountPaid: amountPaidForHistory,
                 receiptDocumentId: currentReceiptId,
               },
             });
@@ -274,6 +284,16 @@ export async function POST(req: NextRequest) {
 
     if (existingSub && currentPlanId && currentPlanId !== planId && currentPlan) {
       try {
+        const currentReceiptId = existingSub.receiptDocumentId ?? null;
+        let amountPaidForHistory: number | null = null;
+        if (currentReceiptId) {
+          try {
+            const doc = await getDocumentByIdFromDb(currentReceiptId);
+            if (doc?.totalAmount != null) amountPaidForHistory = Number(doc.totalAmount);
+          } catch {
+            // ignore
+          }
+        }
         await prisma.subscriptionHistory.create({
           data: {
             userId,
@@ -282,8 +302,8 @@ export async function POST(req: NextRequest) {
             planNameEn: currentPlan.nameEn ?? currentPlanId,
             startAt: existingSub.startAt,
             endAt: existingSub.endAt,
-            amountPaid: null,
-            receiptDocumentId: null,
+            amountPaid: amountPaidForHistory,
+            receiptDocumentId: currentReceiptId,
           },
         });
       } catch (e) {
