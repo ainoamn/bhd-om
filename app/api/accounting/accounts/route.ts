@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAccountsFromDb } from '@/lib/accounting/data/dbService';
-import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
+import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
 
 export async function GET(request: NextRequest) {
-  const perm = await requirePermission(request, 'ACCOUNT_VIEW');
-  if (!perm.ok) {
-    return NextResponse.json({ error: perm.message }, { status: perm.status });
+  const role = await getAccountingRoleFromRequest(request);
+  const allowed = role !== undefined;
+  if (!allowed) {
+    return NextResponse.json({ error: 'Unauthorized: login required' }, { status: 401 });
   }
   try {
     const accounts = await getAccountsFromDb();

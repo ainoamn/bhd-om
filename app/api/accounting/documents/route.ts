@@ -89,9 +89,10 @@ async function postDocumentToDb(doc: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const perm = await requirePermission(request, 'REPORT_VIEW');
-  if (!perm.ok) {
-    return NextResponse.json({ error: perm.message }, { status: perm.status });
+  const { getAccountingRoleFromRequest } = await import('@/lib/accounting/rbac/apiAuth');
+  const role = await getAccountingRoleFromRequest(request);
+  if (role === undefined) {
+    return NextResponse.json({ error: 'Unauthorized: login required' }, { status: 401 });
   }
   try {
     const { searchParams } = new URL(request.url);

@@ -1,9 +1,10 @@
 /**
  * RBAC للـ API - يتحقق من الصلاحيات قبل تنفيذ العملية
- * يستخدم getToken مع الطلب لقراءة الجلسة من الكوكي في Route Handlers (App Router)
+ * يقرأ الجلسة من الكوكي عبر getToken أو من next/headers (App Router)
  */
 
 import { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { getToken } from 'next-auth/jwt';
 import { hasPermission, type AccountingPermission, type AccountingRole } from './permissions';
 import { getRoleFromUserRole } from './permissions';
@@ -19,10 +20,26 @@ export async function getAccountingRoleFromRequest(request: NextRequest): Promis
       return headerRole as AccountingRole;
     }
   }
-  const token = await getToken({
+  let token = await getToken({
     req: request,
     secret: NEXTAUTH_SECRET,
   });
+  if (!token) {
+    const cookieStore = await cookies();
+    const sessionCookie =
+      cookieStore.get('next-auth.session-token') ||
+      cookieStore.get('__Secure-next-auth.session-token');
+    if (sessionCookie?.value) {
+      const cookieHeader = `${sessionCookie.name}=${sessionCookie.value}`;
+      const reqWithCookie = {
+        headers: new Headers({ cookie: cookieHeader }),
+      } as NextRequest;
+      token = await getToken({
+        req: reqWithCookie,
+        secret: NEXTAUTH_SECRET,
+      });
+    }
+  }
   const userRole = token?.role as string | undefined;
   if (!userRole) return undefined;
   return getRoleFromUserRole(userRole);
