@@ -652,6 +652,69 @@ export async function syncPaidBookingsToAccountingDb(): Promise<number> {
   return created;
 }
 
+/** مزامنة سجل الاشتراكات: إنشاء إيصال محاسبة لكل SubscriptionHistory فيها amountPaid > 0 وبدون receiptDocumentId. */
+export async function syncSubscriptionHistoryToAccountingDb(): Promise<number> {
+  let created = 0;
+  try {
+    const list = await prisma.subscriptionHistory.findMany({
+      where: { amountPaid: { gt: 0 } },
+      orderBy: { createdAt: 'asc' },
+    });
+    await ensureAccountingAccounts();
+    const accounts = await getAccountsFromDb();
+    const cashAcc = accounts.find((a: { code: string }) => a.code === '1000');
+    const revenueAcc = accounts.find((a: { code: string }) => a.code === '4250') || accounts.find((a: { code: string }) => a.code === '4200') || accounts.find((a: { code: string }) => a.code === '4000');
+    if (!cashAcc || !revenueAcc) return 0;
+    for (const h of list) {
+      const amount = Number(h.amountPaid ?? 0);
+      if (amount <= 0) continue;
+      if (h.receiptDocumentId) {
+        const exists = await prisma.accountingDocument.findUnique({ where: { id: h.receiptDocumentId } });
+        if (exists) continue;
+      }
+      const date = h.startAt instanceof Date ? h.startAt.toISOString().slice(0, 10) : new Date(h.startAt).toISOString().slice(0, 10);
+      const descAr = `دفع اشتراك - ${h.planNameAr} - فترة: ${date} إلى ${h.endAt instanceof Date ? (h.endAt as Date).toISOString().slice(0, 10) : new Date(h.endAt).toISOString().slice(0, 10)}`;
+      const descEn = `Subscription payment - ${h.planNameEn} - Period: ${date} to ${h.endAt instanceof Date ? (h.endAt as Date).toISOString().slice(0, 10) : new Date(h.endAt).toISOString().slice(0, 10)}`;
+      try {
+        const doc = await createDocumentInDb({
+          type: 'RECEIPT',
+          status: 'APPROVED',
+          date,
+          amount,
+          currency: 'OMR',
+          totalAmount: amount,
+          descriptionAr: descAr,
+          descriptionEn: descEn,
+        });
+        const lines = [
+          { accountId: cashAcc.id, debit: amount, credit: 0, descriptionAr: descAr, descriptionEn: descEn },
+          { accountId: revenueAcc.id, debit: 0, credit: amount, descriptionAr: descAr, descriptionEn: descEn },
+        ];
+        await createJournalEntryInDb({
+          date,
+          lines,
+          descriptionAr: descAr,
+          descriptionEn: descEn,
+          documentType: 'RECEIPT',
+          documentId: doc.id,
+          status: 'APPROVED',
+          createdBy: 'subscription-history-sync',
+        });
+        await prisma.subscriptionHistory.update({
+          where: { id: h.id },
+          data: { receiptDocumentId: doc.id },
+        });
+        created++;
+      } catch (err) {
+        console.error('syncSubscriptionHistoryToAccountingDb item:', h.id, err);
+      }
+    }
+  } catch (err) {
+    console.error('syncSubscriptionHistoryToAccountingDb:', err);
+  }
+  return created;
+}
+
 export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 'CANCELLED' | 'PAID') {
   const doc = await prisma.accountingDocument.update({
     where: { id },

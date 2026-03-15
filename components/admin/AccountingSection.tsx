@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Icon from '@/components/icons/Icon';
 import {
@@ -246,6 +246,7 @@ export default function AccountingSection() {
 
   const [dataSourceFromApi, setDataSourceFromApi] = useState<boolean | null>(null);
   const useDb = dataSourceFromApi === true;
+  const syncRetryRef = useRef(false);
   const contacts = typeof window !== 'undefined' ? getAllContacts() : [];
   const bankAccounts = typeof window !== 'undefined' ? getAllBankAccounts() : [];
   const mergedProperties = useMemo(() => propertiesList.map((p) => getPropertyById(p.id) || p), []);
@@ -350,6 +351,15 @@ export default function AccountingSection() {
   useEffect(() => {
     loadData();
   }, [filterFromDate, filterToDate]);
+  useEffect(() => {
+    if (useDb && documents.length === 0 && journalEntries.length === 0 && !syncRetryRef.current) {
+      syncRetryRef.current = true;
+      const t = setTimeout(() => {
+        loadData();
+      }, 3500);
+      return () => clearTimeout(t);
+    }
+  }, [useDb, documents.length, journalEntries.length]);
   useEffect(() => {
     if (!useDb && typeof window !== 'undefined') ensureDefaultPeriods();
     if (!useDb) {
@@ -660,10 +670,10 @@ export default function AccountingSection() {
         </div>
 
       {activeTab === 'dashboard' && useDb && documents.length === 0 && journalEntries.length === 0 && (
-        <div className="rounded-xl bg-sky-50 border border-sky-200 p-4 text-sm text-sky-800">
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
           {ar
-            ? 'البيانات مُحمّلة من قاعدة البيانات. مبالغ الاشتراكات ودفعات الحجوزات ستظهر هنا تلقائياً عند إتمام أي دفعة من صفحة الباقات أو حسابي أو حجز وحدة.'
-            : 'Data is loaded from the database. Subscription and booking payments will appear here automatically when completed from the Plans page, My Account, or unit booking.'}
+            ? 'لا توجد حركات محاسبية بعد. يتم تشغيل المزامنة تلقائياً (دفعات الاشتراكات والحجوزات) عند فتح هذه الصفحة. إذا كان لديك دفعات سابقة، أعد تحميل الصفحة (F5) بعد ثوانٍ لرؤية الإيصالات.'
+            : 'No accounting movements yet. Sync runs automatically (subscription and booking payments) when you open this page. If you have previous payments, reload the page (F5) after a few seconds to see receipts.'}
         </div>
       )}
 

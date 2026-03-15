@@ -10,6 +10,7 @@ import {
   getJournalEntriesFromDb,
   getFiscalPeriodsFromDb,
   syncPaidBookingsToAccountingDb,
+  syncSubscriptionHistoryToAccountingDb,
 } from '@/lib/accounting/data/dbService';
 
 const NO_CACHE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' };
@@ -22,6 +23,11 @@ export async function GET(request: NextRequest) {
     await syncPaidBookingsToAccountingDb();
   } catch (syncErr) {
     console.error('Accounting sync bookings:', syncErr);
+  }
+  try {
+    await syncSubscriptionHistoryToAccountingDb();
+  } catch (syncSubErr) {
+    console.error('Accounting sync subscription history:', syncSubErr);
   }
 
   let accounts: any[] = [];
