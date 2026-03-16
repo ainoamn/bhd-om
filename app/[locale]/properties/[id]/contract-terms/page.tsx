@@ -32,6 +32,7 @@ import TranslateField from '@/components/admin/TranslateField';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import DateInput from '@/components/shared/DateInput';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
+import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
 
 /** جلب جهة الاتصال للحجز مع تفضيل النوع المطابق (شخصي/شركة) لتجنب الخلط عند تشابه الهاتف */
 function getContactForBooking(b: PropertyBooking) {
@@ -730,6 +731,7 @@ export default function ContractTermsPage() {
   };
 
   const loadBookingIntoView = (match: PropertyBooking) => {
+    const draft = loadDraft<{ profileForm?: Record<string, unknown>; companyRepsForm?: unknown[] }>(`contract_terms_${match.id}`);
     const propId = match.propertyId;
     const prop = getPropertyById(propId, dataOverrides);
     const matchContractType: ContractType = (prop as { type?: ContractType })?.type ?? 'RENT';
@@ -779,7 +781,8 @@ export default function ContractTermsPage() {
             };
           })
         : [{ id: `rep-${Date.now()}`, name: '', nameEn: '', civilId: '', civilIdExpiry: '', phoneCountryCode: '968', phone: '', nationality: '', passportNumber: '', passportExpiry: '' }];
-      setCompanyRepsForm(loaded);
+      const toSet = draft?.companyRepsForm && Array.isArray(draft.companyRepsForm) && draft.companyRepsForm.length > 0 ? draft.companyRepsForm : loaded;
+      setCompanyRepsForm(toSet as { id: string; name: string; nameEn: string; civilId: string; civilIdExpiry: string; phoneCountryCode: string; phone: string; nationality: string; passportNumber: string; passportExpiry: string }[]);
     } else {
       setCompanyRepsForm([]);
     }
@@ -788,7 +791,7 @@ export default function ContractTermsPage() {
       const parts = (match.name || '').trim().split(/\s+/).filter(Boolean);
       const ph = parsePhoneToCountryAndNumber(match.phone || contact?.phone || '');
       const phSec = parsePhoneToCountryAndNumber(contact?.phoneSecondary || '');
-      setProfileForm({
+      const baseProfile = {
         firstName: contact?.firstName || parts[0] || '',
         secondName: contact?.secondName || (parts.length > 2 ? parts[1] : '') || '',
         thirdName: contact?.thirdName || (parts.length > 3 ? parts[2] : '') || '',
@@ -812,11 +815,27 @@ export default function ContractTermsPage() {
         notes: contact?.notes || '',
         notesEn: contact?.notesEn || '',
         tags: (contact?.tags || []).join(', '),
-      });
+      };
+      if (draft?.profileForm && typeof draft.profileForm === 'object') {
+        Object.assign(baseProfile, draft.profileForm);
+      }
+      setProfileForm(baseProfile);
     } else {
       setShowCompleteProfile(false);
     }
   };
+
+  /** حفظ تلقائي للمسودة — التعديلات تُحفظ محلياً وتُرفع بعد «حفظ والمتابعة» */
+  useEffect(() => {
+    if (!bookingId) return;
+    const t = setTimeout(() => {
+      saveDraft(`contract_terms_${bookingId}`, {
+        profileForm: profileForm as Record<string, unknown>,
+        companyRepsForm: companyRepsForm,
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [bookingId, profileForm, companyRepsForm]);
 
   const getFieldErrorClass = (field: string) =>
     profileFormErrors[field] ? 'border-2 border-red-500 ring-2 ring-red-500/30 bg-red-500/10' : '';
@@ -1135,6 +1154,21 @@ export default function ContractTermsPage() {
     setProfileFormErrors({});
     setProfileError('');
     setShowCompleteProfile(false);
+    if (bookingId) {
+      const updated = getAllBookings().find((b) => b.id === bookingId);
+      if (updated) {
+        fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated),
+          credentials: 'include',
+        })
+          .then(() => {
+            clearDraft(`contract_terms_${bookingId}`);
+          })
+          .catch(() => {});
+      }
+    }
   };
 
   const verifyAndLoad = () => {
@@ -2328,6 +2362,9 @@ export default function ContractTermsPage() {
                     <input type="text" value={profileForm.tags} onChange={(e) => setProfileForm((f) => ({ ...f, tags: e.target.value }))} onBlur={savePartialProfile} placeholder={ar ? 'علامات مفصولة بفاصلة' : 'Tags separated by comma'} className="w-full px-5 py-3.5 rounded-xl border border-white/20 bg-white/5 text-white placeholder:text-white focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] outline-none" />
                   </div>
                   {profileError && <p className="text-white text-sm">{profileError}</p>}
+                  <p className="text-amber-200/90 text-sm mb-3">
+                    {ar ? 'البيانات المدخلة تُحفظ تلقائياً كمسودة. ستُرفع في ملفك بعد الضغط على «حفظ والمتابعة».' : 'Your entries are saved automatically as a draft. They will be uploaded to your file after you click "Save and continue".'}
+                  </p>
                   <button type="button" onClick={handleCompleteProfileSubmit} className="w-full px-6 py-4 rounded-xl font-bold bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-all">
                     {ar ? 'حفظ والمتابعة' : 'Save and continue'}
                   </button>
