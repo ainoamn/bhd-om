@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useDrafts } from '@/lib/hooks/useDrafts';
 import Icon from '@/components/icons/Icon';
@@ -13,10 +14,12 @@ export default function DraftBanner() {
   if (!hasDrafts) return null;
 
   return (
-    <div
-      className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 py-3 bg-amber-50 border-b border-amber-200 text-amber-900"
+    <Link
+      href={`/${locale}/admin/drafts`}
+      className="sticky top-0 z-30 flex items-center justify-between gap-4 px-4 py-3 bg-amber-50 border-b border-amber-200 text-amber-900 hover:bg-amber-100 transition-colors cursor-pointer"
       role="alert"
       aria-live="polite"
+      aria-label={ar ? 'انتقل إلى صفحة المسودات' : 'Go to drafts page'}
     >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
@@ -28,16 +31,17 @@ export default function DraftBanner() {
           </p>
           <p className="text-sm text-amber-800">
             {ar
-              ? 'البيانات المدخلة لن تظهر في النظام ولا تُطبق إلا بعد النقر على زر "حفظ"'
-              : 'Entered data will not be visible or applied until you click "Save"'}
+              ? 'البيانات المدخلة لن تظهر في النظام ولا تُطبق إلا بعد النقر على زر "حفظ". انقر للانتقال إلى المسودات'
+              : 'Entered data will not be visible or applied until you click "Save". Click to go to drafts'}
           </p>
         </div>
       </div>
       {draftCount > 0 && (
-        <span className="text-sm font-medium text-amber-700 bg-amber-100 px-3 py-1 rounded-lg">
+        <span className="text-sm font-medium text-amber-700 bg-amber-100 px-3 py-1 rounded-lg inline-flex items-center gap-2">
           {draftCount} {ar ? (draftCount === 1 ? 'مسودة' : 'مسودات') : (draftCount === 1 ? 'draft' : 'drafts')}
+          <Icon name="chevronLeft" className="w-4 h-4 rtl:rotate-180" aria-hidden />
         </span>
       )}
-    </div>
+    </Link>
   );
 }

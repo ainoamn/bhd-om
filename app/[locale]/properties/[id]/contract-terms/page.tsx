@@ -832,10 +832,12 @@ export default function ContractTermsPage() {
       saveDraft(`contract_terms_${bookingId}`, {
         profileForm: profileForm as Record<string, unknown>,
         companyRepsForm: companyRepsForm,
+        propertyId: booking?.propertyId,
+        bookingId,
       });
     }, 800);
     return () => clearTimeout(t);
-  }, [bookingId, profileForm, companyRepsForm]);
+  }, [bookingId, booking?.propertyId, profileForm, companyRepsForm]);
 
   const getFieldErrorClass = (field: string) =>
     profileFormErrors[field] ? 'border-2 border-red-500 ring-2 ring-red-500/30 bg-red-500/10' : '';

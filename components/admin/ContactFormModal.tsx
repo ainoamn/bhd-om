@@ -264,7 +264,7 @@ export default function ContactFormModal({
       nameEn: form.nameEn?.trim() || undefined,
       company: form.company?.trim() || undefined,
       position: form.position?.trim() || undefined,
-      category: (editContactId ? form.category : 'CLIENT') as ContactCategory,
+      category: form.category as ContactCategory,
       address: addr,
       notes: form.notes?.trim() || undefined,
       notesEn: form.notesEn?.trim() || undefined,
