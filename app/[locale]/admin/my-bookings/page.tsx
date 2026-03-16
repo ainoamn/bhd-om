@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
@@ -8,7 +9,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactForUser } from '@/lib/data/addressBook';
 import { getContactLinkedBookings } from '@/lib/data/contactLinks';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
-import { getAllBookings, type PropertyBooking } from '@/lib/data/bookings';
+import { getAllBookings, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
 import { getContractByBooking, hasContractForUnit } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
@@ -84,6 +85,20 @@ export default function MyBookingsPage() {
     ? { id: effectiveUser.id, email: effectiveUser.email, phone: effectiveUser.phone }
     : session?.user) as { id?: string; email?: string; phone?: string } | undefined;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
+
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(() => {
+    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: PropertyBooking[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          mergeBookingsFromServer(data);
+          setDataVersion((v) => v + 1);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const bookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
   const allBookings = typeof window !== 'undefined' ? getAllBookings() : [];
 
