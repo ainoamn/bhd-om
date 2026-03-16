@@ -655,7 +655,7 @@ export default function ContractTermsPage() {
         setChequeImageUrls(nextUrls);
         saveChecksToStorage(checkFormData, undefined, undefined, nextUrls);
       } else {
-        alert(ar ? 'فشل رفع صورة الشيك' : 'Cheque image upload failed');
+        alert(data?.error || (ar ? 'فشل رفع صورة الشيك' : 'Cheque image upload failed'));
       }
     } catch {
       alert(ar ? 'حدث خطأ أثناء الرفع' : 'Upload error');
@@ -1273,11 +1273,11 @@ export default function ContractTermsPage() {
         formData.append('file', file);
         const res = await fetch('/api/upload/booking-documents', { method: 'POST', body: formData });
         const data = await res.json();
-if (data.url) {
+        if (data.url) {
           const uploadedBy = booking ? getBookingDisplayName(booking, locale) : undefined;
           uploadDocument(docId, data.url, file.name, uploadedBy);
         } else {
-          alert(ar ? 'فشل الرفع' : 'Upload failed');
+          alert(data?.error || (ar ? 'فشل الرفع' : 'Upload failed'));
         }
       }
       refreshDocs();
@@ -1312,7 +1312,7 @@ if (data.url) {
         replaceFileInDocument(docId, oldFileUrl, data.url, file.name);
         refreshDocs();
       } else {
-        alert(ar ? 'فشل الرفع' : 'Upload failed');
+        alert(data?.error || (ar ? 'فشل الرفع' : 'Upload failed'));
       }
     } catch {
       alert(ar ? 'حدث خطأ أثناء الرفع' : 'An error occurred during upload');
