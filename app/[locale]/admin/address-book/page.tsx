@@ -230,20 +230,44 @@ export default function AdminAddressBookPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let listFromApi: Contact[] = [];
       try {
         const res = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length >= 0) {
-            try {
-              localStorage.setItem('bhd_address_book', JSON.stringify(data));
-            } catch {
-              // تخزين محلي معطّل أو ممتلئ
-            }
-          }
+          if (Array.isArray(data)) listFromApi = data as Contact[];
         }
       } catch {
         // الخادم غير متاح — نعتمد التخزين المحلي فقط
+      }
+      const apiIds = new Set(listFromApi.map((c) => c.id));
+      const localContacts = getAllContacts(true);
+      const localOnly = localContacts.filter((c) => !apiIds.has(c.id));
+      for (const c of localOnly) {
+        if (cancelled) break;
+        try {
+          await fetch('/api/address-book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(c),
+          });
+        } catch {
+          // تجاهل فشل المزامنة للجهة الواحدة
+        }
+      }
+      const merged = [...listFromApi];
+      const mergedIds = new Set(merged.map((c) => c.id));
+      for (const c of localOnly) {
+        if (!mergedIds.has(c.id)) {
+          merged.push(c);
+          mergedIds.add(c.id);
+        }
+      }
+      try {
+        localStorage.setItem('bhd_address_book', JSON.stringify(merged));
+      } catch {
+        // تخزين محلي معطّل أو ممتلئ
       }
       if (cancelled) return;
       try {

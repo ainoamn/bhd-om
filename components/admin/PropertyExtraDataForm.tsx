@@ -9,6 +9,7 @@ import { getPropertyLandlordContactId, setPropertyLandlord } from '@/lib/data/pr
 import { getAllContacts, getContactById, getContactDisplayFull, searchContacts, type Contact } from '@/lib/data/addressBook';
 import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
 import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
+import { formatSurveyMapNumber } from '@/lib/utils/surveyMapNumber';
 import { omanLocations } from '@/lib/data/omanLocations';
 import ContactFormModal from '@/components/admin/ContactFormModal';
 
@@ -194,7 +195,7 @@ export default function PropertyExtraDataForm({
         streetAlleyNumber: p.streetAlleyNumber || '',
         electricityMeterNumber: p.electricityMeterNumber || '',
         waterMeterNumber: p.waterMeterNumber || '',
-        surveyMapNumber: p.surveyMapNumber || '',
+        surveyMapNumber: formatSurveyMapNumber(p.surveyMapNumber || ''),
         buildingManagementNumber: p.buildingManagementNumber || '',
         responsiblePersonName: p.responsiblePersonName || '',
         buildingGuardNumber: p.buildingGuardNumber || '',
@@ -206,7 +207,8 @@ export default function PropertyExtraDataForm({
         internetNumber: p.internetNumber || '',
       };
       const draft = loadDraft<{ form: typeof baseForm; landlordContactId: string | null }>(draftKey);
-      setForm(draft?.form && typeof draft.form === 'object' ? { ...baseForm, ...draft.form } : baseForm);
+      const merged = draft?.form && typeof draft.form === 'object' ? { ...baseForm, ...draft.form } : baseForm;
+      setForm({ ...merged, surveyMapNumber: formatSurveyMapNumber(merged.surveyMapNumber || '') });
       setLandlordContactId(draft?.landlordContactId != null ? draft.landlordContactId : (getPropertyLandlordContactId(prop.id) || null));
     }
   }, [propertyId]);
@@ -281,6 +283,13 @@ export default function PropertyExtraDataForm({
     setLandlordContactId(contact.id);
     setShowAddLandlordModal(false);
     setLandlordDropdownOpen(false);
+    // مزامنة مع الخادم من هذه الصفحة أيضاً لضمان ظهور الجهة في دفتر العناوين
+    fetch('/api/address-book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(contact),
+    }).catch(() => {});
   };
 
   if (!property) {
@@ -591,9 +600,13 @@ export default function PropertyExtraDataForm({
                 <label className="admin-input-label">{ar ? 'رقم الرسم المساحي (الكروكي)' : 'Survey Map No.'}</label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   value={form.surveyMapNumber}
-                  onChange={(e) => setForm({ ...form, surveyMapNumber: e.target.value })}
+                  onChange={(e) => setForm({ ...form, surveyMapNumber: formatSurveyMapNumber(e.target.value) })}
                   className={`admin-input w-full ${getRequiredFieldClass(true, form.surveyMapNumber)}`}
+                  placeholder="01-04-004-03-23"
+                  maxLength={14}
                 />
               </div>
               </div>
