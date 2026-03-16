@@ -42,7 +42,7 @@ import {
 import { ensureDefaultPeriods } from '@/lib/accounting/compliance/periodEngine';
 import { getAllContacts, getContactDisplayFull, searchContacts } from '@/lib/data/addressBook';
 import { getAllBankAccounts, getBankAccountDisplay } from '@/lib/data/bankAccounts';
-import { syncPaidBookingsToAccounting, getBookingsPendingAccountantConfirmation, confirmBookingReceiptByAccountant, getBookingsPendingCancellation, completeCancellationByAccountant, getBookingDisplayName } from '@/lib/data/bookings';
+import { syncPaidBookingsToAccounting, getBookingsPendingAccountantConfirmation, confirmBookingReceiptByAccountant, getBookingsPendingCancellation, completeCancellationByAccountant, getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
 import { getDocumentUploadLink, getDocumentLinkMessage, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
 import { projects as projectsList, getProjectDisplayText } from '@/lib/data/projects';
 import { properties as propertiesList, getPropertyById, getPropertyDisplayText } from '@/lib/data/properties';
@@ -254,6 +254,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
 
   const [dataSourceFromApi, setDataSourceFromApi] = useState<boolean | null>(initialData ? true : null);
   const useDb = dataSourceFromApi === true;
+  /** حجوزات بانتظار تأكيد المحاسب — من API عند استخدام قاعدة البيانات */
+  const [pendingConfirmBookings, setPendingConfirmBookings] = useState<PropertyBooking[]>([]);
   const syncRetryRef = useRef(false);
   const skipFirstLoadRef = useRef(!!initialData);
   const contacts = typeof window !== 'undefined' ? getAllContacts() : [];
@@ -384,6 +386,24 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       return () => window.removeEventListener('storage', onStorage);
     }
   }, [useDb]);
+
+  /** جلب الحجوزات بانتظار تأكيد المحاسب من الخادم عند فتح لوحة التحكم */
+  useEffect(() => {
+    if (!useDb || activeTab !== 'dashboard') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/bookings/pending-confirmation', { credentials: 'include', cache: 'no-store' });
+        if (res.ok && !cancelled) {
+          const list = await res.json();
+          if (Array.isArray(list)) setPendingConfirmBookings(list as PropertyBooking[]);
+        }
+      } catch {
+        // تجاهل
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [useDb, activeTab, receiptConfirmKey]);
 
   const filteredEntries = useMemo(() => {
     if (useDb) {
@@ -867,7 +887,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             </div>
           </div>
           {typeof window !== 'undefined' && (() => {
-            const pendingReceipts = getBookingsPendingAccountantConfirmation();
+            const pendingReceipts = useDb ? pendingConfirmBookings : getBookingsPendingAccountantConfirmation();
             return pendingReceipts.length > 0 && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm">
                 <h5 className="mb-3 flex items-center gap-2 font-semibold text-amber-800">
@@ -875,7 +895,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                   {ar ? 'تأكيد استلام مبالغ الحجز (الإيصال مُنشأ، غير مقيد)' : 'Confirm booking receipt (receipt created, unposted)'}
                 </h5>
                 <p className="text-sm text-amber-700 mb-4">
-                  {ar ? 'الإيصال مُنشأ تلقائياً عند الحجز. تحقّق من استلام المبلغ واضغط للتأكيد — سيُقيد الإيصال في الحسابات بنفس التاريخ والمرجع.' : 'Receipt was created at booking. Verify amount received and click to confirm — it will be posted with same date and reference.'}
+                  {ar ? 'الإيصال مُنشأ تلقائياً عند الحجز. تحقّق من استلام المبلغ واضغط للتأكيد — ثم يظهر الحجز في الحجوزات لإدخال البيانات.' : 'Receipt was created at booking. Verify amount received and click to confirm — then the booking appears in Bookings for data entry.'}
                 </p>
                 <ul className="space-y-3">
                   {pendingReceipts.map((b) => (
@@ -892,15 +912,35 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          confirmBookingReceiptByAccountant(b.id);
-                          const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                          const link = getDocumentUploadLink(origin, locale, b.propertyId, b.id, b.email);
-                          const msg = getDocumentLinkMessage(link, ar);
-                          if (b.phone) openWhatsAppWithMessage(b.phone, msg);
-                          if (b.email) openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link - Contract documentation', msg);
-                          setReceiptConfirmKey((k) => k + 1);
-                          loadData();
+                        onClick={async () => {
+                          if (useDb) {
+                            try {
+                              const res = await fetch(`/api/bookings/${encodeURIComponent(b.id)}/confirm-receipt`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+                              const body = await res.json().catch(() => ({}));
+                              if (res.ok && body.booking) {
+                                mergeBookingsFromServer([body.booking as PropertyBooking]);
+                                setPendingConfirmBookings((prev) => prev.filter((x) => x.id !== b.id));
+                                setReceiptConfirmKey((k) => k + 1);
+                                loadData();
+                                const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                                const link = getDocumentUploadLink(origin, locale, b.propertyId, b.id, b.email);
+                                const msg = getDocumentLinkMessage(link, ar);
+                                if (b.phone) openWhatsAppWithMessage(b.phone, msg);
+                                if (b.email) openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link - Contract documentation', msg);
+                              }
+                            } catch {
+                              // ignore
+                            }
+                          } else {
+                            confirmBookingReceiptByAccountant(b.id);
+                            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                            const link = getDocumentUploadLink(origin, locale, b.propertyId, b.id, b.email);
+                            const msg = getDocumentLinkMessage(link, ar);
+                            if (b.phone) openWhatsAppWithMessage(b.phone, msg);
+                            if (b.email) openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link - Contract documentation', msg);
+                            setReceiptConfirmKey((k) => k + 1);
+                            loadData();
+                          }
                         }}
                         className="px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors shrink-0"
                       >
