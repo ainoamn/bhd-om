@@ -13,6 +13,7 @@ import { projects } from '@/lib/data/projects';
 import { users } from '@/lib/data/users';
 import { getAllBookings, getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
 import { getAllContracts } from '@/lib/data/contracts';
+import { hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
 
 const STORAGE_KEYS = ['bhd_property_bookings', 'bhd_rental_contracts'];
 
@@ -106,6 +107,7 @@ export default function AdminDashboardPage() {
   }, [userRole]);
 
   const pendingBookings = bookings.filter((b) => b.status === 'PENDING');
+  const docsNeedingApprovalBookings = bookings.filter((b) => b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id));
   const recentBookings = [...bookings]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 8);
@@ -238,41 +240,74 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Tasks & Requests Row - بيانات حقيقية من الحجوزات المعلقة */}
+      {/* Tasks & Requests Row - مراجعة حجز + مطلوب اعتماد المستندات */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <div className="admin-card">
           <div className="admin-card-header flex items-center justify-between">
             <h2 className="admin-card-title">{t('tasks')}</h2>
             <span className="text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
-              {pendingBookings.length} {locale === 'ar' ? 'معلقة' : 'pending'}
+              {pendingBookings.length > 0 || docsNeedingApprovalBookings.length > 0
+                ? (pendingBookings.length ? `${pendingBookings.length} ${locale === 'ar' ? 'معلقة' : 'pending'}` : '') +
+                  (pendingBookings.length > 0 && docsNeedingApprovalBookings.length > 0 ? ' · ' : '') +
+                  (docsNeedingApprovalBookings.length ? `📋 ${docsNeedingApprovalBookings.length} ${locale === 'ar' ? 'مطلوب اعتماد المستندات' : 'docs need approval'}` : '')
+                : locale === 'ar' ? 'لا مهام' : 'No tasks'}
             </span>
           </div>
-          <div className="admin-card-body">
-            {pendingBookings.length > 0 ? (
-              <ul className="space-y-3">
-                {pendingBookings.slice(0, 10).map((b) => (
-                  <li key={b.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {locale === 'ar' ? 'مراجعة حجز — ' : 'Review booking — '}
-                        {getBookingDisplayName(b, locale)} — {b.propertyTitleAr || b.propertyTitleEn}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">{formatTimeAgo(b.createdAt, locale)}</p>
-                    </div>
-                    <Link href={`/${locale}/admin/bookings?highlight=${b.id}`} className="text-xs font-medium text-[#8B6F47] hover:underline shrink-0">
-                      {locale === 'ar' ? 'فتح' : 'Open'}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-500 py-4">{t('noTasks')}</p>
+          <div className="admin-card-body space-y-4">
+            {pendingBookings.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">{locale === 'ar' ? 'مراجعة حجز' : 'Review booking'}</p>
+                <ul className="space-y-3">
+                  {pendingBookings.slice(0, 5).map((b) => (
+                    <li key={b.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {getBookingDisplayName(b, locale)} — {b.propertyTitleAr || b.propertyTitleEn}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatTimeAgo(b.createdAt, locale)}</p>
+                      </div>
+                      <Link href={`/${locale}/admin/bookings?highlight=${b.id}`} className="text-xs font-medium text-[#8B6F47] hover:underline shrink-0">
+                        {locale === 'ar' ? 'فتح' : 'Open'}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                {pendingBookings.length > 5 && (
+                  <Link href={`/${locale}/admin/bookings`} className="block mt-2 text-sm font-medium text-[#8B6F47] hover:underline">
+                    {locale === 'ar' ? `عرض كل ${pendingBookings.length}` : `View all ${pendingBookings.length}`}
+                  </Link>
+                )}
+              </div>
             )}
-            {pendingBookings.length > 10 && (
-              <Link href={`/${locale}/admin/bookings`} className="block mt-3 text-sm font-medium text-[#8B6F47] hover:underline">
-                {locale === 'ar' ? `عرض كل ${pendingBookings.length} مهمة` : `View all ${pendingBookings.length} tasks`}
-              </Link>
+            {docsNeedingApprovalBookings.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-amber-700 mb-2">📋 {locale === 'ar' ? 'مطلوب اعتماد المستندات' : 'Documents need approval'}</p>
+                <ul className="space-y-3">
+                  {docsNeedingApprovalBookings.slice(0, 5).map((b) => (
+                    <li key={b.id} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/80 hover:bg-amber-50 transition-colors border border-amber-100">
+                      <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {getBookingDisplayName(b, locale)} — {b.propertyTitleAr || b.propertyTitleEn}
+                        </p>
+                        <p className="text-xs text-amber-600 mt-0.5">{locale === 'ar' ? 'مستندات بانتظار الاعتماد' : 'Documents pending approval'}</p>
+                      </div>
+                      <Link href={`/${locale}/admin/bookings?highlight=${b.id}`} className="text-xs font-medium text-[#8B6F47] hover:underline shrink-0">
+                        {locale === 'ar' ? 'اعتماد' : 'Approve'}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                {docsNeedingApprovalBookings.length > 5 && (
+                  <Link href={`/${locale}/admin/bookings`} className="block mt-2 text-sm font-medium text-[#8B6F47] hover:underline">
+                    {locale === 'ar' ? `عرض كل ${docsNeedingApprovalBookings.length}` : `View all ${docsNeedingApprovalBookings.length}`}
+                  </Link>
+                )}
+              </div>
+            )}
+            {pendingBookings.length === 0 && docsNeedingApprovalBookings.length === 0 && (
+              <p className="text-sm text-gray-500 py-4">{t('noTasks')}</p>
             )}
           </div>
         </div>

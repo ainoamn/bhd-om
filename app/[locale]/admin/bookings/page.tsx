@@ -15,6 +15,7 @@ import { getActiveBankAccounts, getDefaultBankAccount, getBankAccountById } from
 import ContactFormModal from '@/components/admin/ContactFormModal';
 import AddUnitModal from '@/components/admin/AddUnitModal';
 import BookingDocumentsPanel from '@/components/admin/BookingDocumentsPanel';
+import DateInput from '@/components/shared/DateInput';
 
 /** يطابق النص مع خيارات البحث - يدعم العربية والأرقام */
 function matchesSearch(text: string, search: string): boolean {
@@ -1367,12 +1368,7 @@ export default function AdminBookingsPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'التاريخ' : 'Date'}</label>
-                          <input
-                            type="date"
-                            value={manualForm.paymentDate}
-                            onChange={(e) => setManualForm({ ...manualForm, paymentDate: e.target.value })}
-                            className="admin-input w-full"
-                          />
+                          <DateInput value={manualForm.paymentDate} onChange={(v) => setManualForm({ ...manualForm, paymentDate: v })} locale={locale} className="w-full" />
                         </div>
                       </div>
                     )}
@@ -1390,12 +1386,7 @@ export default function AdminBookingsPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'التاريخ' : 'Date'}</label>
-                          <input
-                            type="date"
-                            value={manualForm.paymentDate}
-                            onChange={(e) => setManualForm({ ...manualForm, paymentDate: e.target.value })}
-                            className="admin-input w-full"
-                          />
+                          <DateInput value={manualForm.paymentDate} onChange={(v) => setManualForm({ ...manualForm, paymentDate: v })} locale={locale} className="w-full" />
                         </div>
                       </div>
                     )}

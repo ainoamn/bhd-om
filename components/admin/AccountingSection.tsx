@@ -46,6 +46,7 @@ import { syncPaidBookingsToAccounting, getBookingsPendingAccountantConfirmation,
 import { getDocumentUploadLink, getDocumentLinkMessage, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
 import { projects as projectsList, getProjectDisplayText } from '@/lib/data/projects';
 import { properties as propertiesList, getPropertyById, getPropertyDisplayText } from '@/lib/data/properties';
+import DateInput from '@/components/shared/DateInput';
 import InvoicePrint from './InvoicePrint';
 import ReportExportButtons from './ReportExportButtons';
 import ClaimsPaymentsExportButtons from './ClaimsPaymentsExportButtons';
@@ -654,13 +655,13 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             <label className={styles.filterLabel}>{ar ? 'بحث' : 'Search'}</label>
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={ar ? 'رقم، وصف...' : 'Number, desc...'} className={styles.filterInput} />
           </div>
-          <div className="w-36">
+          <div className="w-40">
             <label className={styles.filterLabel}>{ar ? 'من' : 'From'}</label>
-            <input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} className={styles.filterInput} />
+            <DateInput value={filterFromDate} onChange={setFilterFromDate} locale={locale} className={styles.filterInput} />
           </div>
-          <div className="w-36">
+          <div className="w-40">
             <label className={styles.filterLabel}>{ar ? 'إلى' : 'To'}</label>
-            <input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className={styles.filterInput} />
+            <DateInput value={filterToDate} onChange={setFilterToDate} locale={locale} className={styles.filterInput} />
           </div>
           <div className="w-44">
             <label className={styles.filterLabel}>{ar ? 'العميل' : 'Contact'}</label>
@@ -1584,11 +1585,11 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'التاريخ *' : 'Date *'}</label>
-                  <input type="date" value={docForm.date} onChange={(e) => setDocForm({ ...docForm, date: e.target.value })} className="admin-input w-full" required />
+                  <DateInput value={docForm.date} onChange={(v) => setDocForm({ ...docForm, date: v })} locale={locale} className="w-full" required />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'تاريخ الاستحقاق *' : 'Due date *'}</label>
-                  <input type="date" value={docForm.dueDate} onChange={(e) => setDocForm({ ...docForm, dueDate: e.target.value })} className="admin-input w-full" />
+                  <DateInput value={docForm.dueDate} onChange={(v) => setDocForm({ ...docForm, dueDate: v })} locale={locale} className="w-full" />
                 </div>
               </div>
               <div className="relative">
@@ -1892,7 +1893,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'تاريخ الاستحقاق' : 'Due Date'}</label>
-                  <input type="date" value={chequeForm.dueDate} onChange={(e) => setChequeForm({ ...chequeForm, dueDate: e.target.value })} className="admin-input w-full" />
+                  <DateInput value={chequeForm.dueDate} onChange={(v) => setChequeForm({ ...chequeForm, dueDate: v })} locale={locale} className="w-full" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'اسم البنك' : 'Bank Name'}</label>
@@ -1900,7 +1901,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'التاريخ' : 'Date'}</label>
-                  <input type="date" value={chequeForm.date} onChange={(e) => setChequeForm({ ...chequeForm, date: e.target.value })} className="admin-input w-full" required />
+                  <DateInput value={chequeForm.date} onChange={(v) => setChequeForm({ ...chequeForm, date: v })} locale={locale} className="w-full" required />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'العميل' : 'Contact'}</label>
@@ -1983,7 +1984,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'التاريخ' : 'Date'}</label>
-                  <input type="date" value={journalForm.date} onChange={(e) => setJournalForm({ ...journalForm, date: e.target.value })} className="admin-input w-full" required />
+                  <DateInput value={journalForm.date} onChange={(v) => setJournalForm({ ...journalForm, date: v })} locale={locale} className="w-full" required />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'الوصف' : 'Description'}</label>

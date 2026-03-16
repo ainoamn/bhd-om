@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { createJournalEntry } from '@/lib/accounting/core'
+import DateInput from '@/components/shared/DateInput'
 
 interface PostingLine {
   id: string
@@ -17,6 +18,8 @@ interface PostingLine {
 export function JournalEntryForm() {
   const t = useTranslations('accounting')
   const router = useRouter()
+  const params = useParams()
+  const locale = (params?.locale as string) || 'ar'
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   
@@ -128,12 +131,12 @@ export function JournalEntryForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             {t('date')} *
           </label>
-          <input
-            type="date"
-            required
+          <DateInput
             value={formData.date}
-            onChange={(e) => setFormData({...formData, date: e.target.value})}
-            className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+            onChange={(v) => setFormData({...formData, date: v})}
+            locale={locale}
+            required
+            className="w-full"
           />
         </div>
         

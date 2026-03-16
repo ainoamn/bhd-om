@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Icon from '@/components/icons/Icon';
+import DateInput from '@/components/shared/DateInput';
 
 export interface FilterField {
   key: string;
@@ -21,6 +22,7 @@ interface AccountingFilterProps {
   ar: boolean;
   resultCount?: number;
   compact?: boolean;
+  locale?: string;
 }
 
 export default function AccountingFilter({
@@ -31,6 +33,7 @@ export default function AccountingFilter({
   ar,
   resultCount,
   compact = false,
+  locale = 'ar',
 }: AccountingFilterProps) {
   const [expanded, setExpanded] = useState(!compact);
 
@@ -84,26 +87,26 @@ export default function AccountingFilter({
                   </select>
                 )}
                 {f.type === 'date' && (
-                  <input
-                    type="date"
+                  <DateInput
                     value={values[f.key] || ''}
-                    onChange={(e) => onChange(f.key, e.target.value)}
-                    className="admin-input w-full text-sm py-2"
+                    onChange={(v) => onChange(f.key, v)}
+                    locale={locale}
+                    className="w-full text-sm py-2"
                   />
                 )}
                 {f.type === 'daterange' && (
                   <div className="flex gap-2">
-                    <input
-                      type="date"
+                    <DateInput
                       value={values[`${f.key}From`] || ''}
-                      onChange={(e) => onChange(`${f.key}From`, e.target.value)}
-                      className="admin-input flex-1 text-sm py-2"
+                      onChange={(v) => onChange(`${f.key}From`, v)}
+                      locale={locale}
+                      className="flex-1 text-sm py-2"
                     />
-                    <input
-                      type="date"
+                    <DateInput
                       value={values[`${f.key}To`] || ''}
-                      onChange={(e) => onChange(`${f.key}To`, e.target.value)}
-                      className="admin-input flex-1 text-sm py-2"
+                      onChange={(v) => onChange(`${f.key}To`, v)}
+                      locale={locale}
+                      className="flex-1 text-sm py-2"
                     />
                   </div>
                 )}

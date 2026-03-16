@@ -52,6 +52,7 @@ import TranslateField from '@/components/admin/TranslateField';
 import { getAllNationalityValues } from '@/lib/data/nationalities';
 import { siteConfig } from '@/config/site';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
+import DateInput from '@/components/shared/DateInput';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import { filterContactsByRolePermissions } from '@/lib/data/contactCategoryPermissions';
@@ -1611,7 +1612,7 @@ export default function AdminAddressBookPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('civilIdExpiry')}</label>
-                  <input type="date" value={form.civilIdExpiry || ''} onChange={(e) => setForm({ ...form, civilIdExpiry: e.target.value })} className="admin-input w-full" />
+                  <DateInput value={form.civilIdExpiry || ''} onChange={(v) => setForm({ ...form, civilIdExpiry: v })} locale={locale} className="w-full" />
                 </div>
               </div>
               {!isOmaniNationality(form.nationality) && (
@@ -1623,7 +1624,7 @@ export default function AdminAddressBookPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">{t('passportExpiry')}</label>
-                    <input type="date" value={form.passportExpiry || ''} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} className="admin-input w-full" />
+                    <DateInput value={form.passportExpiry || ''} onChange={(v) => setForm({ ...form, passportExpiry: v })} locale={locale} className="w-full" />
                   </div>
                 </div>
               )}
@@ -1750,11 +1751,11 @@ export default function AdminAddressBookPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('commercialRegistrationExpiry')}</label>
-                  <input type="date" value={form.commercialRegistrationExpiry || ''} onChange={(e) => setForm({ ...form, commercialRegistrationExpiry: e.target.value })} className="admin-input w-full" />
+                  <DateInput value={form.commercialRegistrationExpiry || ''} onChange={(v) => setForm({ ...form, commercialRegistrationExpiry: v })} locale={locale} className="w-full" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('establishmentDate')}</label>
-                  <input type="date" value={form.establishmentDate || ''} onChange={(e) => setForm({ ...form, establishmentDate: e.target.value })} className="admin-input w-full" />
+                  <DateInput value={form.establishmentDate || ''} onChange={(v) => setForm({ ...form, establishmentDate: v })} locale={locale} className="w-full" />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1950,11 +1951,11 @@ export default function AdminAddressBookPage() {
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">{t('repCivilIdExpiry')} *</label>
-                              <input type="date" value={rep.civilIdExpiry || ''} onChange={(e) => {
+                              <DateInput value={rep.civilIdExpiry || ''} onChange={(v) => {
                                 const arr = [...form.authorizedRepresentatives];
-                                arr[idx] = { ...arr[idx], civilIdExpiry: e.target.value };
+                                arr[idx] = { ...arr[idx], civilIdExpiry: v };
                                 setForm({ ...form, authorizedRepresentatives: arr });
-                              }} className={`admin-input w-full text-sm ${getFieldErrorClass(`rep_${idx}_civilIdExpiry`)}`} />
+                              }} locale={locale} className="w-full text-sm" />
                             </div>
                           </>
                         ) : rep.nationality?.trim() ? (
@@ -1973,11 +1974,11 @@ export default function AdminAddressBookPage() {
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">{t('repCivilIdExpiry')}</label>
-                              <input type="date" value={rep.civilIdExpiry || ''} onChange={(e) => {
+                              <DateInput value={rep.civilIdExpiry || ''} onChange={(v) => {
                                 const arr = [...form.authorizedRepresentatives];
-                                arr[idx] = { ...arr[idx], civilIdExpiry: e.target.value };
+                                arr[idx] = { ...arr[idx], civilIdExpiry: v };
                                 setForm({ ...form, authorizedRepresentatives: arr });
-                              }} className="admin-input w-full text-sm" />
+                              }} locale={locale} className="w-full text-sm" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">{t('repPassport')} *</label>
@@ -1990,11 +1991,11 @@ export default function AdminAddressBookPage() {
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">{t('repPassportExpiry')} *</label>
-                              <input type="date" value={rep.passportExpiry || ''} onChange={(e) => {
+                              <DateInput value={rep.passportExpiry || ''} onChange={(v) => {
                                 const arr = [...form.authorizedRepresentatives];
-                                arr[idx] = { ...arr[idx], passportExpiry: e.target.value };
+                                arr[idx] = { ...arr[idx], passportExpiry: v };
                                 setForm({ ...form, authorizedRepresentatives: arr });
-                              }} className={`admin-input w-full text-sm ${getFieldErrorClass(`rep_${idx}_passportExpiry`)}`} />
+                              }} locale={locale} className="w-full text-sm" />
                             </div>
                           </>
                         ) : null}

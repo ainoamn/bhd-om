@@ -30,6 +30,7 @@ import { findContactByPhoneOrEmail, updateContact, ensureContactFromBooking, isO
 import { getAllNationalityValues } from '@/lib/data/nationalities';
 import TranslateField from '@/components/admin/TranslateField';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
+import DateInput from '@/components/shared/DateInput';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 
 /** جلب جهة الاتصال للحجز مع تفضيل النوع المطابق (شخصي/شركة) لتجنب الخلط عند تشابه الهاتف */
@@ -1543,7 +1544,7 @@ export default function ContractTermsPage() {
                                 </div>
                                 <div>
                                   <label className="block text-xs text-white mb-1">{ar ? 'انتهاء البطاقة' : 'Civil ID expiry'}</label>
-                                  <input type="date" value={rep.civilIdExpiry} onChange={(e) => setCompanyRepsForm((arr) => arr.map((r, i) => i === idx ? { ...r, civilIdExpiry: e.target.value } : r))} onBlur={saveCompanyReps} className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:border-[#8B6F47] outline-none" />
+                                  <DateInput value={rep.civilIdExpiry || ''} onChange={(v) => setCompanyRepsForm((arr) => arr.map((r, i) => i === idx ? { ...r, civilIdExpiry: v } : r))} onBlur={saveCompanyReps} locale={locale} dark />
                                 </div>
                                 <div>
                                   <label className="block text-xs text-white mb-1">{ar ? 'رقم الهاتف *' : 'Phone *'}</label>
@@ -1566,7 +1567,7 @@ export default function ContractTermsPage() {
                                   </div>
                                   <div>
                                     <label className="block text-xs text-white mb-1">{ar ? 'انتهاء الجواز *' : 'Passport expiry *'}</label>
-                                    <input type="date" value={rep.passportExpiry} onChange={(e) => setCompanyRepsForm((arr) => arr.map((r, i) => i === idx ? { ...r, passportExpiry: e.target.value } : r))} onBlur={saveCompanyReps} className={`w-full px-4 py-2.5 rounded-xl bg-white/5 border-2 text-white outline-none focus:ring-2 ${getRequiredBorderClass(rep.passportExpiry)}`} />
+                                    <DateInput value={rep.passportExpiry || ''} onChange={(v) => setCompanyRepsForm((arr) => arr.map((r, i) => i === idx ? { ...r, passportExpiry: v } : r))} onBlur={saveCompanyReps} locale={locale} dark required />
                                   </div>
                                 </div>
                               )}
@@ -1746,11 +1747,13 @@ export default function ContractTermsPage() {
                               {ar ? 'التاريخ' : 'Date'}
                               {dateOptional && <span className="text-white mr-1">({ar ? 'اختياري' : 'optional'})</span>}
                             </label>
-                            <input
-                              type="date"
+                            <DateInput
                               value={fd.date}
-                              onChange={(e) => handleCheckFieldChange(idx, 'date', e.target.value)}
-                              className={`w-full px-4 py-2.5 rounded-xl bg-white/5 border-2 text-white outline-none focus:ring-2 ${dateOptional ? 'border-white/10 focus:border-[#8B6F47] focus:ring-[#8B6F47]/30' : getRequiredBorderClass(fd.date)}`}
+                              onChange={(v) => handleCheckFieldChange(idx, 'date', v)}
+                              locale={locale}
+                              dark
+                              required={!dateOptional}
+                              className={dateOptional ? 'border-white/10 focus:border-[#8B6F47] focus:ring-[#8B6F47]/30' : getRequiredBorderClass(fd.date)}
                             />
                           </div>
                         </div>
@@ -2292,7 +2295,7 @@ export default function ContractTermsPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-white mb-2">{ar ? 'تاريخ انتهاء الرقم المدني *' : 'Civil ID expiry *'}</label>
-                        <input type="date" value={profileForm.civilIdExpiry} onChange={(e) => setProfileForm((f) => ({ ...f, civilIdExpiry: e.target.value }))} onBlur={savePartialProfile} className={`w-full px-5 py-3.5 rounded-xl border-2 bg-white/5 text-white focus:ring-2 outline-none ${getFieldErrorClass('civilIdExpiry') || getRequiredBorderClass(profileForm.civilIdExpiry)}`} />
+                        <DateInput value={profileForm.civilIdExpiry || ''} onChange={(v) => setProfileForm((f) => ({ ...f, civilIdExpiry: v }))} onBlur={savePartialProfile} locale={locale} dark required />
                       </div>
                     </div>
                   ) : profileForm.nationality.trim() ? (
@@ -2304,7 +2307,7 @@ export default function ContractTermsPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-white mb-2">{ar ? 'تاريخ انتهاء الجواز *' : 'Passport expiry *'}</label>
-                        <input type="date" value={profileForm.passportExpiry} onChange={(e) => setProfileForm((f) => ({ ...f, passportExpiry: e.target.value }))} onBlur={savePartialProfile} className={`w-full px-5 py-3.5 rounded-xl border-2 bg-white/5 text-white focus:ring-2 outline-none ${getFieldErrorClass('passportExpiry') || getRequiredBorderClass(profileForm.passportExpiry)}`} />
+                        <DateInput value={profileForm.passportExpiry || ''} onChange={(v) => setProfileForm((f) => ({ ...f, passportExpiry: v }))} onBlur={savePartialProfile} locale={locale} dark required />
                       </div>
                     </div>
                   ) : null}
@@ -2535,11 +2538,13 @@ export default function ContractTermsPage() {
                               {ar ? 'التاريخ' : 'Date'}
                               {dateOptional && <span className="text-white mr-1">({ar ? 'اختياري' : 'optional'})</span>}
                             </label>
-                            <input
-                              type="date"
+                            <DateInput
                               value={fd.date}
-                              onChange={(e) => handleCheckFieldChange(idx, 'date', e.target.value)}
-                              className={`w-full px-4 py-2.5 rounded-xl bg-white/5 border-2 text-white outline-none focus:ring-2 ${dateOptional ? 'border-white/10 focus:border-[#8B6F47] focus:ring-[#8B6F47]/30' : getRequiredBorderClass(fd.date)}`}
+                              onChange={(v) => handleCheckFieldChange(idx, 'date', v)}
+                              locale={locale}
+                              dark
+                              required={!dateOptional}
+                              className={dateOptional ? 'border-white/10 focus:border-[#8B6F47] focus:ring-[#8B6F47]/30' : getRequiredBorderClass(fd.date)}
                             />
                           </div>
                         </div>

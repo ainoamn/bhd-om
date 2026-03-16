@@ -13,6 +13,7 @@ import {
   type ContactGender,
 } from '@/lib/data/addressBook';
 import TranslateField from '@/components/admin/TranslateField';
+import DateInput from '@/components/shared/DateInput';
 import { getAllNationalityValues } from '@/lib/data/nationalities';
 import { isOmaniNationality } from '@/lib/data/addressBook';
 import { siteConfig } from '@/config/site';
@@ -446,7 +447,7 @@ export default function ContactFormModal({
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">{t('civilIdExpiry')}{isOmaniNationality(form.nationality) ? ' *' : ''}</label>
-              <input type="date" value={form.civilIdExpiry || ''} onChange={(e) => setForm({ ...form, civilIdExpiry: e.target.value })} className={`admin-input w-full ${isOmaniNationality(form.nationality) ? getFieldErrorClass('civilIdExpiry') : ''}`} />
+              <DateInput value={form.civilIdExpiry || ''} onChange={(v) => setForm({ ...form, civilIdExpiry: v })} locale={locale} className="w-full" />
             </div>
           </div>
           {form.nationality && !isOmaniNationality(form.nationality) && (
@@ -458,7 +459,7 @@ export default function ContactFormModal({
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">{t('passportExpiry')} *</label>
-                <input type="date" value={form.passportExpiry || ''} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} className={`admin-input w-full ${getFieldErrorClass('passportExpiry')}`} />
+                <DateInput value={form.passportExpiry || ''} onChange={(v) => setForm({ ...form, passportExpiry: v })} locale={locale} className="w-full" />
               </div>
             </div>
           )}

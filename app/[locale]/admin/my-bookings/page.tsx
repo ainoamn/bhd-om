@@ -8,10 +8,74 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactForUser } from '@/lib/data/addressBook';
 import { getContactLinkedBookings } from '@/lib/data/contactLinks';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
+import { getAllBookings, type PropertyBooking } from '@/lib/data/bookings';
+import { getContractByBooking, hasContractForUnit } from '@/lib/data/contracts';
+import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
+import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
+import type { ContactLinkedBooking } from '@/lib/data/contactLinks';
+
+const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
+  PENDING: { ar: 'قيد الانتظار', en: 'Pending' },
+  CONFIRMED: { ar: 'قيد انهاء الإجراءات', en: 'Procedures in progress' },
+  RENTED: { ar: 'مؤجر', en: 'Rented' },
+  SOLD: { ar: 'مباع', en: 'Sold' },
+  CANCELLED: { ar: 'ملغى', en: 'Cancelled' },
+};
+
+/** نفس منطق عرض الحالة المستخدم في /admin/bookings ليعرف العميل أين معاملته */
+function getBookingStatusDisplay(
+  linked: ContactLinkedBooking,
+  fullBooking: PropertyBooking | undefined,
+  ar: boolean
+): { main: string; sub?: string } {
+  const id = linked.id;
+  const status = linked.status;
+  if (status === 'CANCELLED') {
+    return { main: ar ? STATUS_LABELS.CANCELLED.ar : STATUS_LABELS.CANCELLED.en };
+  }
+  if (status === 'RENTED') return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
+  if (status === 'SOLD') return { main: ar ? STATUS_LABELS.SOLD.ar : STATUS_LABELS.SOLD.en };
+
+  const hasContract = hasContractForUnit(linked.propertyId, linked.unitKey);
+  const c = getContractByBooking(id);
+
+  if (hasContract && c) {
+    const allDocsAndChecksApproved =
+      areAllRequiredDocumentsApproved(id) && (getChecksByBooking(id).length === 0 || areAllChecksApproved(id));
+    if (c.status === 'APPROVED') {
+      return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
+    }
+    if (c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED') {
+      return {
+        main: allDocsAndChecksApproved
+          ? ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval'
+          : ar ? 'تم اعتماده مبدئياً — يرجى إكمال البيانات ورفع المستندات لاعتمادها' : 'Preliminarily approved — complete data and upload documents for approval',
+      };
+    }
+    return { main: ar ? 'عقد مسودة — بانتظار رفع المستندات' : 'Draft contract — pending document upload' };
+  }
+
+  if (!c && (status === 'CONFIRMED' || status === 'PENDING')) {
+    const main = ar ? STATUS_LABELS[status]?.ar ?? status : STATUS_LABELS[status]?.en ?? status;
+    const subs: string[] = [];
+    if (fullBooking?.paymentConfirmed && !fullBooking?.accountantConfirmedAt) {
+      subs.push(ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant confirmation');
+    } else if (fullBooking?.accountantConfirmedAt && status === 'CONFIRMED') {
+      subs.push(ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed');
+    }
+    if (status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(id)) {
+      subs.push(ar ? '📋 مطلوب اعتماد المستندات' : '📋 Documents need approval');
+    }
+    return { main, sub: subs.length > 0 ? subs.join(' · ') : undefined };
+  }
+
+  return { main: ar ? STATUS_LABELS[status]?.ar ?? status : STATUS_LABELS[status]?.en ?? status };
+}
 
 export default function MyBookingsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
+  const ar = locale === 'ar';
   const { data: session } = useSession();
   const effectiveUser = useEffectiveUser();
   const t = useTranslations('admin.nav.clientNav');
@@ -21,15 +85,9 @@ export default function MyBookingsPage() {
     : session?.user) as { id?: string; email?: string; phone?: string } | undefined;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
   const bookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
+  const allBookings = typeof window !== 'undefined' ? getAllBookings() : [];
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
-  const statusLabels: Record<string, string> = {
-    PENDING: locale === 'ar' ? 'قيد الانتظار' : 'Pending',
-    CONFIRMED: locale === 'ar' ? 'مؤكد' : 'Confirmed',
-    RENTED: locale === 'ar' ? 'تم الإيجار' : 'Rented',
-    SOLD: locale === 'ar' ? 'تم البيع' : 'Sold',
-    CANCELLED: locale === 'ar' ? 'ملغي' : 'Cancelled',
-  };
 
   return (
     <div className="space-y-6">
@@ -53,17 +111,28 @@ export default function MyBookingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((b) => (
-                  <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
-                    <td className="px-4 py-3 text-gray-600">{fmtDate(b.date)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`admin-badge ${b.status === 'CONFIRMED' || b.status === 'RENTED' ? 'admin-badge-success' : 'admin-badge-info'}`}>
-                        {statusLabels[b.status] || b.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {bookings.map((b) => {
+                  const full = allBookings.find((x) => x.id === b.id);
+                  const { main, sub } = getBookingStatusDisplay(b, full, ar);
+                  const isSuccess = b.status === 'CONFIRMED' || b.status === 'RENTED' || b.status === 'SOLD';
+                  const isWarning = b.status === 'CONFIRMED' && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
+                  return (
+                    <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
+                      <td className="px-4 py-3 text-gray-600">{fmtDate(b.date)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span
+                            className={`inline-flex w-fit admin-badge ${b.status === 'CANCELLED' ? 'admin-badge-secondary' : isSuccess ? 'admin-badge-success' : isWarning ? 'bg-amber-50 text-amber-800 border-amber-200' : 'admin-badge-info'}`}
+                          >
+                            {main}
+                          </span>
+                          {sub && <span className="text-xs text-amber-700">{sub}</span>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

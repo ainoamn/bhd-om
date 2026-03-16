@@ -18,6 +18,7 @@ import {
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
+import DateInput from '@/components/shared/DateInput';
 import UnifiedPaymentForm from '@/components/shared/UnifiedPaymentForm';
 import { openReceiptPrintWindow } from '@/lib/utils/receiptPrint';
 
@@ -513,7 +514,7 @@ export default function MyAccountPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'انتهاء الرقم المدني' : 'Civil ID expiry'}</label>
-                  <input type="date" value={normalizeDateForInput(form.civilIdExpiry)} onChange={(e) => setForm({ ...form, civilIdExpiry: e.target.value })} className="admin-input w-full" />
+                  <DateInput value={normalizeDateForInput(form.civilIdExpiry)} onChange={(v) => setForm({ ...form, civilIdExpiry: v })} locale={locale} className="w-full" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'رقم الجواز' : 'Passport number'}</label>
@@ -521,7 +522,7 @@ export default function MyAccountPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'انتهاء الجواز' : 'Passport expiry'}</label>
-                  <input type="date" value={normalizeDateForInput(form.passportExpiry)} onChange={(e) => setForm({ ...form, passportExpiry: e.target.value })} className="admin-input w-full" />
+                  <DateInput value={normalizeDateForInput(form.passportExpiry)} onChange={(v) => setForm({ ...form, passportExpiry: v })} locale={locale} className="w-full" />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'جهة العمل' : 'Workplace'}</label>
