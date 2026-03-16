@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
-import { getDataScope, propertyScopeWhere } from '@/lib/auth/adminPermissions';
+import { getDataScope } from '@/lib/auth/adminPermissions';
 import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
 
 export async function GET(req: NextRequest) {
@@ -39,25 +39,30 @@ export async function GET(req: NextRequest) {
     });
     let bookings = rows.map((r) => {
       try {
-        return JSON.parse(r.data) as { propertyId?: number | string; [k: string]: unknown };
+        return JSON.parse(r.data) as { propertyId?: number | string; email?: string; phone?: string; [k: string]: unknown };
       } catch {
         return null;
       }
-    }).filter(Boolean) as { propertyId?: number | string; [k: string]: unknown }[];
+    }).filter(Boolean) as { propertyId?: number | string; email?: string; phone?: string; [k: string]: unknown }[];
 
     if (scope.userId && !scope.isAdmin) {
-      const where = propertyScopeWhere(scope);
-      const allowedProperties = await prisma.property.findMany({
-        where: { ...where, isArchived: false },
-        select: { id: true },
+      const user = await prisma.user.findUnique({
+        where: { id: scope.userId },
+        select: { email: true, phone: true },
       });
-      const allowedIds = new Set(allowedProperties.map((p) => p.id));
-      bookings = bookings.filter((b) => {
-        const pid = b.propertyId;
-        if (pid == null) return false;
-        const idStr = String(pid);
-        return allowedIds.has(idStr);
-      });
+      if (user?.email) {
+        const norm = (s: string) => (s || '').trim().toLowerCase();
+        const normPhone = (s: string) => (s || '').replace(/\D/g, '').replace(/^968/, '').slice(-8);
+        const userEmail = norm(user.email);
+        const userPhone = user.phone ? normPhone(user.phone) : '';
+        bookings = bookings.filter((b) => {
+          const matchEmail = userEmail && norm(String(b.email || '')) === userEmail;
+          const matchPhone = userPhone && normPhone(String(b.phone || '')) === userPhone;
+          return matchEmail || matchPhone;
+        });
+      } else {
+        bookings = [];
+      }
     }
 
     return NextResponse.json(bookings);
