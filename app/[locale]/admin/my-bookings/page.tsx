@@ -30,12 +30,14 @@ function getBookingStatusDisplay(
   ar: boolean
 ): { main: string; sub?: string } {
   const id = linked.id;
-  const status = linked.status;
-  if (status === 'CANCELLED') {
+  // نستخدم حالة الحجز الكاملة من التخزين الموحد إن وُجدت، وإلا من الربط
+  const effectiveStatus = fullBooking?.status ?? linked.status;
+
+  if (effectiveStatus === 'CANCELLED') {
     return { main: ar ? STATUS_LABELS.CANCELLED.ar : STATUS_LABELS.CANCELLED.en };
   }
-  if (status === 'RENTED') return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
-  if (status === 'SOLD') return { main: ar ? STATUS_LABELS.SOLD.ar : STATUS_LABELS.SOLD.en };
+  if (effectiveStatus === 'RENTED') return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
+  if (effectiveStatus === 'SOLD') return { main: ar ? STATUS_LABELS.SOLD.ar : STATUS_LABELS.SOLD.en };
 
   const hasContract = hasContractForUnit(linked.propertyId, linked.unitKey);
   const c = getContractByBooking(id);
@@ -56,21 +58,28 @@ function getBookingStatusDisplay(
     return { main: ar ? 'عقد مسودة — بانتظار رفع المستندات' : 'Draft contract — pending document upload' };
   }
 
-  if (!c && (status === 'CONFIRMED' || status === 'PENDING')) {
-    const main = ar ? STATUS_LABELS[status]?.ar ?? status : STATUS_LABELS[status]?.en ?? status;
+  // لا يوجد عقد بعد — نعرض حالة الحجز + ملاحظات الدفع والمستندات
+  if (!c && (effectiveStatus === 'CONFIRMED' || effectiveStatus === 'PENDING')) {
+    const main = ar
+      ? STATUS_LABELS[effectiveStatus]?.ar ?? effectiveStatus
+      : STATUS_LABELS[effectiveStatus]?.en ?? effectiveStatus;
     const subs: string[] = [];
     if (fullBooking?.paymentConfirmed && !fullBooking?.accountantConfirmedAt) {
       subs.push(ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant confirmation');
-    } else if (fullBooking?.accountantConfirmedAt && status === 'CONFIRMED') {
+    } else if (fullBooking?.accountantConfirmedAt && effectiveStatus === 'CONFIRMED') {
       subs.push(ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed');
     }
-    if (status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(id)) {
+    if (effectiveStatus === 'CONFIRMED' && hasDocumentsNeedingConfirmation(id)) {
       subs.push(ar ? '📋 مطلوب اعتماد المستندات' : '📋 Documents need approval');
     }
     return { main, sub: subs.length > 0 ? subs.join(' · ') : undefined };
   }
 
-  return { main: ar ? STATUS_LABELS[status]?.ar ?? status : STATUS_LABELS[status]?.en ?? status };
+  return {
+    main: ar
+      ? STATUS_LABELS[effectiveStatus]?.ar ?? effectiveStatus
+      : STATUS_LABELS[effectiveStatus]?.en ?? effectiveStatus,
+  };
 }
 
 export default function MyBookingsPage() {
@@ -129,8 +138,11 @@ export default function MyBookingsPage() {
                 {bookings.map((b) => {
                   const full = allBookings.find((x) => x.id === b.id);
                   const { main, sub } = getBookingStatusDisplay(b, full, ar);
-                  const isSuccess = b.status === 'CONFIRMED' || b.status === 'RENTED' || b.status === 'SOLD';
-                  const isWarning = b.status === 'CONFIRMED' && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
+                  const effectiveStatus = full?.status ?? b.status;
+                  const isSuccess =
+                    effectiveStatus === 'CONFIRMED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD';
+                  const isWarning =
+                    effectiveStatus === 'CONFIRMED' && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
                   return (
                     <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
@@ -138,7 +150,15 @@ export default function MyBookingsPage() {
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-0.5">
                           <span
-                            className={`inline-flex w-fit admin-badge ${b.status === 'CANCELLED' ? 'admin-badge-secondary' : isSuccess ? 'admin-badge-success' : isWarning ? 'bg-amber-50 text-amber-800 border-amber-200' : 'admin-badge-info'}`}
+                            className={`inline-flex w-fit admin-badge ${
+                              effectiveStatus === 'CANCELLED'
+                                ? 'admin-badge-secondary'
+                                : isSuccess
+                                  ? 'admin-badge-success'
+                                  : isWarning
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'admin-badge-info'
+                            }`}
                           >
                             {main}
                           </span>
