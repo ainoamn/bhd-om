@@ -11,7 +11,6 @@ import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requi
 import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
 import { formatSurveyMapNumber } from '@/lib/utils/surveyMapNumber';
 import { omanLocations } from '@/lib/data/omanLocations';
-import ContactFormModal from '@/components/admin/ContactFormModal';
 
 const LAND_USE_TYPES = [
   { ar: 'سكني', en: 'Residential' },
@@ -279,18 +278,21 @@ export default function PropertyExtraDataForm({
   }, [landlordSearch, landlordCategoryFilter]);
   const selectedContact = landlordContactId ? getContactById(landlordContactId) : null;
 
-  const handleLandlordSaved = (contact: Contact) => {
-    setLandlordContactId(contact.id);
-    setShowAddLandlordModal(false);
-    setLandlordDropdownOpen(false);
-    // مزامنة مع الخادم من هذه الصفحة أيضاً لضمان ظهور الجهة في دفتر العناوين
-    fetch('/api/address-book', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(contact),
-    }).catch(() => {});
-  };
+  useEffect(() => {
+    if (!showAddLandlordModal) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'BHD_CONTACT_SAVED' && e.data.contact?.id) {
+        setLandlordContactId(e.data.contact.id);
+        setShowAddLandlordModal(false);
+        setLandlordDropdownOpen(false);
+      }
+      if (e.data?.type === 'BHD_CONTACT_CANCELLED') {
+        setShowAddLandlordModal(false);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [showAddLandlordModal]);
 
   if (!property) {
     return (
@@ -481,14 +483,23 @@ export default function PropertyExtraDataForm({
           </div>
         </SectionCard>
 
-        <ContactFormModal
-          open={showAddLandlordModal}
-          onClose={() => setShowAddLandlordModal(false)}
-          onSaved={handleLandlordSaved}
-          initialCategory="LANDLORD"
-          initialName={landlordSearch.trim()}
-          locale={locale}
-        />
+        {showAddLandlordModal && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddLandlordModal(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-[#8B6F47]/5">
+                <h3 className="font-bold text-gray-900">{ar ? 'إضافة جهة اتصال — شخصي أو شركة' : 'Add contact — Personal or Company'}</h3>
+                <button type="button" onClick={() => setShowAddLandlordModal(false)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label={ar ? 'إغلاق' : 'Close'}>
+                  <Icon name="x" className="w-5 h-5" />
+                </button>
+              </div>
+              <iframe
+                src={`/${locale}/admin/address-book?embed=add&category=LANDLORD`}
+                className="flex-1 w-full border-0 rounded-b-2xl"
+                title={ar ? 'نموذج إضافة جهة اتصال' : 'Add contact form'}
+              />
+            </div>
+          </div>
+        )}
 
         {/* البيانات المرتبطة */}
         <SectionCard

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -137,11 +137,15 @@ const emptyForm = {
 
 export default function AdminAddressBookPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const locale = (params?.locale as string) || 'ar';
   const { data: session } = useSession();
   const t = useTranslations('addressBook');
   const tUsers = useTranslations('usersAdmin');
   const userRole = (session?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
+
+  const isEmbedAdd = searchParams.get('embed') === 'add';
+  const embedCategory = searchParams.get('category') || '';
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState('');
@@ -296,6 +300,16 @@ export default function AdminAddressBookPage() {
       window.removeEventListener('storage', onStorage);
     };
   }, [showArchived, userRole]);
+
+  useEffect(() => {
+    if (isEmbedAdd && mounted) {
+      setEditingId(null);
+      setForm({ ...emptyForm, category: (embedCategory === 'LANDLORD' ? 'LANDLORD' : emptyForm.category) as ContactCategory });
+      setFormErrors({});
+      setModalStep('choose');
+      setShowModal(true);
+    }
+  }, [isEmbedAdd, embedCategory, mounted]);
 
   const handleSyncFromBookings = () => {
     const result = syncBookingContactsToAddressBook();
@@ -595,10 +609,12 @@ export default function AdminAddressBookPage() {
   };
 
   const selectContactTypeAndOpenForm = (type: ContactType) => {
+    const defaultCategory = isEmbedAdd && embedCategory === 'LANDLORD' ? 'LANDLORD' : emptyForm.category;
     setForm({
       ...emptyForm,
       contactType: type,
       authorizedRepresentatives: type === 'COMPANY' ? [emptyRep()] : [],
+      category: defaultCategory as ContactCategory,
     });
     setModalStep('form');
   };
@@ -607,6 +623,13 @@ export default function AdminAddressBookPage() {
     setForm(emptyForm);
     setFormErrors({});
     setModalStep('choose');
+  };
+
+  const handleCloseModal = () => {
+    if (isEmbedAdd && typeof window !== 'undefined') {
+      window.parent.postMessage({ type: 'BHD_CONTACT_CANCELLED' }, '*');
+    }
+    setShowModal(false);
   };
 
   const requiredFieldLabels: Record<string, string> = {
@@ -873,6 +896,9 @@ export default function AdminAddressBookPage() {
           setUserCreateMsg(locale === 'ar' ? 'فشل إنشاء الحساب - حاول مرة أخرى' : 'Failed to create account - please try again');
           setTimeout(() => setUserCreateMsg(null), 5000);
         }
+        if (isEmbedAdd && typeof window !== 'undefined') {
+          window.parent.postMessage({ type: 'BHD_CONTACT_SAVED', contact: createdContact }, '*');
+        }
         setShowModal(false);
         setFormErrors({});
         loadData();
@@ -1089,6 +1115,7 @@ export default function AdminAddressBookPage() {
 
   return (
     <>
+    {!isEmbedAdd && (
     <div className="space-y-8 address-book-main w-full max-w-full min-h-0">
       {importResult !== null && (
         <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-medium">
@@ -1512,10 +1539,11 @@ export default function AdminAddressBookPage() {
           </div>
         )}
       </div>
+    )}
 
       {/* Modal: إضافة / تعديل */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" data-print-hide onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" data-print-hide onClick={handleCloseModal}>
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
@@ -1545,7 +1573,7 @@ export default function AdminAddressBookPage() {
                     <p className="text-gray-500 text-sm mt-1">{locale === 'ar' ? 'شركة - مع المفوضين بالتوقيع' : 'Company - With authorized representatives'}</p>
                   </button>
                 </div>
-                <button type="button" onClick={() => setShowModal(false)} className="w-full mt-6 py-3 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all">
+                <button type="button" onClick={handleCloseModal} className="w-full mt-6 py-3 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all">
                   {t('cancel')}
                 </button>
               </div>
