@@ -1115,8 +1115,7 @@ export default function AdminAddressBookPage() {
 
   return (
     <>
-    {!isEmbedAdd && (
-    <div className="space-y-8 address-book-main w-full max-w-full min-h-0">
+    <div className={`space-y-8 address-book-main w-full max-w-full min-h-0 ${isEmbedAdd ? 'hidden' : ''}`}>
       {importResult !== null && (
         <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-medium">
           {t('importSuccess', { count: importResult })}
@@ -1539,7 +1538,6 @@ export default function AdminAddressBookPage() {
           </div>
         )}
       </div>
-    )}
 
       {/* Modal: إضافة / تعديل */}
       {showModal && (
