@@ -1669,7 +1669,7 @@ if (data.url) {
                             {contractType === 'SALE' ? (
                               <tr className="bg-white/[0.02]">
                                 <td className="px-4 py-3 text-white/90">{ar ? 'مبلغ البيع (ر.ع)' : 'Sale price (OMR)'}</td>
-                                <td className="px-4 py-3 text-white font-semibold text-lg">{(typeof (contract as { totalSaleAmount?: number })?.totalSaleAmount === 'number' ? (contract as { totalSaleAmount: number }).totalSaleAmount : salePrice)?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '—'}</td>
+                                <td className="px-4 py-3 text-white font-semibold text-lg">{((contract as unknown as { totalSaleAmount?: number })?.totalSaleAmount ?? salePrice)?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '—'}</td>
                               </tr>
                             ) : (
                               <>
