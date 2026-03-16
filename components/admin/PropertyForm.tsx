@@ -14,6 +14,7 @@ import { generatePropertyDescription } from '@/lib/propertyDescriptionGenerator'
 import { omanLocations } from '@/lib/data/omanLocations';
 import { getRequiredFieldClass } from '@/lib/utils/requiredFields';
 import { loadDraft } from '@/lib/utils/draftStorage';
+import { formatSurveyMapNumber } from '@/lib/utils/surveyMapNumber';
 
 const PROPERTY_TYPES: { ar: string; en: string }[] = [
   { ar: 'فيلا', en: 'Villa' },
@@ -179,7 +180,7 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
         titleEn: property.titleEn,
         landParcelNumber: (property as { landParcelNumber?: string }).landParcelNumber || '',
         propertyNumber: (property as { propertyNumber?: string }).propertyNumber || '',
-        surveyMapNumber: (property as { surveyMapNumber?: string }).surveyMapNumber || '',
+        surveyMapNumber: formatSurveyMapNumber((property as { surveyMapNumber?: string }).surveyMapNumber || ''),
         descriptionAr: property.descriptionAr || '',
         descriptionEn: property.descriptionEn || '',
         type: property.type,
@@ -717,10 +718,13 @@ export default function PropertyForm({ property, locale, onSubmit, submitLabel, 
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
                       value={form.surveyMapNumber}
-                      onChange={(e) => setForm({ ...form, surveyMapNumber: e.target.value })}
+                      onChange={(e) => setForm({ ...form, surveyMapNumber: formatSurveyMapNumber(e.target.value) })}
                       className="admin-input w-full"
-                      placeholder={ar ? 'اختياري' : 'Optional'}
+                      placeholder="01-04-004-03-23"
+                      maxLength={14}
                     />
                   </div>
                 </div>

@@ -8,7 +8,8 @@
 - **استنساخ:** `git clone https://github.com/ainoamn/bhd-om.git`
 
 > **العمل على أكثر من جهاز؟** راجع [docs/WORKFLOW.md](docs/WORKFLOW.md) لسير العمل والمزامنة بين الأجهزة.  
-> **لعدم فقدان التصميم والترابط عند التحديث؟** راجع [docs/SITE-SCENARIOS-AND-LINKS.md](docs/SITE-SCENARIOS-AND-LINKS.md) — سيناريوهات الموقع، خريطة الصفحات، ومعايير التصميم.
+> **لعدم فقدان التصميم والترابط عند التحديث؟** راجع [docs/SITE-SCENARIOS-AND-LINKS.md](docs/SITE-SCENARIOS-AND-LINKS.md) — سيناريوهات الموقع، خريطة الصفحات، ومعايير التصميم.  
+> **بداية/نهاية الجلسة والسياق اليومي؟** في **بداية كل جلسة** اقرأ [docs/SESSION-START.md](docs/SESSION-START.md) (تعليمات البرمجة، الملفات الواجب قراءتها). في **نهاية كل جلسة** نفّذ [docs/SESSION-END.md](docs/SESSION-END.md) (رفع التغييرات، تحديث الوثائق). حدّث [docs/DAILY-CONTEXT.md](docs/DAILY-CONTEXT.md) بعد كل جلسة لضمان عدم فقدان السياق عند التنقّل بين الأجهزة.
 
 ## 📋 نظرة عامة
 
