@@ -316,6 +316,17 @@ model BookingStorage {
   @@index([createdAt])
 }
 
+/// ملفات مرفوعة من صفحة شروط العقد (مستندات توثيق) — تُخزّن في DB ليعمل الرفع على Vercel بدون Blob
+model BookingDocumentFile {
+  id        String   @id @default(cuid())
+  fileName  String
+  mimeType  String?
+  content   Bytes
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // ========== Global Intelligent Accounting ==========
 enum AccountingAccountType {
   ASSET
