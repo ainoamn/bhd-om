@@ -7,7 +7,8 @@
 - **GitHub:** [https://github.com/ainoamn/bhd-om](https://github.com/ainoamn/bhd-om)
 - **استنساخ:** `git clone https://github.com/ainoamn/bhd-om.git`
 
-> **العمل على أكثر من جهاز؟** راجع [docs/WORKFLOW.md](docs/WORKFLOW.md) لسير العمل والمزامنة بين الأجهزة.
+> **العمل على أكثر من جهاز؟** راجع [docs/WORKFLOW.md](docs/WORKFLOW.md) لسير العمل والمزامنة بين الأجهزة.  
+> **لعدم فقدان التصميم والترابط عند التحديث؟** راجع [docs/SITE-SCENARIOS-AND-LINKS.md](docs/SITE-SCENARIOS-AND-LINKS.md) — سيناريوهات الموقع، خريطة الصفحات، ومعايير التصميم.
 
 ## 📋 نظرة عامة
 
@@ -535,14 +536,23 @@ app/
 - ✅ XSS protection
 - ✅ CSRF protection (جاهز)
 
+## 📐 التوثيق والتصميم (لا نفقد التنسيق والترابط)
+
+عند إضافة صفحات أو تحديث الموقع، يُنصح بالرجوع إلى:
+
+- **[docs/SITE-SCENARIOS-AND-LINKS.md](docs/SITE-SCENARIOS-AND-LINKS.md)** — سيناريوهات عمل الموقع (حجز → محاسبة → تأكيد استلام، اشتراك، إلخ)، خريطة الصفحات والروابط، ومعايير التصميم والتنسيق حتى يبقى الموقع متناسقاً.
+- **قواعد Cursor** في `.cursor/rules/` — المعايير التقنية، الحقول الإجبارية، حفظ المسودات.
+
+إضافة صفحة جديدة في لوحة التحكم تتم عبر **`lib/config/adminNav.ts`** و**`lib/config/dashboardRoles.ts`** (لا إنشاء قوائم جانبية مكررة). التفاصيل في الملف أعلاه.
+
 ## 🔄 سير العمل (Workflow)
 
 ### إضافة صفحة جديدة
 
-1. إنشاء ملف في `app/[locale]/new-page/page.tsx`
+1. إنشاء ملف في `app/[locale]/new-page/page.tsx` (أو تحت `admin/` مع تسجيلها في `adminNav.ts`).
 2. إضافة مكون في `components/new-page/`
 3. إضافة الترجمات في `messages/ar.json` و `messages/en.json`
-4. إضافة رابط في `PageHero.tsx` navigation
+4. إضافة رابط في `PageHero.tsx` navigation (للصفحات العامة) أو في **`lib/config/adminNav.ts`** (لصفحات اللوحة الإدارية)
 
 ### إضافة مكون جديد
 

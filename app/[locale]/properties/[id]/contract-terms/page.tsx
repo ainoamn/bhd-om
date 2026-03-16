@@ -245,7 +245,7 @@ export default function ContractTermsPage() {
     ? bookingChecksList.map((c) => ({ checkTypeId: c.checkTypeId, labelAr: c.labelAr, labelEn: c.labelEn }))
     : requiredChecks;
 
-  /** إيجار شهر واحد - من العقد أو الحجز أو العقار - لتعبئة مبلغ الشيكات تلقائياً */
+  /** إيجار شهر واحد - من العقد أو الحجز أو العقار - لتعبئة مبلغ الشيكات تلقائياً (للإيجار فقط) */
   const monthlyRent = (() => {
     if (contract?.monthlyRent != null && contract.monthlyRent > 0) return contract.monthlyRent;
     if (!booking || !property) return 0;
@@ -262,6 +262,23 @@ export default function ContractTermsPage() {
     }
     return prop.price ?? 0;
   })();
+
+  /** مبلغ البيع - من الحجز أو العقار/الوحدة - للعقار المعروض للبيع فقط */
+  const salePrice = contractType === 'SALE' ? (() => {
+    if (!booking || !property) return 0;
+    if (booking.priceAtBooking != null && booking.priceAtBooking > 0) return booking.priceAtBooking;
+    const prop = property as { price?: number; multiUnitShops?: { price: number }[]; multiUnitShowrooms?: { price: number }[]; multiUnitApartments?: { price: number }[] };
+    if (booking.unitKey) {
+      const m = booking.unitKey.match(/^(shop|showroom|apartment)-(\d+)$/);
+      if (m) {
+        const idx = parseInt(m[2], 10);
+        if (m[1] === 'shop') return prop.multiUnitShops?.[idx]?.price ?? prop.price ?? 0;
+        if (m[1] === 'showroom') return prop.multiUnitShowrooms?.[idx]?.price ?? prop.price ?? 0;
+        if (m[1] === 'apartment') return prop.multiUnitApartments?.[idx]?.price ?? prop.price ?? 0;
+      }
+    }
+    return prop.price ?? 0;
+  })() : 0;
 
   /** بيانات مالك الشيكات - تُطبَّق على جميع الشيكات */
   const [chequeOwnerType, setChequeOwnerType] = useState<'tenant' | 'other_individual' | 'company'>('tenant');
@@ -1612,10 +1629,11 @@ if (data.url) {
                       </div>
                     </div>
 
-                    {/* ٤. التواريخ فقط */}
+                    {/* ٤. التواريخ — للإيجار فقط (مدة العقد والفترة) */}
+                    {contractType === 'RENT' && (
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] overflow-hidden">
                       <div className="px-5 py-3 border-b border-white/10 bg-white/[0.06]">
-                        <h4 className="text-sm font-semibold text-white">{ar ? '٤. التواريخ فقط' : '4. Dates only'}</h4>
+                        <h4 className="text-sm font-semibold text-white">{ar ? '٤. مدة العقد والتواريخ' : '4. Contract duration & dates'}</h4>
                       </div>
                       <div className="p-5">
                         <table className="w-full text-sm">
@@ -1634,23 +1652,37 @@ if (data.url) {
                         </table>
                       </div>
                     </div>
+                    )}
 
-                    {/* ٥. المالية والإيجار فقط */}
+                    {/* ٥. المالية — للإيجار: إيجار شهري وسنوي؛ للبيع: مبلغ البيع فقط */}
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] overflow-hidden">
                       <div className="px-5 py-3 border-b border-white/10 bg-white/[0.06]">
-                        <h4 className="text-sm font-semibold text-white">{ar ? '٥. المالية والإيجار فقط' : '5. Financial & Rent only'}</h4>
+                        <h4 className="text-sm font-semibold text-white">
+                          {contractType === 'SALE'
+                            ? (ar ? '٥. المالية (البيع)' : '5. Financial (Sale)')
+                            : (ar ? '٥. المالية والإيجار' : '5. Financial & Rent')}
+                        </h4>
                       </div>
                       <div className="p-5">
                         <table className="w-full text-sm">
                           <tbody>
-                            <tr className="bg-white/[0.02]">
-                              <td className="px-4 py-3 text-white/90">{ar ? 'الإيجار الشهري (ر.ع)' : 'Monthly rent (OMR)'}</td>
-                              <td className="px-4 py-3 text-white font-semibold text-lg">{(contract?.monthlyRent ?? monthlyRent)?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '—'}</td>
-                            </tr>
-                            <tr className="bg-white/[0.04]">
-                              <td className="px-4 py-3 text-white/90">{ar ? 'الإيجار السنوي (ر.ع)' : 'Annual rent (OMR)'}</td>
-                              <td className="px-4 py-3 text-white font-semibold text-lg">{(contract?.annualRent ?? (monthlyRent * 12))?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '—'}</td>
-                            </tr>
+                            {contractType === 'SALE' ? (
+                              <tr className="bg-white/[0.02]">
+                                <td className="px-4 py-3 text-white/90">{ar ? 'مبلغ البيع (ر.ع)' : 'Sale price (OMR)'}</td>
+                                <td className="px-4 py-3 text-white font-semibold text-lg">{(typeof (contract as { totalSaleAmount?: number })?.totalSaleAmount === 'number' ? (contract as { totalSaleAmount: number }).totalSaleAmount : salePrice)?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '—'}</td>
+                              </tr>
+                            ) : (
+                              <>
+                                <tr className="bg-white/[0.02]">
+                                  <td className="px-4 py-3 text-white/90">{ar ? 'الإيجار الشهري (ر.ع)' : 'Monthly rent (OMR)'}</td>
+                                  <td className="px-4 py-3 text-white font-semibold text-lg">{(contract?.monthlyRent ?? monthlyRent)?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '—'}</td>
+                                </tr>
+                                <tr className="bg-white/[0.04]">
+                                  <td className="px-4 py-3 text-white/90">{ar ? 'الإيجار السنوي (ر.ع)' : 'Annual rent (OMR)'}</td>
+                                  <td className="px-4 py-3 text-white font-semibold text-lg">{(contract?.annualRent ?? (monthlyRent * 12))?.toLocaleString('en-US', { minimumFractionDigits: 2 }) ?? '—'}</td>
+                                </tr>
+                              </>
+                            )}
                           </tbody>
                         </table>
                       </div>
