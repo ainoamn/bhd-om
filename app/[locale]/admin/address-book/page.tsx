@@ -228,16 +228,35 @@ export default function AdminAddressBookPage() {
   };
 
   useEffect(() => {
-    try {
-      const result = syncBookingContactsToAddressBook();
-      const all = getAllContacts(showArchived);
-      const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
-      const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
-      setContacts(filtered);
-      if (result.added > 0 || result.updated > 0) setSyncResult(result);
-    } catch {
-      setContacts(getAllContacts(showArchived));
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length >= 0) {
+            try {
+              localStorage.setItem('bhd_address_book', JSON.stringify(data));
+            } catch {
+              // تخزين محلي معطّل أو ممتلئ
+            }
+          }
+        }
+      } catch {
+        // الخادم غير متاح — نعتمد التخزين المحلي فقط
+      }
+      if (cancelled) return;
+      try {
+        const result = syncBookingContactsToAddressBook();
+        const all = getAllContacts(showArchived);
+        const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+        const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
+        setContacts(filtered);
+        if (result.added > 0 || result.updated > 0) setSyncResult(result);
+      } catch {
+        setContacts(getAllContacts(showArchived));
+      }
+    })();
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_address_book' || e.key === 'bhd_property_bookings' || e.key === 'bhd_contact_category_permissions') {
         try { syncBookingContactsToAddressBook(); } catch {}
@@ -248,7 +267,10 @@ export default function AdminAddressBookPage() {
       }
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', onStorage);
+    };
   }, [showArchived, userRole]);
 
   const handleSyncFromBookings = () => {
@@ -767,11 +789,34 @@ export default function AdminAddressBookPage() {
     try {
     if (editingId) {
       updateContact(editingId, payload);
+      const updated = getContactById(editingId);
+      if (updated) {
+        try {
+          await fetch('/api/address-book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(updated),
+          });
+        } catch {
+          // المزامنة مع الخادم قد تفشل
+        }
+      }
       setShowModal(false);
       setFormErrors({});
       loadData();
     } else {
         const createdContact = createContact(payload as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
+        try {
+          await fetch('/api/address-book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(createdContact),
+          });
+        } catch {
+          // المزامنة مع الخادم قد تفشل
+        }
         let creds: { email?: string; tempPassword: string; serialNumber?: string } | null = null;
         try {
           const displayName = isCompany ? form.companyNameAr.trim() : [form.firstName, form.secondName, form.thirdName, form.familyName].filter(Boolean).join(' ');

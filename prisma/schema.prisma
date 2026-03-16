@@ -327,6 +327,18 @@ model BookingDocumentFile {
   @@index([createdAt])
 }
 
+/// دفتر العناوين — جهات الاتصال (مالك، عميل، ...) تُخزّن على الخادم لتعكس في كل الصفحات
+model AddressBookContact {
+  id          String   @id @default(cuid())
+  contactId   String   @unique // معرف الجهة من الواجهة (مثل CNT-L-2025-0001-S1)
+  data        Json     // كائن Contact كامل (من lib/data/addressBook)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([contactId])
+}
+
 // ========== Global Intelligent Accounting ==========
 enum AccountingAccountType {
   ASSET

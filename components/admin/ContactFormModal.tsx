@@ -195,7 +195,7 @@ export default function ContactFormModal({
     return getRequiredFieldClass(true, isEmpty ? '' : 'x');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
     if (!form.firstName?.trim()) errors.firstName = t('fieldRequired');
@@ -275,6 +275,16 @@ export default function ContactFormModal({
         ? (updateContact(editContactId, payload) || getContactById(editContactId)!)
         : createContact(payload);
       clearDraft(draftKey);
+      try {
+        await fetch('/api/address-book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(contact),
+        });
+      } catch {
+        // جهة الاتصال محفوظة محلياً؛ المزامنة مع الخادم قد تفشل
+      }
       onSaved(contact);
       onClose();
     } catch (err) {
