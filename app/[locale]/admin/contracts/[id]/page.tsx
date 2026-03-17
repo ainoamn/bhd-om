@@ -29,7 +29,8 @@ import {
   calcRentBaseForFees,
   calcOtherTax,
 } from '@/lib/contractCalculations';
-import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, isOmaniNationality, isCompanyContact, updateContact, type Contact } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, getAllContacts, isOmaniNationality, isCompanyContact, updateContact, type Contact } from '@/lib/data/addressBook';
+import ContactFormModal from '@/components/admin/ContactFormModal';
 import { getAllBookings, updateBooking } from '@/lib/data/bookings';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
@@ -174,6 +175,7 @@ export default function ContractDetailPage() {
     manualCheques: true, guarantees: true, summary: true, finalSummary: true,
     broker: false, saleDates: true, saleData: true, contractTerms: true,
   });
+  const [showAddBrokerModal, setShowAddBrokerModal] = useState(false);
   const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }));
 
   useEffect(() => setMounted(true), []);
@@ -757,6 +759,7 @@ export default function ContractDetailPage() {
       saleTransferFees: form.saleTransferFees,
       saleTransferFeesPayer: form.saleTransferFeesPayer,
       saleViaBroker: form.saleViaBroker,
+      brokerContactId: form.brokerContactId,
       brokerName: form.brokerName,
       brokerPhone: form.brokerPhone,
       brokerEmail: form.brokerEmail,
@@ -1125,7 +1128,7 @@ export default function ContractDetailPage() {
 
       {/* نموذج بيانات العقد - مقسم بأطر منفصلة */}
       <div className="space-y-6">
-        {/* عقد البيع عبر وكيل: بيانات الوسيط (السمسار) */}
+        {/* عقد البيع عبر وكيل: بيانات الوسيط (السمسار) — اختيار من دفتر العناوين أو إضافة جديد */}
         {isSale && form.saleViaBroker && (
           <div className="rounded-2xl border-2 border-violet-200 bg-violet-50/30 shadow-sm overflow-hidden">
             <button type="button" onClick={() => toggleSection('broker')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-violet-50/50 transition-colors">
@@ -1133,9 +1136,56 @@ export default function ContractDetailPage() {
               <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'بيانات الوسيط (السمسار)' : 'Broker/Agent Data'}</h3>
               <span className="text-violet-600">{openSections.broker ? '▼' : '▶'}</span>
             </button>
-            {openSections.broker && (
-              <div className="px-6 pb-6 pt-0 border-t border-violet-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+            {openSections.broker && (() => {
+              const contacts = getAllContacts(false).filter((c) => !c.archived);
+              const applyBrokerFromContact = (c: Contact) => {
+                setForm((prev) => ({
+                  ...prev,
+                  brokerContactId: c.id,
+                  brokerName: getContactDisplayName(c, locale),
+                  brokerPhone: c.phone ?? '',
+                  brokerEmail: c.email ?? '',
+                  brokerCivilId: c.civilId ?? '',
+                }));
+              };
+              return (
+              <div className="px-6 pb-6 pt-0 border-t border-violet-200 pt-4 space-y-4">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="admin-input-label">{ar ? 'اختر وسيطاً من دفتر العناوين' : 'Select broker from address book'}</label>
+                    <select
+                      value={form.brokerContactId ?? ''}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        if (!id) setForm((p) => ({ ...p, brokerContactId: undefined, brokerName: '', brokerPhone: '', brokerEmail: '', brokerCivilId: '' }));
+                        else {
+                          const c = getContactById(id);
+                          if (c) applyBrokerFromContact(c);
+                        }
+                      }}
+                      className="admin-select w-full"
+                      disabled={!isEditable}
+                    >
+                      <option value="">{ar ? '— اختر —' : '— Select —'}</option>
+                      {contacts.slice(0, 200).map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {getContactDisplayName(c, locale)} {c.phone ? ` — ${c.phone}` : ''}
+                        </option>
+                      ))}
+                      {contacts.length > 200 && <option disabled>{ar ? `... و ${contacts.length - 200} غير معروضين` : `... and ${contacts.length - 200} more`}</option>}
+                    </select>
+                  </div>
+                  {isEditable && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddBrokerModal(true)}
+                      className="px-4 py-2 rounded-xl font-medium text-violet-700 bg-violet-100 hover:bg-violet-200 border border-violet-200"
+                    >
+                      {ar ? 'إضافة وسيط في دفتر العناوين' : 'Add broker to address book'}
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="admin-input-label">{ar ? 'اسم الوسيط *' : 'Broker name *'}</label>
                     <input type="text" value={form.brokerName ?? ''} onChange={(e) => setForm({ ...form, brokerName: e.target.value })} className="admin-input w-full" readOnly={!isEditable} />
@@ -1153,10 +1203,30 @@ export default function ContractDetailPage() {
                     <input type="text" value={form.brokerCivilId ?? ''} onChange={(e) => setForm({ ...form, brokerCivilId: e.target.value })} className="admin-input w-full" readOnly={!isEditable} />
                   </div>
                 </div>
+                <p className="text-xs text-gray-600">{ar ? 'يمكنك اختيار وسيطاً من القائمة أعلاه أو إضافته جديداً من دفتر العناوين ثم اختياره.' : 'Select a broker from the list or add a new one to the address book, then select them.'}</p>
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
+
+        <ContactFormModal
+          open={showAddBrokerModal}
+          onClose={() => setShowAddBrokerModal(false)}
+          onSaved={(contact) => {
+            setForm((prev) => ({
+              ...prev,
+              brokerContactId: contact.id,
+              brokerName: getContactDisplayName(contact, locale),
+              brokerPhone: contact.phone ?? '',
+              brokerEmail: contact.email ?? '',
+              brokerCivilId: contact.civilId ?? '',
+            }));
+            setShowAddBrokerModal(false);
+          }}
+          initialCategory="OTHER"
+          locale={locale}
+        />
 
         {/* 1. إطار بيانات المالك / البائع */}
         <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/30 shadow-sm overflow-hidden">

@@ -158,6 +158,8 @@ export interface RentalContract {
   saleTransferFeesPayer?: 'seller' | 'buyer';
   /** عقد البيع: البيع عن طريق وكيل/سمسار */
   saleViaBroker?: boolean;
+  /** معرف جهة الاتصال للوسيط في دفتر العناوين (عند الاختيار من الدفتر) */
+  brokerContactId?: string;
   /** بيانات الوسيط (السمسار) عند البيع عن طريق وكيل */
   brokerName?: string;
   brokerPhone?: string;
