@@ -23,7 +23,7 @@ const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
   CANCELLED: { ar: 'ملغى', en: 'Cancelled' },
 };
 
-/** هل الحجز يحتاج من العميل إكمال بيانات العقد والمستندات (كما يظهر في صفحة الحجز للإدارة) */
+/** هل الحجز يحتاج من العميل إكمال بيانات العقد والمستندات (كما يظهر في صفحة الحجز للإدارة). يُعتبر الحجز بحاجة لإكمال البيانات عندما: يوجد عقد مسودة، أو الحجز مؤكد والدفع مؤكد (العقد قد يكون من جهة الإدارة ولا يظهر في localStorage للعميل). */
 function needsToCompleteContractData(
   linked: ContactLinkedBooking,
   fullBooking: PropertyBooking | undefined
@@ -40,6 +40,8 @@ function needsToCompleteContractData(
   const allChecksApproved = checks.length === 0 || areAllChecksApproved(id);
   if (effectiveStatus === 'CONFIRMED' && (docsNeedConfirmation || !allDocsApproved || !allChecksApproved)) return true;
   if (hasContract && c && c.status !== 'APPROVED' && (!allDocsApproved || !allChecksApproved)) return true;
+  // حجز مؤكد + دفع مؤكد: الإدارة قد أنشأت عقداً مسودة (لا يظهر للعميل في localStorage) — نعرض له زر إكمال البيانات
+  if (effectiveStatus === 'CONFIRMED' && (fullBooking?.paymentConfirmed || fullBooking?.accountantConfirmedAt)) return true;
   return false;
 }
 
@@ -78,15 +80,21 @@ function getBookingStatusDisplay(
     return { main: ar ? 'عقد مسودة — بانتظار رفع المستندات' : 'Draft contract — pending document upload' };
   }
 
-  // لا يوجد عقد بعد — نعرض حالة الحجز + ملاحظات الدفع والمستندات
+  // لا يوجد عقد في localStorage (العقد قد يكون أنشأه الأدمن على جهاز آخر) — للحجز المؤكد والدفع مؤكد نعرض «عقد مسودة - بانتظار رفع المستندات» وزر إكمال البيانات
   if (!c && (effectiveStatus === 'CONFIRMED' || effectiveStatus === 'PENDING')) {
-    const main = ar
-      ? STATUS_LABELS[effectiveStatus]?.ar ?? effectiveStatus
-      : STATUS_LABELS[effectiveStatus]?.en ?? effectiveStatus;
+    const paymentOrAccountantConfirmed = !!(fullBooking?.paymentConfirmed || fullBooking?.accountantConfirmedAt);
+    const main =
+      effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed
+        ? ar
+          ? 'عقد مسودة — بانتظار رفع المستندات'
+          : 'Draft contract — pending document upload'
+        : ar
+          ? STATUS_LABELS[effectiveStatus]?.ar ?? effectiveStatus
+          : STATUS_LABELS[effectiveStatus]?.en ?? effectiveStatus;
     const subs: string[] = [];
     if (fullBooking?.paymentConfirmed && !fullBooking?.accountantConfirmedAt) {
       subs.push(ar ? '⏳ بانتظار تأكيد المحاسب' : '⏳ Pending accountant confirmation');
-    } else if (fullBooking?.accountantConfirmedAt && effectiveStatus === 'CONFIRMED') {
+    } else if (paymentOrAccountantConfirmed && effectiveStatus === 'CONFIRMED') {
       subs.push(ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed');
     }
     if (effectiveStatus === 'CONFIRMED' && hasDocumentsNeedingConfirmation(id)) {
