@@ -23,6 +23,26 @@ const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
   CANCELLED: { ar: 'ملغى', en: 'Cancelled' },
 };
 
+/** هل الحجز يحتاج من العميل إكمال بيانات العقد والمستندات (كما يظهر في صفحة الحجز للإدارة) */
+function needsToCompleteContractData(
+  linked: ContactLinkedBooking,
+  fullBooking: PropertyBooking | undefined
+): boolean {
+  const id = linked.id;
+  const effectiveStatus = fullBooking?.status ?? linked.status;
+  if (effectiveStatus === 'CANCELLED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD') return false;
+  const hasContract = hasContractForUnit(linked.propertyId, linked.unitKey);
+  const c = getContractByBooking(id);
+  if (hasContract && c && c.status === 'APPROVED') return false;
+  const docsNeedConfirmation = hasDocumentsNeedingConfirmation(id);
+  const allDocsApproved = areAllRequiredDocumentsApproved(id);
+  const checks = getChecksByBooking(id);
+  const allChecksApproved = checks.length === 0 || areAllChecksApproved(id);
+  if (effectiveStatus === 'CONFIRMED' && (docsNeedConfirmation || !allDocsApproved || !allChecksApproved)) return true;
+  if (hasContract && c && c.status !== 'APPROVED' && (!allDocsApproved || !allChecksApproved)) return true;
+  return false;
+}
+
 /** نفس منطق عرض الحالة المستخدم في /admin/bookings ليعرف العميل أين معاملته */
 function getBookingStatusDisplay(
   linked: ContactLinkedBooking,
@@ -71,6 +91,9 @@ function getBookingStatusDisplay(
     }
     if (effectiveStatus === 'CONFIRMED' && hasDocumentsNeedingConfirmation(id)) {
       subs.push(ar ? '📋 مطلوب اعتماد المستندات' : '📋 Documents need approval');
+    }
+    if (needsToCompleteContractData(linked, fullBooking)) {
+      subs.push(ar ? 'بحاجة إلى إكمال بيانات العقد والمستندات' : 'Need to complete contract data and documents');
     }
     return { main, sub: subs.length > 0 ? subs.join(' · ') : undefined };
   }
@@ -132,6 +155,7 @@ export default function MyBookingsPage() {
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">{locale === 'ar' ? 'العقار' : 'Property'}</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">{locale === 'ar' ? 'التاريخ' : 'Date'}</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">{locale === 'ar' ? 'الحالة' : 'Status'}</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">{locale === 'ar' ? 'إجراء' : 'Action'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,6 +167,8 @@ export default function MyBookingsPage() {
                     effectiveStatus === 'CONFIRMED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD';
                   const isWarning =
                     effectiveStatus === 'CONFIRMED' && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
+                  const needComplete = needsToCompleteContractData(b, full);
+                  const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
                   return (
                     <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
@@ -164,6 +190,18 @@ export default function MyBookingsPage() {
                           </span>
                           {sub && <span className="text-xs text-amber-700">{sub}</span>}
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {needComplete ? (
+                          <Link
+                            href={contractTermsUrl}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
+                          >
+                            {locale === 'ar' ? 'إكمال البيانات' : 'Complete data'}
+                          </Link>
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
                       </td>
                     </tr>
                   );

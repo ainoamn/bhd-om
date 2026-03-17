@@ -1412,6 +1412,19 @@ export default function ContractTermsPage() {
                 </p>
               </div>
             )}
+            {/* ملاحظة للعميل: طلب الإدارة لبيانات العقد — جميع الحقول والمستندات المطلوبة إلزامية */}
+            {(bookingId || matchedBookings.length > 0) && (
+              <div className="mx-6 mt-4 mb-0 p-4 rounded-2xl bg-[#8B6F47]/25 border border-[#8B6F47]/50">
+                <p className="text-white text-sm font-semibold mb-1">
+                  {ar ? '📋 ملاحظة للعميل' : '📋 Notice for client'}
+                </p>
+                <p className="text-white text-sm leading-relaxed">
+                  {ar
+                    ? 'الإدارة تطلب منكم إكمال البيانات التالية (البيانات الشخصية، المستندات المطلوبة، وبيانات الشيكات إن وُجدت). جميع الحقول والمعلمة كـ «مطلوب» إلزامية ولا يمكن إتمام توثيق العقد بدونها.'
+                    : 'The administration requests that you complete the following (personal data, required documents, and cheque details where applicable). All fields marked as «Required» are mandatory and contract documentation cannot be completed without them.'}
+                </p>
+              </div>
+            )}
             {matchedBookings.length > 0 ? (
               <div className="p-8">
                 <h2 className="text-xl font-bold text-white mb-4">
