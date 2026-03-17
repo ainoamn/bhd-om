@@ -74,18 +74,23 @@ export default function AdminContractsPage() {
     const dataOverrides = getPropertyDataOverrides();
     const prop = getPropertyById(b.propertyId, dataOverrides);
     if (!prop) return;
+    const propType = (prop as { type?: string }).type ?? 'RENT';
+    const isSale = propType === 'SALE';
     const monthlyRent = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
+    const salePrice = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
     const landlordContactId = getPropertyLandlordContactId(b.propertyId);
     const landlordContact = landlordContactId ? getContactById(landlordContactId) : null;
     const tenantContact = findContactByPhoneOrEmail(b.phone, b.email);
     const tenantName = tenantContact ? getContactDisplayName(tenantContact, locale) : getBookingDisplayName(b, locale);
     const landlordName = landlordContact ? getContactDisplayName(landlordContact, locale) : '';
+    const today = new Date().toISOString().slice(0, 10);
     const contract = createContract({
       bookingId: b.id,
       propertyId: b.propertyId,
       unitKey: b.unitKey,
       propertyTitleAr: prop.titleAr,
       propertyTitleEn: prop.titleEn,
+      propertyContractKind: propType as 'RENT' | 'SALE' | 'INVESTMENT',
       tenantName: tenantName || b.name || '',
       tenantEmail: b.email || '',
       tenantPhone: b.phone || '',
@@ -109,15 +114,16 @@ export default function AdminContractsPage() {
       landlordPassportExpiry: isOmaniNationality(landlordContact?.nationality ?? '') ? undefined : (landlordContact?.passportExpiry ?? undefined),
       landlordWorkplace: landlordContact?.workplace ?? undefined,
       landlordWorkplaceEn: landlordContact?.workplaceEn ?? undefined,
-      monthlyRent,
-      annualRent: monthlyRent * 12,
-      depositAmount: b.priceAtBooking ?? monthlyRent,
-      depositCashAmount: b.priceAtBooking ?? monthlyRent,
+      monthlyRent: isSale ? 0 : monthlyRent,
+      annualRent: isSale ? 0 : monthlyRent * 12,
+      depositAmount: isSale ? 0 : (b.priceAtBooking ?? monthlyRent),
+      depositCashAmount: isSale ? undefined : (b.priceAtBooking ?? monthlyRent),
       depositCashReceiptNumber: b.depositReceiptNumber,
+      ...(isSale ? { totalSaleAmount: salePrice, saleDate: today, transferOfOwnershipDate: today, salePaymentMethod: '' } : {}),
       checks: [],
-      startDate: new Date().toISOString().slice(0, 10),
-      endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      durationMonths: 12,
+      startDate: isSale ? today : new Date().toISOString().slice(0, 10),
+      endDate: isSale ? today : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      durationMonths: isSale ? 0 : 12,
       status: 'DRAFT',
     });
     updateBooking(b.id, { contractId: contract.id });
@@ -143,18 +149,23 @@ export default function AdminContractsPage() {
     const dataOverrides = getPropertyDataOverrides();
     const prop = getPropertyById(b.propertyId, dataOverrides);
     if (!prop) return;
+    const propType = (prop as { type?: string }).type ?? 'RENT';
+    const isSale = propType === 'SALE';
     const monthlyRent = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
+    const salePrice = b.priceAtBooking ?? (prop as { price?: number }).price ?? 0;
     const landlordContactId = getPropertyLandlordContactId(b.propertyId);
     const landlordContact = landlordContactId ? getContactById(landlordContactId) : null;
     const tenantContact = findContactByPhoneOrEmail(b.phone, b.email);
     const tenantName = tenantContact ? getContactDisplayName(tenantContact, locale) : getBookingDisplayName(b, locale);
     const landlordName = landlordContact ? getContactDisplayName(landlordContact, locale) : '';
+    const today = new Date().toISOString().slice(0, 10);
     const contract = createContract({
       bookingId: b.id,
       propertyId: b.propertyId,
       unitKey: b.unitKey,
       propertyTitleAr: prop.titleAr,
       propertyTitleEn: prop.titleEn,
+      propertyContractKind: propType as 'RENT' | 'SALE' | 'INVESTMENT',
       tenantName: tenantName || b.name || '',
       tenantEmail: b.email || '',
       tenantPhone: b.phone || '',
@@ -178,15 +189,16 @@ export default function AdminContractsPage() {
       landlordPassportExpiry: isOmaniNationality(landlordContact?.nationality ?? '') ? undefined : (landlordContact?.passportExpiry ?? undefined),
       landlordWorkplace: landlordContact?.workplace ?? undefined,
       landlordWorkplaceEn: landlordContact?.workplaceEn ?? undefined,
-      monthlyRent,
-      annualRent: monthlyRent * 12,
-      depositAmount: b.priceAtBooking ?? monthlyRent,
-      depositCashAmount: b.priceAtBooking ?? monthlyRent,
+      monthlyRent: isSale ? 0 : monthlyRent,
+      annualRent: isSale ? 0 : monthlyRent * 12,
+      depositAmount: isSale ? 0 : (b.priceAtBooking ?? monthlyRent),
+      depositCashAmount: isSale ? undefined : (b.priceAtBooking ?? monthlyRent),
       depositCashReceiptNumber: b.depositReceiptNumber,
+      ...(isSale ? { totalSaleAmount: salePrice, saleDate: today, transferOfOwnershipDate: today, salePaymentMethod: '' } : {}),
       checks: [],
-      startDate: new Date().toISOString().slice(0, 10),
-      endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      durationMonths: 12,
+      startDate: isSale ? today : new Date().toISOString().slice(0, 10),
+      endDate: isSale ? today : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      durationMonths: isSale ? 0 : 12,
       status: 'DRAFT',
     });
     updateBooking(b.id, { contractId: contract.id });

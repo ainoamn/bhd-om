@@ -52,7 +52,10 @@ const PAYMENT_FREQUENCY_MONTHS: Record<string, number> = {
 /** شيكات الضمان/العربون - تظهر فقط عند اختيار دفع الضمان بشيك */
 const DEPOSIT_RELATED_CHECK_IDS = ['SECURITY_CHEQUE', 'DEPOSIT_CHEQUE'];
 
-/** توليد الشيكات تلقائياً حسب مدة الدفع: شهرياً=عدد الأشهر، كل 3 أشهر=4/سنة، نصف سنوي=2/سنة، سنوياً=1 */
+/** نوع عقد العقار — يُستخدم لعرض الشيكات والشروط حسب نوع العقد */
+type PropertyContractKind = 'RENT' | 'SALE' | 'INVESTMENT';
+
+/** توليد الشيكات تلقائياً حسب مدة الدفع (للإيجار) أو من شروط العقد (للبيع/استثمار) */
 function buildRequiredChecks(
   propertyId: string | number | undefined,
   rentPaymentMethod: string | undefined,
@@ -60,9 +63,11 @@ function buildRequiredChecks(
   rentPaymentFrequency?: string,
   customMonthlyRents?: number[],
   depositChequeRequired?: boolean,
-  depositChequeDurationMonths?: 1 | 2 | 3 | 4 | 5 | 6
+  depositChequeDurationMonths?: 1 | 2 | 3 | 4 | 5 | 6,
+  contractKind: PropertyContractKind = 'RENT'
 ): RequiredCheck[] {
-  const fromTerms = propertyId ? getContractTypeTerms(String(propertyId), 'RENT').requiredChecks : [];
+  const fromTerms = propertyId ? getContractTypeTerms(String(propertyId), contractKind).requiredChecks : [];
+  if (contractKind !== 'RENT') return fromTerms;
   let baseChecks = fromTerms.filter((r) => r.checkTypeId !== 'RENT_CHEQUE');
   /** شيك الضمان: مطلوب/غير مطلوب. غير مطلوب = لا نضيف. مطلوب = نضيف N شيك حسب المدة (1-6 أشهر)، بدون تاريخ */
   baseChecks = baseChecks.filter((r) => !DEPOSIT_RELATED_CHECK_IDS.includes(r.checkTypeId ?? ''));
@@ -163,6 +168,7 @@ export default function ContractDetailPage() {
     landlord: false, tenant: true, property: false, financial: true, dates: true,
     municipality: true, customRents: true, cheques: true, documents: true,
     manualCheques: true, guarantees: true, summary: true, finalSummary: true,
+    broker: false, saleDates: true, saleData: true, contractTerms: true,
   });
   const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }));
 
@@ -264,7 +270,8 @@ export default function ContractDetailPage() {
     if (!areAllRequiredDocumentsApproved(c.bookingId) || !areAllChecksApproved(c.bookingId)) return;
     const bookingChecks = getChecksByBooking(c.bookingId);
     if (bookingChecks.length === 0) return;
-    const reqChecks = buildRequiredChecks(c.propertyId, c.rentPaymentMethod, c.durationMonths ?? 12, c.rentPaymentFrequency, c.customMonthlyRents, c.depositChequeRequired, c.depositChequeDurationMonths);
+    const kind = (c.propertyContractKind ?? 'RENT') as PropertyContractKind;
+    const reqChecks = buildRequiredChecks(c.propertyId, c.rentPaymentMethod, c.durationMonths ?? 12, c.rentPaymentFrequency, c.customMonthlyRents, c.depositChequeRequired, c.depositChequeDurationMonths, kind);
     if (reqChecks.length === 0 || bookingChecks.length < reqChecks.length) return;
     const entries = reqChecks.map((rc, idx) => {
       const bk = bookingChecks[idx];
@@ -310,7 +317,8 @@ export default function ContractDetailPage() {
     form.rentPaymentFrequency ?? contract?.rentPaymentFrequency,
     form.customMonthlyRents ?? contract?.customMonthlyRents,
     form.depositChequeRequired ?? contract?.depositChequeRequired,
-    form.depositChequeDurationMonths ?? contract?.depositChequeDurationMonths
+    form.depositChequeDurationMonths ?? contract?.depositChequeDurationMonths,
+    (contract?.propertyContractKind ?? 'RENT') as PropertyContractKind
   );
 
   useEffect(() => {
@@ -462,7 +470,8 @@ export default function ContractDetailPage() {
       form.rentPaymentFrequency ?? contract?.rentPaymentFrequency,
       form.customMonthlyRents ?? contract?.customMonthlyRents,
       form.depositChequeRequired ?? contract?.depositChequeRequired,
-      form.depositChequeDurationMonths ?? contract?.depositChequeDurationMonths
+      form.depositChequeDurationMonths ?? contract?.depositChequeDurationMonths,
+      (contract?.propertyContractKind ?? 'RENT') as PropertyContractKind
     );
     const stored = getChecksByContract(contract.id);
     const periodMonths = PAYMENT_FREQUENCY_MONTHS[form.rentPaymentFrequency ?? contract?.rentPaymentFrequency ?? 'monthly'] ?? 1;
@@ -612,6 +621,9 @@ export default function ContractDetailPage() {
 
   const handleSave = () => {
     if (!contract) return;
+    const dataOverrides = getPropertyDataOverrides();
+    const prop = getPropertyById(contract.propertyId, dataOverrides);
+    const savedKind = (form.propertyContractKind ?? (prop as { type?: string })?.type ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const monthlyRent = form.monthlyRent ?? 0;
     const duration = form.durationMonths ?? 12;
 
@@ -722,6 +734,16 @@ export default function ContractDetailPage() {
       rentChecksAuthorizedRep: form.rentChecksAuthorizedRep,
       rentChecksBankName: form.rentChecksBankName,
       rentChecksBankBranch: form.rentChecksBankBranch,
+      propertyContractKind: form.propertyContractKind ?? savedKind,
+      totalSaleAmount: form.totalSaleAmount,
+      saleDate: form.saleDate,
+      transferOfOwnershipDate: form.transferOfOwnershipDate,
+      salePaymentMethod: form.salePaymentMethod,
+      saleViaBroker: form.saleViaBroker,
+      brokerName: form.brokerName,
+      brokerPhone: form.brokerPhone,
+      brokerEmail: form.brokerEmail,
+      brokerCivilId: form.brokerCivilId,
     });
     const updated = _updated ?? getContractById(id);
     // مزامنة بيانات المالك من العقد إلى دفتر العناوين (جهة المالك المرتبطة بالعقار) حتى تظهر مكتملة عند المزامنة التالية
@@ -843,8 +865,8 @@ export default function ContractDetailPage() {
         (co && !isCompanyContact(co as Contact) && isOmaniNationality((co as { nationality?: string })?.nationality || ''))
           ? list.filter((r) => r.docTypeId !== 'PASSPORT')
           : list;
-      const reqDocTypes = getRequiredDocTypesForBooking(c.propertyId, (c.contractType ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT', contact ?? null, filterByNationality);
-      const reqChecks = buildRequiredChecks(c.propertyId, c.rentPaymentMethod, c.durationMonths ?? 12, c.rentPaymentFrequency, c.customMonthlyRents, c.depositChequeRequired, c.depositChequeDurationMonths);
+      const reqDocTypes = getRequiredDocTypesForBooking(c.propertyId, (c.propertyContractKind ?? c.contractType ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT', contact ?? null, filterByNationality);
+      const reqChecks = buildRequiredChecks(c.propertyId, c.rentPaymentMethod, c.durationMonths ?? 12, c.rentPaymentFrequency, c.customMonthlyRents, c.depositChequeRequired, c.depositChequeDurationMonths, (c.propertyContractKind ?? 'RENT') as PropertyContractKind);
       if (!areAllRequiredDocumentsApproved(c.bookingId)) {
         alert(ar ? '⚠ لا يمكن اعتماد العقد — يجب رفع جميع المستندات المطلوبة واعتمادها أولاً.' : '⚠ Cannot approve contract — all required documents must be uploaded and approved first.');
         return;
@@ -896,6 +918,17 @@ export default function ContractDetailPage() {
   const isCancelled = contract.status === 'CANCELLED';
   const isEditable = isDraft || (adminEditMode && contract.status === 'ADMIN_APPROVED');
 
+  const dataOverrides = getPropertyDataOverrides();
+  const property = getPropertyById(contract.propertyId, dataOverrides);
+  const effectiveKind: PropertyContractKind = (contract.propertyContractKind ?? (property as { type?: string })?.type ?? 'RENT') as PropertyContractKind;
+  const isSale = effectiveKind === 'SALE';
+  const isRent = effectiveKind === 'RENT';
+
+  const contractTitleAr = isSale ? 'عقد البيع' : effectiveKind === 'INVESTMENT' ? 'عقد الاستثمار' : 'عقد الإيجار';
+  const contractTitleEn = isSale ? 'Sale Contract' : effectiveKind === 'INVESTMENT' ? 'Investment Contract' : 'Rental Contract';
+  const backLinkAr = isSale ? 'العودة لعقود البيع' : effectiveKind === 'INVESTMENT' ? 'العودة لعقود الاستثمار' : 'العودة لعقود الإيجار';
+  const backLinkEn = isSale ? 'Back to sale contracts' : effectiveKind === 'INVESTMENT' ? 'Back to investment contracts' : 'Back to contracts';
+
   return (
     <>
     <div className="min-h-screen space-y-8">
@@ -905,10 +938,10 @@ export default function ContractDetailPage() {
           className="inline-flex items-center gap-2 text-[#8B6F47] hover:text-[#6B5535] font-semibold mb-4"
         >
           <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center">←</span>
-          {ar ? 'العودة لعقود الإيجار' : 'Back to contracts'}
+          {ar ? backLinkAr : backLinkEn}
         </Link>
         <AdminPageHeader
-          title={ar ? 'عقد الإيجار' : 'Rental Contract'}
+          title={ar ? contractTitleAr : contractTitleEn}
           subtitle={[ar ? contract.propertyTitleAr : contract.propertyTitleEn, contract.unitKey ? ` - ${contract.unitKey}` : ''].filter(Boolean).join('')}
         />
       </div>
@@ -951,8 +984,8 @@ export default function ContractDetailPage() {
           (co && !isCompanyContact(co as Contact) && isOmaniNationality((co as { nationality?: string })?.nationality || ''))
             ? list.filter((r) => r.docTypeId !== 'PASSPORT')
             : list;
-        const reqDocTypes = getRequiredDocTypesForBooking(contract.propertyId, (contract.contractType ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT', contact ?? null, filterByNationality);
-        const reqChecks = buildRequiredChecks(contract.propertyId, contract.rentPaymentMethod, contract.durationMonths ?? 12, contract.rentPaymentFrequency, contract.customMonthlyRents, contract.depositChequeRequired, contract.depositChequeDurationMonths);
+        const reqDocTypes = getRequiredDocTypesForBooking(contract.propertyId, (contract.propertyContractKind ?? contract.contractType ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT', contact ?? null, filterByNationality);
+        const reqChecks = buildRequiredChecks(contract.propertyId, contract.rentPaymentMethod, contract.durationMonths ?? 12, contract.rentPaymentFrequency, contract.customMonthlyRents, contract.depositChequeRequired, contract.depositChequeDurationMonths, (contract.propertyContractKind ?? 'RENT') as PropertyContractKind);
         const docsNotReady = reqDocTypes.length > 0 && !areAllRequiredDocumentsApproved(contract.bookingId);
         const checksNotReady = reqChecks.length > 0 && !areAllChecksApproved(contract.bookingId);
         if (!docsNotReady && !checksNotReady) return null;
@@ -1026,10 +1059,10 @@ export default function ContractDetailPage() {
             {contract.status === 'ADMIN_APPROVED' && !adminEditMode && (
               <>
                 <button type="button" onClick={() => setConfirmAction('tenant')} className="px-4 py-2 rounded-xl font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
-                  {ar ? 'اعتماد المستأجر' : 'Tenant Approve'}
+                  {ar ? (isSale ? 'اعتماد المشتري' : 'اعتماد المستأجر') : (isSale ? 'Buyer Approve' : 'Tenant Approve')}
                 </button>
                 <button type="button" onClick={() => setConfirmAction('landlord')} className="px-4 py-2 rounded-xl font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100">
-                  {ar ? 'اعتماد المالك' : 'Landlord Approve'}
+                  {ar ? (isSale ? 'اعتماد البائع' : 'اعتماد المالك') : (isSale ? 'Seller Approve' : 'Landlord Approve')}
                 </button>
               </>
             )}
@@ -1037,12 +1070,12 @@ export default function ContractDetailPage() {
               <>
                 {contract.status === 'TENANT_APPROVED' && (
                   <button type="button" onClick={() => setConfirmAction('landlord')} className="px-4 py-2 rounded-xl font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100">
-                    {ar ? 'اعتماد المالك' : 'Landlord Approve'}
+                    {ar ? (isSale ? 'اعتماد البائع' : 'اعتماد المالك') : (isSale ? 'Seller Approve' : 'Landlord Approve')}
                   </button>
                 )}
                 {contract.status === 'LANDLORD_APPROVED' && (
                   <button type="button" onClick={() => setConfirmAction('tenant')} className="px-4 py-2 rounded-xl font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
-                    {ar ? 'اعتماد المستأجر' : 'Tenant Approve'}
+                    {ar ? (isSale ? 'اعتماد المشتري' : 'اعتماد المستأجر') : (isSale ? 'Buyer Approve' : 'Tenant Approve')}
                   </button>
                 )}
                 <button
@@ -1067,11 +1100,44 @@ export default function ContractDetailPage() {
 
       {/* نموذج بيانات العقد - مقسم بأطر منفصلة */}
       <div className="space-y-6">
-        {/* 1. إطار بيانات المالك */}
+        {/* عقد البيع عبر وكيل: بيانات الوسيط (السمسار) */}
+        {isSale && form.saleViaBroker && (
+          <div className="rounded-2xl border-2 border-violet-200 bg-violet-50/30 shadow-sm overflow-hidden">
+            <button type="button" onClick={() => toggleSection('broker')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-violet-50/50 transition-colors">
+              <span className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600 font-bold">0</span>
+              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'بيانات الوسيط (السمسار)' : 'Broker/Agent Data'}</h3>
+              <span className="text-violet-600">{openSections.broker ? '▼' : '▶'}</span>
+            </button>
+            {openSections.broker && (
+              <div className="px-6 pb-6 pt-0 border-t border-violet-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                  <div>
+                    <label className="admin-input-label">{ar ? 'اسم الوسيط *' : 'Broker name *'}</label>
+                    <input type="text" value={form.brokerName ?? ''} onChange={(e) => setForm({ ...form, brokerName: e.target.value })} className="admin-input w-full" readOnly={!isEditable} />
+                  </div>
+                  <div>
+                    <label className="admin-input-label">{ar ? 'هاتف الوسيط *' : 'Broker phone *'}</label>
+                    <input type="tel" value={form.brokerPhone ?? ''} onChange={(e) => setForm({ ...form, brokerPhone: e.target.value })} className="admin-input w-full" readOnly={!isEditable} />
+                  </div>
+                  <div>
+                    <label className="admin-input-label">{ar ? 'بريد الوسيط' : 'Broker email'}</label>
+                    <input type="email" value={form.brokerEmail ?? ''} onChange={(e) => setForm({ ...form, brokerEmail: e.target.value })} className="admin-input w-full" readOnly={!isEditable} />
+                  </div>
+                  <div>
+                    <label className="admin-input-label">{ar ? 'رقم البطاقة (الوسيط)' : 'Broker civil ID'}</label>
+                    <input type="text" value={form.brokerCivilId ?? ''} onChange={(e) => setForm({ ...form, brokerCivilId: e.target.value })} className="admin-input w-full" readOnly={!isEditable} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 1. إطار بيانات المالك / البائع */}
         <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/30 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('landlord')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-amber-50/50 transition-colors">
             <span className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 font-bold">1</span>
-            <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'بيانات المالك' : 'Landlord Data'}</h3>
+            <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? (isSale ? 'بيانات البائع (المالك)' : 'بيانات المالك') : (isSale ? 'Seller (Owner) Data' : 'Landlord Data')}</h3>
             <span className="text-amber-600">{openSections.landlord ? '▼' : '▶'}</span>
                 </button>
           {openSections.landlord && (
@@ -1185,12 +1251,12 @@ export default function ContractDetailPage() {
           )}
           </div>
 
-        {/* 2. إطار بيانات المستأجر */}
+        {/* 2. إطار بيانات المستأجر / المشتري */}
         <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/30 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('tenant')} className="w-full flex items-center justify-between gap-2 p-4 text-right hover:bg-blue-50/50 transition-colors">
             <div className="flex items-center gap-2">
               <span className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold">2</span>
-              <h3 className="text-lg font-bold text-gray-900">{ar ? 'بيانات المستأجر' : 'Tenant Data'}</h3>
+              <h3 className="text-lg font-bold text-gray-900">{ar ? (isSale ? 'بيانات المشتري (العميل)' : 'بيانات المستأجر') : (isSale ? 'Buyer (Client) Data' : 'Tenant Data')}</h3>
             </div>
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                 <button
@@ -1383,7 +1449,122 @@ export default function ContractDetailPage() {
           );
         })()}
 
-        {/* 4. إطار التواريخ */}
+        {/* عقد البيع: تاريخ البيع ونقل الملكية */}
+        {isSale && (
+          <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/30 shadow-sm overflow-hidden">
+            <button type="button" onClick={() => toggleSection('saleDates')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-emerald-50/50 transition-colors">
+              <span className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">4</span>
+              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'تاريخ البيع ونقل الملكية' : 'Sale Date & Transfer of Ownership'}</h3>
+              <span className="text-emerald-600">{openSections.saleDates ? '▼' : '▶'}</span>
+            </button>
+            {openSections.saleDates && (
+              <div className="px-6 pb-6 pt-0 border-t border-emerald-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                  <div>
+                    <label className="admin-input-label">{ar ? 'تاريخ البيع *' : 'Sale date *'}</label>
+                    <input
+                      type="date"
+                      value={form.saleDate ?? ''}
+                      onChange={(e) => setForm({ ...form, saleDate: e.target.value })}
+                      className="admin-input w-full"
+                      readOnly={!isEditable}
+                    />
+                  </div>
+                  <div>
+                    <label className="admin-input-label">{ar ? 'تاريخ نقل الملكية *' : 'Transfer of ownership date *'}</label>
+                    <input
+                      type="date"
+                      value={form.transferOfOwnershipDate ?? ''}
+                      onChange={(e) => setForm({ ...form, transferOfOwnershipDate: e.target.value })}
+                      className="admin-input w-full"
+                      readOnly={!isEditable}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* عقد البيع: بيانات البيع (الثمن وطريقة الدفع) */}
+        {isSale && (
+          <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/20 shadow-sm overflow-hidden">
+            <button type="button" onClick={() => toggleSection('saleData')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-emerald-50/50 transition-colors">
+              <span className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">5</span>
+              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'بيانات البيع (الثمن وطريقة الدفع)' : 'Sale Data (Price & Payment Method)'}</h3>
+              <span className="text-emerald-600">{openSections.saleData ? '▼' : '▶'}</span>
+            </button>
+            {openSections.saleData && (
+              <div className="px-6 pb-6 pt-0 border-t border-emerald-200">
+                <div className="pt-4 space-y-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!form.saleViaBroker}
+                      onChange={(e) => setForm({ ...form, saleViaBroker: e.target.checked })}
+                      className="rounded border-gray-300"
+                      readOnly={!isEditable}
+                    />
+                    <span className="text-sm font-medium text-gray-700">{ar ? 'البيع عن طريق وكيل / سمسار' : 'Sale through broker/agent'}</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                  <div>
+                    <label className="admin-input-label">{ar ? 'ثمن البيع (ر.ع) *' : 'Sale price (OMR) *'}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={form.totalSaleAmount ?? ''}
+                      onChange={(e) => setForm({ ...form, totalSaleAmount: parseFloat(e.target.value) || undefined })}
+                      className="admin-input w-full"
+                      readOnly={!isEditable}
+                    />
+                  </div>
+                  <div>
+                    <label className="admin-input-label">{ar ? 'طريقة الدفع' : 'Payment method'}</label>
+                    <input
+                      type="text"
+                      value={form.salePaymentMethod ?? ''}
+                      onChange={(e) => setForm({ ...form, salePaymentMethod: e.target.value })}
+                      className="admin-input w-full"
+                      placeholder={ar ? 'نقداً، شيك، تحويل بنكي، إلخ' : 'Cash, cheque, bank transfer, etc.'}
+                      readOnly={!isEditable}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* عقد البيع: شروط العقد (من صفحة شروط العقار) */}
+        {isSale && contract?.propertyId && (
+          <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/30 shadow-sm overflow-hidden">
+            <button type="button" onClick={() => toggleSection('contractTerms')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-slate-100/50 transition-colors">
+              <span className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-600 font-bold">6</span>
+              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'شروط العقد' : 'Contract Terms'}</h3>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Link href={`/${locale}/admin/properties/${contract.propertyId}/bookings/terms`} className="px-3 py-1.5 text-sm font-semibold text-[#8B6F47] hover:underline">
+                  {ar ? 'عرض/تعديل الشروط' : 'View/Edit terms'}
+                </Link>
+              </div>
+              <span className="text-slate-600">{openSections.contractTerms ? '▼' : '▶'}</span>
+            </button>
+            {openSections.contractTerms && (() => {
+              const terms = getContractTypeTerms(String(contract.propertyId), 'SALE');
+              const text = ar ? (terms.contractDocTermsAr ?? '') : (terms.contractDocTermsEn ?? '');
+              return (
+                <div className="px-6 pb-6 pt-0 border-t border-slate-200">
+                  <div className="pt-4 whitespace-pre-wrap text-sm text-gray-700">{text || (ar ? 'لا توجد شروط محددة. يمكن إضافتها من صفحة شروط الحجز والعقد للعقار.' : 'No specific terms. You can add them from the property booking/contract terms page.')}</div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* 4. إطار التواريخ (للإيجار) */}
+        {isRent && (
         <div className="rounded-2xl border-2 border-purple-200 bg-purple-50/20 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('dates')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-purple-50/50 transition-colors">
             <span className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 font-bold">4</span>
@@ -1460,8 +1641,10 @@ export default function ContractDetailPage() {
           </div>
           )}
         </div>
+        )}
 
-        {/* 5. إطار المالية والإيجار - نظام متقدم */}
+        {/* 5. إطار المالية والإيجار - نظام متقدم (للإيجار فقط) */}
+        {isRent && (
         <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/20 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('financial')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-emerald-50/50 transition-colors">
             <span className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">5</span>
@@ -1982,8 +2165,10 @@ export default function ContractDetailPage() {
           </div>
           )}
         </div>
+        )}
 
-        {/* 6. إطار البلدية والعدادات */}
+        {/* 6. إطار البلدية والعدادات (للإيجار) */}
+        {isRent && (
         <div className="rounded-2xl border-2 border-gray-200 bg-gray-50/50 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('municipality')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-gray-100/50 transition-colors">
             <span className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center text-gray-600 font-bold">6</span>
@@ -2075,9 +2260,10 @@ export default function ContractDetailPage() {
           </div>
           )}
         </div>
+        )}
 
-        {/* الإيجارات الشهرية المخصصة - قبل الشيكات (تُطبق على مبالغ الشيكات) */}
-        {form.customMonthlyRents && form.customMonthlyRents.length > 0 && (
+        {/* الإيجارات الشهرية المخصصة - قبل الشيكات (تُطبق على مبالغ الشيكات) - للإيجار فقط */}
+        {isRent && form.customMonthlyRents && form.customMonthlyRents.length > 0 && (
           <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/30 shadow-sm overflow-hidden">
             <button type="button" onClick={() => toggleSection('customRents')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-amber-50/50 transition-colors">
               <span className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 font-bold">6.1</span>

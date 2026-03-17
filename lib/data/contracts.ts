@@ -125,6 +125,23 @@ export interface RentalContract {
 
   /** امتداد: نوع العقد (سكني/تجاري) */
   contractType?: 'residential' | 'commercial';
+  /** نوع عقد العقار: إيجار، بيع، استثمار — يحدد هيكل العقد والعرض */
+  propertyContractKind?: 'RENT' | 'SALE' | 'INVESTMENT';
+  /** عقد البيع: ثمن البيع الإجمالي */
+  totalSaleAmount?: number;
+  /** عقد البيع: تاريخ البيع */
+  saleDate?: string;
+  /** عقد البيع: تاريخ نقل الملكية */
+  transferOfOwnershipDate?: string;
+  /** عقد البيع: طريقة الدفع (نقداً، شيك، تحويل، إلخ) */
+  salePaymentMethod?: string;
+  /** عقد البيع: البيع عن طريق وكيل/سمسار */
+  saleViaBroker?: boolean;
+  /** بيانات الوسيط (السمسار) عند البيع عن طريق وكيل */
+  brokerName?: string;
+  brokerPhone?: string;
+  brokerEmail?: string;
+  brokerCivilId?: string;
   /** امتداد: تاريخ الاستئجار الفعلي */
   actualRentalDate?: string;
   /** امتداد: تاريخ استلام الوحدة */
@@ -302,22 +319,25 @@ export function updateContract(id: string, updates: Partial<RentalContract>): Re
 
 function setPropertyRentedFromContract(contract: RentalContract) {
   try {
+    const kind = contract.propertyContractKind ?? 'RENT';
+    const status = kind === 'SALE' ? 'SOLD' : 'RENTED';
     if (contract.unitKey) {
-      updatePropertyUnit(contract.propertyId, contract.unitKey, { businessStatus: 'RENTED', isPublished: false });
+      updatePropertyUnit(contract.propertyId, contract.unitKey, { businessStatus: status, isPublished: false });
     } else {
-      updateProperty(contract.propertyId, { businessStatus: 'RENTED', isPublished: false });
+      updateProperty(contract.propertyId, { businessStatus: status, isPublished: false });
     }
     if (contract.bookingId) {
-      updateBookingStatus(contract.bookingId, 'RENTED');
+      updateBookingStatus(contract.bookingId, status);
     }
-    setContactCategoryForBooking(contract.tenantPhone, 'TENANT', contract.tenantEmail);
+    setContactCategoryForBooking(contract.tenantPhone, kind === 'SALE' ? 'BUYER' : 'TENANT', contract.tenantEmail);
   } catch {}
 }
 
 /** الحصول على قائمة الحقول الناقصة للاعتماد */
 export function getContractMissingFields(c: RentalContract, ar = true): string[] {
+  const kind = c.propertyContractKind ?? 'RENT';
   const labels: Record<string, { ar: string; en: string }> = {
-    tenantName: { ar: 'اسم المستأجر', en: 'Tenant name' },
+    tenantName: { ar: kind === 'SALE' ? 'اسم المشتري' : 'اسم المستأجر', en: kind === 'SALE' ? 'Buyer name' : 'Tenant name' },
     tenantNationality: { ar: 'جنسية المستأجر', en: 'Tenant nationality' },
     tenantGender: { ar: 'جنس المستأجر', en: 'Tenant gender' },
     tenantPhone: { ar: 'هاتف المستأجر', en: 'Tenant phone' },
@@ -326,15 +346,18 @@ export function getContractMissingFields(c: RentalContract, ar = true): string[]
     tenantCivilIdExpiry: { ar: 'انتهاء البطاقة (المستأجر)', en: 'Tenant civil ID expiry' },
     tenantPassportNumber: { ar: 'رقم الجواز (المستأجر)', en: 'Tenant passport' },
     tenantPassportExpiry: { ar: 'انتهاء الجواز (المستأجر)', en: 'Tenant passport expiry' },
-    landlordName: { ar: 'اسم المالك', en: 'Landlord name' },
-    landlordNationality: { ar: 'جنسية المالك', en: 'Landlord nationality' },
-    landlordGender: { ar: 'جنس المالك', en: 'Landlord gender' },
-    landlordPhone: { ar: 'هاتف المالك', en: 'Landlord phone' },
-    landlordEmail: { ar: 'بريد المالك', en: 'Landlord email' },
-    landlordCivilId: { ar: 'رقم البطاقة (المالك)', en: 'Landlord civil ID' },
-    landlordCivilIdExpiry: { ar: 'انتهاء البطاقة (المالك)', en: 'Landlord civil ID expiry' },
-    landlordPassportNumber: { ar: 'رقم الجواز (المالك)', en: 'Landlord passport' },
-    landlordPassportExpiry: { ar: 'انتهاء الجواز (المالك)', en: 'Landlord passport expiry' },
+    landlordName: { ar: kind === 'SALE' ? 'اسم البائع (المالك)' : 'اسم المالك', en: kind === 'SALE' ? 'Seller (owner) name' : 'Landlord name' },
+    landlordNationality: { ar: kind === 'SALE' ? 'جنسية البائع' : 'جنسية المالك', en: kind === 'SALE' ? 'Seller nationality' : 'Landlord nationality' },
+    landlordGender: { ar: kind === 'SALE' ? 'جنس البائع' : 'جنس المالك', en: kind === 'SALE' ? 'Seller gender' : 'Landlord gender' },
+    landlordPhone: { ar: kind === 'SALE' ? 'هاتف البائع' : 'هاتف المالك', en: kind === 'SALE' ? 'Seller phone' : 'Landlord phone' },
+    landlordEmail: { ar: kind === 'SALE' ? 'بريد البائع' : 'بريد المالك', en: kind === 'SALE' ? 'Seller email' : 'Landlord email' },
+    landlordCivilId: { ar: kind === 'SALE' ? 'رقم البطاقة (البائع)' : 'رقم البطاقة (المالك)', en: kind === 'SALE' ? 'Seller civil ID' : 'Landlord civil ID' },
+    landlordCivilIdExpiry: { ar: kind === 'SALE' ? 'انتهاء البطاقة (البائع)' : 'انتهاء البطاقة (المالك)', en: kind === 'SALE' ? 'Seller civil ID expiry' : 'Landlord civil ID expiry' },
+    landlordPassportNumber: { ar: kind === 'SALE' ? 'رقم الجواز (البائع)' : 'رقم الجواز (المالك)', en: kind === 'SALE' ? 'Seller passport' : 'Landlord passport' },
+    landlordPassportExpiry: { ar: kind === 'SALE' ? 'انتهاء الجواز (البائع)' : 'انتهاء الجواز (المالك)', en: kind === 'SALE' ? 'Seller passport expiry' : 'Landlord passport expiry' },
+    totalSaleAmount: { ar: 'ثمن البيع', en: 'Sale price' },
+    saleDate: { ar: 'تاريخ البيع', en: 'Sale date' },
+    transferOfOwnershipDate: { ar: 'تاريخ نقل الملكية', en: 'Transfer of ownership date' },
   };
   const missing: string[] = [];
   const req = (key: keyof RentalContract, val: unknown) => {
@@ -373,6 +396,22 @@ export function getContractMissingFields(c: RentalContract, ar = true): string[]
     if (!landlordCivil && !landlordPassport) missing.push(labels.landlordCivilId?.[ar ? 'ar' : 'en'] ?? 'Landlord ID');
     else if (landlordCivil && !(c.landlordCivilIdExpiry ?? '').trim()) missing.push(labels.landlordCivilIdExpiry?.[ar ? 'ar' : 'en'] ?? 'Landlord civil ID expiry');
     else if (landlordPassport && !(c.landlordPassportExpiry ?? '').trim()) missing.push(labels.landlordPassportExpiry?.[ar ? 'ar' : 'en'] ?? 'Landlord passport expiry');
+  }
+  if (kind === 'SALE') {
+    if (c.totalSaleAmount == null || c.totalSaleAmount <= 0) missing.push(labels.totalSaleAmount?.[ar ? 'ar' : 'en'] ?? 'Sale price');
+    req('saleDate', c.saleDate);
+    req('transferOfOwnershipDate', c.transferOfOwnershipDate);
+    if (c.saleViaBroker) {
+      const brokerLabels: Record<string, { ar: string; en: string }> = {
+        brokerName: { ar: 'اسم الوسيط', en: 'Broker name' },
+        brokerPhone: { ar: 'هاتف الوسيط', en: 'Broker phone' },
+      };
+      const br = (key: string, val: unknown) => {
+        if (val === undefined || val === null || String(val).trim() === '') missing.push(brokerLabels[key]?.[ar ? 'ar' : 'en'] ?? key);
+      };
+      br('brokerName', c.brokerName);
+      br('brokerPhone', c.brokerPhone);
+    }
   }
   return missing;
 }
