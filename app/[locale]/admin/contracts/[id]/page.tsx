@@ -743,6 +743,19 @@ export default function ContractDetailPage() {
       saleDate: form.saleDate,
       transferOfOwnershipDate: form.transferOfOwnershipDate,
       salePaymentMethod: form.salePaymentMethod,
+      saleDatesNote: form.saleDatesNote,
+      salePayments: form.salePayments,
+      saleBrokerageFeePercent: form.saleBrokerageFeePercent,
+      saleBrokerageFeePayer: form.saleBrokerageFeePayer,
+      saleHousingFeePercent: form.saleHousingFeePercent,
+      saleHousingFeePayer: form.saleHousingFeePayer,
+      saleOtherFeesList: form.saleOtherFeesList,
+      saleMunicipalityFees: form.saleMunicipalityFees,
+      saleMunicipalityFeesPayer: form.saleMunicipalityFeesPayer,
+      saleAdminFees: form.saleAdminFees,
+      saleAdminFeesPayer: form.saleAdminFeesPayer,
+      saleTransferFees: form.saleTransferFees,
+      saleTransferFeesPayer: form.saleTransferFeesPayer,
       saleViaBroker: form.saleViaBroker,
       brokerName: form.brokerName,
       brokerPhone: form.brokerPhone,
@@ -1493,60 +1506,175 @@ export default function ContractDetailPage() {
                     />
                   </div>
                 </div>
+                <div className="mt-4">
+                  <label className="admin-input-label">{ar ? 'ملاحظة' : 'Note'}</label>
+                  <textarea
+                    value={form.saleDatesNote ?? ''}
+                    onChange={(e) => setForm({ ...form, saleDatesNote: e.target.value })}
+                    className="admin-input w-full min-h-[80px]"
+                    placeholder={ar ? 'أي ملاحظات إضافية بخصوص تاريخ البيع أو نقل الملكية' : 'Any notes regarding sale date or transfer of ownership'}
+                    readOnly={!isEditable}
+                  />
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* عقد البيع: بيانات البيع (الثمن وطريقة الدفع) */}
+        {/* عقد البيع: بيانات البيع (الثمن، الدفعات، الرسوم، الملخص) */}
         {isSale && (
           <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/20 shadow-sm overflow-hidden">
             <button type="button" onClick={() => toggleSection('saleData')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-emerald-50/50 transition-colors">
               <span className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">5</span>
-              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'بيانات البيع (الثمن وطريقة الدفع)' : 'Sale Data (Price & Payment Method)'}</h3>
+              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'بيانات البيع (الثمن والدفعات والرسوم)' : 'Sale Data (Price, Installments & Fees)'}</h3>
               <span className="text-emerald-600">{openSections.saleData ? '▼' : '▶'}</span>
             </button>
-            {openSections.saleData && (
-              <div className="px-6 pb-6 pt-0 border-t border-emerald-200">
-                <div className="pt-4 space-y-4">
+            {openSections.saleData && (() => {
+              const salePrice = form.totalSaleAmount ?? 0;
+              const payments = form.salePayments ?? [];
+              const addPayment = () => setForm({ ...form, salePayments: [...payments, { installmentNumber: payments.length + 1, amount: 0, note: '' }] });
+              const removePayment = (idx: number) => setForm({ ...form, salePayments: payments.filter((_, i) => i !== idx) });
+              const updatePayment = (idx: number, upd: Partial<typeof payments[0]>) => setForm({ ...form, salePayments: payments.map((p, i) => i === idx ? { ...p, ...upd } : p) });
+              const brokerageAmount = (form.saleBrokerageFeePercent ?? 0) * salePrice / 100;
+              const housingAmount = (form.saleHousingFeePercent ?? 0) * salePrice / 100;
+              const otherFeesList = form.saleOtherFeesList ?? [];
+              const totalOnSeller = (form.saleBrokerageFeePayer === 'seller' ? brokerageAmount : 0) + (form.saleHousingFeePayer === 'seller' ? housingAmount : 0)
+                + otherFeesList.filter((f) => f.payer === 'seller').reduce((s, f) => s + (f.amount ?? 0), 0)
+                + (form.saleMunicipalityFeesPayer === 'seller' ? (form.saleMunicipalityFees ?? 0) : 0)
+                + (form.saleAdminFeesPayer === 'seller' ? (form.saleAdminFees ?? 0) : 0)
+                + (form.saleTransferFeesPayer === 'seller' ? (form.saleTransferFees ?? 0) : 0);
+              const totalOnBuyer = (form.saleBrokerageFeePayer === 'buyer' ? brokerageAmount : 0) + (form.saleHousingFeePayer === 'buyer' ? housingAmount : 0)
+                + otherFeesList.filter((f) => f.payer === 'buyer').reduce((s, f) => s + (f.amount ?? 0), 0)
+                + (form.saleMunicipalityFeesPayer === 'buyer' ? (form.saleMunicipalityFees ?? 0) : 0)
+                + (form.saleAdminFeesPayer === 'buyer' ? (form.saleAdminFees ?? 0) : 0)
+                + (form.saleTransferFeesPayer === 'buyer' ? (form.saleTransferFees ?? 0) : 0);
+              return (
+              <div className="px-6 pb-6 pt-0 border-t border-emerald-200 space-y-6">
+                <div className="pt-4">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!form.saleViaBroker}
-                      onChange={(e) => setForm({ ...form, saleViaBroker: e.target.checked })}
-                      className="rounded border-gray-300"
-                      readOnly={!isEditable}
-                    />
+                    <input type="checkbox" checked={!!form.saleViaBroker} onChange={(e) => setForm({ ...form, saleViaBroker: e.target.checked })} className="rounded border-gray-300" readOnly={!isEditable} />
                     <span className="text-sm font-medium text-gray-700">{ar ? 'البيع عن طريق وكيل / سمسار' : 'Sale through broker/agent'}</span>
                   </label>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                  <div>
-                    <label className="admin-input-label">{ar ? 'ثمن البيع (ر.ع) *' : 'Sale price (OMR) *'}</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={form.totalSaleAmount ?? ''}
-                      onChange={(e) => setForm({ ...form, totalSaleAmount: parseFloat(e.target.value) || undefined })}
-                      className="admin-input w-full"
-                      readOnly={!isEditable}
-                    />
+                <div>
+                  <label className="admin-input-label">{ar ? 'ثمن البيع (ر.ع) * — السعر المعروض أو سعر التفاوض' : 'Sale price (OMR) * — Listed or negotiated price'}</label>
+                  <input type="number" min={0} step={0.01} value={form.totalSaleAmount ?? ''} onChange={(e) => setForm({ ...form, totalSaleAmount: parseFloat(e.target.value) || undefined })} className="admin-input w-full max-w-xs" readOnly={!isEditable} />
+                </div>
+
+                {/* الدفعات */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-gray-800">{ar ? 'الدفعات (طريقة الدفع على دفعات)' : 'Payment installments'}</h4>
+                    {isEditable && <button type="button" onClick={addPayment} className="text-sm font-medium text-emerald-600 hover:text-emerald-700">{ar ? '+ إضافة دفعة' : '+ Add installment'}</button>}
                   </div>
-                  <div>
-                    <label className="admin-input-label">{ar ? 'طريقة الدفع' : 'Payment method'}</label>
-                    <input
-                      type="text"
-                      value={form.salePaymentMethod ?? ''}
-                      onChange={(e) => setForm({ ...form, salePaymentMethod: e.target.value })}
-                      className="admin-input w-full"
-                      placeholder={ar ? 'نقداً، شيك، تحويل بنكي، إلخ' : 'Cash, cheque, bank transfer, etc.'}
-                      readOnly={!isEditable}
-                    />
+                  <div className="space-y-3">
+                    {payments.map((p, idx) => (
+                      <div key={idx} className="p-4 rounded-xl bg-white border border-emerald-200/60 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-600">{ar ? `الدفعة ${p.installmentNumber}` : `Installment ${p.installmentNumber}`}</span>
+                          {isEditable && <button type="button" onClick={() => removePayment(idx)} className="text-red-600 text-sm hover:underline">{ar ? 'حذف' : 'Remove'}</button>}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                          <div>
+                            <label className="admin-input-label text-xs">{ar ? 'المبلغ (ر.ع)' : 'Amount (OMR)'}</label>
+                            <input type="number" min={0} step={0.01} value={p.amount || ''} onChange={(e) => updatePayment(idx, { amount: parseFloat(e.target.value) || 0 })} className="admin-input w-full" readOnly={!isEditable} />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="admin-input-label text-xs">{ar ? 'ملاحظة (مثال: مقدم نقدي، عند التوقيع، عند نقل الملكية شيك)' : 'Note (e.g. down payment, on signing, transfer cheque)'}</label>
+                            <input type="text" value={p.note || ''} onChange={(e) => updatePayment(idx, { note: e.target.value })} className="admin-input w-full" placeholder={ar ? 'الملاحظة' : 'Note'} readOnly={!isEditable} />
+                          </div>
+                          <div>
+                            <label className="admin-input-label text-xs">{ar ? 'مرجع المستند' : 'Document ref.'}</label>
+                            <input type="text" value={p.documentRef || ''} onChange={(e) => updatePayment(idx, { documentRef: e.target.value })} className="admin-input w-full" placeholder={ar ? 'رابط أو وصف' : 'Link or description'} readOnly={!isEditable} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {payments.length === 0 && <p className="text-sm text-gray-500">{ar ? 'لا توجد دفعات. اضغط «إضافة دفعة» لإضافة دفعات (مقدم، عند التوقيع، عند نقل الملكية، إلخ).' : 'No installments. Click "Add installment" to add payment schedule.'}</p>}
                   </div>
                 </div>
+
+                {/* الرسوم */}
+                <div className="border-t border-emerald-200 pt-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">{ar ? 'رسوم أخرى' : 'Fees'}</h4>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                      <div>
+                        <label className="admin-input-label text-xs">{ar ? 'رسوم السمسرة (%)' : 'Brokerage fee (%)'}</label>
+                        <input type="number" min={0} max={100} step={0.01} value={form.saleBrokerageFeePercent ?? ''} onChange={(e) => setForm({ ...form, saleBrokerageFeePercent: parseFloat(e.target.value) || undefined })} className="admin-input w-full" readOnly={!isEditable} />
+                      </div>
+                      <div>
+                        <label className="admin-input-label text-xs">{ar ? 'من يدفع' : 'Paid by'}</label>
+                        <select value={form.saleBrokerageFeePayer ?? ''} onChange={(e) => setForm({ ...form, saleBrokerageFeePayer: (e.target.value || undefined) as 'seller'|'buyer' })} className="admin-select w-full" disabled={!isEditable}>
+                          <option value="">—</option>
+                          <option value="seller">{ar ? 'المالك' : 'Seller'}</option>
+                          <option value="buyer">{ar ? 'المشتري' : 'Buyer'}</option>
+                        </select>
+                      </div>
+                      <div className="text-sm text-gray-600">{ar ? `المبلغ المحسوب: ${brokerageAmount.toFixed(2)} ر.ع` : `Calculated: ${brokerageAmount.toFixed(2)} OMR`}</div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                      <div>
+                        <label className="admin-input-label text-xs">{ar ? 'رسوم الإسكان (%)' : 'Housing fee (%)'}</label>
+                        <input type="number" min={0} max={100} step={0.01} value={form.saleHousingFeePercent ?? ''} onChange={(e) => setForm({ ...form, saleHousingFeePercent: parseFloat(e.target.value) || undefined })} className="admin-input w-full" readOnly={!isEditable} />
+                      </div>
+                      <div>
+                        <label className="admin-input-label text-xs">{ar ? 'من يدفع' : 'Paid by'}</label>
+                        <select value={form.saleHousingFeePayer ?? ''} onChange={(e) => setForm({ ...form, saleHousingFeePayer: (e.target.value || undefined) as 'seller'|'buyer' })} className="admin-select w-full" disabled={!isEditable}>
+                          <option value="">—</option>
+                          <option value="seller">{ar ? 'المالك' : 'Seller'}</option>
+                          <option value="buyer">{ar ? 'المشتري' : 'Buyer'}</option>
+                        </select>
+                      </div>
+                      <div className="text-sm text-gray-600">{ar ? `المبلغ المحسوب: ${housingAmount.toFixed(2)} ر.ع` : `Calculated: ${housingAmount.toFixed(2)} OMR`}</div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                      <div><label className="admin-input-label text-xs">{ar ? 'رسوم بلدية (ر.ع)' : 'Municipality (OMR)'}</label><input type="number" min={0} step={0.01} value={form.saleMunicipalityFees ?? ''} onChange={(e) => setForm({ ...form, saleMunicipalityFees: parseFloat(e.target.value) || undefined })} className="admin-input w-full" readOnly={!isEditable} /></div>
+                      <div><label className="admin-input-label text-xs">{ar ? 'من يدفع' : 'Paid by'}</label><select value={form.saleMunicipalityFeesPayer ?? ''} onChange={(e) => setForm({ ...form, saleMunicipalityFeesPayer: (e.target.value || undefined) as 'seller'|'buyer' })} className="admin-select w-full" disabled={!isEditable}><option value="">—</option><option value="seller">{ar ? 'المالك' : 'Seller'}</option><option value="buyer">{ar ? 'المشتري' : 'Buyer'}</option></select></div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                      <div><label className="admin-input-label text-xs">{ar ? 'رسوم إدارية (ر.ع)' : 'Admin fees (OMR)'}</label><input type="number" min={0} step={0.01} value={form.saleAdminFees ?? ''} onChange={(e) => setForm({ ...form, saleAdminFees: parseFloat(e.target.value) || undefined })} className="admin-input w-full" readOnly={!isEditable} /></div>
+                      <div><label className="admin-input-label text-xs">{ar ? 'من يدفع' : 'Paid by'}</label><select value={form.saleAdminFeesPayer ?? ''} onChange={(e) => setForm({ ...form, saleAdminFeesPayer: (e.target.value || undefined) as 'seller'|'buyer' })} className="admin-select w-full" disabled={!isEditable}><option value="">—</option><option value="seller">{ar ? 'المالك' : 'Seller'}</option><option value="buyer">{ar ? 'المشتري' : 'Buyer'}</option></select></div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                      <div><label className="admin-input-label text-xs">{ar ? 'رسوم نقل الملكية (ر.ع)' : 'Transfer fees (OMR)'}</label><input type="number" min={0} step={0.01} value={form.saleTransferFees ?? ''} onChange={(e) => setForm({ ...form, saleTransferFees: parseFloat(e.target.value) || undefined })} className="admin-input w-full" readOnly={!isEditable} /></div>
+                      <div><label className="admin-input-label text-xs">{ar ? 'من يدفع' : 'Paid by'}</label><select value={form.saleTransferFeesPayer ?? ''} onChange={(e) => setForm({ ...form, saleTransferFeesPayer: (e.target.value || undefined) as 'seller'|'buyer' })} className="admin-select w-full" disabled={!isEditable}><option value="">—</option><option value="seller">{ar ? 'المالك' : 'Seller'}</option><option value="buyer">{ar ? 'المشتري' : 'Buyer'}</option></select></div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="admin-input-label text-xs">{ar ? 'رسوم أخرى (وصف + مبلغ + من يدفع)' : 'Other fees'}</label>
+                        {isEditable && <button type="button" onClick={() => setForm({ ...form, saleOtherFeesList: [...otherFeesList, { description: '', amount: 0, payer: 'buyer' }] })} className="text-sm text-emerald-600">{ar ? '+ إضافة' : '+ Add'}</button>}
+                      </div>
+                      {otherFeesList.map((f, idx) => (
+                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-2">
+                          <input type="text" value={f.description} onChange={(e) => setForm({ ...form, saleOtherFeesList: otherFeesList.map((x, i) => i === idx ? { ...x, description: e.target.value } : x) })} className="admin-input" placeholder={ar ? 'الوصف' : 'Description'} readOnly={!isEditable} />
+                          <input type="number" min={0} step={0.01} value={f.amount || ''} onChange={(e) => setForm({ ...form, saleOtherFeesList: otherFeesList.map((x, i) => i === idx ? { ...x, amount: parseFloat(e.target.value) || 0 } : x) })} className="admin-input" placeholder={ar ? 'المبلغ' : 'Amount'} readOnly={!isEditable} />
+                          <select value={f.payer} onChange={(e) => setForm({ ...form, saleOtherFeesList: otherFeesList.map((x, i) => i === idx ? { ...x, payer: e.target.value as 'seller'|'buyer' } : x) })} className="admin-select" disabled={!isEditable}><option value="seller">{ar ? 'المالك' : 'Seller'}</option><option value="buyer">{ar ? 'المشتري' : 'Buyer'}</option></select>
+                          {isEditable && <button type="button" onClick={() => setForm({ ...form, saleOtherFeesList: otherFeesList.filter((_, i) => i !== idx) })} className="text-red-600 text-sm">{ar ? 'حذف' : 'Del'}</button>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ملخص مالي */}
+                <div className="border-t border-emerald-200 pt-4 rounded-xl bg-emerald-50/50 p-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">{ar ? 'الملخص المالي / ملخص الحسابات' : 'Financial summary'}</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200">
+                      <div className="text-sm text-amber-800 font-medium">{ar ? 'إجمالي على المالك (ر.ع)' : 'Total on seller (OMR)'}</div>
+                      <div className="text-xl font-bold text-amber-900">{totalOnSeller.toFixed(2)}</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200">
+                      <div className="text-sm text-blue-800 font-medium">{ar ? 'إجمالي على المشتري (ر.ع)' : 'Total on buyer (OMR)'}</div>
+                      <div className="text-xl font-bold text-blue-900">{totalOnBuyer.toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">{ar ? 'يتم احتساب المبالغ أعلاه من الرسوم المسجلة فقط (سمسرة، إسكان، بلدية، إدارية، نقل ملكية، رسوم أخرى) حسب من يدفع كل رسم.' : 'Amounts above are from recorded fees only (brokerage, housing, municipality, admin, transfer, other), by payer.'}</p>
+                </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
 

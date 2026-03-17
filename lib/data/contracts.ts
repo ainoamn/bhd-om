@@ -133,8 +133,29 @@ export interface RentalContract {
   saleDate?: string;
   /** عقد البيع: تاريخ نقل الملكية */
   transferOfOwnershipDate?: string;
-  /** عقد البيع: طريقة الدفع (نقداً، شيك، تحويل، إلخ) */
+  /** عقد البيع: طريقة الدفع (نقداً، شيك، تحويل، إلخ) - للتوافق مع النسخ القديمة */
   salePaymentMethod?: string;
+  /** عقد البيع: ملاحظة في بند تاريخ البيع ونقل الملكية */
+  saleDatesNote?: string;
+  /** عقد البيع: الدفعات (رقم الدفعة، المبلغ، الملاحظة، مرجع المستند) */
+  salePayments?: Array<{ installmentNumber: number; amount: number; note: string; documentRef?: string }>;
+  /** عقد البيع: رسوم السمسرة (نسبة من 100) — يُحسب المبلغ من ثمن البيع */
+  saleBrokerageFeePercent?: number;
+  saleBrokerageFeePayer?: 'seller' | 'buyer';
+  /** عقد البيع: رسوم الإسكان (نسبة من 100) */
+  saleHousingFeePercent?: number;
+  saleHousingFeePayer?: 'seller' | 'buyer';
+  /** عقد البيع: رسوم أخرى (وصف + مبلغ + من يدفع) */
+  saleOtherFeesList?: Array<{ description: string; amount: number; payer: 'seller' | 'buyer' }>;
+  /** عقد البيع: رسوم بلدية */
+  saleMunicipalityFees?: number;
+  saleMunicipalityFeesPayer?: 'seller' | 'buyer';
+  /** عقد البيع: رسوم إدارية */
+  saleAdminFees?: number;
+  saleAdminFeesPayer?: 'seller' | 'buyer';
+  /** عقد البيع: رسوم نقل الملكية */
+  saleTransferFees?: number;
+  saleTransferFeesPayer?: 'seller' | 'buyer';
   /** عقد البيع: البيع عن طريق وكيل/سمسار */
   saleViaBroker?: boolean;
   /** بيانات الوسيط (السمسار) عند البيع عن طريق وكيل */
