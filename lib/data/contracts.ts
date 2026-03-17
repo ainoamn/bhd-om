@@ -329,23 +329,25 @@ function setPropertyRentedFromContract(contract: RentalContract) {
     if (contract.bookingId) {
       updateBookingStatus(contract.bookingId, status);
     }
-    setContactCategoryForBooking(contract.tenantPhone, kind === 'SALE' ? 'BUYER' : 'TENANT', contract.tenantEmail);
+    setContactCategoryForBooking(contract.tenantPhone, kind === 'SALE' ? 'BUYER' : 'TENANT', contract.tenantEmail); // الاستثمار يُعامل كإيجار في التصنيف
   } catch {}
 }
 
 /** الحصول على قائمة الحقول الناقصة للاعتماد */
 export function getContractMissingFields(c: RentalContract, ar = true): string[] {
   const kind = c.propertyContractKind ?? 'RENT';
+  const tenantLabelAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
+  const tenantLabelEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
   const labels: Record<string, { ar: string; en: string }> = {
-    tenantName: { ar: kind === 'SALE' ? 'اسم المشتري' : 'اسم المستأجر', en: kind === 'SALE' ? 'Buyer name' : 'Tenant name' },
-    tenantNationality: { ar: 'جنسية المستأجر', en: 'Tenant nationality' },
-    tenantGender: { ar: 'جنس المستأجر', en: 'Tenant gender' },
-    tenantPhone: { ar: 'هاتف المستأجر', en: 'Tenant phone' },
-    tenantEmail: { ar: 'بريد المستأجر', en: 'Tenant email' },
-    tenantCivilId: { ar: 'رقم البطاقة (المستأجر)', en: 'Tenant civil ID' },
-    tenantCivilIdExpiry: { ar: 'انتهاء البطاقة (المستأجر)', en: 'Tenant civil ID expiry' },
-    tenantPassportNumber: { ar: 'رقم الجواز (المستأجر)', en: 'Tenant passport' },
-    tenantPassportExpiry: { ar: 'انتهاء الجواز (المستأجر)', en: 'Tenant passport expiry' },
+    tenantName: { ar: kind === 'SALE' ? 'اسم المشتري' : `اسم ${tenantLabelAr}`, en: kind === 'SALE' ? 'Buyer name' : `${tenantLabelEn} name` },
+    tenantNationality: { ar: `جنسية ${tenantLabelAr}`, en: `${tenantLabelEn} nationality` },
+    tenantGender: { ar: `جنس ${tenantLabelAr}`, en: `${tenantLabelEn} gender` },
+    tenantPhone: { ar: `هاتف ${tenantLabelAr}`, en: `${tenantLabelEn} phone` },
+    tenantEmail: { ar: `بريد ${tenantLabelAr}`, en: `${tenantLabelEn} email` },
+    tenantCivilId: { ar: `رقم البطاقة (${tenantLabelAr})`, en: `${tenantLabelEn} civil ID` },
+    tenantCivilIdExpiry: { ar: `انتهاء البطاقة (${tenantLabelAr})`, en: `${tenantLabelEn} civil ID expiry` },
+    tenantPassportNumber: { ar: `رقم الجواز (${tenantLabelAr})`, en: `${tenantLabelEn} passport` },
+    tenantPassportExpiry: { ar: `انتهاء الجواز (${tenantLabelAr})`, en: `${tenantLabelEn} passport expiry` },
     landlordName: { ar: kind === 'SALE' ? 'اسم البائع (المالك)' : 'اسم المالك', en: kind === 'SALE' ? 'Seller (owner) name' : 'Landlord name' },
     landlordNationality: { ar: kind === 'SALE' ? 'جنسية البائع' : 'جنسية المالك', en: kind === 'SALE' ? 'Seller nationality' : 'Landlord nationality' },
     landlordGender: { ar: kind === 'SALE' ? 'جنس البائع' : 'جنس المالك', en: kind === 'SALE' ? 'Seller gender' : 'Landlord gender' },

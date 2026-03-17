@@ -67,7 +67,8 @@ function buildRequiredChecks(
   contractKind: PropertyContractKind = 'RENT'
 ): RequiredCheck[] {
   const fromTerms = propertyId ? getContractTypeTerms(String(propertyId), contractKind).requiredChecks : [];
-  if (contractKind !== 'RENT') return fromTerms;
+  /** عقد البيع فقط يُعامل من الشروط دون شيكات إيجار؛ الإيجار والاستثمار نفس المنطق */
+  if (contractKind === 'SALE') return fromTerms;
   let baseChecks = fromTerms.filter((r) => r.checkTypeId !== 'RENT_CHEQUE');
   /** شيك الضمان: مطلوب/غير مطلوب. غير مطلوب = لا نضيف. مطلوب = نضيف N شيك حسب المدة (1-6 أشهر)، بدون تاريخ */
   baseChecks = baseChecks.filter((r) => !DEPOSIT_RELATED_CHECK_IDS.includes(r.checkTypeId ?? ''));
@@ -92,13 +93,16 @@ function buildRequiredChecks(
   const count = chequeCount;
   if (count === 0) return baseChecks;
   const rentLabel = CHECK_TYPES.find((c) => c.id === 'RENT_CHEQUE');
+  const isInv = contractKind === 'INVESTMENT';
+  const defaultAr = isInv ? 'شيك استثمار' : (rentLabel?.labelAr ?? 'شيك إيجار');
+  const defaultEn = isInv ? 'Investment cheque' : (rentLabel?.labelEn ?? 'Rent cheque');
   const rentChecks: RequiredCheck[] = [];
   for (let i = 0; i < count; i++) {
     const suffix = count > 1 ? ` #${i + 1}` : '';
     rentChecks.push({
       checkTypeId: 'RENT_CHEQUE',
-      labelAr: (rentLabel?.labelAr ?? 'شيك إيجار') + suffix,
-      labelEn: (rentLabel?.labelEn ?? 'Rent cheque') + suffix,
+      labelAr: defaultAr + suffix,
+      labelEn: defaultEn + suffix,
     });
   }
   return [...baseChecks, ...rentChecks];
@@ -853,8 +857,8 @@ export default function ContractDetailPage() {
       const missing = getContractMissingFields(c, ar);
       alert(
         ar
-          ? `يجب إكمال جميع بيانات المستأجر والمالك قبل الاعتماد:\n\n${missing.join('\n')}`
-          : `Please complete all tenant and landlord data before approval:\n\n${missing.join('\n')}`
+          ? `يجب إكمال جميع بيانات ${tenantWordAr} والمالك قبل الاعتماد:\n\n${missing.join('\n')}`
+          : `Please complete all ${tenantWordEn.toLowerCase()} and landlord data before approval:\n\n${missing.join('\n')}`
       );
       return;
     }
@@ -922,12 +926,20 @@ export default function ContractDetailPage() {
   const property = getPropertyById(contract.propertyId, dataOverrides);
   const effectiveKind: PropertyContractKind = (contract.propertyContractKind ?? (property as { type?: string })?.type ?? 'RENT') as PropertyContractKind;
   const isSale = effectiveKind === 'SALE';
-  const isRent = effectiveKind === 'RENT';
+  const isInvestment = effectiveKind === 'INVESTMENT';
+  /** عقد الاستثمار نفس شروط عقد الإيجار مع استبدال لفظ «إيجار» بـ«استثمار» */
+  const isRent = effectiveKind === 'RENT' || isInvestment;
 
-  const contractTitleAr = isSale ? 'عقد البيع' : effectiveKind === 'INVESTMENT' ? 'عقد الاستثمار' : 'عقد الإيجار';
-  const contractTitleEn = isSale ? 'Sale Contract' : effectiveKind === 'INVESTMENT' ? 'Investment Contract' : 'Rental Contract';
-  const backLinkAr = isSale ? 'العودة لعقود البيع' : effectiveKind === 'INVESTMENT' ? 'العودة لعقود الاستثمار' : 'العودة لعقود الإيجار';
-  const backLinkEn = isSale ? 'Back to sale contracts' : effectiveKind === 'INVESTMENT' ? 'Back to investment contracts' : 'Back to contracts';
+  const contractTitleAr = isSale ? 'عقد البيع' : isInvestment ? 'عقد الاستثمار' : 'عقد الإيجار';
+  const contractTitleEn = isSale ? 'Sale Contract' : isInvestment ? 'Investment Contract' : 'Rental Contract';
+  const backLinkAr = isSale ? 'العودة لعقود البيع' : isInvestment ? 'العودة لعقود الاستثمار' : 'العودة لعقود الإيجار';
+  const backLinkEn = isSale ? 'Back to sale contracts' : isInvestment ? 'Back to investment contracts' : 'Back to contracts';
+
+  /** للاستثمار: استبدال «إيجار» بـ«استثمار» و«المستأجر» بـ«المستثمر» في التسميات */
+  const rentWordAr = isInvestment ? 'استثمار' : 'إيجار';
+  const rentWordEn = isInvestment ? 'Investment' : 'Rent';
+  const tenantWordAr = isInvestment ? 'المستثمر' : 'المستأجر';
+  const tenantWordEn = isInvestment ? 'Investor' : 'Tenant';
 
   return (
     <>
@@ -1000,7 +1012,7 @@ export default function ContractDetailPage() {
                 {checksNotReady && <li>{ar ? 'تعبئة بيانات الشيكات المطلوبة واعتمادها' : 'Required cheque data is filled and approved'}</li>}
               </ul>
               <p className="text-sm text-amber-700 mt-2">
-                {ar ? 'يجب على المستأجر رفع المستندات وتعبئة بيانات الشيكات من صفحة شروط العقد، ثم اعتماد كل مستند وشيك من لوحة المستندات.' : 'Tenant must upload documents and fill cheque data from the contract terms page, then approve each document and cheque from the documents panel.'}
+                {ar ? `يجب على ${tenantWordAr} رفع المستندات وتعبئة بيانات الشيكات من صفحة شروط العقد، ثم اعتماد كل مستند وشيك من لوحة المستندات.` : `${tenantWordEn} must upload documents and fill cheque data from the contract terms page, then approve each document and cheque from the documents panel.`}
               </p>
               {contract.bookingId && (
                 <Link href={`/${locale}/admin/bookings?highlight=${contract.bookingId}`} className="inline-block mt-3 text-sm font-semibold text-[#8B6F47] hover:underline">
@@ -1017,7 +1029,7 @@ export default function ContractDetailPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <span className={`admin-badge ${isApproved ? 'admin-badge-success' : isCancelled ? 'bg-gray-100 text-gray-600' : isDraft ? 'admin-badge-warning' : 'admin-badge-info'}`}>
-              {ar ? STATUS_LABELS[contract.status]?.ar : STATUS_LABELS[contract.status]?.en}
+              {ar ? (contract.status === 'TENANT_APPROVED' && isInvestment ? 'اعتمده المستثمر' : STATUS_LABELS[contract.status]?.ar) : (contract.status === 'TENANT_APPROVED' && isInvestment ? 'Investor Approved' : STATUS_LABELS[contract.status]?.en)}
             </span>
             <span className="text-sm text-gray-500 mr-3 font-mono">{contract.id}</span>
           </div>
@@ -1059,7 +1071,7 @@ export default function ContractDetailPage() {
             {contract.status === 'ADMIN_APPROVED' && !adminEditMode && (
               <>
                 <button type="button" onClick={() => setConfirmAction('tenant')} className="px-4 py-2 rounded-xl font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
-                  {ar ? (isSale ? 'اعتماد المشتري' : 'اعتماد المستأجر') : (isSale ? 'Buyer Approve' : 'Tenant Approve')}
+                  {ar ? (isSale ? 'اعتماد المشتري' : `اعتماد ${tenantWordAr}`) : (isSale ? 'Buyer Approve' : `${tenantWordEn} Approve`)}
                 </button>
                 <button type="button" onClick={() => setConfirmAction('landlord')} className="px-4 py-2 rounded-xl font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100">
                   {ar ? (isSale ? 'اعتماد البائع' : 'اعتماد المالك') : (isSale ? 'Seller Approve' : 'Landlord Approve')}
@@ -1075,7 +1087,7 @@ export default function ContractDetailPage() {
                 )}
                 {contract.status === 'LANDLORD_APPROVED' && (
                   <button type="button" onClick={() => setConfirmAction('tenant')} className="px-4 py-2 rounded-xl font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
-                    {ar ? (isSale ? 'اعتماد المشتري' : 'اعتماد المستأجر') : (isSale ? 'Buyer Approve' : 'Tenant Approve')}
+                    {ar ? (isSale ? 'اعتماد المشتري' : `اعتماد ${tenantWordAr}`) : (isSale ? 'Buyer Approve' : `${tenantWordEn} Approve`)}
                   </button>
                 )}
                 <button
@@ -1092,7 +1104,7 @@ export default function ContractDetailPage() {
         {!isDraft && (
           <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
             {contract.adminApprovedAt && <span>{ar ? 'الإدارة:' : 'Admin:'} {new Date(contract.adminApprovedAt).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</span>}
-            {contract.tenantApprovedAt && <span>{ar ? 'المستأجر:' : 'Tenant:'} {new Date(contract.tenantApprovedAt).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</span>}
+            {contract.tenantApprovedAt && <span>{ar ? `${tenantWordAr}:` : `${tenantWordEn}:`} {new Date(contract.tenantApprovedAt).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</span>}
             {contract.landlordApprovedAt && <span>{ar ? 'المالك:' : 'Landlord:'} {new Date(contract.landlordApprovedAt).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</span>}
           </div>
         )}
@@ -1256,7 +1268,7 @@ export default function ContractDetailPage() {
           <button type="button" onClick={() => toggleSection('tenant')} className="w-full flex items-center justify-between gap-2 p-4 text-right hover:bg-blue-50/50 transition-colors">
             <div className="flex items-center gap-2">
               <span className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold">2</span>
-              <h3 className="text-lg font-bold text-gray-900">{ar ? (isSale ? 'بيانات المشتري (العميل)' : 'بيانات المستأجر') : (isSale ? 'Buyer (Client) Data' : 'Tenant Data')}</h3>
+              <h3 className="text-lg font-bold text-gray-900">{ar ? (isSale ? 'بيانات المشتري (العميل)' : `بيانات ${tenantWordAr}`) : (isSale ? 'Buyer (Client) Data' : `${tenantWordEn} Data`)}</h3>
             </div>
             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                 <button
@@ -1563,7 +1575,7 @@ export default function ContractDetailPage() {
           </div>
         )}
 
-        {/* 4. إطار التواريخ (للإيجار) */}
+        {/* 4. إطار التواريخ (للإيجار/الاستثمار) */}
         {isRent && (
         <div className="rounded-2xl border-2 border-purple-200 bg-purple-50/20 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('dates')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-purple-50/50 transition-colors">
@@ -1586,7 +1598,7 @@ export default function ContractDetailPage() {
                 />
               </div>
               <div>
-                <label className="admin-input-label">{ar ? 'تاريخ الاستئجار الفعلي' : 'Actual rental date'}</label>
+                <label className="admin-input-label">{ar ? (isInvestment ? 'تاريخ الاستثمار الفعلي' : 'تاريخ الاستئجار الفعلي') : (isInvestment ? 'Actual investment date' : 'Actual rental date')}</label>
                 <input
                   type="date"
                   value={form.actualRentalDate ?? ''}
@@ -1625,7 +1637,7 @@ export default function ContractDetailPage() {
                 />
               </div>
               <div>
-                <label className="admin-input-label">{ar ? 'يوم استحقاق الإيجار (1-31)' : 'Rent due day (1-31)'}</label>
+                <label className="admin-input-label">{ar ? `يوم استحقاق ال${rentWordAr} (1-31)` : `${rentWordEn} due day (1-31)`}</label>
                 <input
                   type="number"
                   min={1}
@@ -1643,12 +1655,12 @@ export default function ContractDetailPage() {
         </div>
         )}
 
-        {/* 5. إطار المالية والإيجار - نظام متقدم (للإيجار فقط) */}
+        {/* 5. إطار المالية والإيجار/الاستثمار - نظام متقدم */}
         {isRent && (
         <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/20 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('financial')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-emerald-50/50 transition-colors">
             <span className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">5</span>
-            <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'المالية والإيجار' : 'Financial & Rent'}</h3>
+            <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? `المالية وال${rentWordAr}` : `Financial & ${rentWordEn}`}</h3>
             <span className="text-emerald-600">{openSections.financial ? '▼' : '▶'}</span>
           </button>
           {openSections.financial && (
@@ -1672,7 +1684,7 @@ export default function ContractDetailPage() {
                   disabled={!isEditable}
                   className="rounded border-gray-300"
                 />
-                <label htmlFor="calculateByArea" className="admin-input-label cursor-pointer">{ar ? 'حساب الإيجار من المساحة (م² × سعر المتر)' : 'Calculate rent from area (m² × price/m)'}</label>
+                <label htmlFor="calculateByArea" className="admin-input-label cursor-pointer">{ar ? `حساب ال${rentWordAr} من المساحة (م² × سعر المتر)` : `Calculate ${rentWordEn.toLowerCase()} from area (m² × price/m)`}</label>
               </div>
               {form.calculateByArea && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1706,7 +1718,7 @@ export default function ContractDetailPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="admin-input-label">{ar ? 'الإيجار الشهري (ر.ع)' : 'Monthly Rent (OMR)'}</label>
+                <label className="admin-input-label">{ar ? `ال${rentWordAr} الشهري (ر.ع)` : `Monthly ${rentWordEn} (OMR)`}</label>
                 <input
                   type="number"
                   min={0}
@@ -1719,7 +1731,7 @@ export default function ContractDetailPage() {
                 />
               </div>
               <div>
-                <label className="admin-input-label">{ar ? 'الإيجار السنوي (ر.ع)' : 'Annual Rent (OMR)'}</label>
+                <label className="admin-input-label">{ar ? `ال${rentWordAr} السنوي (ر.ع)` : `Annual ${rentWordEn} (OMR)`}</label>
                 <input type="number" min={0} value={((form.monthlyRent ?? 0) * 12).toFixed(2)} readOnly className="admin-input w-full bg-gray-50" />
               </div>
               <div>
@@ -1739,7 +1751,7 @@ export default function ContractDetailPage() {
                 />
               </div>
               <div>
-                <label className="admin-input-label">{ar ? 'فترة السماح (أيام) - محسوب تلقائياً من تاريخ الاستئجار الفعلي و تاريخ البداية' : 'Grace period (days) - auto from actual rental date & start date'}</label>
+                <label className="admin-input-label">{ar ? (isInvestment ? 'فترة السماح (أيام) - محسوب تلقائياً من تاريخ الاستثمار الفعلي وتاريخ البداية' : 'فترة السماح (أيام) - محسوب تلقائياً من تاريخ الاستئجار الفعلي وتاريخ البداية') : (isInvestment ? 'Grace period (days) - auto from actual investment date & start date' : 'Grace period (days) - auto from actual rental date & start date')}</label>
                 <input
                   type="number"
                   min={0}
@@ -1749,7 +1761,7 @@ export default function ContractDetailPage() {
                 />
                 {(form.gracePeriodDays ?? 0) === 0 && (
                   <p className="text-xs text-amber-600 mt-1">
-                    {ar ? '← أدخل "تاريخ الاستئجار الفعلي" و"تاريخ البداية" في قسم التواريخ' : '← Enter "Actual rental date" & "Start date" in Dates section'}
+                    {ar ? (isInvestment ? '← أدخل "تاريخ الاستثمار الفعلي" و"تاريخ البداية" في قسم التواريخ' : '← أدخل "تاريخ الاستئجار الفعلي" و"تاريخ البداية" في قسم التواريخ') : (isInvestment ? '← Enter "Actual investment date" & "Start date" in Dates section' : '← Enter "Actual rental date" & "Start date" in Dates section')}
                   </p>
                 )}
               </div>
@@ -1780,7 +1792,7 @@ export default function ContractDetailPage() {
               <h4 className="text-sm font-bold text-amber-900 mb-2">💡 {ar ? 'سلوك النظام حسب طريقة الدفع' : 'System behavior by payment method'}</h4>
               <ul className="text-xs text-amber-800 space-y-1">
                 <li>• <strong>{ar ? 'نقداً / تحويل بنكي / إلكتروني' : 'Cash / Transfer / Electronic'}:</strong> {ar ? 'جدول بالتاريخ والمبلغ (كم مقدار الدفع لكل فترة) + أرقام الإيصالات' : 'Table with date & amount per period + receipt numbers'}</li>
-                <li>• <strong>{ar ? 'شيك' : 'Check'}:</strong> {ar ? 'قسم الشيكات (7) يحتوي على شيك الضمان دائماً، وشيكات الإيجار عند اختيار الدفع بشيك' : 'Cheques section (7) always shows security cheque; rent cheques when payment by cheque'}</li>
+                <li>• <strong>{ar ? 'شيك' : 'Check'}:</strong> {ar ? `قسم الشيكات (7) يحتوي على شيك الضمان دائماً، وشيكات ال${rentWordAr} عند اختيار الدفع بشيك` : `Cheques section (7) always shows security cheque; ${rentWordEn.toLowerCase()} cheques when payment by cheque`}</li>
               </ul>
             </div>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1834,7 +1846,7 @@ export default function ContractDetailPage() {
                 />
               </div>
               <div>
-                <label className="admin-input-label">{ar ? 'طريقة دفع الإيجار' : 'Rent payment'}</label>
+                <label className="admin-input-label">{ar ? `طريقة دفع ال${rentWordAr}` : `${rentWordEn} payment`}</label>
                 <select
                   value={form.rentPaymentMethod ?? 'cash'}
                   onChange={(e) => setForm({ ...form, rentPaymentMethod: e.target.value as 'cash' | 'check' | 'bank_transfer' | 'electronic_payment' })}
@@ -1946,7 +1958,7 @@ export default function ContractDetailPage() {
             {((form.rentPaymentMethod ?? contract?.rentPaymentMethod) === 'cash' || (form.rentPaymentMethod ?? contract?.rentPaymentMethod) === 'bank_transfer' || (form.rentPaymentMethod ?? contract?.rentPaymentMethod) === 'electronic_payment') && (
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="admin-input-label">{ar ? 'رقم إيصال الإيجار' : 'Rent receipt no.'}</label>
+                <label className="admin-input-label">{ar ? `رقم إيصال ال${rentWordAr}` : `${rentWordEn} receipt no.`}</label>
                 <input type="text" value={form.rentReceiptNumber ?? ''} onChange={(e) => setForm({ ...form, rentReceiptNumber: e.target.value })} className="admin-input w-full" readOnly={!isEditable} placeholder={ar ? 'رقم الإيصال' : 'Receipt number'} />
               </div>
             </div>
@@ -2134,10 +2146,10 @@ export default function ContractDetailPage() {
                   disabled={!isEditable}
                   className="rounded border-gray-300"
                 />
-                <label htmlFor="useCustomMonthlyRents" className="admin-input-label cursor-pointer">{ar ? 'إيجارات شهرية مخصصة (تعديل كل شهر)' : 'Custom monthly rents (edit per month)'}</label>
+                <label htmlFor="useCustomMonthlyRents" className="admin-input-label cursor-pointer">{ar ? (isInvestment ? 'استثمارات شهرية مخصصة (تعديل كل شهر)' : 'إيجارات شهرية مخصصة (تعديل كل شهر)') : (isInvestment ? 'Custom monthly investments (edit per month)' : 'Custom monthly rents (edit per month)')}</label>
               </div>
               <p className="text-xs text-gray-500 mb-2 -mt-1">
-                {ar ? 'عند التفعيل: شهر 1=300، شهر 2=350، شهر 3=300 مثلاً → الشيك 1=300، الشيك 2=350، الشيك 3=300. وإذا لم تُفعّل يُستخدم الإيجار الشهري لجميع الشيكات.' : 'When enabled: month 1=300, month 2=350, etc. → cheque 1=300, cheque 2=350. When disabled: monthly rent applies to all cheques.'}
+                {ar ? `عند التفعيل: شهر 1=300، شهر 2=350، شهر 3=300 مثلاً → الشيك 1=300، الشيك 2=350، الشيك 3=300. وإذا لم تُفعّل يُستخدم ال${rentWordAr} الشهري لجميع الشيكات.` : `When enabled: month 1=300, month 2=350, etc. → cheque 1=300, cheque 2=350. When disabled: monthly ${rentWordEn.toLowerCase()} applies to all cheques.`}
               </p>
               {form.customMonthlyRents && form.customMonthlyRents.length > 0 && (
                 <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
@@ -2167,7 +2179,7 @@ export default function ContractDetailPage() {
         </div>
         )}
 
-        {/* 6. إطار البلدية والعدادات (للإيجار) */}
+        {/* 6. إطار البلدية والعدادات (للإيجار/الاستثمار) */}
         {isRent && (
         <div className="rounded-2xl border-2 border-gray-200 bg-gray-50/50 shadow-sm overflow-hidden">
           <button type="button" onClick={() => toggleSection('municipality')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-gray-100/50 transition-colors">
@@ -2262,12 +2274,12 @@ export default function ContractDetailPage() {
         </div>
         )}
 
-        {/* الإيجارات الشهرية المخصصة - قبل الشيكات (تُطبق على مبالغ الشيكات) - للإيجار فقط */}
+        {/* إيجارات/استثمارات شهرية مخصصة - قبل الشيكات (تُطبق على مبالغ الشيكات) */}
         {isRent && form.customMonthlyRents && form.customMonthlyRents.length > 0 && (
           <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/30 shadow-sm overflow-hidden">
             <button type="button" onClick={() => toggleSection('customRents')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-amber-50/50 transition-colors">
               <span className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 font-bold">6.1</span>
-              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'الإيجارات الشهرية المخصصة' : 'Custom Monthly Rents'}</h3>
+              <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? (isInvestment ? 'الاستثمارات الشهرية المخصصة' : 'الإيجارات الشهرية المخصصة') : (isInvestment ? 'Custom Monthly Investments' : 'Custom Monthly Rents')}</h3>
               <span className="text-amber-600">{openSections.customRents ? '▼' : '▶'}</span>
             </button>
             {openSections.customRents && (
@@ -2293,7 +2305,7 @@ export default function ContractDetailPage() {
           </div>
         )}
 
-        {/* إطار الشيكات - شيك الضمان دائماً، شيكات الإيجار عند اختيار الدفع بشيك */}
+        {/* إطار الشيكات - شيك الضمان دائماً، شيكات الإيجار/الاستثمار عند اختيار الدفع بشيك */}
         {contract?.id && requiredChecks.length > 0 && (() => {
             const contractChecks = getChecksByContract(contract.id);
             const bookingChecks = contract.bookingId ? getChecksByBooking(contract.bookingId) : [];
@@ -2312,14 +2324,14 @@ export default function ContractDetailPage() {
                 <div className="px-6 pb-6 pt-0 border-t border-emerald-200">
                 <p className="text-sm text-emerald-800 mb-4 pt-4">
                   {ar
-                    ? `يُبنى تلقائياً حسب مدة الدفع: شهرياً→${duration} شيك، كل 3 أشهر→${Math.ceil(duration / 3)}، نصف سنوي→${Math.ceil(duration / 6)}، سنوياً→${Math.ceil(duration / 12)}. المبالغ: ${form.customMonthlyRents?.length ? 'من الإيجارات المخصصة (6.1)' : 'من الإيجار الشهري'}.`
-                    : `Auto-built by payment frequency: monthly→${duration}, quarterly→${Math.ceil(duration / 3)}, semiannual→${Math.ceil(duration / 6)}, annual→${Math.ceil(duration / 12)}. Amounts: ${form.customMonthlyRents?.length ? 'from Custom Rents (6.1)' : 'from monthly rent'}.`}
+                    ? `يُبنى تلقائياً حسب مدة الدفع: شهرياً→${duration} شيك، كل 3 أشهر→${Math.ceil(duration / 3)}، نصف سنوي→${Math.ceil(duration / 6)}، سنوياً→${Math.ceil(duration / 12)}. المبالغ: ${form.customMonthlyRents?.length ? (isInvestment ? 'من الاستثمارات المخصصة (6.1)' : 'من الإيجارات المخصصة (6.1)') : `من ال${rentWordAr} الشهري`}.`
+                    : `Auto-built by payment frequency: monthly→${duration}, quarterly→${Math.ceil(duration / 3)}, semiannual→${Math.ceil(duration / 6)}, annual→${Math.ceil(duration / 12)}. Amounts: ${form.customMonthlyRents?.length ? (isInvestment ? 'from Custom Investments (6.1)' : 'from Custom Rents (6.1)') : `from monthly ${rentWordEn.toLowerCase()}`}.`}
                 </p>
                 {((form.rentPaymentMethod ?? contract?.rentPaymentMethod) === 'check') && (
                   <>
                     {/* معلومات مالك الشيكات والبنك - كما في عين عُمان (قبل إنشاء الشيكات) */}
-                    <div className={`mb-4 p-4 rounded-xl border ${fieldsFromTenantDocs ? 'bg-emerald-50/60 border-emerald-300/70 ring-2 ring-emerald-200/50' : 'bg-indigo-50/50 border-indigo-200'}`} title={fieldsFromTenantDocs ? (ar ? 'بيانات منسوخة من مستندات المستأجر المرفوعة' : 'Data synced from tenant uploaded documents') : undefined}>
-                      <h6 className="admin-input-label font-semibold mb-3">{ar ? '👤 معلومات مالك الشيكات (تُطبق على جميع شيكات الإيجار)' : 'Cheque owner info (applies to all rent cheques)'}</h6>
+                    <div className={`mb-4 p-4 rounded-xl border ${fieldsFromTenantDocs ? 'bg-emerald-50/60 border-emerald-300/70 ring-2 ring-emerald-200/50' : 'bg-indigo-50/50 border-indigo-200'}`} title={fieldsFromTenantDocs ? (ar ? `بيانات منسوخة من مستندات ${tenantWordAr} المرفوعة` : `Data synced from ${tenantWordEn.toLowerCase()} uploaded documents`) : undefined}>
+                      <h6 className="admin-input-label font-semibold mb-3">{ar ? `👤 معلومات مالك الشيكات (تُطبق على جميع شيكات ال${rentWordAr})` : `Cheque owner info (applies to all ${rentWordEn.toLowerCase()} cheques)`}</h6>
                       <div className="mb-4 p-3 rounded-lg bg-white/60 border border-indigo-100">
                         <label className="admin-input-label block mb-2">{ar ? 'اسم الشخص الذي سيكتب باسمه الشيكات (من التفاصيل البنكية)' : 'Cheque payee name (select from bank details)'}</label>
                         <select
@@ -2377,7 +2389,7 @@ export default function ContractDetailPage() {
                             className="admin-select w-full"
                             disabled={!isEditable}
                           >
-                            <option value="tenant">{ar ? 'المستأجر' : 'Tenant'}</option>
+                            <option value="tenant">{ar ? tenantWordAr : tenantWordEn}</option>
                             <option value="other_individual">{ar ? 'شخص آخر' : 'Other individual'}</option>
                             <option value="company">{ar ? 'شركة' : 'Company'}</option>
                           </select>
@@ -2444,8 +2456,8 @@ export default function ContractDetailPage() {
                   <div className="mb-6 p-4 rounded-xl bg-purple-50 border-2 border-purple-200">
                     <p className="text-sm text-purple-800 mb-3">
                       {ar
-                        ? `اضغط لإنشاء شيكات الإيجار تلقائياً (${duration} شهر ÷ مدة الدفع = ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} شيك):`
-                        : `Click to create rent cheques automatically (${duration} months ÷ payment frequency = ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} cheques):`}
+                        ? `اضغط لإنشاء شيكات ال${rentWordAr} تلقائياً (${duration} شهر ÷ مدة الدفع = ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} شيك):`
+                        : `Click to create ${rentWordEn.toLowerCase()} cheques automatically (${duration} months ÷ payment frequency = ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} cheques):`}
                     </p>
                     <button
                       type="button"
@@ -2478,8 +2490,8 @@ export default function ContractDetailPage() {
                           const amt = chequeAmountForPeriod(i, periodMonths, monthlyRent, customRents);
                           entries.push({
                             checkTypeId: 'RENT_CHEQUE',
-                            labelAr: chequeCount > 1 ? `شيك إيجار #${i + 1}` : 'شيك إيجار',
-                            labelEn: chequeCount > 1 ? `Rent cheque #${i + 1}` : 'Rent cheque',
+                            labelAr: chequeCount > 1 ? `شيك ${rentWordAr} #${i + 1}` : `شيك ${rentWordAr}`,
+                            labelEn: chequeCount > 1 ? `${rentWordEn} cheque #${i + 1}` : `${rentWordEn} cheque`,
                             checkNumber: '',
                             amount: amt,
                             date: d,
@@ -2493,7 +2505,7 @@ export default function ContractDetailPage() {
                       }}
                       className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-semibold"
                     >
-                      {ar ? `إنشاء ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} شيك تلقائياً` : `Create ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} cheques automatically`}
+                      {ar ? `إنشاء ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} شيك ${rentWordAr} تلقائياً` : `Create ${requiredChecks.filter((r) => r.checkTypeId === 'RENT_CHEQUE').length} ${rentWordEn.toLowerCase()} cheques automatically`}
                     </button>
                     <p className="text-xs text-purple-600 mt-2">
                       {ar ? '💡 عدد الشيكات = مدة العقد ÷ مدة الدفع (شهرياً=شيك/شهر، كل شهرين=شيك/شهرين، إلخ)' : '💡 Cheque count = contract duration ÷ payment frequency (monthly=1/mo, bimonthly=1/2mo, etc.)'}
@@ -2516,7 +2528,7 @@ export default function ContractDetailPage() {
                       <div
                         key={idx}
                         className={`p-3 rounded-xl border flex flex-col gap-2 ${isApproved ? 'bg-emerald-50/60 border-emerald-300/40' : fieldsFromTenantDocs && (cd?.checkNumber || cd?.amount || chequeImageUrl) ? 'bg-emerald-50/40 border-emerald-200/60 ring-2 ring-emerald-200/40' : 'bg-gray-50 border-gray-200'}`}
-                        title={fieldsFromTenantDocs && (cd?.checkNumber || cd?.amount || chequeImageUrl) ? (ar ? 'بيانات منسوخة من مستندات المستأجر' : 'Data synced from tenant documents') : undefined}
+                        title={fieldsFromTenantDocs && (cd?.checkNumber || cd?.amount || chequeImageUrl) ? (ar ? `بيانات منسوخة من مستندات ${tenantWordAr}` : `Data synced from ${tenantWordEn.toLowerCase()} documents`) : undefined}
                       >
                         <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                           <div className="flex-1 min-w-0">
@@ -2618,7 +2630,7 @@ export default function ContractDetailPage() {
                 )}
                 {checksToShow.length === 0 && !showCreateButton && (
                   <p className="text-sm text-gray-500 mt-2">
-                    {ar ? '💡 اختر طريقة الدفع "شيك" ومدة الإيجار لعرض زر إنشاء الشيكات' : '💡 Select payment method "Check" and duration to show create cheques button'}
+                    {ar ? `💡 اختر طريقة الدفع "شيك" ومدة ال${rentWordAr} لعرض زر إنشاء الشيكات` : `💡 Select payment method "Check" and ${rentWordEn.toLowerCase()} duration to show create cheques button`}
                   </p>
                 )}
                 </div>
@@ -2724,7 +2736,7 @@ export default function ContractDetailPage() {
                 {isEditable && (
                   <>
                     <button type="button" onClick={() => addCheck('rent')} className="text-sm font-semibold text-blue-600 hover:underline">
-                      + {ar ? 'شيك إيجار' : 'Rent check'}
+                      + {ar ? `شيك ${rentWordAr}` : `${rentWordEn} check`}
                   </button>
                     <button type="button" onClick={() => addCheck('deposit')} className="text-sm font-semibold text-emerald-600 hover:underline">
                       + {ar ? 'شيك ضمان' : 'Deposit check'}
@@ -3002,14 +3014,14 @@ export default function ContractDetailPage() {
             {confirmAction === 'edit' && (ar ? 'إرجاع للتعديل' : 'Return for Edit')}
             {confirmAction === 'final' && (ar ? 'اعتماد نهائي' : 'Final Approval')}
             {confirmAction === 'cancel' && (ar ? 'شطب العقد' : 'Cancel Contract')}
-            {confirmAction === 'tenant' && (ar ? 'اعتماد المستأجر' : 'Tenant Approval')}
+            {confirmAction === 'tenant' && (ar ? `اعتماد ${tenantWordAr}` : `${tenantWordEn} Approval`)}
             {confirmAction === 'landlord' && (ar ? 'اعتماد المالك' : 'Landlord Approval')}
           </h3>
           <p className="text-gray-600 mb-6">
             {confirmAction === 'edit' && (ar ? 'سيتم تمكين تعديل بيانات العقد. احفظ التعديلات عند الانتهاء.' : 'Contract will become editable. Save changes when done.')}
             {confirmAction === 'final' && (ar ? 'سيتم اعتماد العقد نهائياً وتحويل الحجز إلى مؤجر. هذا الإجراء لا يمكن التراجع عنه.' : 'Contract will be finally approved and booking will become rented. This cannot be undone.')}
             {confirmAction === 'cancel' && (ar ? 'سيتم شطب هذا العقد. لن يعود قابلاً للاستخدام.' : 'This contract will be cancelled and cannot be used.')}
-            {confirmAction === 'tenant' && (ar ? 'سيتم تسجيل اعتماد المستأجر على العقد.' : 'Tenant approval will be recorded on the contract.')}
+            {confirmAction === 'tenant' && (ar ? `سيتم تسجيل اعتماد ${tenantWordAr} على العقد.` : `${tenantWordEn} approval will be recorded on the contract.`)}
             {confirmAction === 'landlord' && (ar ? 'سيتم تسجيل اعتماد المالك على العقد.' : 'Landlord approval will be recorded on the contract.')}
           </p>
           <div className="flex gap-3 justify-end">
