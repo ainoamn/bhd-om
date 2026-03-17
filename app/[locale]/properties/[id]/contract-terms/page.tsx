@@ -33,6 +33,7 @@ import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import DateInput from '@/components/shared/DateInput';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
+import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
 
 /** جلب جهة الاتصال للحجز مع تفضيل النوع المطابق (شخصي/شركة) لتجنب الخلط عند تشابه الهاتف */
 function getContactForBooking(b: PropertyBooking) {
@@ -842,11 +843,9 @@ export default function ContractTermsPage() {
   const getFieldErrorClass = (field: string) =>
     profileFormErrors[field] ? 'border-2 border-red-500 ring-2 ring-red-500/30 bg-red-500/10' : '';
 
-  /** إطار أحمر للحقول الإلزامية الفارغة، أخضر عند التعبئة */
-  const getRequiredBorderClass = (value: string | number | undefined): string => {
-    const isEmpty = value === undefined || value === null || value === '' || (typeof value === 'string' && !value.trim());
-    return isEmpty ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30' : 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/30';
-  };
+  /** إطار أحمر للحقول الإلزامية الفارغة، أخضر عند التعبئة — باستخدام المعيار الموحد للموقع */
+  const getRequiredBorderClass = (value: string | number | undefined): string =>
+    getRequiredFieldClass(true, value);
 
   /** بناء رقم الهاتف الكامل مع كود الدولة */
   const getFullPhone = (countryCode: string, local: string) => {
@@ -1081,6 +1080,12 @@ export default function ContractTermsPage() {
     if (Object.keys(errors).length > 0) {
       setProfileFormErrors(errors);
       setProfileError(ar ? 'يرجى تعبئة جميع الحقول الإلزامية وتصحيح الأخطاء' : 'Please fill in all required fields and correct errors');
+      const missingLabels: string[] = [];
+      const labelMap: Record<string, string> = ar
+        ? { firstName: 'الاسم الأول', secondName: 'الاسم الثاني', familyName: 'العائلة', nameEn: 'الاسم (EN)', nationality: 'الجنسية', phone: 'الهاتف', phoneSecondary: 'الهاتف البديل', email: 'البريد الإلكتروني', workplace: 'جهة العمل', workplaceEn: 'جهة العمل (EN)', address: 'العنوان', civilId: 'الرقم المدني', civilIdExpiry: 'انتهاء الرقم المدني', passportNumber: 'رقم الجواز', passportExpiry: 'انتهاء الجواز' }
+        : { firstName: 'First name', secondName: 'Second name', familyName: 'Family name', nameEn: 'Name (EN)', nationality: 'Nationality', phone: 'Phone', phoneSecondary: 'Alternative phone', email: 'Email', workplace: 'Workplace', workplaceEn: 'Workplace (EN)', address: 'Address', civilId: 'Civil ID', civilIdExpiry: 'Civil ID expiry', passportNumber: 'Passport number', passportExpiry: 'Passport expiry' };
+      Object.keys(errors).forEach((k) => { if (labelMap[k]) missingLabels.push(labelMap[k]); });
+      if (missingLabels.length > 0) showMissingFieldsAlert(missingLabels, ar);
       setTimeout(() => document.getElementById('contract-profile-errors')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
       return;
     }
@@ -1165,8 +1170,11 @@ export default function ContractTermsPage() {
           body: JSON.stringify(updated),
           credentials: 'include',
         })
-          .then(() => {
-            clearDraft(`contract_terms_${bookingId}`);
+          .then((res) => {
+            if (res.ok) {
+              clearDraft(`contract_terms_${bookingId}`);
+              alert(ar ? 'تم إرسال الطلب بنجاح. ستظهر البيانات والمستندات لدى الإدارة للتحقق والاعتماد.' : 'Request sent successfully. Your data and documents will appear for admin verification and approval.');
+            }
           })
           .catch(() => {});
       }
@@ -2105,7 +2113,7 @@ export default function ContractTermsPage() {
                                   }`}>
                                     {ar ? sl.ar : sl.en}
                                   </span>
-                                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${d.isRequired ? 'bg-amber-500/20 text-white' : 'bg-white/10 text-white'}`}>
+                                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${d.isRequired && files.length === 0 ? 'bg-red-500/30 text-red-200 border border-red-500/50' : d.isRequired ? 'bg-emerald-500/20 text-white border border-emerald-500/40' : 'bg-white/10 text-white'}`}>
                                     {d.isRequired ? (ar ? 'مطلوب' : 'Required') : (ar ? 'اختياري' : 'Optional')}
                                   </span>
                                 </div>
@@ -2309,7 +2317,7 @@ export default function ContractTermsPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-white mb-2">{ar ? 'الجنس *' : 'Gender *'}</label>
-                      <select value={profileForm.gender} onChange={(e) => setProfileForm((f) => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))} onBlur={savePartialProfile} className="w-full px-5 py-3.5 rounded-xl border border-white/20 bg-white/5 text-white focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] outline-none">
+                      <select value={profileForm.gender} onChange={(e) => setProfileForm((f) => ({ ...f, gender: e.target.value as 'MALE' | 'FEMALE' }))} onBlur={savePartialProfile} className={`w-full px-5 py-3.5 rounded-xl border-2 bg-white/5 text-white focus:ring-2 outline-none ${getRequiredFieldClass(true, profileForm.gender)}`}>
                         <option value="MALE" className="bg-gray-900">{ar ? 'ذكر' : 'Male'}</option>
                         <option value="FEMALE" className="bg-gray-900">{ar ? 'أنثى' : 'Female'}</option>
                       </select>
@@ -2758,7 +2766,7 @@ export default function ContractTermsPage() {
                                   }`}>
                                     {ar ? sl.ar : sl.en}
                                   </span>
-                                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${d.isRequired ? 'bg-amber-500/20 text-white' : 'bg-white/10 text-white'}`}>
+                                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${d.isRequired && files.length === 0 ? 'bg-red-500/30 text-red-200 border border-red-500/50' : d.isRequired ? 'bg-emerald-500/20 text-white border border-emerald-500/40' : 'bg-white/10 text-white'}`}>
                                     {d.isRequired ? (ar ? 'مطلوب' : 'Required') : (ar ? 'اختياري' : 'Optional')}
                                   </span>
                                 </div>
