@@ -29,7 +29,7 @@ import {
   calcRentBaseForFees,
   calcOtherTax,
 } from '@/lib/contractCalculations';
-import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, isOmaniNationality, isCompanyContact, type Contact } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, isOmaniNationality, isCompanyContact, updateContact, type Contact } from '@/lib/data/addressBook';
 import { getAllBookings, updateBooking } from '@/lib/data/bookings';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
@@ -724,6 +724,23 @@ export default function ContractDetailPage() {
       rentChecksBankBranch: form.rentChecksBankBranch,
     });
     const updated = _updated ?? getContractById(id);
+    // مزامنة بيانات المالك من العقد إلى دفتر العناوين (جهة المالك المرتبطة بالعقار) حتى تظهر مكتملة عند المزامنة التالية
+    if (updated && (form.landlordEmail?.trim() || form.landlordCivilId?.trim() || form.landlordPhone?.trim())) {
+      const lcId = getPropertyLandlordContactId(updated.propertyId);
+      if (lcId) {
+        const lc = getContactById(lcId);
+        if (lc) {
+          const payload: Partial<Contact> = {};
+          if (form.landlordEmail?.trim()) payload.email = form.landlordEmail.trim();
+          if (form.landlordPhone?.trim()) payload.phone = form.landlordPhone.trim();
+          if (form.landlordCivilId?.trim()) payload.civilId = form.landlordCivilId.trim();
+          if (form.landlordCivilIdExpiry?.trim()) payload.civilIdExpiry = form.landlordCivilIdExpiry.trim();
+          if (form.landlordPassportNumber?.trim()) payload.passportNumber = form.landlordPassportNumber.trim();
+          if (form.landlordPassportExpiry?.trim()) payload.passportExpiry = form.landlordPassportExpiry.trim();
+          if (Object.keys(payload).length > 0) updateContact(lcId, payload);
+        }
+      }
+    }
     if (updated && updated.bookingId) {
       const bookingId = updated.bookingId;
       const propertyId = updated.propertyId;
@@ -909,8 +926,20 @@ export default function ContractDetailPage() {
               ))}
             </ul>
             <p className="text-sm text-amber-700 mt-2">
-              {ar ? 'البيانات تُجلب من دفتر العناوين. تأكد من إكمال بيانات المستأجر والمالك في دفتر العناوين وفي إعدادات العقار.' : 'Data is loaded from the address book. Ensure tenant and landlord data is complete in the address book and property settings.'}
+              {ar ? 'البيانات تُجلب من دفتر العناوين. يمكنك: (١) تعبئة الحقول الناقصة في إطار «بيانات المالك» أدناه ثم حفظ العقد، أو (٢) إكمال بيانات المالك في دفتر العناوين وإعدادات العقار ثم النقر على «تحديث من دفتر العناوين».' : 'Data is loaded from the address book. You can: (1) Fill the missing fields in the "Landlord Data" section below and save the contract, or (2) Complete the landlord data in the address book and property settings, then click "Sync from address book".'}
             </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => { syncFromContacts(); loadContract(); }}
+                className="px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-100 rounded-xl hover:bg-blue-200"
+              >
+                {ar ? 'تحديث من دفتر العناوين' : 'Sync from address book'}
+              </button>
+              <Link href={`/${locale}/admin/address-book`} className="px-4 py-2 text-sm font-semibold text-[#8B6F47] bg-amber-100 rounded-xl hover:bg-amber-200">
+                {ar ? 'فتح دفتر العناوين' : 'Open address book'}
+              </Link>
+            </div>
           </div>
         </div>
       )}
@@ -1083,8 +1112,9 @@ export default function ContractDetailPage() {
                 <input
                   type="tel"
                   value={form.landlordPhone ?? ''}
-                  readOnly
-                  className="admin-input w-full bg-gray-50 cursor-default"
+                  readOnly={!isEditable}
+                  onChange={isEditable ? (e) => setForm((p) => ({ ...p, landlordPhone: e.target.value })) : undefined}
+                  className={`admin-input w-full ${isEditable ? '' : 'bg-gray-50 cursor-default'}`}
                 />
               </div>
               <div>
@@ -1092,8 +1122,9 @@ export default function ContractDetailPage() {
                 <input
                   type="email"
                   value={form.landlordEmail ?? ''}
-                  readOnly
-                  className="admin-input w-full bg-gray-50 cursor-default"
+                  readOnly={!isEditable}
+                  onChange={isEditable ? (e) => setForm((p) => ({ ...p, landlordEmail: e.target.value })) : undefined}
+                  className={`admin-input w-full ${isEditable ? '' : 'bg-gray-50 cursor-default'}`}
                 />
               </div>
               <div>
@@ -1110,8 +1141,9 @@ export default function ContractDetailPage() {
                 <input
                   type="text"
                   value={form.landlordCivilId ?? ''}
-                  readOnly
-                  className="admin-input w-full bg-gray-50 cursor-default"
+                  readOnly={!isEditable}
+                  onChange={isEditable ? (e) => setForm((p) => ({ ...p, landlordCivilId: e.target.value })) : undefined}
+                  className={`admin-input w-full ${isEditable ? '' : 'bg-gray-50 cursor-default'}`}
                 />
               </div>
               <div>
@@ -1119,8 +1151,9 @@ export default function ContractDetailPage() {
                 <input
                   type="date"
                   value={form.landlordCivilIdExpiry ?? ''}
-                  readOnly
-                  className="admin-input w-full bg-gray-50 cursor-default"
+                  readOnly={!isEditable}
+                  onChange={isEditable ? (e) => setForm((p) => ({ ...p, landlordCivilIdExpiry: e.target.value })) : undefined}
+                  className={`admin-input w-full ${isEditable ? '' : 'bg-gray-50 cursor-default'}`}
                 />
               </div>
               {!isOmaniNationality(form.landlordNationality ?? '') && (
@@ -1130,8 +1163,9 @@ export default function ContractDetailPage() {
                     <input
                       type="text"
                       value={form.landlordPassportNumber ?? ''}
-                      readOnly
-                      className="admin-input w-full bg-gray-50 cursor-default"
+                      readOnly={!isEditable}
+                      onChange={isEditable ? (e) => setForm((p) => ({ ...p, landlordPassportNumber: e.target.value })) : undefined}
+                      className={`admin-input w-full ${isEditable ? '' : 'bg-gray-50 cursor-default'}`}
                     />
                   </div>
                   <div>
@@ -1139,8 +1173,9 @@ export default function ContractDetailPage() {
                     <input
                       type="date"
                       value={form.landlordPassportExpiry ?? ''}
-                      readOnly
-                      className="admin-input w-full bg-gray-50 cursor-default"
+                      readOnly={!isEditable}
+                      onChange={isEditable ? (e) => setForm((p) => ({ ...p, landlordPassportExpiry: e.target.value })) : undefined}
+                      className={`admin-input w-full ${isEditable ? '' : 'bg-gray-50 cursor-default'}`}
                     />
                   </div>
                 </>
