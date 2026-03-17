@@ -329,7 +329,7 @@ function setPropertyRentedFromContract(contract: RentalContract) {
     if (contract.bookingId) {
       updateBookingStatus(contract.bookingId, status);
     }
-    setContactCategoryForBooking(contract.tenantPhone, kind === 'SALE' ? 'BUYER' : 'TENANT', contract.tenantEmail); // الاستثمار يُعامل كإيجار في التصنيف
+    setContactCategoryForBooking(contract.tenantPhone, kind === 'SALE' ? 'CLIENT' : 'TENANT', contract.tenantEmail); // البيع → عميل (CLIENT)، الإيجار/الاستثمار → مستأجر (TENANT)
   } catch {}
 }
 
