@@ -2982,7 +2982,8 @@ export default function ContractDetailPage() {
             )}
           </div>
 
-          {/* ملخص مالي - في نهاية الصفحة */}
+          {/* ملخص مالي - للإيجار/الاستثمار فقط (عقد البيع له ملخصه في بند 5) */}
+          {isRent && (
           <div className="rounded-2xl border-2 border-[#8B6F47]/30 bg-gradient-to-r from-[#8B6F47]/10 to-[#8B6F47]/5 shadow-sm overflow-hidden">
             <button type="button" onClick={() => toggleSection('summary')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-[#8B6F47]/5 transition-colors">
               <h4 className="font-bold text-gray-900 flex-1">{ar ? 'ملخص مالي' : 'Financial Summary'}</h4>
@@ -3052,8 +3053,10 @@ export default function ContractDetailPage() {
             </div>
             )}
           </div>
+          )}
 
-          {/* ملخص الحسابات النهائية */}
+          {/* ملخص الحسابات النهائية - للإيجار/الاستثمار فقط */}
+          {isRent && (
           <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 shadow-sm overflow-hidden">
             <button type="button" onClick={() => toggleSection('finalSummary')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-indigo-50/50 transition-colors">
               <h4 className="font-bold text-gray-900 flex-1">{ar ? 'ملخص الحسابات النهائية' : 'Final Calculations Summary'}</h4>
@@ -3108,6 +3111,7 @@ export default function ContractDetailPage() {
             </div>
             )}
           </div>
+          )}
 
           {isEditable && (
             <div className="flex gap-3 pt-4">
