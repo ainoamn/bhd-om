@@ -37,6 +37,10 @@ export default function AdminContractsPage() {
   const role = (session?.user as { role?: string })?.role;
   const canApproveContract = role === 'COMPANY' || role === 'ORG_MANAGER';
 
+  const kindParamRaw = (searchParams?.get('kind') || '').trim();
+  const kindParam = kindParamRaw.toUpperCase();
+  const contractKind: 'RENT' | 'SALE' | 'INVESTMENT' = kindParam === 'SALE' ? 'SALE' : kindParam === 'INVESTMENT' ? 'INVESTMENT' : 'RENT';
+
   const [contracts, setContracts] = useState<RentalContract[]>([]);
   const [bookings, setBookings] = useState<ReturnType<typeof getAllBookings>>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -128,13 +132,24 @@ export default function AdminContractsPage() {
     });
     updateBooking(b.id, { contractId: contract.id });
     loadData();
-    window.history.replaceState({}, '', `/${locale}/admin/contracts`);
+    window.history.replaceState({}, '', `/${locale}/admin/contracts?kind=${propType}`);
     window.location.href = `/${locale}/admin/contracts/${contract.id}`;
   }, [searchParams?.get('createFrom'), mounted, locale]);
 
-  const confirmedBookingsWithoutContract = bookings.filter(
-    (b) => b.type === 'BOOKING' && b.status === 'CONFIRMED' && !getContractByBooking(b.id)
-  );
+  const dataOverrides = getPropertyDataOverrides();
+  const getPropertyKind = (propertyId: number): 'RENT' | 'SALE' | 'INVESTMENT' => {
+    const p = getPropertyById(propertyId, dataOverrides) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null;
+    return p?.type ?? 'RENT';
+  };
+
+  const getContractKind = (c: RentalContract): 'RENT' | 'SALE' | 'INVESTMENT' => {
+    return c.propertyContractKind ?? getPropertyKind(c.propertyId);
+  };
+
+  const confirmedBookingsWithoutContract = bookings.filter((b) => {
+    if (b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || getContractByBooking(b.id)) return false;
+    return getPropertyKind(b.propertyId) === contractKind;
+  });
 
   const handleCreateFromBooking = (bookingId: string) => {
     const b = bookings.find((x) => x.id === bookingId);
@@ -211,20 +226,49 @@ export default function AdminContractsPage() {
     loadData();
   };
 
-  const filteredContracts = contracts.filter((c) => filterStatus === 'all' || c.status === filterStatus);
+  const filteredContracts = contracts.filter((c) => {
+    if (getContractKind(c) !== contractKind) return false;
+    return filterStatus === 'all' || c.status === filterStatus;
+  });
 
   const stats = {
-    total: contracts.length,
-    draft: contracts.filter((c) => c.status === 'DRAFT').length,
-    approved: contracts.filter((c) => c.status === 'APPROVED').length,
-    pendingApproval: contracts.filter((c) => ['ADMIN_APPROVED', 'TENANT_APPROVED', 'LANDLORD_APPROVED'].includes(c.status)).length,
+    total: contracts.filter((c) => getContractKind(c) === contractKind).length,
+    draft: contracts.filter((c) => getContractKind(c) === contractKind && c.status === 'DRAFT').length,
+    approved: contracts.filter((c) => getContractKind(c) === contractKind && c.status === 'APPROVED').length,
+    pendingApproval: contracts.filter((c) => getContractKind(c) === contractKind && ['ADMIN_APPROVED', 'TENANT_APPROVED', 'LANDLORD_APPROVED'].includes(c.status)).length,
   };
+
+  const headerTitle =
+    contractKind === 'SALE'
+      ? ar
+        ? 'إدارة عقود البيع'
+        : 'Sale Contracts Management'
+      : contractKind === 'INVESTMENT'
+        ? ar
+          ? 'إدارة عقود الاستثمار'
+          : 'Investment Contracts Management'
+        : ar
+          ? 'إدارة عقود الإيجار'
+          : 'Rental Contracts Management';
+
+  const headerSubtitle =
+    contractKind === 'SALE'
+      ? ar
+        ? 'إنشاء وإدارة عقود البيع والاعتمادات'
+        : 'Create and manage sale contracts and approvals'
+      : contractKind === 'INVESTMENT'
+        ? ar
+          ? 'إنشاء وإدارة عقود الاستثمار والاعتمادات'
+          : 'Create and manage investment contracts and approvals'
+        : ar
+          ? 'إنشاء وإدارة عقود الإيجار والاعتمادات'
+          : 'Create and manage rental contracts and approvals';
 
   return (
     <div className="space-y-8">
       <AdminPageHeader
-        title={ar ? 'إدارة عقود الإيجار' : 'Rental Contracts Management'}
-        subtitle={ar ? 'إنشاء وإدارة عقود الإيجار والاعتمادات' : 'Create and manage rental contracts and approvals'}
+        title={headerTitle}
+        subtitle={headerSubtitle}
       />
 
       <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 transition-all duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
@@ -250,10 +294,22 @@ export default function AdminContractsPage() {
       {confirmedBookingsWithoutContract.length > 0 && (
         <div className="admin-card p-6 border-[#8B6F47]/30 bg-[#8B6F47]/5">
           <h3 className="text-lg font-bold text-gray-900 mb-3">{ar ? 'حجوزات جاهزة لإنشاء عقد' : 'Bookings Ready for Contract'}</h3>
-          <p className="text-sm text-gray-600 mb-4">{ar ? 'الحجوزات المؤكدة والمكتملة المستندات يمكن تحويلها لعقد إيجار' : 'Confirmed bookings with completed documents can be converted to rental contract'}</p>
+          <p className="text-sm text-gray-600 mb-4">
+            {contractKind === 'SALE'
+              ? ar
+                ? 'الحجوزات المؤكدة يمكن تحويلها لعقد بيع'
+                : 'Confirmed bookings can be converted to a sale contract'
+              : contractKind === 'INVESTMENT'
+                ? ar
+                  ? 'الحجوزات المؤكدة يمكن تحويلها لعقد استثمار'
+                  : 'Confirmed bookings can be converted to an investment contract'
+                : ar
+                  ? 'الحجوزات المؤكدة والمكتملة المستندات يمكن تحويلها لعقد إيجار'
+                  : 'Confirmed bookings with completed documents can be converted to rental contract'}
+          </p>
           <div className="space-y-2">
             {confirmedBookingsWithoutContract.map((b) => {
-              const prop = getPropertyById(b.propertyId, getPropertyDataOverrides());
+              const prop = getPropertyById(b.propertyId, dataOverrides);
               return (
                 <div key={b.id} className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white rounded-xl border border-gray-200">
                   <div>
@@ -278,7 +334,19 @@ export default function AdminContractsPage() {
 
       <div className="admin-card overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h2 className="text-lg font-bold text-gray-900">{ar ? 'عقود الإيجار' : 'Rental Contracts'}</h2>
+          <h2 className="text-lg font-bold text-gray-900">
+            {contractKind === 'SALE'
+              ? ar
+                ? 'عقود البيع'
+                : 'Sale Contracts'
+              : contractKind === 'INVESTMENT'
+                ? ar
+                  ? 'عقود الاستثمار'
+                  : 'Investment Contracts'
+                : ar
+                  ? 'عقود الإيجار'
+                  : 'Rental Contracts'}
+          </h2>
           <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
             <button
               type="button"
@@ -303,7 +371,19 @@ export default function AdminContractsPage() {
         {filteredContracts.length === 0 ? (
           <div className="p-16 text-center">
             <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-4xl mx-auto mb-4">📋</div>
-            <p className="text-gray-500 font-medium text-lg">{ar ? 'لا توجد عقود إيجار' : 'No rental contracts'}</p>
+            <p className="text-gray-500 font-medium text-lg">
+              {contractKind === 'SALE'
+                ? ar
+                  ? 'لا توجد عقود بيع'
+                  : 'No sale contracts'
+                : contractKind === 'INVESTMENT'
+                  ? ar
+                    ? 'لا توجد عقود استثمار'
+                    : 'No investment contracts'
+                  : ar
+                    ? 'لا توجد عقود إيجار'
+                    : 'No rental contracts'}
+            </p>
             <p className="text-gray-400 text-sm mt-1">{ar ? 'أنشئ عقداً من حجز مؤكد أو أضف عقداً جديداً' : 'Create from a confirmed booking or add a new contract'}</p>
           </div>
         ) : (
@@ -314,7 +394,15 @@ export default function AdminContractsPage() {
                   <th>{ar ? 'العقد' : 'Contract'}</th>
                   <th>{ar ? 'العقار' : 'Property'}</th>
                   <th>{ar ? 'المستأجر' : 'Tenant'}</th>
-                  <th>{ar ? 'الإيجار الشهري' : 'Monthly Rent'}</th>
+                  <th>
+                    {contractKind === 'SALE'
+                      ? ar
+                        ? 'ثمن البيع'
+                        : 'Sale price'
+                      : ar
+                        ? 'الإيجار الشهري'
+                        : 'Monthly Rent'}
+                  </th>
                   <th>{ar ? 'المدة' : 'Duration'}</th>
                   <th>{ar ? 'الحالة' : 'Status'}</th>
                   <th>{ar ? 'الإجراءات' : 'Actions'}</th>
@@ -339,7 +427,9 @@ export default function AdminContractsPage() {
                       </div>
                     </td>
                     <td>
-                      <span className="font-semibold text-gray-900">{c.monthlyRent.toLocaleString()} ر.ع</span>
+                      <span className="font-semibold text-gray-900">
+                        {(contractKind === 'SALE' ? (c.totalSaleAmount ?? 0) : c.monthlyRent).toLocaleString()} ر.ع
+                      </span>
                     </td>
                     <td>
                       <span className="text-sm text-gray-600">

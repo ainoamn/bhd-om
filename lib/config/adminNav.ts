@@ -51,7 +51,10 @@ const propertiesSubItems: NavItemWithSection[] = [
   { href: '/admin/properties', labelKey: 'propertiesAll', icon: 'building', section: 'propertiesManage' },
   { href: '/admin/properties/new', labelKey: 'propertiesAdd', icon: 'plus', section: 'propertiesAdd' },
   { href: '/admin/bookings', labelKey: 'bookingsManage', icon: 'calendar', section: 'bookingsManage' },
-  { href: '/admin/contracts', labelKey: 'contractsManage', icon: 'archive', section: 'contractsManage' },
+  { href: '#', labelKey: 'contractsManageHeader', icon: 'archive', section: 'contractsManageHeader', isHeader: true },
+  { href: '/admin/contracts?kind=RENT', labelKey: 'contractsRentManage', icon: 'archive', section: 'contractsRentManage' },
+  { href: '/admin/contracts?kind=SALE', labelKey: 'contractsSaleManage', icon: 'archive', section: 'contractsSaleManage' },
+  { href: '/admin/contracts?kind=INVESTMENT', labelKey: 'contractsInvestmentManage', icon: 'archive', section: 'contractsInvestmentManage' },
   { href: '/admin/maintenance', labelKey: 'maintenanceManage', icon: 'wrench', section: 'maintenanceManage' },
   { href: '/admin/data', labelKey: 'dataManage', icon: 'database', section: 'dataManage' },
 ];
