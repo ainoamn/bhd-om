@@ -169,6 +169,7 @@ export default function ContractDetailPage() {
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'edit' | 'final' | 'cancel' | 'tenant' | 'landlord' | null>(null);
+  const [approvingAdmin, setApprovingAdmin] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     landlord: false, tenant: true, property: false, financial: true, dates: true,
     municipality: true, customRents: true, cheques: true, documents: true,
@@ -880,46 +881,52 @@ export default function ContractDetailPage() {
   };
 
   const handleApproveAdmin = () => {
-    const c = getContractById(id);
-    if (!c) return;
-    if (!isContractDataComplete(c)) {
-      const missing = getContractMissingFields(c, ar);
-      alert(
-        ar
-          ? `يجب إكمال جميع بيانات ${tenantWordAr} والمالك قبل الاعتماد:\n\n${missing.join('\n')}`
-          : `Please complete all ${tenantWordEn.toLowerCase()} and landlord data before approval:\n\n${missing.join('\n')}`
-      );
-      return;
-    }
-    if (c.bookingId) {
-      const booking = getAllBookings().find((b) => b.id === c.bookingId);
-      const contact = booking ? findContactByPhoneOrEmail(booking.phone, booking.email) : null;
-      const filterByNationality = (list: import('@/lib/data/bookingTerms').ContractDocRequirement[], co: unknown): import('@/lib/data/bookingTerms').ContractDocRequirement[] =>
-        (co && !isCompanyContact(co as Contact) && isOmaniNationality((co as { nationality?: string })?.nationality || ''))
-          ? list.filter((r) => r.docTypeId !== 'PASSPORT')
-          : list;
-      const reqDocTypes = getRequiredDocTypesForBooking(c.propertyId, (c.propertyContractKind ?? c.contractType ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT', contact ?? null, filterByNationality);
-      const reqChecks = buildRequiredChecks(c.propertyId, c.rentPaymentMethod, c.durationMonths ?? 12, c.rentPaymentFrequency, c.customMonthlyRents, c.depositChequeRequired, c.depositChequeDurationMonths, (c.propertyContractKind ?? 'RENT') as PropertyContractKind);
-      if (!areAllRequiredDocumentsApproved(c.bookingId)) {
-        alert(ar ? '⚠ لا يمكن اعتماد العقد — يجب رفع جميع المستندات المطلوبة واعتمادها أولاً.' : '⚠ Cannot approve contract — all required documents must be uploaded and approved first.');
-        return;
+    if (approvingAdmin) return;
+    setApprovingAdmin(true);
+    // تقليل INP: نفصل العمل الثقيل عن حدث النقر
+    setTimeout(() => {
+      try {
+        const c = getContractById(id);
+        if (!c) return;
+        if (!isContractDataComplete(c)) {
+          const missing = getContractMissingFields(c, ar);
+          alert(
+            ar
+              ? `يجب إكمال جميع بيانات ${tenantWordAr} والمالك قبل الاعتماد:\n\n${missing.join('\n')}`
+              : `Please complete all ${tenantWordEn.toLowerCase()} and landlord data before approval:\n\n${missing.join('\n')}`
+          );
+          return;
+        }
+        if (c.bookingId) {
+          if (!areAllRequiredDocumentsApproved(c.bookingId)) {
+            alert(ar ? '⚠ لا يمكن اعتماد العقد — يجب رفع جميع المستندات المطلوبة واعتمادها أولاً.' : '⚠ Cannot approve contract — all required documents must be uploaded and approved first.');
+            return;
+          }
+          // إن كان هناك شيكات مطلوبة، يجب اعتمادها قبل الاعتماد المبدئي
+          if (!areAllChecksApproved(c.bookingId)) {
+            alert(ar ? '⚠ لا يمكن اعتماد العقد — يجب تعبئة بيانات الشيكات المطلوبة واعتمادها أولاً.' : '⚠ Cannot approve contract — all required cheque data must be filled and approved first.');
+            return;
+          }
+        }
+
+        approveContractByAdmin(id);
+
+        // إرسال الرسائل يمكن أن يكون ثقيلاً — نفصله أيضاً
+        if (c.bookingId && typeof window !== 'undefined') {
+          setTimeout(() => {
+            const b = getAllBookings().find((x) => x.id === c.bookingId);
+            if (!b) return;
+            const link = getDocumentUploadLink(window.location.origin, locale, c.propertyId, b.id, b.email);
+            const msg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${link}` : `Hello, please complete the contract documentation by uploading the required documents:\n${link}`;
+            if (b.phone) openWhatsAppWithMessage(b.phone, msg);
+            if (b.email) openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link', msg);
+          }, 0);
+        }
+        loadContract();
+      } finally {
+        setApprovingAdmin(false);
       }
-      if (reqChecks.length > 0 && !areAllChecksApproved(c.bookingId)) {
-        alert(ar ? '⚠ لا يمكن اعتماد العقد — يجب تعبئة بيانات الشيكات المطلوبة واعتمادها أولاً.' : '⚠ Cannot approve contract — all required cheque data must be filled and approved first.');
-        return;
-      }
-    }
-    approveContractByAdmin(id);
-    if (c.bookingId && typeof window !== 'undefined') {
-      const b = getAllBookings().find((x) => x.id === c.bookingId);
-      if (b) {
-        const link = getDocumentUploadLink(window.location.origin, locale, c.propertyId, b.id, b.email);
-        const msg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${link}` : `Hello, please complete the contract documentation by uploading the required documents:\n${link}`;
-        if (b.phone) openWhatsAppWithMessage(b.phone, msg);
-        if (b.email) openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link', msg);
-      }
-    }
-    loadContract();
+    }, 0);
   };
 
   const handleApproveTenant = () => {
@@ -1067,9 +1074,10 @@ export default function ContractDetailPage() {
               <button
                 type="button"
                 onClick={handleApproveAdmin}
-                className="px-4 py-2 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
+                disabled={approvingAdmin}
+                className={`px-4 py-2 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 ${approvingAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                {ar ? 'اعتماد مبدئي من الإدارة' : 'Preliminary Admin Approve'}
+                {approvingAdmin ? (ar ? 'جاري الاعتماد...' : 'Approving...') : (ar ? 'اعتماد مبدئي من الإدارة' : 'Preliminary Admin Approve')}
               </button>
             )}
             {contract.status === 'ADMIN_APPROVED' && (
