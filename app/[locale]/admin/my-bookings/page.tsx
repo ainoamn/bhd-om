@@ -76,50 +76,31 @@ function getBookingStatusDisplay(
       return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
     }
     if (c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED') {
-      // سيناريو الاعتمادات: إدارة (مبدئي) → مشتري/مستأجر → مالك/بائع → إدارة (نهائي)
-      if (kind === 'SALE') {
-        const next =
-          c.status === 'ADMIN_APPROVED'
-            ? ar
-              ? 'بانتظار اعتماد المشتري'
-              : 'Waiting for buyer approval'
-            : c.status === 'TENANT_APPROVED'
-              ? ar
-                ? 'بانتظار اعتماد المالك (البائع)'
-                : 'Waiting for seller approval'
-              : ar
-                ? 'بانتظار الاعتماد النهائي من الإدارة'
-                : 'Waiting for final admin approval';
-        const subs: string[] = [];
-        if (!allDocsAndChecksApproved) subs.push(ar ? 'يرجى إكمال المستندات/الشيكات المطلوبة لاعتمادها' : 'Complete required documents/cheques for approval');
-        if (userRole === 'OWNER' && c.status === 'ADMIN_APPROVED') subs.push(ar ? 'سيظهر زر اعتماد المالك بعد اعتماد المشتري' : 'Seller approval appears after buyer approval');
-        return { main: next, sub: subs.length > 0 ? subs.join(' · ') : undefined };
-      }
-      if (kind === 'INVESTMENT') {
-        const next =
-          c.status === 'ADMIN_APPROVED'
-            ? ar
-              ? 'بانتظار اعتماد المستثمر'
-              : 'Waiting for investor approval'
-            : c.status === 'TENANT_APPROVED'
-              ? ar
-                ? 'بانتظار اعتماد المالك'
-                : 'Waiting for landlord approval'
-              : ar
-                ? 'بانتظار الاعتماد النهائي من الإدارة'
-                : 'Waiting for final admin approval';
-        return { main: next };
-      }
-      // RENT
-      return {
-        main: allDocsAndChecksApproved
+      // سيناريو الاعتمادات الموحد: إدارة (مبدئي) → العميل (مستأجر/مشتري/مستثمر) → المالك → إدارة (نهائي)
+      const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
+      const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
+      const ownerAr = kind === 'SALE' ? 'المالك (البائع)' : 'المالك';
+      const ownerEn = kind === 'SALE' ? 'Seller' : 'Landlord';
+      const next =
+        c.status === 'ADMIN_APPROVED'
           ? ar
-            ? 'في انتظار الاعتماد النهائي للعقد'
-            : 'Awaiting final contract approval'
-          : ar
-            ? 'تم اعتماده مبدئياً — يرجى إكمال البيانات ورفع المستندات لاعتمادها'
-            : 'Preliminarily approved — complete data and upload documents for approval',
-      };
+            ? `بانتظار اعتماد ${actorAr}`
+            : `Waiting for ${actorEn} approval`
+          : c.status === 'TENANT_APPROVED'
+            ? ar
+              ? `بانتظار اعتماد ${ownerAr}`
+              : `Waiting for ${ownerEn} approval`
+            : ar
+              ? 'بانتظار الاعتماد النهائي من الإدارة'
+              : 'Waiting for final admin approval';
+      const subs: string[] = [];
+      if (!allDocsAndChecksApproved) {
+        subs.push(ar ? 'يرجى إكمال المستندات/الشيكات المطلوبة لاعتمادها' : 'Complete required documents/cheques for approval');
+      }
+      if (userRole === 'OWNER' && c.status === 'ADMIN_APPROVED') {
+        subs.push(ar ? `سيظهر زر اعتماد المالك بعد اعتماد ${actorAr}` : `Owner approval appears after ${actorEn} approval`);
+      }
+      return { main: next, sub: subs.length > 0 ? subs.join(' · ') : undefined };
     }
     return { main: ar ? 'عقد مسودة — بانتظار رفع المستندات' : 'Draft contract — pending document upload' };
   }
@@ -225,8 +206,8 @@ export default function MyBookingsPage() {
                   const c = getContractByBooking(b.id) as RentalContract | undefined;
                   const kind = (c?.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
                   const reviewContractUrl = c?.id ? `/${locale}/admin/contracts/${c.id}` : null;
-                  const showBuyerApprove = !!c && kind === 'SALE' && c.status === 'ADMIN_APPROVED' && userRole !== 'OWNER';
-                  const showSellerApprove = !!c && kind === 'SALE' && c.status === 'TENANT_APPROVED' && userRole === 'OWNER';
+                  const showClientApprove = !!c && c.status === 'ADMIN_APPROVED' && userRole !== 'OWNER';
+                  const showOwnerApprove = !!c && c.status === 'TENANT_APPROVED' && userRole === 'OWNER';
                   return (
                     <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
@@ -259,15 +240,33 @@ export default function MyBookingsPage() {
                               {locale === 'ar' ? 'إكمال البيانات' : 'Complete data'}
                             </Link>
                           )}
-                          {(showBuyerApprove || showSellerApprove) && reviewContractUrl && (
+                          {(showClientApprove || showOwnerApprove) && reviewContractUrl && (
                             <Link
                               href={reviewContractUrl}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                             >
-                              {showBuyerApprove ? (ar ? 'مراجعة واعتماد (المشتري)' : 'Review & approve (Buyer)') : (ar ? 'اعتماد (المالك)' : 'Approve (Seller)')}
+                              {showClientApprove
+                                ? kind === 'SALE'
+                                  ? ar
+                                    ? 'مراجعة واعتماد (المشتري)'
+                                    : 'Review & approve (Buyer)'
+                                  : kind === 'INVESTMENT'
+                                    ? ar
+                                      ? 'مراجعة واعتماد (المستثمر)'
+                                      : 'Review & approve (Investor)'
+                                    : ar
+                                      ? 'مراجعة واعتماد (المستأجر)'
+                                      : 'Review & approve (Tenant)'
+                                : kind === 'SALE'
+                                  ? ar
+                                    ? 'اعتماد (المالك/البائع)'
+                                    : 'Approve (Seller)'
+                                  : ar
+                                    ? 'اعتماد (المالك)'
+                                    : 'Approve (Landlord)'}
                             </Link>
                           )}
-                          {!needComplete && !(showBuyerApprove || showSellerApprove) && <span className="text-gray-400 text-sm">—</span>}
+                          {!needComplete && !(showClientApprove || showOwnerApprove) && <span className="text-gray-400 text-sm">—</span>}
                         </div>
                       </td>
                     </tr>
