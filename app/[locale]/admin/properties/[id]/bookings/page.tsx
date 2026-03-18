@@ -338,6 +338,11 @@ export default function PropertyBookingsPage() {
                                     ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
                                     : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
                                   : (ar ? 'عقد مسودة - بانتظار رفع المستندات' : 'Draft - pending document upload');
+                              const propKind = ((getPropertyById(b.propertyId, getPropertyDataOverrides()) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null)?.type ?? 'RENT') as
+                                | 'RENT'
+                                | 'SALE'
+                                | 'INVESTMENT';
+                              const contractsHref = c?.id ? `/${locale}/admin/contracts/${c.id}` : `/${locale}/admin/contracts?kind=${propKind}`;
                               return (
                                 <>
                                   <span className={`inline-flex px-3 py-1 rounded-xl text-sm font-semibold border ${
@@ -355,7 +360,7 @@ export default function PropertyBookingsPage() {
                                       {ar ? 'بانتظار اعتماد العقد' : 'Pending contract approval'}
                                     </div>
                                   )}
-                                  <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block">
+                                  <Link href={contractsHref} className="text-xs text-[#8B6F47] hover:underline block">
                                     {ar ? 'تعديل من صفحة العقود' : 'Edit from contracts page'}
                                   </Link>
                                 </>

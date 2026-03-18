@@ -514,6 +514,13 @@ export default function AdminBookingsPage() {
                                 const docMsg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${docUploadLink}` : `Hello, please complete the contract documentation by uploading the required documents:\n${docUploadLink}`;
                                 const needsDocs = c && c.status !== 'APPROVED';
                                 const needsApproval = hasDocumentsNeedingConfirmation(b.id) || (getChecksByBooking(b.id).length > 0 && !areAllChecksApproved(b.id));
+                                const propKind = ((getPropertyById(b.propertyId, getPropertyDataOverrides()) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null)?.type ?? 'RENT') as
+                                  | 'RENT'
+                                  | 'SALE'
+                                  | 'INVESTMENT';
+                                const contractsHref = c?.id
+                                  ? `/${locale}/admin/contracts/${c.id}`
+                                  : `/${locale}/admin/contracts?kind=${propKind}`;
                                 return (
                                   <>
                                     <span className={`inline-flex px-3 py-1 rounded-xl text-sm font-semibold border ${isApproved ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
@@ -533,7 +540,7 @@ export default function AdminBookingsPage() {
                                         {approved.monthlyRent.toLocaleString()} ر.ع/شهر • {approved.annualRent.toLocaleString()} ر.ع/سنة • {new Date(approved.startDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')} — {new Date(approved.endDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}
                                       </div>
                                     )}
-                                    <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block">
+                                    <Link href={contractsHref} className="text-xs text-[#8B6F47] hover:underline block">
                                       {ar ? 'تعديل من صفحة العقود' : 'Edit from contracts page'}
                                     </Link>
                                     {needsDocs && docUploadLink && (
