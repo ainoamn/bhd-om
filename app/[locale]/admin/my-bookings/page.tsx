@@ -14,6 +14,7 @@ import { getContractByBooking, hasContractForUnit } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import type { ContactLinkedBooking } from '@/lib/data/contactLinks';
+import type { RentalContract } from '@/lib/data/contracts';
 
 const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
   PENDING: { ar: 'قيد الانتظار', en: 'Pending' },
@@ -49,7 +50,8 @@ function needsToCompleteContractData(
 function getBookingStatusDisplay(
   linked: ContactLinkedBooking,
   fullBooking: PropertyBooking | undefined,
-  ar: boolean
+  ar: boolean,
+  userRole?: string
 ): { main: string; sub?: string } {
   const id = linked.id;
   // نستخدم حالة الحجز الكاملة من التخزين الموحد إن وُجدت، وإلا من الربط
@@ -65,16 +67,58 @@ function getBookingStatusDisplay(
   const c = getContractByBooking(id);
 
   if (hasContract && c) {
+    const kind = (c.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const allDocsAndChecksApproved =
       areAllRequiredDocumentsApproved(id) && (getChecksByBooking(id).length === 0 || areAllChecksApproved(id));
     if (c.status === 'APPROVED') {
+      if (kind === 'SALE') return { main: ar ? 'معتمد — عقد بيع نافذ' : 'Approved — Active sale contract' };
+      if (kind === 'INVESTMENT') return { main: ar ? 'معتمد — عقد استثمار نافذ' : 'Approved — Active investment contract' };
       return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
     }
     if (c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED') {
+      // سيناريو الاعتمادات: إدارة (مبدئي) → مشتري/مستأجر → مالك/بائع → إدارة (نهائي)
+      if (kind === 'SALE') {
+        const next =
+          c.status === 'ADMIN_APPROVED'
+            ? ar
+              ? 'بانتظار اعتماد المشتري'
+              : 'Waiting for buyer approval'
+            : c.status === 'TENANT_APPROVED'
+              ? ar
+                ? 'بانتظار اعتماد المالك (البائع)'
+                : 'Waiting for seller approval'
+              : ar
+                ? 'بانتظار الاعتماد النهائي من الإدارة'
+                : 'Waiting for final admin approval';
+        const subs: string[] = [];
+        if (!allDocsAndChecksApproved) subs.push(ar ? 'يرجى إكمال المستندات/الشيكات المطلوبة لاعتمادها' : 'Complete required documents/cheques for approval');
+        if (userRole === 'OWNER' && c.status === 'ADMIN_APPROVED') subs.push(ar ? 'سيظهر زر اعتماد المالك بعد اعتماد المشتري' : 'Seller approval appears after buyer approval');
+        return { main: next, sub: subs.length > 0 ? subs.join(' · ') : undefined };
+      }
+      if (kind === 'INVESTMENT') {
+        const next =
+          c.status === 'ADMIN_APPROVED'
+            ? ar
+              ? 'بانتظار اعتماد المستثمر'
+              : 'Waiting for investor approval'
+            : c.status === 'TENANT_APPROVED'
+              ? ar
+                ? 'بانتظار اعتماد المالك'
+                : 'Waiting for landlord approval'
+              : ar
+                ? 'بانتظار الاعتماد النهائي من الإدارة'
+                : 'Waiting for final admin approval';
+        return { main: next };
+      }
+      // RENT
       return {
         main: allDocsAndChecksApproved
-          ? ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval'
-          : ar ? 'تم اعتماده مبدئياً — يرجى إكمال البيانات ورفع المستندات لاعتمادها' : 'Preliminarily approved — complete data and upload documents for approval',
+          ? ar
+            ? 'في انتظار الاعتماد النهائي للعقد'
+            : 'Awaiting final contract approval'
+          : ar
+            ? 'تم اعتماده مبدئياً — يرجى إكمال البيانات ورفع المستندات لاعتمادها'
+            : 'Preliminarily approved — complete data and upload documents for approval',
       };
     }
     return { main: ar ? 'عقد مسودة — بانتظار رفع المستندات' : 'Draft contract — pending document upload' };
@@ -124,6 +168,7 @@ export default function MyBookingsPage() {
   const user = (effectiveUser
     ? { id: effectiveUser.id, email: effectiveUser.email, phone: effectiveUser.phone }
     : session?.user) as { id?: string; email?: string; phone?: string } | undefined;
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
 
   const [dataVersion, setDataVersion] = useState(0);
@@ -169,7 +214,7 @@ export default function MyBookingsPage() {
               <tbody>
                 {bookings.map((b) => {
                   const full = allBookings.find((x) => x.id === b.id);
-                  const { main, sub } = getBookingStatusDisplay(b, full, ar);
+                  const { main, sub } = getBookingStatusDisplay(b, full, ar, userRole);
                   const effectiveStatus = full?.status ?? b.status;
                   const isSuccess =
                     effectiveStatus === 'CONFIRMED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD';
@@ -177,6 +222,11 @@ export default function MyBookingsPage() {
                     effectiveStatus === 'CONFIRMED' && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
                   const needComplete = needsToCompleteContractData(b, full);
                   const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
+                  const c = getContractByBooking(b.id) as RentalContract | undefined;
+                  const kind = (c?.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
+                  const reviewContractUrl = c?.id ? `/${locale}/admin/contracts/${c.id}` : null;
+                  const showBuyerApprove = !!c && kind === 'SALE' && c.status === 'ADMIN_APPROVED' && userRole !== 'OWNER';
+                  const showSellerApprove = !!c && kind === 'SALE' && c.status === 'TENANT_APPROVED' && userRole === 'OWNER';
                   return (
                     <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
@@ -200,16 +250,25 @@ export default function MyBookingsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {needComplete ? (
-                          <Link
-                            href={contractTermsUrl}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
-                          >
-                            {locale === 'ar' ? 'إكمال البيانات' : 'Complete data'}
-                          </Link>
-                        ) : (
-                          <span className="text-gray-400 text-sm">—</span>
-                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {needComplete && (
+                            <Link
+                              href={contractTermsUrl}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
+                            >
+                              {locale === 'ar' ? 'إكمال البيانات' : 'Complete data'}
+                            </Link>
+                          )}
+                          {(showBuyerApprove || showSellerApprove) && reviewContractUrl && (
+                            <Link
+                              href={reviewContractUrl}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                            >
+                              {showBuyerApprove ? (ar ? 'مراجعة واعتماد (المشتري)' : 'Review & approve (Buyer)') : (ar ? 'اعتماد (المالك)' : 'Approve (Seller)')}
+                            </Link>
+                          )}
+                          {!needComplete && !(showBuyerApprove || showSellerApprove) && <span className="text-gray-400 text-sm">—</span>}
+                        </div>
                       </td>
                     </tr>
                   );
