@@ -137,8 +137,16 @@ export interface RentalContract {
   salePaymentMethod?: string;
   /** عقد البيع: ملاحظة في بند تاريخ البيع ونقل الملكية */
   saleDatesNote?: string;
-  /** عقد البيع: الدفعات (رقم الدفعة، المبلغ، الملاحظة، مرجع المستند) */
-  salePayments?: Array<{ installmentNumber: number; amount: number; note: string; documentRef?: string }>;
+  /** عقد البيع: الدفعات (رقم الدفعة، المبلغ، الملاحظة، مستند) */
+  salePayments?: Array<{
+    installmentNumber: number;
+    amount: number;
+    note: string;
+    /** رابط خارجي للمستند (اختياري) */
+    documentUrl?: string;
+    /** ملف مرفوع (data URL) — مناسب لصور/ملفات صغيرة */
+    documentFile?: { name: string; type: string; dataUrl: string };
+  }>;
   /** عقد البيع: رسوم السمسرة (نسبة من 100) — يُحسب المبلغ من ثمن البيع */
   saleBrokerageFeePercent?: number;
   saleBrokerageFeePayer?: 'seller' | 'buyer';

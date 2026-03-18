@@ -191,7 +191,20 @@ export default function ContractDetailPage() {
         otherFees = [{ description: c.otherFeesDescription, amount: c.otherFeesAmount ?? 0 }];
       }
       const hasOtherFees = c.hasOtherFees || otherFees.length > 0;
-      setForm({ ...c, otherFees: otherFees.length > 0 ? otherFees : undefined, hasOtherFees });
+      const migratedPayments = (c.salePayments ?? []).map((p: any) => {
+        // ترحيل "documentRef" القديم إلى documentUrl
+        if (p && typeof p === 'object' && p.documentRef && !p.documentUrl) {
+          const { documentRef, ...rest } = p;
+          return { ...rest, documentUrl: String(documentRef) };
+        }
+        return p;
+      });
+      setForm({
+        ...c,
+        salePayments: migratedPayments.length > 0 ? migratedPayments : undefined,
+        otherFees: otherFees.length > 0 ? otherFees : undefined,
+        hasOtherFees,
+      });
     }
   }, [id]);
 
@@ -1608,6 +1621,26 @@ export default function ContractDetailPage() {
               const brokerageAmount = (form.saleBrokerageFeePercent ?? 0) * salePrice / 100;
               const housingAmount = (form.saleHousingFeePercent ?? 0) * salePrice / 100;
               const otherFeesList = form.saleOtherFeesList ?? [];
+              const isImageLike = (mimeOrUrl: string) =>
+                /image\//i.test(mimeOrUrl) || /\.(jpe?g|png|gif|webp|bmp)$/i.test(mimeOrUrl) || /data:image\//i.test(mimeOrUrl);
+              const openDoc = (p: (typeof payments)[number]) => {
+                const u = p.documentUrl || p.documentFile?.dataUrl;
+                if (!u) return;
+                if (isImageLike(p.documentFile?.type || u)) setZoomedImageUrl(u);
+                else window.open(u, '_blank');
+              };
+              const setPaymentFile = (idx: number, file: File | null) => {
+                if (!file) {
+                  updatePayment(idx, { documentFile: undefined });
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = String(reader.result || '');
+                  updatePayment(idx, { documentFile: { name: file.name, type: file.type || 'application/octet-stream', dataUrl } });
+                };
+                reader.readAsDataURL(file);
+              };
               const totalOnSeller = (form.saleBrokerageFeePayer === 'seller' ? brokerageAmount : 0) + (form.saleHousingFeePayer === 'seller' ? housingAmount : 0)
                 + otherFeesList.filter((f) => f.payer === 'seller').reduce((s, f) => s + (f.amount ?? 0), 0)
                 + (form.saleMunicipalityFeesPayer === 'seller' ? (form.saleMunicipalityFees ?? 0) : 0)
@@ -1618,6 +1651,21 @@ export default function ContractDetailPage() {
                 + (form.saleMunicipalityFeesPayer === 'buyer' ? (form.saleMunicipalityFees ?? 0) : 0)
                 + (form.saleAdminFeesPayer === 'buyer' ? (form.saleAdminFees ?? 0) : 0)
                 + (form.saleTransferFeesPayer === 'buyer' ? (form.saleTransferFees ?? 0) : 0);
+              const sellerFeeItems: Array<{ label: string; amount: number }> = [];
+              const buyerFeeItems: Array<{ label: string; amount: number }> = [];
+              const pushFee = (payer: 'seller' | 'buyer' | undefined, label: string, amount: number) => {
+                const a = Number.isFinite(amount) ? amount : 0;
+                if (!payer || a <= 0) return;
+                (payer === 'seller' ? sellerFeeItems : buyerFeeItems).push({ label, amount: a });
+              };
+              pushFee(form.saleBrokerageFeePayer, `${ar ? 'رسوم السمسرة' : 'Brokerage fee'} (${(form.saleBrokerageFeePercent ?? 0).toFixed(2)}%)`, brokerageAmount);
+              pushFee(form.saleHousingFeePayer, `${ar ? 'رسوم الإسكان' : 'Housing fee'} (${(form.saleHousingFeePercent ?? 0).toFixed(2)}%)`, housingAmount);
+              pushFee(form.saleMunicipalityFeesPayer, ar ? 'رسوم بلدية' : 'Municipality fees', form.saleMunicipalityFees ?? 0);
+              pushFee(form.saleAdminFeesPayer, ar ? 'رسوم إدارية' : 'Admin fees', form.saleAdminFees ?? 0);
+              pushFee(form.saleTransferFeesPayer, ar ? 'رسوم نقل الملكية' : 'Transfer fees', form.saleTransferFees ?? 0);
+              for (const f of otherFeesList) {
+                pushFee(f.payer, `${ar ? 'رسوم أخرى' : 'Other fee'}: ${f.description || '—'}`, f.amount ?? 0);
+              }
               return (
               <div className="px-6 pb-6 pt-0 border-t border-emerald-200 space-y-6">
                 <div className="pt-4">
@@ -1654,8 +1702,58 @@ export default function ContractDetailPage() {
                             <input type="text" value={p.note || ''} onChange={(e) => updatePayment(idx, { note: e.target.value })} className="admin-input w-full" placeholder={ar ? 'الملاحظة' : 'Note'} readOnly={!isEditable} />
                           </div>
                           <div>
-                            <label className="admin-input-label text-xs">{ar ? 'مرجع المستند' : 'Document ref.'}</label>
-                            <input type="text" value={p.documentRef || ''} onChange={(e) => updatePayment(idx, { documentRef: e.target.value })} className="admin-input w-full" placeholder={ar ? 'رابط أو وصف' : 'Link or description'} readOnly={!isEditable} />
+                            <label className="admin-input-label text-xs">{ar ? 'مستند الدفعة' : 'Payment document'}</label>
+                            <div className="space-y-2">
+                              <input
+                                type="url"
+                                value={p.documentUrl || ''}
+                                onChange={(e) => updatePayment(idx, { documentUrl: e.target.value })}
+                                className="admin-input w-full"
+                                placeholder={ar ? 'رابط المستند (اختياري)' : 'Document URL (optional)'}
+                                readOnly={!isEditable}
+                              />
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="file"
+                                  accept="image/*,application/pdf"
+                                  onChange={(e) => setPaymentFile(idx, e.target.files?.[0] ?? null)}
+                                  className="block w-full text-xs"
+                                  disabled={!isEditable}
+                                />
+                                {isEditable && (p.documentFile || p.documentUrl) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updatePayment(idx, { documentFile: undefined, documentUrl: '' })}
+                                    className="text-xs font-semibold text-red-600 hover:underline whitespace-nowrap"
+                                  >
+                                    {ar ? 'إزالة' : 'Clear'}
+                                  </button>
+                                )}
+                              </div>
+                              {(p.documentFile?.dataUrl || p.documentUrl) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openDoc(p)}
+                                  className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100"
+                                >
+                                  {isImageLike(p.documentFile?.type || p.documentUrl || '') ? (
+                                    <img
+                                      src={p.documentFile?.dataUrl || p.documentUrl}
+                                      alt={p.documentFile?.name || (ar ? 'مستند الدفعة' : 'Payment document')}
+                                      className="w-10 h-10 rounded-md object-cover border border-gray-200"
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-md flex items-center justify-center bg-gray-200 border border-gray-200 text-lg">📄</div>
+                                  )}
+                                  <div className="text-xs text-gray-700 text-right flex-1">
+                                    <div className="font-semibold">{ar ? 'عرض المستند' : 'View document'}</div>
+                                    <div className="text-[11px] text-gray-500 truncate">
+                                      {p.documentFile?.name || p.documentUrl}
+                                    </div>
+                                  </div>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1733,10 +1831,30 @@ export default function ContractDetailPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200">
                       <div className="text-sm text-amber-800 font-medium">{ar ? 'إجمالي على المالك (ر.ع)' : 'Total on seller (OMR)'}</div>
+                      {sellerFeeItems.length > 0 && (
+                        <div className="mt-2 space-y-1 text-xs text-amber-900/90">
+                          {sellerFeeItems.map((it, i) => (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{i + 1}. {it.label}</span>
+                              <span className="font-semibold whitespace-nowrap">{it.amount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="text-xl font-bold text-amber-900">{totalOnSeller.toFixed(2)}</div>
                     </div>
                     <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200">
                       <div className="text-sm text-blue-800 font-medium">{ar ? 'إجمالي على المشتري (ر.ع)' : 'Total on buyer (OMR)'}</div>
+                      {buyerFeeItems.length > 0 && (
+                        <div className="mt-2 space-y-1 text-xs text-blue-900/90">
+                          {buyerFeeItems.map((it, i) => (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{i + 1}. {it.label}</span>
+                              <span className="font-semibold whitespace-nowrap">{it.amount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="text-xl font-bold text-blue-900">{totalOnBuyer.toFixed(2)}</div>
                     </div>
                   </div>
