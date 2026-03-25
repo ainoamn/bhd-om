@@ -119,6 +119,15 @@ function getBookingStatusDisplay(
     const actorAr = kindFromProperty === 'SALE' ? 'المشتري' : kindFromProperty === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
     const actorEn = kindFromProperty === 'SALE' ? 'Buyer' : kindFromProperty === 'INVESTMENT' ? 'Investor' : 'Tenant';
 
+    const hasContractId = !!fullBooking?.contractId;
+    // حل نهائي للمشكلة الحالية: إذا الحجز لديه `contractId` فهذا يعني أن الإدارة أنشأت عقداً ومرحلة الاعتماد أصبحت على العميل الآن،
+    // لذلك لا نعتمد على حالة المستندات المحلية التي قد لا تكون متزامنة بين الأجهزة.
+    if (effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed && hasContractId && !stage) {
+      const main = ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`;
+      const sub = ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed';
+      return { main, sub };
+    }
+
     // إذا كانت مرحلة العقد محفوظة على مستوى الحجز (server/DB) — اعرض السيناريو مباشرة بدون الاعتماد على local contracts أو حالة المستندات المحلية
     if (stage && ['ADMIN_APPROVED', 'TENANT_APPROVED', 'LANDLORD_APPROVED', 'APPROVED'].includes(stage)) {
       const ownerAr = kindFromProperty === 'SALE' ? 'المالك (البائع)' : 'المالك';
@@ -295,7 +304,8 @@ export default function MyBookingsPage() {
                                 const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
                                 const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
                                 const docsApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
-                                if (!docsApproved) return locale === 'ar' ? 'إكمال البيانات' : 'Complete data';
+                                const hasContractId = !!full?.contractId;
+                                if (!docsApproved && !hasContractId) return locale === 'ar' ? 'إكمال البيانات' : 'Complete data';
                                 return locale === 'ar' ? `مراجعة واعتماد (${actorAr})` : `Review & approve (${actorEn})`;
                               })()}
                             </Link>
