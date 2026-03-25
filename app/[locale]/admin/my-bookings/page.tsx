@@ -57,6 +57,7 @@ function getBookingStatusDisplay(
   const id = linked.id;
   // نستخدم حالة الحجز الكاملة من التخزين الموحد إن وُجدت، وإلا من الربط
   const effectiveStatus = fullBooking?.status ?? linked.status;
+  const paymentOrAccountantConfirmed = !!(fullBooking?.paymentConfirmed || fullBooking?.accountantConfirmedAt);
 
   if (effectiveStatus === 'CANCELLED') {
     return { main: ar ? STATUS_LABELS.CANCELLED.ar : STATUS_LABELS.CANCELLED.en };
@@ -75,6 +76,17 @@ function getBookingStatusDisplay(
       if (kind === 'SALE') return { main: ar ? 'معتمد — عقد بيع نافذ' : 'Approved — Active sale contract' };
       if (kind === 'INVESTMENT') return { main: ar ? 'معتمد — عقد استثمار نافذ' : 'Approved — Active investment contract' };
       return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
+    }
+    // تجاوز مشكلة تزامن مستندات localStorage بين الأجهزة:
+    // إذا الدفع مؤكد والحجز CONFIRMED ولم نصل لحالة ADMIN_APPROVED/APPROVED على جهاز العميل بعد،
+    // نعرض خطوة انتظار توقيع العميل بدل "عقد مسودة — بانتظار رفع المستندات".
+    if (c.status === 'DRAFT' && effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed) {
+      const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
+      const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
+      return {
+        main: ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`,
+        sub: ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed',
+      };
     }
     if (c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED') {
       // سيناريو الاعتمادات الموحد: إدارة (مبدئي) → العميل (مستأجر/مشتري/مستثمر) → المالك → إدارة (نهائي)
@@ -123,6 +135,13 @@ function getBookingStatusDisplay(
     // حل نهائي للمشكلة الحالية: إذا لدى الحجز `contractId` فهذا يعني أن الإدارة أنشأت عقداً،
     // وبالتالي مرحلة الاعتماد أصبحت على العميل الآن. لا نعتمد على حالة المستندات المحلية التي قد لا تكون متزامنة بين الأجهزة.
     if (effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed && hasContractId) {
+      const main = ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`;
+      const sub = ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed';
+      return { main, sub };
+    }
+
+    // إذا الدفع مؤكد والحجز مؤكد، نعرض خطوة انتظار توقيع العميل حتى لو المستندات محلياً غير محدثة.
+    if (effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed) {
       const main = ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`;
       const sub = ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed';
       return { main, sub };
@@ -334,8 +353,12 @@ export default function MyBookingsPage() {
                                 const kind = (prop?.type ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
                                 const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
                                 const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
-                                const docsApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
+                                const docsApproved =
+                                  areAllRequiredDocumentsApproved(b.id) &&
+                                  (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
                                 const hasContractId = !!full?.contractId;
+                                const paymentOrAccountantConfirmedRow = !!(full?.paymentConfirmed || full?.accountantConfirmedAt || (b as any).paymentConfirmed || (b as any).accountantConfirmedAt);
+                                if (paymentOrAccountantConfirmedRow) return locale === 'ar' ? `مراجعة واعتماد (${actorAr})` : `Review & approve (${actorEn})`;
                                 if (!docsApproved && !hasContractId) return locale === 'ar' ? 'إكمال البيانات' : 'Complete data';
                                 return locale === 'ar' ? `مراجعة واعتماد (${actorAr})` : `Review & approve (${actorEn})`;
                               })()}
