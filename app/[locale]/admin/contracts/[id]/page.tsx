@@ -307,6 +307,7 @@ export default function ContractDetailPage() {
             propertyId: updatedContract.propertyId,
             email: updatedContract.tenantEmail ?? '',
             phone: updatedContract.tenantPhone ?? '',
+            contractId: updatedContract.id,
             contractStage: stage,
             contractKind: kind,
           } as any;
