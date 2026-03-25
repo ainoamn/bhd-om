@@ -13,6 +13,7 @@ import { getAllBookings, mergeBookingsFromServer, type PropertyBooking } from '@
 import { getContractByBooking, hasContractForUnit } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
+import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import type { ContactLinkedBooking } from '@/lib/data/contactLinks';
 import type { RentalContract } from '@/lib/data/contracts';
 
@@ -111,12 +112,17 @@ function getBookingStatusDisplay(
     const kindFromBooking = (fullBooking?.contractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const paymentOrAccountantConfirmed = !!(fullBooking?.paymentConfirmed || fullBooking?.accountantConfirmedAt);
 
+    const dataOverrides = getPropertyDataOverrides();
+    const prop = getPropertyById(linked.propertyId, dataOverrides) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null;
+    const kindFromProperty = (prop?.type ?? kindFromBooking) as 'RENT' | 'SALE' | 'INVESTMENT';
+    const docsApproved = areAllRequiredDocumentsApproved(id) && (getChecksByBooking(id).length === 0 || areAllChecksApproved(id));
+    const actorAr = kindFromProperty === 'SALE' ? 'المشتري' : kindFromProperty === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
+    const actorEn = kindFromProperty === 'SALE' ? 'Buyer' : kindFromProperty === 'INVESTMENT' ? 'Investor' : 'Tenant';
+
     // إذا كانت مرحلة العقد محفوظة على مستوى الحجز (server/DB) — اعرض السيناريو مباشرة بدون الاعتماد على local contracts أو حالة المستندات المحلية
     if (stage && ['ADMIN_APPROVED', 'TENANT_APPROVED', 'LANDLORD_APPROVED', 'APPROVED'].includes(stage)) {
-      const actorAr = kindFromBooking === 'SALE' ? 'المشتري' : kindFromBooking === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
-      const actorEn = kindFromBooking === 'SALE' ? 'Buyer' : kindFromBooking === 'INVESTMENT' ? 'Investor' : 'Tenant';
-      const ownerAr = kindFromBooking === 'SALE' ? 'المالك (البائع)' : 'المالك';
-      const ownerEn = kindFromBooking === 'SALE' ? 'Seller' : 'Landlord';
+      const ownerAr = kindFromProperty === 'SALE' ? 'المالك (البائع)' : 'المالك';
+      const ownerEn = kindFromProperty === 'SALE' ? 'Seller' : 'Landlord';
 
       const main =
         stage === 'ADMIN_APPROVED'
@@ -150,9 +156,13 @@ function getBookingStatusDisplay(
 
     const main =
       effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed
-        ? ar
-          ? 'عقد مسودة — بانتظار رفع المستندات'
-          : 'Draft contract — pending document upload'
+        ? docsApproved
+          ? ar
+            ? `بانتظار اعتماد ${actorAr}`
+            : `Waiting for ${actorEn} approval`
+          : ar
+            ? 'عقد مسودة — بانتظار رفع المستندات'
+            : 'Draft contract — pending document upload'
         : ar
           ? STATUS_LABELS[effectiveStatus]?.ar ?? effectiveStatus
           : STATUS_LABELS[effectiveStatus]?.en ?? effectiveStatus;
@@ -165,7 +175,7 @@ function getBookingStatusDisplay(
     if (effectiveStatus === 'CONFIRMED' && hasDocumentsNeedingConfirmation(id)) {
       subs.push(ar ? '📋 مطلوب اعتماد المستندات' : '📋 Documents need approval');
     }
-    if (needsToCompleteContractData(linked, fullBooking)) {
+    if (!docsApproved && needsToCompleteContractData(linked, fullBooking)) {
       subs.push(ar ? 'بحاجة إلى إكمال بيانات العقد والمستندات' : 'Need to complete contract data and documents');
     }
     return { main, sub: subs.length > 0 ? subs.join(' · ') : undefined };
@@ -278,7 +288,16 @@ export default function MyBookingsPage() {
                               href={contractTermsUrl}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
                             >
-                              {locale === 'ar' ? 'إكمال البيانات' : 'Complete data'}
+                              {(() => {
+                                const dataOverrides = getPropertyDataOverrides();
+                                const prop = getPropertyById(b.propertyId, dataOverrides) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null;
+                                const kind = (prop?.type ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
+                                const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
+                                const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
+                                const docsApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
+                                if (!docsApproved) return locale === 'ar' ? 'إكمال البيانات' : 'Complete data';
+                                return locale === 'ar' ? `مراجعة واعتماد (${actorAr})` : `Review & approve (${actorEn})`;
+                              })()}
                             </Link>
                           )}
                           {(showClientApprove || showOwnerApprove) && reviewContractUrl && (
