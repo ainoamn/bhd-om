@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
@@ -170,6 +170,7 @@ export default function ContractDetailPage() {
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'edit' | 'final' | 'cancel' | 'tenant' | 'landlord' | null>(null);
   const [approvingAdmin, setApprovingAdmin] = useState(false);
+  const lastSyncedBookingStageKeyRef = useRef<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     landlord: false, tenant: true, property: false, financial: true, dates: true,
     municipality: true, customRents: true, cheques: true, documents: true,
@@ -276,6 +277,7 @@ export default function ContractDetailPage() {
 
     const kind = (updatedContract.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const stage = updatedContract.status as 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
+    const syncKey = `${updatedContract.id}|${updatedContract.bookingId}|${stage}|${kind}`;
 
     // تحديث localStorage للحجز فوراً (إن كان موجوداً)
     let updatedBooking =
@@ -325,18 +327,28 @@ export default function ContractDetailPage() {
 
     if (!updatedBooking) return;
 
+    // منع التكرار غير الضروري
+    if (lastSyncedBookingStageKeyRef.current === syncKey) return;
+    lastSyncedBookingStageKeyRef.current = syncKey;
+
     // مزامنة مع الخادم كي يظهر نفس السيناريو على أجهزة العملاء المختلفة
     try {
       await fetch('/api/bookings', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedBooking),
+        body: JSON.stringify({ ...updatedBooking, contractId: updatedContract.id, contractStage: stage, contractKind: kind }),
       });
     } catch {
       // لا نوقف التدفق إذا فشلت المزامنة
     }
   }, []);
+
+  // ضماناً: أي تغيير بحالة العقد يتم مزامنته على الخادم (بدون الاعتماد على return value للدوال)
+  useEffect(() => {
+    if (!contract?.bookingId) return;
+    syncContractStageToBookingAndServer(contract).catch(() => {});
+  }, [contract?.id, contract?.bookingId, contract?.status, syncContractStageToBookingAndServer]);
 
   useEffect(() => {
     const c = getContractById(id);
