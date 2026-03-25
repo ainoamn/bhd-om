@@ -39,7 +39,10 @@ export async function GET(req: NextRequest) {
     });
     let bookings = rows.map((r) => {
       try {
-        return JSON.parse(r.data) as { propertyId?: number | string; email?: string; phone?: string; [k: string]: unknown };
+        const parsed = JSON.parse(r.data) as { propertyId?: number | string; email?: string; phone?: string; id?: string; [k: string]: unknown };
+        // بعض السجلات القديمة/غير المكتملة قد لا تحتوي `id` داخل JSON؛ نستخدم `bookingId` من الـ DB كبديل
+        if (!parsed.id && r.bookingId) (parsed as { id?: string }).id = r.bookingId;
+        return parsed;
       } catch {
         return null;
       }
