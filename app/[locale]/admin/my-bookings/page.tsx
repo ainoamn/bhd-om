@@ -242,7 +242,7 @@ export default function MyBookingsPage() {
           // شكل شبيه بـ ContactLinkedBooking ليعمل مع getBookingStatusDisplay
           id: b.id,
           bookingId: b.id,
-          date: b.createdAt || b.date || '',
+          date: b.createdAt || '',
           propertyId: Number(b.propertyId),
           propertyTitleAr: b.propertyTitleAr,
           propertyTitleEn: b.propertyTitleEn,
