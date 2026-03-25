@@ -1648,7 +1648,13 @@ export default function ContractTermsPage() {
                 })()}
                 {!booking || !isCompanyContact(getContactForBooking(booking)!) ? (
                 <p className="text-white text-sm mb-6">
-                  {ar ? 'يرجى تعبئة جميع الحقول المميزة بـ * قبل المتابعة إلى رفع المستندات وتوثيق عقد الإيجار.' : 'Please fill in all fields marked with * before proceeding to upload documents and finalize the rental contract.'}
+                  {ar
+                    ? `يرجى تعبئة جميع الحقول المميزة بـ * قبل المتابعة إلى رفع المستندات وتوثيق عقد ${
+                      contractType === 'SALE' ? 'البيع' : contractType === 'INVESTMENT' ? 'الاستثمار' : 'الإيجار'
+                    }.`
+                    : `Please fill in all fields marked with * before proceeding to upload documents and finalize the ${
+                      contractType === 'SALE' ? 'sale contract' : contractType === 'INVESTMENT' ? 'investment contract' : 'rental contract'
+                    }.`}
                 </p>
                 ) : null}
                 {/* ملخص بيانات العقد: العقار، التواريخ، المالية - من العقد أو من الحجز والعقار */}
