@@ -402,7 +402,10 @@ export function mergeBookingsFromServer(serverBookings: PropertyBooking[]): void
   const current = getStoredBookings();
   const byId = new Map(current.map((b) => [b.id, b]));
   for (const b of serverBookings) {
-    if (b?.id) byId.set(b.id, b);
+    if (!b?.id) continue;
+    const existing = byId.get(b.id);
+    // Overlay: دمج بيانات السيرفر فوق المحلية بدل الاستبدال الكامل
+    byId.set(b.id, existing ? { ...existing, ...b, id: existing.id } : b);
   }
   saveBookings(Array.from(byId.values()));
 }

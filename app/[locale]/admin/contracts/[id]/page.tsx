@@ -299,6 +299,19 @@ export default function ContractDetailPage() {
           // ندمجه محلياً حتى تتحدّث صفحات الإدارة بدون refresh
           mergeBookingsFromServer([merged]);
           updatedBooking = merged;
+        } else {
+          // fallback: إنشاء حجز حدّي لضمان إرسال contractStage/contractKind إلى DB
+          const fallback = {
+            id: updatedContract.bookingId,
+            bookingId: updatedContract.bookingId,
+            propertyId: updatedContract.propertyId,
+            email: updatedContract.tenantEmail ?? '',
+            phone: updatedContract.tenantPhone ?? '',
+            contractStage: stage,
+            contractKind: kind,
+          } as any;
+          mergeBookingsFromServer([fallback]);
+          updatedBooking = fallback;
         }
       } catch {
         // تجاهل
