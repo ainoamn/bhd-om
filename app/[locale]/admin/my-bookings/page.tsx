@@ -230,34 +230,39 @@ export default function MyBookingsPage() {
   const allBookings = typeof window !== 'undefined' ? (serverBookings.length > 0 ? serverBookings : getAllBookings()) : [];
 
   const normEmail = (e: string) => (e || '').trim().toLowerCase();
-  const serverBookingsForContact =
+  const serverBookingsForContact: ContactLinkedBooking[] =
     contact && serverBookings.length > 0
-      ? serverBookings.filter((b) => {
-          const matchEmail = (contact.email || '').trim().length >= 3 && normEmail(String(b.email || '')) === normEmail(contact.email || '');
-          const cPhone = normalizePhoneForComparison(contact.phone || '');
-          const bPhone = normalizePhoneForComparison(String(b.phone || ''));
-          const matchPhone = cPhone.length >= 6 && bPhone.length >= 6 && cPhone === bPhone;
-          return matchEmail || matchPhone;
-        }).map((b) => ({
-          // شكل شبيه بـ ContactLinkedBooking ليعمل مع getBookingStatusDisplay
-          id: b.id,
-          bookingId: b.id,
-          date: b.createdAt || '',
-          propertyId: Number(b.propertyId),
-          propertyTitleAr: b.propertyTitleAr,
-          propertyTitleEn: b.propertyTitleEn,
-          unitKey: b.unitKey,
-          unitDisplay: (b as any).unitDisplay,
-          status: b.status,
-          contractId: b.contractId,
-          hasFinancialClaims: false,
-          cardLast4: b.cardLast4,
-          cardExpiry: b.cardExpiry,
-          cardholderName: b.cardholderName,
-        })) as any
+      ? serverBookings
+          .filter((b) => {
+            const matchEmail =
+              (contact.email || '').trim().length >= 3 && normEmail(String(b.email || '')) === normEmail(contact.email || '');
+            const cPhone = normalizePhoneForComparison(contact.phone || '');
+            const bPhone = normalizePhoneForComparison(String(b.phone || ''));
+            const matchPhone = cPhone.length >= 6 && bPhone.length >= 6 && cPhone === bPhone;
+            return matchEmail || matchPhone;
+          })
+          .map((b) => {
+            // شكل شبيه بـ ContactLinkedBooking ليعمل مع getBookingStatusDisplay
+            return {
+              id: String(b.id),
+              bookingId: String(b.id),
+              date: String(b.createdAt || ''),
+              propertyId: Number(b.propertyId),
+              propertyTitleAr: String((b as any).propertyTitleAr || ''),
+              propertyTitleEn: String((b as any).propertyTitleEn || ''),
+              unitKey: (b as any).unitKey ? String((b as any).unitKey) : undefined,
+              unitDisplay: (b as any).unitDisplay ? String((b as any).unitDisplay) : undefined,
+              status: b.status,
+              contractId: b.contractId ? String(b.contractId) : undefined,
+              hasFinancialClaims: false,
+              cardLast4: b.cardLast4,
+              cardExpiry: b.cardExpiry,
+              cardholderName: b.cardholderName,
+            } satisfies ContactLinkedBooking;
+          })
       : [];
 
-  const bookings = serverBookingsForContact.length > 0 ? serverBookingsForContact : localBookings;
+  const bookings: ContactLinkedBooking[] = serverBookingsForContact.length > 0 ? serverBookingsForContact : localBookings;
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
 
