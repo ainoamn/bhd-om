@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getContactForUser } from '@/lib/data/addressBook';
+import { getContactForUser, normalizePhoneForComparison } from '@/lib/data/addressBook';
 import { getContactLinkedBookings } from '@/lib/data/contactLinks';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { getAllBookings, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
@@ -226,8 +226,38 @@ export default function MyBookingsPage() {
       .catch(() => {});
   }, []);
 
-  const bookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
+  const localBookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
   const allBookings = typeof window !== 'undefined' ? (serverBookings.length > 0 ? serverBookings : getAllBookings()) : [];
+
+  const normEmail = (e: string) => (e || '').trim().toLowerCase();
+  const serverBookingsForContact =
+    contact && serverBookings.length > 0
+      ? serverBookings.filter((b) => {
+          const matchEmail = (contact.email || '').trim().length >= 3 && normEmail(String(b.email || '')) === normEmail(contact.email || '');
+          const cPhone = normalizePhoneForComparison(contact.phone || '');
+          const bPhone = normalizePhoneForComparison(String(b.phone || ''));
+          const matchPhone = cPhone.length >= 6 && bPhone.length >= 6 && cPhone === bPhone;
+          return matchEmail || matchPhone;
+        }).map((b) => ({
+          // شكل شبيه بـ ContactLinkedBooking ليعمل مع getBookingStatusDisplay
+          id: b.id,
+          bookingId: b.id,
+          date: b.createdAt || b.date || '',
+          propertyId: Number(b.propertyId),
+          propertyTitleAr: b.propertyTitleAr,
+          propertyTitleEn: b.propertyTitleEn,
+          unitKey: b.unitKey,
+          unitDisplay: (b as any).unitDisplay,
+          status: b.status,
+          contractId: b.contractId,
+          hasFinancialClaims: false,
+          cardLast4: b.cardLast4,
+          cardExpiry: b.cardExpiry,
+          cardholderName: b.cardholderName,
+        })) as any
+      : [];
+
+  const bookings = serverBookingsForContact.length > 0 ? serverBookingsForContact : localBookings;
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
 
