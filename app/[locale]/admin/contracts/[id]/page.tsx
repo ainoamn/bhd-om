@@ -280,6 +280,9 @@ export default function ContractDetailPage() {
     // تحديث localStorage للحجز فوراً (إن كان موجوداً)
     let updatedBooking =
       updateBooking(updatedContract.bookingId, {
+        // إضافة contractId ضروري حتى يستطيع العميل استنتاج أن الاعتماد صار على العميل
+        // (ولا يبقى في وضع "عقد مسودة — بانتظار رفع المستندات").
+        contractId: updatedContract.id,
         contractStage: stage,
         contractKind: kind,
       }) || null;
@@ -293,6 +296,7 @@ export default function ContractDetailPage() {
         if (serverBooking) {
           const merged = {
             ...serverBooking,
+            contractId: updatedContract.id,
             contractStage: stage,
             contractKind: kind,
           };
