@@ -31,7 +31,7 @@ import {
 } from '@/lib/contractCalculations';
 import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, getAllContacts, isOmaniNationality, isCompanyContact, updateContact, type Contact } from '@/lib/data/addressBook';
 import ContactFormModal from '@/components/admin/ContactFormModal';
-import { getAllBookings, updateBooking } from '@/lib/data/bookings';
+import { getAllBookings, mergeBookingsFromServer, updateBooking } from '@/lib/data/bookings';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import { getChecksByContract, saveContractChecks } from '@/lib/data/contractChecks';
@@ -277,11 +277,32 @@ export default function ContractDetailPage() {
     const kind = (updatedContract.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const stage = updatedContract.status as 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
 
-    // تحديث localStorage للحجز فوراً
-    const updatedBooking = updateBooking(updatedContract.bookingId, {
-      contractStage: stage,
-      contractKind: kind,
-    });
+    // تحديث localStorage للحجز فوراً (إن كان موجوداً)
+    let updatedBooking =
+      updateBooking(updatedContract.bookingId, {
+        contractStage: stage,
+        contractKind: kind,
+      }) || null;
+
+    // إذا لم يكن الحجز موجوداً محلياً (شائع عند فتح صفحة العقد مباشرة)، اجلبه من الخادم ثم حدّثه
+    if (!updatedBooking) {
+      try {
+        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const list = res.ok ? await res.json() : [];
+        const serverBooking = Array.isArray(list) ? list.find((b) => b?.id === updatedContract.bookingId) : null;
+        if (serverBooking) {
+          updatedBooking = {
+            ...serverBooking,
+            contractStage: stage,
+            contractKind: kind,
+          };
+          // ندمجه محلياً حتى تتحدّث صفحات الإدارة بدون refresh
+          mergeBookingsFromServer([updatedBooking]);
+        }
+      } catch {
+        // تجاهل
+      }
+    }
 
     if (!updatedBooking) return;
 
