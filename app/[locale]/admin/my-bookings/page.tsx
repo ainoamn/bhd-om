@@ -229,20 +229,13 @@ export default function MyBookingsPage() {
   const localBookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
   const allBookings = typeof window !== 'undefined' ? (serverBookings.length > 0 ? serverBookings : getAllBookings()) : [];
 
-  const normEmail = (e: string) => (e || '').trim().toLowerCase();
+  // ربط serverBookings بالحجوزات المحلية عبر bookingId فقط لتفادي اختلاف البريد/الهاتف بين الأجهزة
+  const localBookingIdSet = new Set(localBookings.map((b) => b.id));
   const serverBookingsForContact: ContactLinkedBooking[] =
     contact && serverBookings.length > 0
       ? serverBookings
-          .filter((b) => {
-            const matchEmail =
-              (contact.email || '').trim().length >= 3 && normEmail(String(b.email || '')) === normEmail(contact.email || '');
-            const cPhone = normalizePhoneForComparison(contact.phone || '');
-            const bPhone = normalizePhoneForComparison(String(b.phone || ''));
-            const matchPhone = cPhone.length >= 6 && bPhone.length >= 6 && cPhone === bPhone;
-            return matchEmail || matchPhone;
-          })
+          .filter((b) => localBookingIdSet.has(String(b.id)))
           .map((b) => {
-            // شكل شبيه بـ ContactLinkedBooking ليعمل مع getBookingStatusDisplay
             return {
               id: String(b.id),
               bookingId: String(b.id),
