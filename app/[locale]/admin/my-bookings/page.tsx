@@ -212,11 +212,13 @@ export default function MyBookingsPage() {
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
 
   const [dataVersion, setDataVersion] = useState(0);
+  const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
   useEffect(() => {
     fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: PropertyBooking[]) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
+          setServerBookings(data);
           mergeBookingsFromServer(data);
           setDataVersion((v) => v + 1);
         }
@@ -225,7 +227,7 @@ export default function MyBookingsPage() {
   }, []);
 
   const bookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
-  const allBookings = typeof window !== 'undefined' ? getAllBookings() : [];
+  const allBookings = typeof window !== 'undefined' ? (serverBookings.length > 0 ? serverBookings : getAllBookings()) : [];
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
 
