@@ -212,7 +212,10 @@ export default function ContractTermsPage() {
 
   const dataOverrides = getPropertyDataOverrides();
   const property = getPropertyById(id, dataOverrides);
-  const contractType: ContractType = (property as { type?: ContractType })?.type ?? 'RENT';
+  // نُفضّل نوع العقد القادم من الحجز (contractKind) لأن بعض الحالات تكون فيها property.type غير متطابقة
+  // عبر الأجهزة المختلفة؛ contractKind يتم مزامنته من صفحة العقود.
+  const contractTypeFromBooking = booking?.contractKind as ContractType | undefined;
+  const contractType: ContractType = contractTypeFromBooking ?? (property as { type?: ContractType })?.type ?? 'RENT';
   const contractTypeTerms = getContractTypeTerms(id, contractType);
   const currentContact = booking ? getContactForBooking(booking) : null;
   const isOmani = (currentContact && !isCompanyContact(currentContact) && isOmaniNationality(currentContact.nationality || '')) || (profileForm.nationality && isOmaniNationality(profileForm.nationality));
@@ -735,7 +738,7 @@ export default function ContractTermsPage() {
     const draft = loadDraft<{ profileForm?: Record<string, unknown>; companyRepsForm?: unknown[] }>(`contract_terms_${match.id}`);
     const propId = match.propertyId;
     const prop = getPropertyById(propId, dataOverrides);
-    const matchContractType: ContractType = (prop as { type?: ContractType })?.type ?? 'RENT';
+    const matchContractType: ContractType = (match.contractKind as ContractType | undefined) ?? (prop as { type?: ContractType })?.type ?? 'RENT';
     const contact = getContactForBooking(match);
     let reqTypes = getRequiredDocTypesForBooking(propId, matchContractType, contact ?? null, (list, c) => filterDocTypesByNationality(list, c as { nationality?: string } | null));
     let docList = getDocumentsByBooking(match.id);
@@ -904,7 +907,7 @@ export default function ContractTermsPage() {
       const updatedContact = getContactForBooking(booking);
       const propId = parseInt(id, 10);
       const property = getPropertyById(id, dataOverrides);
-      const cType: ContractType = (property as { type?: ContractType })?.type ?? 'RENT';
+      const cType: ContractType = (booking?.contractKind as ContractType | undefined) ?? (property as { type?: ContractType })?.type ?? 'RENT';
       const reqTypes = getRequiredDocTypesForBooking(id, cType, updatedContact ?? null, (list, c) => filterDocTypesByNationality(list, c as { nationality?: string } | null));
       if (reqTypes.length > 0) {
         addMissingDocumentRequests(bookingId, propId, reqTypes.map((r) => ({
@@ -1285,7 +1288,8 @@ export default function ContractTermsPage() {
       const allBookings = getAllBookings();
       const b = allBookings.find((x) => x.id === bookingId);
     const contact = b ? getContactForBooking(b) : null;
-    let reqTypes = getRequiredDocTypesForBooking(id, contractType, contact ?? null, (list, c) => filterDocTypesByNationality(list, c as { nationality?: string } | null));
+    const resolvedContractType: ContractType = (b?.contractKind as ContractType | undefined) ?? contractType;
+    let reqTypes = getRequiredDocTypesForBooking(id, resolvedContractType, contact ?? null, (list, c) => filterDocTypesByNationality(list, c as { nationality?: string } | null));
     const storedChecks = getChecksByBooking(bookingId);
     const chequeOwner = (storedChecks[0]?.ownerType as 'tenant' | 'other_individual' | 'company') || 'tenant';
     const extraFromChequeOwner = getChequeOwnerExtraDocRequirements(chequeOwner);
@@ -1450,7 +1454,7 @@ export default function ContractTermsPage() {
                     const displayTitle = unitLabel
                       ? (ar ? `${b.propertyTitleAr} - ${unitLabel}` : `${b.propertyTitleEn} - ${unitLabel}`)
                       : (ar ? b.propertyTitleAr : b.propertyTitleEn);
-                    const bContractType: ContractType = (prop as { type?: ContractType })?.type ?? 'RENT';
+                    const bContractType: ContractType = (b.contractKind as ContractType | undefined) ?? (prop as { type?: ContractType })?.type ?? 'RENT';
                     const status = getContractStatusForBooking(b.id, b.propertyId, bContractType, getContactForBooking(b));
                     const statusInfo = CONTRACT_STATUS[status];
                     return (
