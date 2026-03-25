@@ -107,7 +107,47 @@ function getBookingStatusDisplay(
 
   // لا يوجد عقد في localStorage (العقد قد يكون أنشأه الأدمن على جهاز آخر) — للحجز المؤكد والدفع مؤكد نعرض «عقد مسودة - بانتظار رفع المستندات» وزر إكمال البيانات
   if (!c && (effectiveStatus === 'CONFIRMED' || effectiveStatus === 'PENDING')) {
+    const stage = fullBooking?.contractStage;
+    const kindFromBooking = (fullBooking?.contractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const paymentOrAccountantConfirmed = !!(fullBooking?.paymentConfirmed || fullBooking?.accountantConfirmedAt);
+
+    // إذا كانت مرحلة العقد محفوظة على مستوى الحجز (server/DB) — اعرض السيناريو مباشرة بدون الاعتماد على local contracts أو حالة المستندات المحلية
+    if (stage && ['ADMIN_APPROVED', 'TENANT_APPROVED', 'LANDLORD_APPROVED', 'APPROVED'].includes(stage)) {
+      const actorAr = kindFromBooking === 'SALE' ? 'المشتري' : kindFromBooking === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
+      const actorEn = kindFromBooking === 'SALE' ? 'Buyer' : kindFromBooking === 'INVESTMENT' ? 'Investor' : 'Tenant';
+      const ownerAr = kindFromBooking === 'SALE' ? 'المالك (البائع)' : 'المالك';
+      const ownerEn = kindFromBooking === 'SALE' ? 'Seller' : 'Landlord';
+
+      const main =
+        stage === 'ADMIN_APPROVED'
+          ? ar
+            ? `بانتظار اعتماد ${actorAr}`
+            : `Waiting for ${actorEn} approval`
+          : stage === 'TENANT_APPROVED'
+            ? ar
+              ? `بانتظار اعتماد ${ownerAr}`
+              : `Waiting for ${ownerEn} approval`
+            : stage === 'LANDLORD_APPROVED'
+              ? ar
+                ? 'بانتظار الاعتماد النهائي من الإدارة'
+                : 'Waiting for final admin approval'
+              : ar
+                ? kindFromBooking === 'SALE'
+                  ? 'معتمد — عقد بيع نافذ'
+                  : kindFromBooking === 'INVESTMENT'
+                    ? 'معتمد — عقد استثمار نافذ'
+                    : 'مؤجر (عقد نافذ)'
+                : kindFromBooking === 'SALE'
+                  ? 'Approved — Active sale contract'
+                  : kindFromBooking === 'INVESTMENT'
+                    ? 'Approved — Active investment contract'
+                    : 'Rented (Active contract)';
+
+      const subs: string[] = [];
+      if (paymentOrAccountantConfirmed) subs.push(ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed');
+      return { main, sub: subs.length ? subs.join(' · ') : undefined };
+    }
+
     const main =
       effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed
         ? ar
@@ -197,11 +237,12 @@ export default function MyBookingsPage() {
                   const full = allBookings.find((x) => x.id === b.id);
                   const { main, sub } = getBookingStatusDisplay(b, full, ar, userRole);
                   const effectiveStatus = full?.status ?? b.status;
+                  const bookingStage = full?.contractStage;
                   const isSuccess =
                     effectiveStatus === 'CONFIRMED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD';
                   const isWarning =
-                    effectiveStatus === 'CONFIRMED' && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
-                  const needComplete = needsToCompleteContractData(b, full);
+                    effectiveStatus === 'CONFIRMED' && !bookingStage && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
+                  const needComplete = bookingStage ? false : needsToCompleteContractData(b, full);
                   const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
                   const c = getContractByBooking(b.id) as RentalContract | undefined;
                   const kind = (c?.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';

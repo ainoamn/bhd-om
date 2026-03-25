@@ -270,6 +270,33 @@ export default function ContractDetailPage() {
     loadContract();
   }, [id, locale, loadContract]);
 
+  const syncContractStageToBookingAndServer = useCallback(async (updatedContract: RentalContract) => {
+    if (!updatedContract.bookingId) return;
+    if (typeof window === 'undefined') return;
+
+    const kind = (updatedContract.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
+    const stage = updatedContract.status as 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
+
+    // تحديث localStorage للحجز فوراً
+    const updatedBooking = updateBooking(updatedContract.bookingId, {
+      contractStage: stage,
+      contractKind: kind,
+    });
+
+    if (!updatedBooking) return;
+
+    // مزامنة مع الخادم كي يظهر نفس السيناريو على أجهزة العملاء المختلفة
+    try {
+      await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedBooking),
+      });
+    } catch {
+      // لا نوقف التدفق إذا فشلت المزامنة
+    }
+  }, []);
+
   useEffect(() => {
     const c = getContractById(id);
     setContract(c ?? null);
@@ -909,7 +936,8 @@ export default function ContractDetailPage() {
           }
         }
 
-        approveContractByAdmin(id);
+        const updated = approveContractByAdmin(id);
+        if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
 
         // إرسال الرسائل يمكن أن يكون ثقيلاً — نفصله أيضاً
         if (c.bookingId && typeof window !== 'undefined') {
@@ -930,12 +958,14 @@ export default function ContractDetailPage() {
   };
 
   const handleApproveTenant = () => {
-    approveContractByTenant(id);
+    const updated = approveContractByTenant(id);
+    if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
     loadContract();
   };
 
   const handleApproveLandlord = () => {
-    approveContractByLandlord(id);
+    const updated = approveContractByLandlord(id);
+    if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
     loadContract();
   };
 
@@ -3371,12 +3401,25 @@ export default function ContractDetailPage() {
                   if (!areAllRequiredDocumentsApproved(contract!.bookingId)) { alert(ar ? 'يجب اعتماد جميع المستندات أولاً' : 'Approve all documents first'); return; }
                   const bChecks = getChecksByBooking(contract!.bookingId);
                   if (bChecks.length > 0 && !areAllChecksApproved(contract!.bookingId)) { alert(ar ? 'يجب اعتماد جميع الشيكات أولاً' : 'Approve all cheques first'); return; }
-                  approveContractByAdminFinal(id);
+                  const updated = approveContractByAdminFinal(id);
+                  if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
                   loadContract();
                 }
-                else if (action === 'cancel') { cancelContract(id); loadContract(); }
-                else if (action === 'tenant') { approveContractByTenant(id); loadContract(); }
-                else if (action === 'landlord') { approveContractByLandlord(id); loadContract(); }
+                else if (action === 'cancel') {
+                  const updated = cancelContract(id);
+                  if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
+                  loadContract();
+                }
+                else if (action === 'tenant') {
+                  const updated = approveContractByTenant(id);
+                  if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
+                  loadContract();
+                }
+                else if (action === 'landlord') {
+                  const updated = approveContractByLandlord(id);
+                  if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
+                  loadContract();
+                }
               }}
               className={`px-5 py-2.5 rounded-xl font-semibold text-white ${
                 confirmAction === 'cancel' ? 'bg-red-600 hover:bg-red-700' :

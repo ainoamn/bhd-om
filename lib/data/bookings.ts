@@ -69,6 +69,10 @@ export interface PropertyBooking {
   cardExpiry?: string;
   /** اسم صاحب البطاقة */
   cardholderName?: string;
+  /** حالة عقد العقد (للإظهار عبر الأجهزة عند عدم وجود العقد في localStorage). */
+  contractStage?: 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
+  /** نوع العقد: إيجار/بيع/استثمار */
+  contractKind?: 'RENT' | 'SALE' | 'INVESTMENT';
   /** ملاحظة المحاسب عند إتمام إلغاء الحجز (استرداد/خصم) */
   cancellationNote?: string;
   /** تاريخ إتمام عملية الإلغاء من المحاسب */
