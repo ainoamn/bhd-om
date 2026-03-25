@@ -120,9 +120,9 @@ function getBookingStatusDisplay(
     const actorEn = kindFromProperty === 'SALE' ? 'Buyer' : kindFromProperty === 'INVESTMENT' ? 'Investor' : 'Tenant';
 
     const hasContractId = !!fullBooking?.contractId;
-    // حل نهائي للمشكلة الحالية: إذا الحجز لديه `contractId` فهذا يعني أن الإدارة أنشأت عقداً ومرحلة الاعتماد أصبحت على العميل الآن،
-    // لذلك لا نعتمد على حالة المستندات المحلية التي قد لا تكون متزامنة بين الأجهزة.
-    if (effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed && hasContractId && !stage) {
+    // حل نهائي للمشكلة الحالية: إذا لدى الحجز `contractId` فهذا يعني أن الإدارة أنشأت عقداً،
+    // وبالتالي مرحلة الاعتماد أصبحت على العميل الآن. لا نعتمد على حالة المستندات المحلية التي قد لا تكون متزامنة بين الأجهزة.
+    if (effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed && hasContractId) {
       const main = ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`;
       const sub = ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed';
       return { main, sub };
@@ -261,7 +261,8 @@ export default function MyBookingsPage() {
                     effectiveStatus === 'CONFIRMED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD';
                   const isWarning =
                     effectiveStatus === 'CONFIRMED' && !bookingStage && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
-                  const needComplete = bookingStage ? false : needsToCompleteContractData(b, full);
+                  const hasContractId = !!full?.contractId;
+                  const needComplete = bookingStage || hasContractId ? false : needsToCompleteContractData(b, full);
                   const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
                   const c = getContractByBooking(b.id) as RentalContract | undefined;
                   const kind = (c?.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
