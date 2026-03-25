@@ -24,7 +24,7 @@ import {
   type BookingDocument,
 } from '@/lib/data/bookingDocuments';
 import { updateBooking, getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
-import { getContractByBooking } from '@/lib/data/contracts';
+import { getContractByBooking, type RentalContract } from '@/lib/data/contracts';
 import { getBankAccountById } from '@/lib/data/bankAccounts';
 import { findContactByPhoneOrEmail, updateContact, ensureContactFromBooking, isOmaniNationality, isCompanyContact, getContactDisplayName, getContactLocalizedField, getRepDisplayName } from '@/lib/data/addressBook';
 import { getAllNationalityValues } from '@/lib/data/nationalities';
@@ -244,7 +244,8 @@ export default function ContractTermsPage() {
     ? (contractTypeTerms.requiredChecksForCompanies ?? [])
     : (contractTypeTerms.requiredChecksForIndividuals ?? contractTypeTerms.requiredChecks ?? []);
 
-  const contract = bookingId ? getContractByBooking(bookingId) : undefined;
+  const contractFromBooking = booking?.contractData as Partial<RentalContract> | undefined;
+  const contract = contractFromBooking ? (contractFromBooking as RentalContract) : (bookingId ? getContractByBooking(bookingId) : undefined);
   const bookingChecksList = bookingId ? getChecksByBooking(bookingId) : [];
   /** شيكات مزامنة من العقد لها أولوية؛ وإلا نستخدم شيكات شروط العقار */
   const effectiveRequiredChecks = bookingChecksList.length > 0
@@ -1219,18 +1220,61 @@ export default function ContractTermsPage() {
 
   useEffect(() => {
     if (bookingIdParam) {
-      const bookings = getBookingsByProperty(parseInt(id, 10));
-      const match = bookings.find(
-        (b) => b.id === bookingIdParam && b.type === 'BOOKING' && (b.status === 'PENDING' || b.status === 'CONFIRMED' || b.status === 'RENTED') && b.propertyId === parseInt(id, 10)
+      const propId = parseInt(id, 10);
+      const bookings = getBookingsByProperty(propId);
+      const localMatch = bookings.find(
+        (b) =>
+          b.id === bookingIdParam &&
+          b.type === 'BOOKING' &&
+          (b.status === 'PENDING' || b.status === 'CONFIRMED' || b.status === 'RENTED') &&
+          b.propertyId === propId
       );
-      if (match) {
-        loadBookingIntoView(match);
-        if (match.email) setEmail(match.email);
-        if (match.phone) setPhone(match.phone);
+
+      if (localMatch) {
+        loadBookingIntoView(localMatch);
+        if (localMatch.email) setEmail(localMatch.email);
+        if (localMatch.phone) setPhone(localMatch.phone);
         setVerifyError('');
-      } else {
-        setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
       }
+
+      let active = true;
+      (async () => {
+        try {
+          const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+          const list = res.ok ? await res.json() : [];
+          const serverMatch = Array.isArray(list)
+            ? list.find(
+                (b: any) =>
+                  b?.id === bookingIdParam &&
+                  b?.type === 'BOOKING' &&
+                  (b?.status === 'PENDING' || b?.status === 'CONFIRMED' || b?.status === 'RENTED') &&
+                  Number(b?.propertyId) === propId
+              )
+            : null;
+
+          if (!active) return;
+          if (serverMatch) {
+            // نفضّل بيانات السيرفر إذا كانت تحتوي على contractData أو contractKind المزامن.
+            const merged: PropertyBooking = localMatch
+              ? ({ ...localMatch, ...serverMatch, id: localMatch.id ?? serverMatch.id } as PropertyBooking)
+              : (serverMatch as PropertyBooking);
+
+            // لا نرسل الطلبات أو المستندات هنا؛ فقط نضمن أن محتوى العقد يظهر.
+            loadBookingIntoView(merged);
+            if (merged.email) setEmail(merged.email);
+            if (merged.phone) setPhone(merged.phone);
+            setVerifyError('');
+          } else if (!localMatch) {
+            setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
+          }
+        } catch {
+          if (!localMatch) setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
     } else if ((emailParam || phoneParam || civilIdParam) && mounted) {
       const allBookings = getAllBookings();
       const matches = allBookings.filter((b) => {

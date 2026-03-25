@@ -277,6 +277,22 @@ export default function ContractDetailPage() {
 
     const kind = (updatedContract.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const stage = updatedContract.status as 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
+    // نُخزن لقطة لمحتوى العقد داخل bookingStorage كي يقدر العميل عرض “العقد كما هو” حتى على جهاز آخر.
+    // لحماية DB من كبر الحجم: نحذف documentFile.dataUrl إن وُجد (نحتفظ فقط documentUrl).
+    const contractDataForClient: Partial<RentalContract> = (() => {
+      const anyContract = updatedContract as any;
+      if (Array.isArray(anyContract.salePayments)) {
+        return {
+          ...updatedContract,
+          salePayments: anyContract.salePayments.map((p: any) => {
+            if (!p || typeof p !== 'object') return p;
+            const { documentFile: _documentFile, ...rest } = p;
+            return rest;
+          }),
+        };
+      }
+      return updatedContract;
+    })();
     const syncKey = `${updatedContract.id}|${updatedContract.bookingId}|${stage}|${kind}`;
 
     // تحديث localStorage للحجز فوراً (إن كان موجوداً)
@@ -287,6 +303,7 @@ export default function ContractDetailPage() {
         contractId: updatedContract.id,
         contractStage: stage,
         contractKind: kind,
+        contractData: contractDataForClient,
       }) || null;
 
     // إذا لم يكن الحجز موجوداً محلياً (شائع عند فتح صفحة العقد مباشرة)، اجلبه من الخادم ثم حدّثه
@@ -301,6 +318,7 @@ export default function ContractDetailPage() {
             contractId: updatedContract.id,
             contractStage: stage,
             contractKind: kind,
+            contractData: contractDataForClient,
           };
           // ندمجه محلياً حتى تتحدّث صفحات الإدارة بدون refresh
           mergeBookingsFromServer([merged]);
@@ -316,6 +334,7 @@ export default function ContractDetailPage() {
             contractId: updatedContract.id,
             contractStage: stage,
             contractKind: kind,
+            contractData: contractDataForClient,
           } as any;
           mergeBookingsFromServer([fallback]);
           updatedBooking = fallback;
@@ -337,7 +356,13 @@ export default function ContractDetailPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...updatedBooking, contractId: updatedContract.id, contractStage: stage, contractKind: kind }),
+        body: JSON.stringify({
+          ...updatedBooking,
+          contractId: updatedContract.id,
+          contractStage: stage,
+          contractKind: kind,
+          contractData: contractDataForClient,
+        }),
       });
     } catch {
       // لا نوقف التدفق إذا فشلت المزامنة

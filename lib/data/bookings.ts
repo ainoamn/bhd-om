@@ -8,6 +8,7 @@ import { ensureContactFromBooking, ensureCompanyContactFromBooking, findContactB
 import { createDocument, searchDocuments, postUnpostedDocuments, updateDocument } from '@/lib/data/accounting';
 
 import type { AuthorizedRepresentative } from './addressBook';
+import type { RentalContract } from './contracts';
 
 export type BookingType = 'BOOKING' | 'VIEWING';
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'RENTED' | 'SOLD';
@@ -73,6 +74,8 @@ export interface PropertyBooking {
   contractStage?: 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
   /** نوع العقد: إيجار/بيع/استثمار */
   contractKind?: 'RENT' | 'SALE' | 'INVESTMENT';
+  /** لقطة لمحتوى العقد نفسه (بدون الاعتماد على localStorage) لعرض بنود العقد للعميل عبر الأجهزة. */
+  contractData?: Partial<RentalContract>;
   /** ملاحظة المحاسب عند إتمام إلغاء الحجز (استرداد/خصم) */
   cancellationNote?: string;
   /** تاريخ إتمام عملية الإلغاء من المحاسب */
