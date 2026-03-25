@@ -291,13 +291,14 @@ export default function ContractDetailPage() {
         const list = res.ok ? await res.json() : [];
         const serverBooking = Array.isArray(list) ? list.find((b) => b?.id === updatedContract.bookingId) : null;
         if (serverBooking) {
-          updatedBooking = {
+          const merged = {
             ...serverBooking,
             contractStage: stage,
             contractKind: kind,
           };
           // ندمجه محلياً حتى تتحدّث صفحات الإدارة بدون refresh
-          mergeBookingsFromServer([updatedBooking]);
+          mergeBookingsFromServer([merged]);
+          updatedBooking = merged;
         }
       } catch {
         // تجاهل
