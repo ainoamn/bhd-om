@@ -42,12 +42,6 @@ function ownerLabel(ar: boolean, kind: ContractKind) {
   return ar ? 'المالك' : 'Landlord';
 }
 
-function payerLabel(ar: boolean, p?: string) {
-  if (p === 'seller') return ar ? 'البائع' : 'Seller';
-  if (p === 'buyer') return ar ? 'المشتري' : 'Buyer';
-  return p || '—';
-}
-
 function omr(ar: boolean, n?: number | null) {
   if (n == null || Number.isNaN(Number(n))) return '—';
   return `${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${ar ? 'ر.ع' : 'OMR'}`;
@@ -124,6 +118,157 @@ function ApprovalAuditCell({
 function salePercentAmount(base: number, pct: number | null | undefined): number | null {
   if (pct == null || Number.isNaN(Number(pct))) return null;
   return Math.round(base * (Number(pct) / 100) * 1000) / 1000;
+}
+
+type SaleFeeLine = {
+  key: string;
+  labelAr: string;
+  labelEn: string;
+  amount: number;
+  payer?: 'seller' | 'buyer';
+};
+
+function collectSaleFeeLines(c: Partial<RentalContract>, salePriceBase: number): SaleFeeLine[] {
+  const lines: SaleFeeLine[] = [];
+  const push = (key: string, labelAr: string, labelEn: string, amount: number | null | undefined, payer?: 'seller' | 'buyer') => {
+    if (amount == null || Number.isNaN(Number(amount)) || Number(amount) <= 0) return;
+    lines.push({ key, labelAr, labelEn, amount: Number(amount), payer });
+  };
+
+  if (c.saleBrokerageFeePercent != null) {
+    const amt = salePercentAmount(salePriceBase, c.saleBrokerageFeePercent);
+    push('brokerage', `السمسرة (${c.saleBrokerageFeePercent}٪)`, `Brokerage (${c.saleBrokerageFeePercent}%)`, amt, c.saleBrokerageFeePayer);
+  }
+  if (c.saleHousingFeePercent != null) {
+    const amt = salePercentAmount(salePriceBase, c.saleHousingFeePercent);
+    push('housing', `رسوم الإسكان (${c.saleHousingFeePercent}٪)`, `Housing (${c.saleHousingFeePercent}%)`, amt, c.saleHousingFeePayer);
+  }
+  push('municipality', 'رسوم بلدية', 'Municipality fees', c.saleMunicipalityFees, c.saleMunicipalityFeesPayer);
+  push('admin', 'رسوم إدارية', 'Admin fees', c.saleAdminFees, c.saleAdminFeesPayer);
+  push('transfer', 'رسوم نقل الملكية', 'Transfer fees', c.saleTransferFees, c.saleTransferFeesPayer);
+
+  (c.saleOtherFeesList ?? []).forEach((f, i) => {
+    const desc = str(f.description) || '—';
+    push(`other-${i}`, `أخرى: ${desc}`, `Other: ${desc}`, f.amount, f.payer);
+  });
+
+  return lines;
+}
+
+function partitionSaleFeeLines(lines: SaleFeeLine[]) {
+  const buyer: SaleFeeLine[] = [];
+  const seller: SaleFeeLine[] = [];
+  const unknown: SaleFeeLine[] = [];
+  for (const l of lines) {
+    if (l.payer === 'buyer') buyer.push(l);
+    else if (l.payer === 'seller') seller.push(l);
+    else unknown.push(l);
+  }
+  const sum = (arr: SaleFeeLine[]) => Math.round(arr.reduce((s, x) => s + x.amount, 0) * 1000) / 1000;
+  return {
+    buyer,
+    seller,
+    unknown,
+    buyerSum: sum(buyer),
+    sellerSum: sum(seller),
+    unknownSum: sum(unknown),
+    totalSum: sum([...buyer, ...seller, ...unknown]),
+  };
+}
+
+function SaleFeesByPayerBreakdown({
+  c,
+  salePriceBase,
+  ar,
+}: {
+  c: Partial<RentalContract>;
+  salePriceBase: number;
+  ar: boolean;
+}) {
+  const lines = collectSaleFeeLines(c, salePriceBase);
+  if (lines.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed border-stone-200 bg-stone-50/80 px-4 py-3 text-sm text-stone-600">
+        {ar ? 'لا توجد رسوم بيع إضافية مسجّلة (بخلاف ثمن البيع والدفعات أعلاه).' : 'No additional sale fees recorded (aside from sale price and installments above).'}
+      </p>
+    );
+  }
+  const p = partitionSaleFeeLines(lines);
+
+  const toRows = (arr: SaleFeeLine[]) =>
+    arr.map((l) => ({ label: ar ? l.labelAr : l.labelEn, value: omr(ar, l.amount) }));
+
+  const colClass = 'rounded-lg border border-stone-200 bg-white p-3 shadow-sm sm:p-4';
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-bold text-stone-900 sm:text-base">{ar ? 'تفصيل الرسوم حسب الدافع' : 'Fees split by payer'}</h3>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className={colClass}>
+          <p className="mb-3 border-b border-stone-100 pb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535] sm:text-sm">
+            {ar ? 'على المشتري' : 'Buyer pays'}
+          </p>
+          {p.buyer.length > 0 ? (
+            <>
+              <DataTable rows={toRows(p.buyer)} />
+              <p className="mt-3 border-t border-stone-100 pt-2 text-end text-sm font-bold text-stone-900">
+                {ar ? 'المجموع على المشتري: ' : 'Buyer subtotal: '}
+                <span className="tabular-nums">{omr(ar, p.buyerSum)}</span>
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-stone-500">{ar ? 'لا توجد رسوم مسجّلة على المشتري.' : 'No fees recorded for the buyer.'}</p>
+          )}
+        </div>
+        <div className={colClass}>
+          <p className="mb-3 border-b border-stone-100 pb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535] sm:text-sm">
+            {ar ? 'على البائع (المالك)' : 'Seller (owner) pays'}
+          </p>
+          {p.seller.length > 0 ? (
+            <>
+              <DataTable rows={toRows(p.seller)} />
+              <p className="mt-3 border-t border-stone-100 pt-2 text-end text-sm font-bold text-stone-900">
+                {ar ? 'المجموع على البائع: ' : 'Seller subtotal: '}
+                <span className="tabular-nums">{omr(ar, p.sellerSum)}</span>
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-stone-500">{ar ? 'لا توجد رسوم مسجّلة على البائع.' : 'No fees recorded for the seller.'}</p>
+          )}
+        </div>
+      </div>
+
+      {p.unknown.length > 0 ? (
+        <div className={`${colClass} border-amber-200/80 bg-amber-50/30`}>
+          <p className="mb-3 text-xs font-bold text-amber-900 sm:text-sm">
+            {ar ? 'رسوم دون تحديد دافع في السجل' : 'Fees without payer on record'}
+          </p>
+          <DataTable rows={toRows(p.unknown)} />
+          <p className="mt-3 border-t border-amber-100 pt-2 text-end text-sm font-bold text-amber-950">
+            {ar ? 'مجموع غير المحدد: ' : 'Unspecified subtotal: '}
+            <span className="tabular-nums">{omr(ar, p.unknownSum)}</span>
+          </p>
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-xl border-2 border-[#8B6F47]/35 bg-gradient-to-br from-[#8B6F47]/[0.07] to-white p-3 sm:p-4">
+        <p className="mb-3 text-sm font-bold text-stone-900">{ar ? 'ملخص المجاميع' : 'Totals summary'}</p>
+        <DataTable
+          rows={[
+            { label: ar ? 'إجمالي ما على المشتري' : 'Total due from buyer', value: omr(ar, p.buyerSum) },
+            { label: ar ? 'إجمالي ما على البائع' : 'Total due from seller', value: omr(ar, p.sellerSum) },
+            ...(p.unknownSum > 0
+              ? [{ label: ar ? 'إجمالي دون تحديد دافع' : 'Total (payer unspecified)', value: omr(ar, p.unknownSum) }]
+              : []),
+            {
+              label: ar ? 'إجمالي الرسوم (المشتري + البائع' + (p.unknownSum > 0 ? ' + غير محدد' : '') + ')' : 'Total fees (all payers)',
+              value: <span className="text-base font-bold text-[#5c4a32]">{omr(ar, p.totalSum)}</span>,
+            },
+          ]}
+        />
+      </div>
+    </div>
+  );
 }
 
 function hasRentAccountFields(c: Partial<RentalContract> | null | undefined): boolean {
@@ -535,7 +680,7 @@ export default function ContractReviewPage() {
         <AdminPageHeader title={pageTitle} subtitle={ar ? 'اقرأ تفاصيل العقد ثم قم بالاعتماد' : 'Read contract details then approve'} />
       </div>
 
-      <div className="mx-auto max-w-6xl space-y-6 px-4 sm:px-6">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 pb-32 sm:px-6 sm:pb-40">
         {!bookingId ? (
           <p className="rounded-2xl border border-stone-200 bg-white p-8 text-center text-stone-600 shadow-sm">{ar ? 'رابط غير صالح' : 'Invalid link'}</p>
         ) : loading ? (
@@ -741,73 +886,7 @@ export default function ContractReviewPage() {
                       </table>
                     </div>
                   ) : null}
-                  <DataTablePair
-                    rows={[
-                      {
-                        label: ar ? 'السمسرة (%)' : 'Brokerage %',
-                        value:
-                          c?.saleBrokerageFeePercent != null
-                            ? (() => {
-                                const amt = salePercentAmount(salePriceBase, c.saleBrokerageFeePercent);
-                                const pct = `${c.saleBrokerageFeePercent}% (${payerLabel(ar, c.saleBrokerageFeePayer)})`;
-                                return amt != null ? `${pct} — ${omr(ar, amt)}` : pct;
-                              })()
-                            : '',
-                      },
-                      {
-                        label: ar ? 'رسوم الإسكان (%)' : 'Housing %',
-                        value:
-                          c?.saleHousingFeePercent != null
-                            ? (() => {
-                                const amt = salePercentAmount(salePriceBase, c.saleHousingFeePercent);
-                                const pct = `${c.saleHousingFeePercent}% (${payerLabel(ar, c.saleHousingFeePayer)})`;
-                                return amt != null ? `${pct} — ${omr(ar, amt)}` : pct;
-                              })()
-                            : '',
-                      },
-                      {
-                        label: ar ? 'رسوم بلدية' : 'Municipality fees',
-                        value:
-                          c?.saleMunicipalityFees != null
-                            ? `${omr(ar, c.saleMunicipalityFees)} (${payerLabel(ar, c.saleMunicipalityFeesPayer)})`
-                            : '',
-                      },
-                      {
-                        label: ar ? 'رسوم إدارية' : 'Admin fees',
-                        value: c?.saleAdminFees != null ? `${omr(ar, c.saleAdminFees)} (${payerLabel(ar, c.saleAdminFeesPayer)})` : '',
-                      },
-                      {
-                        label: ar ? 'رسوم نقل الملكية' : 'Transfer fees',
-                        value:
-                          c?.saleTransferFees != null
-                            ? `${omr(ar, c.saleTransferFees)} (${payerLabel(ar, c.saleTransferFeesPayer)})`
-                            : '',
-                      },
-                    ]}
-                  />
-                  {c?.saleOtherFeesList && c.saleOtherFeesList.length > 0 ? (
-                    <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
-                      <p className="border-b border-stone-200 bg-stone-50 px-4 py-2 text-xs font-bold text-stone-600 sm:text-sm">
-                        {ar ? 'رسوم أخرى' : 'Other fees'}
-                      </p>
-                      <table className="w-full border-collapse text-sm">
-                        <DataTableHead>
-                          <th className="border-b border-stone-200 px-4 py-2.5 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'الوصف' : 'Description'}</th>
-                          <th className="border-b border-stone-200 px-4 py-2.5 text-end text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'المبلغ' : 'Amount'}</th>
-                          <th className="border-b border-stone-200 px-4 py-2.5 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'الدافع' : 'Payer'}</th>
-                        </DataTableHead>
-                        <tbody className="divide-y divide-stone-100">
-                          {c.saleOtherFeesList.map((f, i) => (
-                            <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
-                              <td className="px-4 py-2.5 font-medium text-stone-800">{str(f.description)}</td>
-                              <td className="px-4 py-2.5 text-end tabular-nums font-semibold text-stone-900">{omr(ar, f.amount)}</td>
-                              <td className="px-4 py-2.5 text-stone-600">{payerLabel(ar, f.payer)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null}
+                  <SaleFeesByPayerBreakdown c={c || {}} salePriceBase={salePriceBase} ar={ar} />
                 </div>
               </Section>
             ) : (
@@ -1065,7 +1144,10 @@ export default function ContractReviewPage() {
               </div>
             ) : null}
 
-            <div className="sticky bottom-4 z-10 mt-8 flex flex-col gap-6 rounded-2xl border border-stone-200/90 bg-white/95 p-4 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:p-5">
+            {/* مسافة قبل الشريط السفلي حتى لا يغطي محتوى «حالة الاعتمادات» عند التمرير */}
+            <div className="min-h-[10rem] w-full shrink-0 sm:min-h-[12rem]" aria-hidden />
+
+            <div className="sticky bottom-4 z-10 mt-2 flex flex-col gap-6 rounded-2xl border border-stone-200/90 bg-white/95 p-4 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:p-5">
               {canClientApprove || canOwnerApprove ? (
                 <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-stone-800 sm:text-base">
                   <input
