@@ -315,10 +315,21 @@ export default function MyBookingsPage() {
                   const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
                   const contractReviewUrl = `/${locale}/admin/contract-review?bookingId=${b.id}`;
                   const c = getContractByBooking(b.id) as RentalContract | undefined;
-                  const kind = (c?.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
-                  const reviewContractUrl = c?.id ? `/${locale}/admin/contracts/${c.id}` : null;
-                  const showClientApprove = !!c && c.status === 'ADMIN_APPROVED' && userRole !== 'OWNER';
-                  const showOwnerApprove = !!c && c.status === 'TENANT_APPROVED' && userRole === 'OWNER';
+                  const dataOverridesRow = getPropertyDataOverrides();
+                  const propRow = getPropertyById(b.propertyId, dataOverridesRow) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null;
+                  const kind = (c?.propertyContractKind ??
+                    full?.contractKind ??
+                    propRow?.type ??
+                    'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
+                  /** مرحلة العقد على الخادم أولاً؛ إن وُجدت لا نعتمد على حالة المسودة المحلية (قد تكون قديمة). */
+                  const stageFromServer = full?.contractStage;
+                  const statusFromLocal = c?.status;
+                  const showClientApprove =
+                    userRole !== 'OWNER' &&
+                    (stageFromServer != null ? stageFromServer === 'ADMIN_APPROVED' : statusFromLocal === 'ADMIN_APPROVED');
+                  const showOwnerApprove =
+                    userRole === 'OWNER' &&
+                    (stageFromServer != null ? stageFromServer === 'TENANT_APPROVED' : statusFromLocal === 'TENANT_APPROVED');
                   return (
                     <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
@@ -368,9 +379,9 @@ export default function MyBookingsPage() {
                               })()}
                             </Link>
                           )}
-                          {(showClientApprove || showOwnerApprove) && reviewContractUrl && (
+                          {(showClientApprove || showOwnerApprove) && (
                             <Link
-                              href={reviewContractUrl}
+                              href={contractReviewUrl}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                             >
                               {showClientApprove
