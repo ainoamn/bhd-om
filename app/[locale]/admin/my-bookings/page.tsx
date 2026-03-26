@@ -340,6 +340,14 @@ export default function MyBookingsPage() {
                   /** مرحلة العقد على الخادم أولاً؛ إن وُجدت لا نعتمد على حالة المسودة المحلية (قد تكون قديمة). */
                   const stageFromServer = full?.contractStage;
                   const statusFromLocal = c?.status;
+                  const sigReqs: any[] = Array.isArray((full as any)?.signatureRequests)
+                    ? ((full as any).signatureRequests as any[])
+                    : Array.isArray((b as any)?.signatureRequests)
+                      ? ((b as any).signatureRequests as any[])
+                      : [];
+                  const hasPendingOrFailedClientSignature = sigReqs.some(
+                    (r) => String(r?.actorRole) === 'CLIENT' && ['PENDING', 'FAILED'].includes(String(r?.status || ''))
+                  );
                   const paymentOrAccountantConfirmedRow = !!(
                     full?.paymentConfirmed ||
                     full?.accountantConfirmedAt ||
@@ -352,7 +360,7 @@ export default function MyBookingsPage() {
                   const showClientApprove =
                     userRole !== 'OWNER' &&
                     (stageFromServer != null
-                      ? stageFromServer === 'ADMIN_APPROVED'
+                      ? stageFromServer === 'ADMIN_APPROVED' || (stageFromServer === 'TENANT_APPROVED' && hasPendingOrFailedClientSignature)
                       : statusFromLocal === 'ADMIN_APPROVED' ||
                         (!!hasContractId && paymentOrAccountantConfirmedRow && effectiveStatus === 'CONFIRMED'));
                   const showOwnerApprove =

@@ -299,8 +299,21 @@ function signatureStatusLabel(ar: boolean, status?: string) {
   if (!status) return ar ? '—' : '—';
   if (status === 'COMPLETED') return ar ? 'مكتمل' : 'Completed';
   if (status === 'PENDING') return ar ? 'بانتظار التوقيع' : 'Pending';
+  if (status === 'FAILED') return ar ? 'فشل التوقيع' : 'Signing failed';
   if (status === 'CANCELLED') return ar ? 'ملغي' : 'Cancelled';
   return status;
+}
+
+function signatureActorLabel(ar: boolean, role?: string, kind?: ContractKind) {
+  if (role === 'CLIENT') {
+    if (kind === 'SALE') return ar ? 'المشتري' : 'Buyer';
+    if (kind === 'INVESTMENT') return ar ? 'المستثمر' : 'Investor';
+    return ar ? 'المستأجر' : 'Tenant';
+  }
+  if (role === 'OWNER') return kind === 'SALE' ? (ar ? 'البائع (المالك)' : 'Seller (owner)') : (ar ? 'المالك' : 'Owner');
+  if (role === 'BROKER') return ar ? 'السمسار' : 'Broker';
+  if (role === 'ADMIN') return ar ? 'الإدارة' : 'Admin';
+  return role || (ar ? 'طرف غير محدد' : 'Unknown actor');
 }
 
 /** جدول بند / قيمة — متسق على كل الشاشات */
@@ -614,88 +627,41 @@ export default function ContractReviewPage() {
     setSaving(true);
     setError('');
     try {
-      const now = new Date().toISOString();
-      const nextStage: ContractStage = canClientApprove ? 'TENANT_APPROVED' : 'LANDLORD_APPROVED';
-      const base = effectiveContract || {};
-      const actor = sessionToContractActor(session);
-      const nextContractData: Partial<RentalContract> = {
-        ...base,
-        status: nextStage as RentalContract['status'],
-        tenantApprovedAt: canClientApprove ? now : base.tenantApprovedAt,
-        landlordApprovedAt: canOwnerApprove ? now : base.landlordApprovedAt,
-        updatedAt: now,
-      };
-      if (actor) {
-        if (canClientApprove) {
-          nextContractData.tenantApprovedByFirstName = actor.firstName;
-          nextContractData.tenantApprovedByLastName = actor.lastName;
-          nextContractData.tenantApprovedBySerial = actor.serial;
-        }
-        if (canOwnerApprove) {
-          nextContractData.landlordApprovedByFirstName = actor.firstName;
-          nextContractData.landlordApprovedByLastName = actor.lastName;
-          nextContractData.landlordApprovedBySerial = actor.serial;
-        }
-        nextContractData.contractUpdatedByFirstName = actor.firstName;
-        nextContractData.contractUpdatedByLastName = actor.lastName;
-        nextContractData.contractUpdatedBySerial = actor.serial;
-      }
+      // لا نعتمد العقد هنا؛ فقط ننشئ طلب توقيع للطرف الحالي ثم نفتح صفحة التوقيع.
+      const role = canClientApprove ? 'CLIENT' : 'OWNER';
+      const phone = canClientApprove
+        ? ((effectiveContract as any)?.tenantPhone || booking.phone)
+        : (effectiveContract as any)?.landlordPhone;
 
-      const payload: PropertyBooking = {
-        ...booking,
-        contractStage: nextStage,
-        contractKind: kind,
-        contractData: nextContractData,
-      };
-
-      const res = await fetch('/api/bookings', {
+      const sr = await fetch('/api/signature-request/create', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          bookingId: booking.id,
+          actorRole: role,
+          actorPhone: phone ? String(phone) : undefined,
+          contractKind: kind,
+          locale,
+        }),
       });
-      if (!res.ok) {
-        let msg = ar ? 'فشل اعتماد العقد' : 'Failed to approve contract';
+      if (!sr.ok) {
+        let msg = ar ? 'تعذر إنشاء رابط التوقيع' : 'Failed to create signing link';
         try {
-          const data = await res.json();
+          const data = await sr.json();
           if (data?.error) msg = String(data.error);
         } catch {
           /* ignore */
         }
         throw new Error(msg);
       }
-
-      setBooking(payload);
-
-      // إنشاء رابط التوقيع وفتحه مباشرة للمستخدم الحالي (بدون إرسال واتساب تلقائي حالياً)
-      try {
-        const role = canClientApprove ? 'CLIENT' : 'OWNER';
-        const phone = canClientApprove ? (payload.contractData as any)?.tenantPhone || payload.phone : (payload.contractData as any)?.landlordPhone;
-        const sr = await fetch('/api/signature-request/create', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bookingId: payload.id,
-            actorRole: role,
-            actorPhone: phone ? String(phone) : undefined,
-            contractKind: kind,
-            locale,
-          }),
-        });
-        if (sr.ok) {
-          const data = await sr.json();
-          const link = String(data?.link || '');
-          if (link) {
-            router.push(link);
-            return;
-          }
-        }
-      } catch {
-        // fallback: لا نوقف الاعتماد
+      const data = await sr.json();
+      const link = String(data?.link || '');
+      if (link) {
+        router.push(link);
+        return;
       }
-
-      router.push(`/${locale}/admin/my-bookings`);
+      throw new Error(ar ? 'الرابط غير متاح حالياً' : 'Signing link unavailable');
     } catch (e) {
       setError(e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'An error occurred');
     } finally {
@@ -1169,14 +1135,14 @@ export default function ContractReviewPage() {
                   ...(Array.isArray((booking as any)?.signatureRequests) && (booking as any).signatureRequests.length > 0
                     ? [
                         {
-                          label: ar ? 'التواقيع الإلكترونية (تجربة)' : 'E-signatures (trial)',
+                          label: ar ? 'حالة التوقيعات الإلكترونية' : 'E-signature status',
                           value: (
                             <div className="space-y-2">
                               {(booking as any).signatureRequests.slice(0, 6).map((r: any, i: number) => (
                                 <div key={`${r?.token || i}`} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="font-semibold text-stone-900">
-                                      {String(r?.actorRole || '—')} — {signatureStatusLabel(ar, String(r?.status || ''))}
+                                      {signatureActorLabel(ar, String(r?.actorRole || ''), kind)} — {signatureStatusLabel(ar, String(r?.status || ''))}
                                     </span>
                                     <span className="text-xs text-stone-500 font-mono">{String(r?.token || '').slice(0, 18)}…</span>
                                   </div>
@@ -1184,6 +1150,13 @@ export default function ContractReviewPage() {
                                     <div className="mt-1 text-xs text-stone-600">
                                       {ar ? 'وقت الإكمال: ' : 'Completed: '}
                                       <span className="font-semibold">{formatIsoLocal(String(r.completedAt), ar)}</span>
+                                    </div>
+                                  ) : null}
+                                  {r?.failedAt ? (
+                                    <div className="mt-1 text-xs text-red-700">
+                                      {ar ? 'وقت الفشل: ' : 'Failed at: '}
+                                      <span className="font-semibold">{formatIsoLocal(String(r.failedAt), ar)}</span>
+                                      {r?.lastError ? <span className="ms-1 text-red-600">({String(r.lastError)})</span> : null}
                                     </div>
                                   ) : null}
                                 </div>

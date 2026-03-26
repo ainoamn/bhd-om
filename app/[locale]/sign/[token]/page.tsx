@@ -226,7 +226,18 @@ export default function SignPage() {
       setSelfie('');
       setSignature('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'Error');
+      const msg = e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'Error';
+      setError(msg);
+      // تسجيل فشل التوقيع ليظهر في لوحة المتابعة
+      try {
+        await fetch(`/api/signature-request/${encodeURIComponent(token)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: msg }),
+        });
+      } catch {
+        // ignore
+      }
     } finally {
       setSubmitting(false);
     }
@@ -235,7 +246,7 @@ export default function SignPage() {
   if (loading) {
     return <div className="min-h-screen grid place-items-center text-stone-600">{ar ? 'جاري التحميل…' : 'Loading…'}</div>;
   }
-  if (error) {
+  if (error && !info) {
     return (
       <div className="min-h-screen grid place-items-center p-6">
         <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950">

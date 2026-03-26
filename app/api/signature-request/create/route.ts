@@ -56,6 +56,12 @@ export async function POST(req: NextRequest) {
     };
 
     const list: SignatureRequest[] = Array.isArray(booking.signatureRequests) ? booking.signatureRequests : [];
+    // إلغاء أي طلب توقيع معلّق لنفس الطرف قبل إنشاء طلب جديد
+    for (const item of list) {
+      if (item.actorRole === actorRole && item.status === 'PENDING') {
+        item.status = 'CANCELLED';
+      }
+    }
     list.unshift(reqObj);
     booking.signatureRequests = list;
 

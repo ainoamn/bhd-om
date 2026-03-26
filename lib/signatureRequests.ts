@@ -1,6 +1,6 @@
 export type SignatureActorRole = 'ADMIN' | 'CLIENT' | 'OWNER' | 'BROKER';
 
-export type SignatureRequestStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+export type SignatureRequestStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export type SignatureRequest = {
   token: string;
@@ -10,6 +10,9 @@ export type SignatureRequest = {
   actorPhone?: string;
   createdAt: string;
   completedAt?: string;
+  failedAt?: string;
+  failureCount?: number;
+  lastError?: string;
   status: SignatureRequestStatus;
   // مخرجات التوثيق (تجريبية)
   selfieDataUrl?: string;
