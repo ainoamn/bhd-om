@@ -9,6 +9,7 @@ import { getPropertyById, getPropertyDataOverrides, type Property } from '@/lib/
 import type { PropertyBooking } from '@/lib/data/bookings';
 import type { CheckInfo, ContractApprovalActor, RentalContract } from '@/lib/data/contracts';
 import { getContractByBooking, getContractById } from '@/lib/data/contracts';
+import { getWhatsAppUrl } from '@/lib/signatureRequests';
 
 type ContractKind = 'RENT' | 'SALE' | 'INVESTMENT';
 type ContractStage = NonNullable<PropertyBooking['contractStage']>;
@@ -658,6 +659,38 @@ export default function ContractReviewPage() {
       }
 
       setBooking(payload);
+
+      // إنشاء رابط توثيق وتوقيع وإرساله عبر واتساب للطرف الذي قام بالاعتماد (تجربة النظام)
+      try {
+        const role = canClientApprove ? 'CLIENT' : 'OWNER';
+        const phone = canClientApprove ? (payload.contractData as any)?.tenantPhone || payload.phone : (payload.contractData as any)?.landlordPhone;
+        if (phone && typeof window !== 'undefined') {
+          const sr = await fetch('/api/signature-request/create', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bookingId: payload.id,
+              actorRole: role,
+              actorPhone: String(phone),
+              contractKind: kind,
+              locale,
+            }),
+          });
+          if (sr.ok) {
+            const data = await sr.json();
+            const link = String(data?.link || '');
+            const message = ar
+              ? `مرحباً،\nيرجى إكمال توثيق العقد:\n1) تصوير سلفي\n2) التوقيع عبر شاشة الهاتف\nالرابط:\n${link}`
+              : `Hello,\nPlease complete contract verification:\n1) Selfie\n2) Sign on your phone\nLink:\n${link}`;
+            const wa = getWhatsAppUrl(String(phone), message);
+            if (wa) window.open(wa, '_blank', 'noopener');
+          }
+        }
+      } catch {
+        // لا نوقف الاعتماد عند فشل الواتساب
+      }
+
       router.push(`/${locale}/admin/my-bookings`);
     } catch (e) {
       setError(e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'An error occurred');
