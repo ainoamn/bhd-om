@@ -220,30 +220,46 @@ export default function MyBookingsPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const effectiveUser = useEffectiveUser();
   const t = useTranslations('admin.nav.clientNav');
 
   const user = (effectiveUser
     ? { id: effectiveUser.id, email: effectiveUser.email, phone: effectiveUser.phone }
     : session?.user) as { id?: string; email?: string; phone?: string } | undefined;
-  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const userRole =
+    (effectiveUser as { role?: string } | undefined)?.role ||
+    (session?.user as { role?: string } | undefined)?.role;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
 
   const [dataVersion, setDataVersion] = useState(0);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
   useEffect(() => {
-    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: PropertyBooking[]) => {
-        if (Array.isArray(data)) {
+    let alive = true;
+    const run = async (attempt: number) => {
+      try {
+        const r = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const data = r.ok ? ((await r.json()) as PropertyBooking[]) : [];
+        if (!alive) return;
+        if (Array.isArray(data) && data.length > 0) {
           setServerBookings(data);
           mergeBookingsFromServer(data);
           setDataVersion((v) => v + 1);
+          return;
         }
-      })
-      .catch(() => {});
-  }, []);
+      } catch {
+        // ignore
+      }
+      if (!alive) return;
+      if (attempt >= 3) return;
+      const delay = attempt === 0 ? 800 : attempt === 1 ? 1800 : 3200;
+      window.setTimeout(() => void run(attempt + 1), delay);
+    };
+    void run(0);
+    return () => {
+      alive = false;
+    };
+  }, [status]);
 
   const localBookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
   const allBookings = typeof window !== 'undefined' ? (serverBookings.length > 0 ? serverBookings : getAllBookings()) : [];
