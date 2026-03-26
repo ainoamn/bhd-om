@@ -39,7 +39,6 @@ import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties
 import { getChecksByContract, saveContractChecks } from '@/lib/data/contractChecks';
 import { getDocumentsByBooking, getDocumentFiles, createDocumentRequests, formatDocumentTimestamp, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getDocumentUploadLink, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
-import { getWhatsAppUrl } from '@/lib/signatureRequests';
 import { getContractTypeTerms, getRequiredDocTypesForBooking, CHECK_TYPES, type RequiredCheck } from '@/lib/data/bookingTerms';
 import { saveBookingChecks, getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getActiveBankAccounts, getBankAccountById, getBankAccountDisplay } from '@/lib/data/bankAccounts';
@@ -1079,15 +1078,15 @@ export default function ContractDetailPage() {
         }),
       })
         .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
+        .then(async (data) => {
           const link = String(data?.link || '');
           if (!link) return;
-          const msg = ar
-            ? `مرحباً،\nيرجى إكمال توثيق العقد:\n1) تصوير سلفي\n2) التوقيع عبر شاشة الهاتف\nالرابط:\n${link}`
-            : `Hello,\nPlease complete contract verification:\n1) Selfie\n2) Sign on your phone\nLink:\n${link}`;
-          const wa = getWhatsAppUrl(phone, msg);
-          if (wa) window.open(wa, '_blank', 'noopener');
-          alert(ar ? 'تم إرسال رابط التوقيع للطرف عبر واتساب' : 'Signing link sent via WhatsApp');
+          try {
+            await navigator.clipboard.writeText(link);
+            alert((ar ? 'تم إنشاء رابط التوقيع. تم نسخ الرابط للحافظة لإرساله يدوياً:\n' : 'Signing link created and copied to clipboard for manual sending:\n') + link);
+          } catch {
+            alert((ar ? 'تم إنشاء رابط التوقيع. انسخ الرابط وأرسله يدوياً:\n' : 'Signing link created. Copy and send manually:\n') + link);
+          }
         })
         .catch(() => {
           alert(ar ? 'تعذر إنشاء رابط التوقيع' : 'Failed to create signing link');
@@ -1126,15 +1125,15 @@ export default function ContractDetailPage() {
         }),
       })
         .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
+        .then(async (data) => {
           const link = String(data?.link || '');
           if (!link) return;
-          const msg = ar
-            ? `مرحباً،\nيرجى إكمال توثيق العقد:\n1) تصوير سلفي\n2) التوقيع عبر شاشة الهاتف\nالرابط:\n${link}`
-            : `Hello,\nPlease complete contract verification:\n1) Selfie\n2) Sign on your phone\nLink:\n${link}`;
-          const wa = getWhatsAppUrl(phone, msg);
-          if (wa) window.open(wa, '_blank', 'noopener');
-          alert(ar ? 'تم إرسال رابط التوقيع للمالك/البائع عبر واتساب' : 'Signing link sent via WhatsApp');
+          try {
+            await navigator.clipboard.writeText(link);
+            alert((ar ? 'تم إنشاء رابط التوقيع. تم نسخ الرابط للحافظة لإرساله يدوياً:\n' : 'Signing link created and copied to clipboard for manual sending:\n') + link);
+          } catch {
+            alert((ar ? 'تم إنشاء رابط التوقيع. انسخ الرابط وأرسله يدوياً:\n' : 'Signing link created. Copy and send manually:\n') + link);
+          }
         })
         .catch(() => {
           alert(ar ? 'تعذر إنشاء رابط التوقيع' : 'Failed to create signing link');
