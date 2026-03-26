@@ -13,12 +13,19 @@ import { getContractByBooking, getContractById } from '@/lib/data/contracts';
 type ContractKind = 'RENT' | 'SALE' | 'INVESTMENT';
 type ContractStage = NonNullable<PropertyBooking['contractStage']>;
 
-function stageLabel(ar: boolean, stage?: ContractStage) {
+function stageLabel(ar: boolean, stage?: ContractStage, kind: ContractKind = 'RENT') {
   if (!stage) return ar ? 'غير محدد' : 'Unknown';
   if (stage === 'DRAFT') return ar ? 'مسودة' : 'Draft';
   if (stage === 'ADMIN_APPROVED') return ar ? 'معتمد مبدئياً من الإدارة' : 'Admin prelim approved';
-  if (stage === 'TENANT_APPROVED') return ar ? 'معتمد من العميل' : 'Client approved';
-  if (stage === 'LANDLORD_APPROVED') return ar ? 'معتمد من المالك' : 'Owner approved';
+  if (stage === 'TENANT_APPROVED') {
+    if (kind === 'SALE') return ar ? 'معتمد من المشتري' : 'Buyer approved';
+    if (kind === 'INVESTMENT') return ar ? 'معتمد من المستثمر' : 'Investor approved';
+    return ar ? 'معتمد من المستأجر' : 'Tenant approved';
+  }
+  if (stage === 'LANDLORD_APPROVED') {
+    if (kind === 'SALE') return ar ? 'معتمد من البائع (المالك)' : 'Seller (owner) approved';
+    return ar ? 'معتمد من المالك' : 'Owner approved';
+  }
   if (stage === 'APPROVED') return ar ? 'معتمد نهائياً' : 'Final approved';
   if (stage === 'CANCELLED') return ar ? 'ملغي' : 'Cancelled';
   return stage;
@@ -52,12 +59,28 @@ function str(v?: string | number | null) {
   return s;
 }
 
+function hasRentAccountFields(c: Partial<RentalContract> | null | undefined): boolean {
+  if (!c) return false;
+  return [
+    c.rentChecksOwnerType,
+    c.rentChecksOwnerName,
+    c.rentChecksOwnerCivilId,
+    c.rentChecksOwnerPhone,
+    c.rentChecksCompanyName,
+    c.rentChecksCompanyRegNumber,
+    c.rentChecksAuthorizedRep,
+    c.rentChecksBankName,
+    c.rentChecksBankBranch,
+    c.rentChecksBankAccountId,
+  ].some((x) => str(x));
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === undefined || value === null || value === '') return null;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[minmax(10rem,14rem)_1fr] gap-1 md:gap-4 px-4 py-3 border-b border-stone-100/90 last:border-b-0 text-sm transition-colors hover:bg-white/90">
-      <span className="text-stone-500 font-medium leading-snug">{label}</span>
-      <span className="text-stone-900 font-semibold break-words leading-relaxed">{value}</span>
+    <div className="grid min-w-0 grid-cols-1 gap-1.5 border-b border-stone-100/90 px-3 py-2.5 last:border-b-0 transition-colors hover:bg-white/90 sm:grid-cols-[minmax(9rem,13rem)_1fr] sm:gap-4 sm:px-4 sm:py-3 md:grid-cols-[minmax(10rem,14rem)_1fr]">
+      <span className="min-w-0 text-sm font-medium leading-snug text-stone-500">{label}</span>
+      <span className="min-w-0 break-words text-base font-semibold leading-relaxed text-stone-900">{value}</span>
     </div>
   );
 }
@@ -73,10 +96,10 @@ function Section({ title, children, step }: { title: string; children: React.Rea
         ) : (
           <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-[#8B6F47]" aria-hidden />
         )}
-        <h2 className="text-base font-bold text-stone-800 tracking-tight">{title}</h2>
+        <h2 className="text-base font-bold leading-snug tracking-tight text-stone-800 sm:text-lg">{title}</h2>
       </header>
-      <div className="p-3 sm:p-4">
-        <div className="rounded-xl border border-stone-100 bg-stone-50/60 overflow-hidden">{children}</div>
+      <div className="min-w-0 p-3 sm:p-4">
+        <div className="overflow-hidden rounded-xl border border-stone-100 bg-stone-50/60">{children}</div>
       </div>
     </section>
   );
@@ -95,8 +118,8 @@ function KindBadge({ kind, ar }: { kind: ContractKind; ar: boolean }) {
   );
 }
 
-function StageBadge({ stage, ar }: { stage?: ContractStage; ar: boolean }) {
-  const label = stageLabel(ar, stage);
+function StageBadge({ stage, ar, kind }: { stage?: ContractStage; ar: boolean; kind: ContractKind }) {
+  const label = stageLabel(ar, stage, kind);
   const tone =
     stage === 'APPROVED'
       ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
@@ -124,6 +147,7 @@ export default function ContractReviewPage() {
   const [error, setError] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [localSnapshot, setLocalSnapshot] = useState<Partial<RentalContract> | null>(null);
+  const [readConfirmed, setReadConfirmed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -171,9 +195,9 @@ export default function ContractReviewPage() {
     setLocalSnapshot((byId || byBooking) ?? null);
   }, [booking?.id, booking?.contractId]);
 
-  const kind = useMemo<ContractKind>(() => {
-    return (booking?.contractKind ?? 'RENT') as ContractKind;
-  }, [booking?.contractKind]);
+  useEffect(() => {
+    setReadConfirmed(false);
+  }, [bookingId]);
 
   const effectiveContract = useMemo<Partial<RentalContract> | null>(() => {
     if (!booking) return null;
@@ -182,10 +206,47 @@ export default function ContractReviewPage() {
     return { ...local, ...server };
   }, [booking, localSnapshot]);
 
+  const dataOverrides = getPropertyDataOverrides();
+  const property = booking ? getPropertyById(String(booking.propertyId), dataOverrides) : null;
+
+  const kind = useMemo<ContractKind>(() => {
+    const fromContract = effectiveContract?.propertyContractKind;
+    if (fromContract === 'SALE' || fromContract === 'RENT' || fromContract === 'INVESTMENT') return fromContract;
+    const fromBooking = booking?.contractKind as ContractKind | undefined;
+    if (fromBooking === 'SALE' || fromBooking === 'RENT' || fromBooking === 'INVESTMENT') return fromBooking;
+    const pt = property?.type;
+    if (pt === 'SALE' || pt === 'RENT' || pt === 'INVESTMENT') return pt;
+    return 'RENT';
+  }, [effectiveContract?.propertyContractKind, booking?.contractKind, property?.type]);
+
   const pageTitle = useMemo(() => {
     if (kind === 'SALE') return ar ? 'مراجعة عقد البيع واعتماده' : 'Review & approve sale contract';
     if (kind === 'INVESTMENT') return ar ? 'مراجعة عقد الاستثمار واعتماده' : 'Review & approve investment contract';
     return ar ? 'مراجعة عقد الإيجار واعتماده' : 'Review & approve rental contract';
+  }, [ar, kind]);
+
+  const financeLabels = useMemo(() => {
+    const inv = kind === 'INVESTMENT';
+    if (ar) {
+      return {
+        section: inv ? 'المالية والاستثمار' : 'المالية والإيجار',
+        monthly: inv ? 'المبلغ الشهري (الاستثمار)' : 'الإيجار الشهري',
+        annual: inv ? 'المبلغ السنوي' : 'الإيجار السنوي',
+        rentDueDay: inv ? 'يوم الاستحقاق' : 'يوم استحقاق الإيجار',
+        rentPayMethod: inv ? 'طريقة الدفع' : 'طريقة دفع الإيجار',
+        customMonthly: inv ? 'مبالغ شهرية مخصصة' : 'إيجارات شهرية مخصصة',
+        checksSection: inv ? 'شيكات الاستثمار وبيانات الحساب والمالك' : 'شيكات الإيجار وبيانات الحساب والمالك',
+      };
+    }
+    return {
+      section: inv ? 'Investment & finances' : 'Rent & finances',
+      monthly: inv ? 'Monthly investment amount' : 'Monthly rent',
+      annual: inv ? 'Annual amount' : 'Annual rent',
+      rentDueDay: inv ? 'Due day' : 'Rent due day',
+      rentPayMethod: inv ? 'Payment method' : 'Rent payment method',
+      customMonthly: inv ? 'Custom monthly amounts' : 'Custom monthly rents',
+      checksSection: inv ? 'Investment cheques — account & owner' : 'Rent cheques — account & owner',
+    };
   }, [ar, kind]);
 
   const canClientApprove = useMemo(() => {
@@ -204,6 +265,7 @@ export default function ContractReviewPage() {
     if (!booking) return;
     if (!booking.contractStage) return;
     if (!canClientApprove && !canOwnerApprove) return;
+    if (!readConfirmed) return;
     if (saving) return;
     setSaving(true);
     setError('');
@@ -252,15 +314,14 @@ export default function ContractReviewPage() {
     }
   };
 
-  const dataOverrides = getPropertyDataOverrides();
-  const property = booking ? getPropertyById(String(booking.propertyId), dataOverrides) : null;
-
   const c = effectiveContract;
   const hasAnyContractPayload = !!(c && Object.keys(c).length > 0);
 
   return (
     <div className="min-h-[60vh] bg-gradient-to-b from-stone-50 via-white to-stone-50/90 pb-10">
-      <AdminPageHeader title={pageTitle} subtitle={ar ? 'اقرأ تفاصيل العقد ثم قم بالاعتماد' : 'Read contract details then approve'} />
+      <div className="mx-auto max-w-5xl px-4 pt-6 sm:px-6 [&_.admin-page-subtitle]:mt-2 [&_.admin-page-subtitle]:text-base [&_.admin-page-subtitle]:sm:text-lg [&_.admin-page-title]:text-xl [&_.admin-page-title]:sm:text-2xl [&_.admin-page-title]:lg:text-[1.5rem]">
+        <AdminPageHeader title={pageTitle} subtitle={ar ? 'اقرأ تفاصيل العقد ثم قم بالاعتماد' : 'Read contract details then approve'} />
+      </div>
 
       <div className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6">
         {!bookingId ? (
@@ -299,7 +360,7 @@ export default function ContractReviewPage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <KindBadge kind={kind} ar={ar} />
-                  <StageBadge stage={booking.contractStage} ar={ar} />
+                  <StageBadge stage={booking.contractStage} ar={ar} kind={kind} />
                 </div>
               </div>
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -328,9 +389,9 @@ export default function ContractReviewPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                   </span>
-                  <h2 className="text-lg font-bold text-stone-900">{ar ? 'العقار' : 'Property'}</h2>
+                  <h2 className="text-base font-bold text-stone-900 sm:text-lg">{ar ? 'العقار' : 'Property'}</h2>
                 </div>
-                <p className="text-base font-semibold leading-relaxed text-stone-800">{getPropertyDisplayText(property)}</p>
+                <p className="text-sm font-semibold leading-relaxed text-stone-800 sm:text-base">{getPropertyDisplayText(property)}</p>
                 <div className="mt-4 rounded-xl border border-white/80 bg-white/70 shadow-inner">
                   <Field label={ar ? 'عنوان العقد (عربي)' : 'Title (AR)'} value={str(c?.propertyTitleAr)} />
                   <Field label={ar ? 'عنوان العقد (إنجليزي)' : 'Title (EN)'} value={str(c?.propertyTitleEn)} />
@@ -390,7 +451,18 @@ export default function ContractReviewPage() {
                 <Field label={ar ? 'مدة العقد (شهر)' : 'Duration (months)'} value={c?.durationMonths != null ? String(c.durationMonths) : ''} />
                 <Field label={ar ? 'تاريخ البداية' : 'Start date'} value={str(c?.startDate)} />
                 <Field label={ar ? 'تاريخ النهاية' : 'End date'} value={str(c?.endDate)} />
-                <Field label={ar ? 'تاريخ الاستئجار الفعلي' : 'Actual rental date'} value={str(c?.actualRentalDate)} />
+                <Field
+                  label={
+                    ar
+                      ? kind === 'INVESTMENT'
+                        ? 'تاريخ بداية الاستثمار الفعلي'
+                        : 'تاريخ الاستئجار الفعلي'
+                      : kind === 'INVESTMENT'
+                        ? 'Actual investment start'
+                        : 'Actual rental date'
+                  }
+                  value={str(c?.actualRentalDate)}
+                />
                 <Field label={ar ? 'تاريخ استلام الوحدة' : 'Handover date'} value={str(c?.unitHandoverDate)} />
               </Section>
             )}
@@ -489,9 +561,9 @@ export default function ContractReviewPage() {
                 ) : null}
               </Section>
             ) : (
-              <Section step={4} title={ar ? 'المالية والإيجار' : 'Rent & finances'}>
-                <Field label={ar ? 'الإيجار الشهري' : 'Monthly rent'} value={omr(ar, c?.monthlyRent ?? booking.priceAtBooking)} />
-                <Field label={ar ? 'الإيجار السنوي' : 'Annual rent'} value={omr(ar, c?.annualRent)} />
+              <Section step={4} title={financeLabels.section}>
+                <Field label={financeLabels.monthly} value={omr(ar, c?.monthlyRent ?? booking.priceAtBooking)} />
+                <Field label={financeLabels.annual} value={omr(ar, c?.annualRent)} />
                 <Field label={ar ? 'الضمان' : 'Deposit'} value={omr(ar, c?.depositAmount)} />
                 <Field label={ar ? 'رسوم البلدية' : 'Municipality fees'} value={omr(ar, c?.municipalityFees)} />
                 <Field label={ar ? 'تخفيض' : 'Discount'} value={omr(ar, c?.discountAmount)} />
@@ -502,9 +574,9 @@ export default function ContractReviewPage() {
                 <Field label={ar ? 'رسوم إنترنت' : 'Internet fees'} value={omr(ar, c?.internetFees)} />
                 <Field label={ar ? 'فاتورة كهرباء' : 'Electricity bill'} value={omr(ar, c?.electricityBillAmount)} />
                 <Field label={ar ? 'فاتورة ماء' : 'Water bill'} value={omr(ar, c?.waterBillAmount)} />
-                <Field label={ar ? 'يوم استحقاق الإيجار' : 'Rent due day'} value={c?.rentDueDay != null ? String(c.rentDueDay) : ''} />
+                <Field label={financeLabels.rentDueDay} value={c?.rentDueDay != null ? String(c.rentDueDay) : ''} />
                 <Field label={ar ? 'تكرار الدفع' : 'Payment frequency'} value={str(c?.rentPaymentFrequency)} />
-                <Field label={ar ? 'طريقة دفع الإيجار' : 'Rent payment method'} value={str(c?.rentPaymentMethod)} />
+                <Field label={financeLabels.rentPayMethod} value={str(c?.rentPaymentMethod)} />
                 <Field label={ar ? 'طريقة دفع الضمان' : 'Deposit payment method'} value={str(c?.depositPaymentMethod)} />
                 <Field label={ar ? 'رقم استمارة البلدية' : 'Municipality form #'} value={str(c?.municipalityFormNumber)} />
                 <Field label={ar ? 'رقم عقد البلدية' : 'Municipality contract #'} value={str(c?.municipalityContractNumber)} />
@@ -515,10 +587,7 @@ export default function ContractReviewPage() {
                 <Field label={ar ? 'المساحة (م²)' : 'Area m²'} value={c?.rentArea != null ? String(c.rentArea) : ''} />
                 <Field label={ar ? 'السعر للمتر' : 'Price/m²'} value={omr(ar, c?.pricePerMeter)} />
                 {c?.customMonthlyRents && c.customMonthlyRents.length > 0 ? (
-                  <Field
-                    label={ar ? 'إيجارات شهرية مخصصة' : 'Custom monthly rents'}
-                    value={c.customMonthlyRents.map((x) => omr(ar, x)).join(' · ')}
-                  />
+                  <Field label={financeLabels.customMonthly} value={c.customMonthlyRents.map((x) => omr(ar, x)).join(' · ')} />
                 ) : null}
                 <Field label={ar ? 'ضمان نقدي' : 'Deposit cash'} value={omr(ar, c?.depositCashAmount)} />
                 <Field label={ar ? 'تاريخ الضمان النقدي' : 'Deposit cash date'} value={str(c?.depositCashDate)} />
@@ -534,7 +603,7 @@ export default function ContractReviewPage() {
             )}
 
             {kind !== 'SALE' && c?.checks && c.checks.length > 0 ? (
-              <Section step={5} title={ar ? 'الشيكات (ملخص العقد)' : 'Contract cheques'}>
+              <Section step={5} title={ar ? (kind === 'INVESTMENT' ? 'الشيكات (ملخص الاستثمار)' : 'الشيكات (ملخص العقد)') : kind === 'INVESTMENT' ? 'Contract cheques (investment)' : 'Contract cheques'}>
                 <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
                   <table className="w-full min-w-[24rem] text-sm">
                     <thead>
@@ -560,7 +629,8 @@ export default function ContractReviewPage() {
               </Section>
             ) : null}
 
-            <Section title={ar ? 'شيكات الإيجار — بيانات الحساب والمالك' : 'Rent cheques — account & owner'}>
+            {kind !== 'SALE' && hasRentAccountFields(c) ? (
+            <Section title={financeLabels.checksSection}>
               <Field label={ar ? 'نوع مالك الشيكات' : 'Cheque owner type'} value={str(c?.rentChecksOwnerType)} />
               <Field label={ar ? 'اسم مالك الشيكات' : 'Cheque owner name'} value={str(c?.rentChecksOwnerName)} />
               <Field label={ar ? 'رقم مدني مالك الشيكات' : 'Owner civil ID'} value={str(c?.rentChecksOwnerCivilId)} />
@@ -572,6 +642,7 @@ export default function ContractReviewPage() {
               <Field label={ar ? 'الفرع' : 'Branch'} value={str(c?.rentChecksBankBranch)} />
               <Field label={ar ? 'معرف الحساب البنكي' : 'Bank account ID'} value={str(c?.rentChecksBankAccountId)} />
             </Section>
+            ) : null}
 
             <Section title={ar ? 'ضمانات وشروط إضافية' : 'Guarantees & notes'}>
               <Field label={ar ? 'الضمانات' : 'Guarantees'} value={c?.guarantees ? <span className="whitespace-pre-wrap">{c.guarantees}</span> : ''} />
@@ -608,7 +679,22 @@ export default function ContractReviewPage() {
             <Section title={ar ? 'حالة الاعتمادات والتواريخ' : 'Approval timestamps'}>
               <Field label={ar ? 'حالة العقد في الملف' : 'Contract status'} value={str(c?.status)} />
               <Field label={ar ? 'اعتماد إداري مبدئي' : 'Admin approved at'} value={str(c?.adminApprovedAt)} />
-              <Field label={ar ? 'اعتماد العميل' : 'Tenant approved at'} value={str(c?.tenantApprovedAt)} />
+              <Field
+                label={
+                  ar
+                    ? kind === 'SALE'
+                      ? 'اعتماد المشتري'
+                      : kind === 'INVESTMENT'
+                        ? 'اعتماد المستثمر'
+                        : 'اعتماد المستأجر'
+                    : kind === 'SALE'
+                      ? 'Buyer approved at'
+                      : kind === 'INVESTMENT'
+                        ? 'Investor approved at'
+                        : 'Tenant approved at'
+                }
+                value={str(c?.tenantApprovedAt)}
+              />
               <Field label={ar ? 'اعتماد المالك' : 'Landlord approved at'} value={str(c?.landlordApprovedAt)} />
               <Field label={ar ? 'أُنشئ' : 'Created'} value={str(c?.createdAt)} />
               <Field label={ar ? 'آخر تحديث' : 'Updated'} value={str(c?.updatedAt)} />
@@ -625,6 +711,24 @@ export default function ContractReviewPage() {
               </div>
             ) : null}
 
+            {canClientApprove || canOwnerApprove ? (
+              <div className="rounded-2xl border border-stone-200/90 bg-white p-4 shadow-sm ring-1 ring-stone-900/[0.03] sm:p-5">
+                <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-stone-800 sm:text-base">
+                  <input
+                    type="checkbox"
+                    checked={readConfirmed}
+                    onChange={(e) => setReadConfirmed(e.target.checked)}
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span>
+                    {ar
+                      ? 'أقرّ بأنني قرأتُ تفاصيل العقد كاملةً وأوافق على ما ورد فيه.'
+                      : 'I confirm that I have read the full contract details and agree to its terms.'}
+                  </span>
+                </label>
+              </div>
+            ) : null}
+
             <div className="sticky bottom-4 z-10 mt-2 flex flex-col gap-3 rounded-2xl border border-stone-200/90 bg-white/95 p-4 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
               <Link
                 href={`/${locale}/admin/my-bookings`}
@@ -637,9 +741,11 @@ export default function ContractReviewPage() {
                 <button
                   type="button"
                   onClick={approve}
-                  disabled={saving}
+                  disabled={saving || !readConfirmed}
                   className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-lg transition ${
-                    saving ? 'cursor-not-allowed bg-stone-400' : 'bg-gradient-to-l from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800'
+                    saving || !readConfirmed
+                      ? 'cursor-not-allowed bg-stone-400 opacity-80'
+                      : 'bg-gradient-to-l from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800'
                   }`}
                 >
                   {saving ? (ar ? 'جاري الاعتماد...' : 'Approving...') : ar ? '✓ اعتماد العقد' : '✓ Approve contract'}
