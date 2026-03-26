@@ -326,7 +326,7 @@ export default function MyBookingsPage() {
                     effectiveStatus === 'CONFIRMED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD';
                   const isWarning =
                     effectiveStatus === 'CONFIRMED' && !bookingStage && (hasDocumentsNeedingConfirmation(b.id) || !!sub);
-                  const hasContractId = !!full?.contractId;
+                  const hasContractId = !!(full?.contractId || (b as any)?.contractId);
                   const needComplete = bookingStage || hasContractId ? false : needsToCompleteContractData(b, full);
                   const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
                   const contractReviewUrl = `/${locale}/admin/contract-review?bookingId=${b.id}`;
