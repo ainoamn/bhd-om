@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -13,6 +13,7 @@ import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties
 import { searchDocuments } from '@/lib/data/accounting';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
+import type { PropertyBooking } from '@/lib/data/bookings';
 
 export default function OwnerDashboard() {
   const params = useParams();
@@ -33,14 +34,56 @@ export default function OwnerDashboard() {
   const user = session?.user as { id?: string; email?: string; name?: string; phone?: string } | undefined;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
 
-  const propertyIds = contact && (contact as { id?: string }).id && typeof window !== 'undefined'
-    ? getPropertyIdsForLandlord((contact as { id: string }).id)
-    : [];
+  const landlordContactId = (contact as { id?: string } | null)?.id || '';
+  const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+  useEffect(() => {
+    if (!landlordContactId) return;
+    let alive = true;
+    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: PropertyBooking[]) => {
+        if (!alive) return;
+        if (Array.isArray(list)) setServerBookings(list);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [landlordContactId]);
+
+  const propertyIds = useMemo(() => {
+    const localIds = landlordContactId && typeof window !== 'undefined' ? getPropertyIdsForLandlord(landlordContactId) : [];
+    const phoneNorm = String((contact as any)?.phone || '').replace(/\D/g, '').slice(-8);
+    const derived = new Set<number>();
+    for (const b of serverBookings as any[]) {
+      const cd = (b as any)?.contractData || {};
+      const landlordPhone = String(cd?.landlordPhone || '').replace(/\D/g, '').slice(-8);
+      if (String(cd?.landlordContactId || '') === landlordContactId) derived.add(Number(b.propertyId));
+      else if (phoneNorm && landlordPhone && phoneNorm === landlordPhone) derived.add(Number(b.propertyId));
+    }
+    return Array.from(new Set([...localIds, ...Array.from(derived)])).filter((n) => Number.isFinite(n));
+  }, [landlordContactId, serverBookings, contact]);
   const overrides = getPropertyDataOverrides();
   const properties = propertyIds.map((pid) => getPropertyById(pid, overrides)).filter(Boolean);
 
   const contracts = contact && typeof window !== 'undefined' ? getContactLinkedContracts(contact as Parameters<typeof getContactLinkedContracts>[0]) : [];
   const landlordContracts = contracts.filter((c) => c.role === 'landlord');
+
+  const verificationTasks = useMemo(() => {
+    if (!landlordContactId) return [];
+    const phoneNorm = String((contact as any)?.phone || '').replace(/\D/g, '').slice(-8);
+    const tasks: Array<{ bookingId: string; propertyId: number; token: string; createdAt?: string }> = [];
+    for (const b of serverBookings as any[]) {
+      const reqs: any[] = Array.isArray((b as any)?.signatureRequests) ? (b as any).signatureRequests : [];
+      const cd = (b as any)?.contractData || {};
+      const landlordPhone = String(cd?.landlordPhone || '').replace(/\D/g, '').slice(-8);
+      const isMine = String(cd?.landlordContactId || '') === landlordContactId || (phoneNorm && landlordPhone && phoneNorm === landlordPhone);
+      if (!isMine) continue;
+      const pending = reqs.find((r) => String(r?.actorRole) === 'OWNER' && String(r?.status) === 'PENDING');
+      if (pending?.token) tasks.push({ bookingId: String(b.id), propertyId: Number(b.propertyId), token: String(pending.token), createdAt: pending.createdAt });
+    }
+    return tasks.slice(0, 10);
+  }, [landlordContactId, serverBookings, contact]);
 
   const docs = contact && typeof window !== 'undefined' ? searchDocuments({ contactId: (contact as { id?: string }).id }) : [];
   const invoices = docs.filter((d) => d.type === 'INVOICE' || (d.type as string) === 'SALES_INVOICE');
@@ -212,6 +255,35 @@ export default function OwnerDashboard() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {verificationTasks.length > 0 && (
+        <div className="admin-card mb-8">
+          <div className="admin-card-header flex items-center justify-between">
+            <h2 className="admin-card-title">{locale === 'ar' ? 'مهام توثيق العقود' : 'Contract verification tasks'}</h2>
+            <Link href={`/${locale}/admin/my-bookings`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+              {locale === 'ar' ? 'عرض الحجوزات' : 'View bookings'}
+            </Link>
+          </div>
+          <div className="admin-card-body">
+            <ul className="space-y-3">
+              {verificationTasks.map((t) => (
+                <li key={t.token} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+                  <div className="text-sm text-amber-900 font-semibold">
+                    {locale === 'ar' ? 'بانتظار توقيعك على عقد مرتبط بعقار' : 'Waiting for your signature for a contract'}
+                    <span className="ms-2 font-mono text-xs text-amber-700">({t.bookingId})</span>
+                  </div>
+                  <Link
+                    href={`/${locale}/sign/${encodeURIComponent(t.token)}`}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#8B6F47] px-4 py-2 text-sm font-bold text-white hover:bg-[#6B5535]"
+                  >
+                    {locale === 'ar' ? 'فتح التوثيق' : 'Open signing'}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 

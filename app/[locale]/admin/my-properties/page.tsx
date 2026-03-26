@@ -8,6 +8,8 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactForUser } from '@/lib/data/addressBook';
 import { getPropertyIdsForLandlord } from '@/lib/data/propertyLandlords';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
+import { useEffect, useMemo, useState } from 'react';
+import type { PropertyBooking } from '@/lib/data/bookings';
 
 export default function MyPropertiesPage() {
   const params = useParams();
@@ -18,9 +20,37 @@ export default function MyPropertiesPage() {
   const user = session?.user as { id?: string; email?: string; phone?: string } | undefined;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
 
-  const propertyIds = contact && (contact as { id?: string }).id && typeof window !== 'undefined'
-    ? getPropertyIdsForLandlord((contact as { id: string }).id)
-    : [];
+  const landlordContactId = (contact as { id?: string } | null)?.id || '';
+  const [serverDerivedPropertyIds, setServerDerivedPropertyIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!landlordContactId) return;
+    let alive = true;
+    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: PropertyBooking[]) => {
+        if (!alive) return;
+        if (!Array.isArray(list)) return;
+        const phoneNorm = String((contact as any)?.phone || '').replace(/\D/g, '').slice(-8);
+        const ids = new Set<number>();
+        for (const b of list as any[]) {
+          const cd = (b as any)?.contractData || {};
+          const landlordPhone = String(cd?.landlordPhone || '').replace(/\D/g, '').slice(-8);
+          if (String(cd?.landlordContactId || '') === landlordContactId) ids.add(Number(b.propertyId));
+          else if (phoneNorm && landlordPhone && phoneNorm === landlordPhone) ids.add(Number(b.propertyId));
+        }
+        setServerDerivedPropertyIds(Array.from(ids).filter((n) => Number.isFinite(n)));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [landlordContactId]);
+
+  const propertyIds = useMemo(() => {
+    const localIds = landlordContactId && typeof window !== 'undefined' ? getPropertyIdsForLandlord(landlordContactId) : [];
+    return Array.from(new Set([...localIds, ...serverDerivedPropertyIds]));
+  }, [landlordContactId, serverDerivedPropertyIds]);
   const overrides = getPropertyDataOverrides();
   const properties = propertyIds.map((pid) => getPropertyById(pid, overrides)).filter(Boolean);
 
