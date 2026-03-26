@@ -492,6 +492,8 @@ export default function ContractReviewPage() {
   const [booking, setBooking] = useState<PropertyBooking | null>(null);
   const [error, setError] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [correctionSaving, setCorrectionSaving] = useState(false);
+  const [correctionNote, setCorrectionNote] = useState('');
   const [localSnapshot, setLocalSnapshot] = useState<Partial<RentalContract> | null>(null);
   const [readConfirmed, setReadConfirmed] = useState(false);
 
@@ -530,6 +532,23 @@ export default function ContractReviewPage() {
       active = false;
     };
   }, [bookingId, ar]);
+
+  // مزامنة حية لطلبات التوقيع/المرفقات (حتى يظهر إدخال الطرف الآخر فور حفظه)
+  useEffect(() => {
+    if (!bookingId) return;
+    const iv = window.setInterval(async () => {
+      try {
+        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const list = res.ok ? await res.json() : [];
+        if (!Array.isArray(list)) return;
+        const found = list.find((b: { id?: string }) => String(b?.id) === String(bookingId)) as PropertyBooking | undefined;
+        if (found) setBooking(found);
+      } catch {
+        // ignore
+      }
+    }, 5000);
+    return () => window.clearInterval(iv);
+  }, [bookingId]);
 
   useEffect(() => {
     if (!booking || typeof window === 'undefined') {
@@ -621,6 +640,77 @@ export default function ContractReviewPage() {
   }, [kind, effectiveContract]);
 
   const displayStage = useMemo(() => getDisplayStage(booking), [booking]);
+
+  const signatureRequests = useMemo(() => {
+    if (!booking) return [];
+    return Array.isArray((booking as any)?.signatureRequests) ? (((booking as any).signatureRequests as any[]) ?? []) : [];
+  }, [booking]);
+
+  const latestCompletedClient = useMemo(
+    () => signatureRequests.find((r) => String(r?.actorRole) === 'CLIENT' && String(r?.status) === 'COMPLETED'),
+    [signatureRequests]
+  );
+  const latestCompletedOwner = useMemo(
+    () => signatureRequests.find((r) => String(r?.actorRole) === 'OWNER' && String(r?.status) === 'COMPLETED'),
+    [signatureRequests]
+  );
+
+  const clientHasAllMedia = useMemo(() => {
+    const r = latestCompletedClient;
+    return !!(r?.selfieDataUrl && r?.signatureDataUrl && r?.idCardFrontDataUrl && r?.idCardBackDataUrl);
+  }, [latestCompletedClient]);
+  const ownerHasAllMedia = useMemo(() => {
+    const r = latestCompletedOwner;
+    return !!(r?.selfieDataUrl && r?.signatureDataUrl && r?.idCardFrontDataUrl && r?.idCardBackDataUrl);
+  }, [latestCompletedOwner]);
+
+  const createCorrectionRequest = async (actorRole: 'CLIENT' | 'OWNER') => {
+    if (!booking) return;
+    setCorrectionSaving(true);
+    setError('');
+    try {
+      const phone =
+        actorRole === 'CLIENT' ? ((effectiveContract as any)?.tenantPhone || booking.phone) : (effectiveContract as any)?.landlordPhone || booking.phone;
+
+      const res = await fetch('/api/signature-request/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: booking.id,
+          actorRole,
+          actorPhone: phone ? String(phone) : undefined,
+          contractKind: kind,
+          locale,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(String(j?.error || (ar ? 'تعذر إنشاء طلب تصحيح' : 'Failed to create correction request')));
+      }
+      const j = await res.json();
+      const link = String(j?.link || '');
+      if (!link) throw new Error(ar ? 'الرابط غير متاح' : 'Link unavailable');
+
+      const note = correctionNote.trim();
+      const toCopy = note ? `${link}\n\n${note}` : link;
+      try {
+        await navigator.clipboard.writeText(toCopy);
+      } catch {
+        // ignore clipboard failure
+      }
+      alert(
+        ar
+          ? 'تم إنشاء رابط طلب تصحيح. يرجى إرسال الرابط للطرف المعني يدوياً.\n\n' + link
+          : 'Correction link created. Please send the link to the concerned party manually.\n\n' + link
+      );
+      setCorrectionNote('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'Error');
+    } finally {
+      setCorrectionSaving(false);
+    }
+  };
 
   const canClientApprove = useMemo(() => {
     if (!displayStage) return false;
@@ -1191,6 +1281,142 @@ export default function ContractReviewPage() {
                     : []),
                 ]}
               />
+            </Section>
+
+            <Section title={ar ? 'مرفقات التوثيق (صور السلفي/التوقيع/البطاقة)' : 'Verification attachments (selfie/signature/ID)'}>
+              {clientHasAllMedia || ownerHasAllMedia ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {clientHasAllMedia && latestCompletedClient ? (
+                    <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-[14px] font-bold text-stone-900">{signatureActorLabel(ar, 'CLIENT', kind)} — {ar ? 'المرفقات' : 'Media'}</h3>
+                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">{ar ? 'مكتمل' : 'Completed'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'السلفي' : 'Selfie'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedClient.selfieDataUrl} alt="selfie" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'التوقيع' : 'Signature'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedClient.signatureDataUrl} alt="signature" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (أمام)' : 'ID front'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedClient.idCardFrontDataUrl} alt="id-front" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (خلف)' : 'ID back'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedClient.idCardBackDataUrl} alt="id-back" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                      </div>
+                      <div className="text-xs text-stone-500 font-mono">
+                        {ar ? 'token: ' : 'token: '}
+                        {String(latestCompletedClient.token).slice(0, 18)}…
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {ownerHasAllMedia && latestCompletedOwner ? (
+                    <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-[14px] font-bold text-stone-900">{signatureActorLabel(ar, 'OWNER', kind)} — {ar ? 'المرفقات' : 'Media'}</h3>
+                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">{ar ? 'مكتمل' : 'Completed'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'السلفي' : 'Selfie'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedOwner.selfieDataUrl} alt="selfie" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'التوقيع' : 'Signature'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedOwner.signatureDataUrl} alt="signature" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (أمام)' : 'ID front'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedOwner.idCardFrontDataUrl} alt="id-front" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (خلف)' : 'ID back'}</p>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={latestCompletedOwner.idCardBackDataUrl} alt="id-back" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                        </div>
+                      </div>
+                      <div className="text-xs text-stone-500 font-mono">
+                        {ar ? 'token: ' : 'token: '}
+                        {String(latestCompletedOwner.token).slice(0, 18)}…
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-sm leading-relaxed text-stone-600">{ar ? 'لا توجد مرفقات مكتملة للطرفين بعد.' : 'No completed attachments yet for one or both parties.'}</p>
+              )}
+
+              {userRole === 'ADMIN' ? (
+                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-950">{ar ? 'طلب تصحيح قبل الاعتماد النهائي' : 'Request correction before final approval'}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
+                    {ar ? 'عند وجود خطأ في البيانات/الصور/التوقيع، اضغط على زر طلب التصحيح لإنشاء رابط توقيع جديد للطرف المعني.' : 'If there is an issue with data/photos/signature, use correction to generate a new signing link for the concerned party.'}
+                  </p>
+
+                  <label className="mt-3 block text-xs font-semibold text-amber-950">
+                    {ar ? 'ملاحظة للتصحيح (اختياري)' : 'Correction note (optional)'}
+                  </label>
+                  <textarea
+                    value={correctionNote}
+                    onChange={(e) => setCorrectionNote(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-amber-300"
+                    rows={3}
+                    placeholder={ar ? 'مثال: يرجى إعادة صورة البطاقة من الأمام بشكل أوضح…' : 'Example: Please retake ID front clearer…'}
+                  />
+
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      disabled={correctionSaving || !clientHasAllMedia}
+                      onClick={() => void createCorrectionRequest('CLIENT')}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold shadow-sm transition ${
+                        correctionSaving || !clientHasAllMedia ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 text-white'
+                      }`}
+                    >
+                      {ar ? 'تصحيح المشتري/المستأجر' : 'Correct client'}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={correctionSaving || !ownerHasAllMedia}
+                      onClick={() => void createCorrectionRequest('OWNER')}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold shadow-sm transition ${
+                        correctionSaving || !ownerHasAllMedia ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 text-white'
+                      }`}
+                    >
+                      {ar ? 'تصحيح البائع/المالك' : 'Correct owner'}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={correctionSaving || !(clientHasAllMedia && ownerHasAllMedia)}
+                      onClick={async () => {
+                        await createCorrectionRequest('CLIENT');
+                        await createCorrectionRequest('OWNER');
+                      }}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold shadow-sm transition ${
+                        correctionSaving || !(clientHasAllMedia && ownerHasAllMedia) ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-[#8B6F47] hover:bg-[#6B5535] text-white'
+                      }`}
+                    >
+                      {ar ? 'تصحيح الجميع' : 'Correct both'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </Section>
 
             {!hasAnyContractPayload ? (

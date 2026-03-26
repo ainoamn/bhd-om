@@ -42,6 +42,47 @@ async function compressImageDataUrl(dataUrl: string, maxW = 720, jpegQuality = 0
   return canvas.toDataURL('image/jpeg', jpegQuality);
 }
 
+async function scanifyDocumentDataUrl(dataUrl: string, maxW = 1280): Promise<string> {
+  const img = new Image();
+  img.src = dataUrl;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('image load failed'));
+  });
+
+  const scale = Math.min(1, maxW / Math.max(1, img.width));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const d = imageData.data;
+
+  // grayscale + contrast + simple threshold (scan-like)
+  // thresholds tuned for phone camera; keep it lightweight.
+  const contrast = 1.35;
+  const threshold = 190;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i]!;
+    const g = d[i + 1]!;
+    const b = d[i + 2]!;
+    let y = 0.299 * r + 0.587 * g + 0.114 * b; // luminance
+    y = (y - 128) * contrast + 128;
+    const v = y >= threshold ? 255 : 0;
+    d[i] = v;
+    d[i + 1] = v;
+    d[i + 2] = v;
+    d[i + 3] = 255;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.9);
+}
+
 type FacingMode = 'user' | 'environment';
 
 function CameraCapture({
@@ -51,6 +92,7 @@ function CameraCapture({
   description,
   value,
   onChange,
+  mode,
 }: {
   ar: boolean;
   facingMode: FacingMode;
@@ -58,6 +100,7 @@ function CameraCapture({
   description?: string;
   value: string;
   onChange: (dataUrl: string) => void;
+  mode?: 'PHOTO' | 'DOC_SCAN';
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -122,7 +165,8 @@ function CameraCapture({
     ctx.drawImage(v, 0, 0, w, h);
     const raw = canvas.toDataURL('image/jpeg', 0.9);
     const compressed = await compressImageDataUrl(raw, 1080, 0.82);
-    onChange(compressed);
+    const out = mode === 'DOC_SCAN' ? await scanifyDocumentDataUrl(compressed, 1400) : compressed;
+    onChange(out);
     stop();
   };
 
@@ -485,6 +529,7 @@ export default function SignPage() {
               title={ar ? '١) صورة سلفي' : '1) Selfie'}
               description={ar ? 'سيتم فتح الكاميرا مباشرة لالتقاط السلفي.' : 'Camera opens directly to capture a selfie.'}
               value={selfie}
+              mode="PHOTO"
               onChange={(v) => {
                 setSelfie(v);
                 setSelfieSaved(false);
@@ -562,6 +607,7 @@ export default function SignPage() {
               title={ar ? '٣) البطاقة الشخصية (الأمام)' : '3) ID card (front)'}
               description={ar ? 'استخدم الكاميرا الخلفية لتصوير وجه البطاقة الأمامي.' : 'Use the back camera to capture the front side.'}
               value={idCardFront}
+              mode="DOC_SCAN"
               onChange={(v) => {
                 setIdCardFront(v);
                 setIdCardFrontSaved(false);
@@ -584,6 +630,7 @@ export default function SignPage() {
               title={ar ? '٤) البطاقة الشخصية (الخلف)' : '4) ID card (back)'}
               description={ar ? 'الآن صوّر وجه البطاقة الخلفي.' : 'Now capture the back side.'}
               value={idCardBack}
+              mode="DOC_SCAN"
               onChange={(v) => {
                 setIdCardBack(v);
                 setIdCardBackSaved(false);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -174,6 +174,7 @@ export default function ContractDetailPage() {
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
   const { data: session } = useSession();
+  const actingRole = (session?.user as { role?: string } | undefined)?.role;
 
   const [contract, setContract] = useState<RentalContract | null>(null);
   const [form, setForm] = useState<Partial<RentalContract>>({});
@@ -187,6 +188,8 @@ export default function ContractDetailPage() {
   const [adminEditMode, setAdminEditMode] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'edit' | 'final' | 'cancel' | 'tenant' | 'landlord' | null>(null);
   const [approvingAdmin, setApprovingAdmin] = useState(false);
+  const [correctionSaving, setCorrectionSaving] = useState(false);
+  const [correctionNote, setCorrectionNote] = useState('');
   const lastSyncedBookingStageKeyRef = useRef<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     landlord: false, tenant: true, property: false, financial: true, dates: true,
@@ -197,8 +200,62 @@ export default function ContractDetailPage() {
   const [showAddBrokerModal, setShowAddBrokerModal] = useState(false);
   const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }));
 
+  const [bookingPollTick, setBookingPollTick] = useState(0);
+
   useEffect(() => setMounted(true), []);
   useEffect(() => { setAdminEditMode(false); }, [contract?.status, id]);
+
+  // مزامنة حية لطلبات التوقيع/الصور من السيرفر حتى تظهر للمراجعة على أجهزة أخرى
+  useEffect(() => {
+    if (!contract?.bookingId) return;
+    let cancelled = false;
+    const syncOne = async () => {
+      try {
+        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        if (!res.ok) return;
+        const list = (await res.json()) as any[];
+        if (!Array.isArray(list)) return;
+        const found = list.find((b) => b?.id === contract.bookingId) as any | undefined;
+        if (!found || cancelled) return;
+        mergeBookingsFromServer([found]);
+        setBookingPollTick((t) => t + 1);
+      } catch {
+        // ignore
+      }
+    };
+    void syncOne();
+    const iv = window.setInterval(() => {
+      void syncOne();
+    }, 7000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(iv);
+    };
+  }, [contract?.bookingId]);
+
+  const signaturesReadyForAdminFinal = useMemo(() => {
+    if (!contract?.bookingId) return false;
+    const b = getAllBookings().find((x) => x.id === contract.bookingId);
+    if (!b) return false;
+    const reqs: any[] = Array.isArray((b as any)?.signatureRequests) ? ((b as any).signatureRequests as any[]) : [];
+
+    const hasMedia = (role: 'CLIENT' | 'OWNER') => {
+      const r = reqs.find((x) => String(x?.actorRole) === role && String(x?.status) === 'COMPLETED');
+      return !!(r?.selfieDataUrl && r?.signatureDataUrl && r?.idCardFrontDataUrl && r?.idCardBackDataUrl);
+    };
+
+    return hasMedia('CLIENT') && hasMedia('OWNER');
+  }, [contract?.bookingId, bookingPollTick]);
+
+  const latestVerificationMedia = useMemo(() => {
+    if (!contract?.bookingId) return { client: null as any, owner: null as any };
+    const b = getAllBookings().find((x) => x.id === contract.bookingId);
+    if (!b) return { client: null as any, owner: null as any };
+    const reqs: any[] = Array.isArray((b as any)?.signatureRequests) ? ((b as any).signatureRequests as any[]) : [];
+    const client = reqs.find((x) => String(x?.actorRole) === 'CLIENT' && String(x?.status) === 'COMPLETED') ?? null;
+    const owner = reqs.find((x) => String(x?.actorRole) === 'OWNER' && String(x?.status) === 'COMPLETED') ?? null;
+    return { client, owner };
+  }, [contract?.bookingId, bookingPollTick]);
 
   const loadContract = useCallback(() => {
     const c = getContractById(id);
@@ -1146,6 +1203,61 @@ export default function ContractDetailPage() {
     loadContract();
   };
 
+  const requestCorrection = async (actorRole: 'CLIENT' | 'OWNER') => {
+    const adminRole = (session?.user as { role?: string } | undefined)?.role;
+    if (adminRole !== 'ADMIN') return;
+    if (!contract?.bookingId) {
+      alert(ar ? 'العقد غير مرتبط بحجز' : 'Contract has no booking');
+      return;
+    }
+    const phone = actorRole === 'CLIENT' ? String(form?.tenantPhone || '').trim() : String(form?.landlordPhone || '').trim();
+    if (!phone) {
+      alert(ar ? 'لا يوجد رقم هاتف للطرف لإرسال رابط التصحيح' : 'No phone for the concerned party to send correction link');
+      return;
+    }
+
+    setCorrectionSaving(true);
+    try {
+      const res = await fetch('/api/signature-request/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: contract.bookingId,
+          actorRole,
+          actorPhone: phone,
+          contractKind: ((contract as any)?.propertyContractKind ?? 'RENT') as any,
+          locale,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(String(j?.error || (ar ? 'تعذر إنشاء طلب التصحيح' : 'Failed to create correction request')));
+      }
+      const j = await res.json();
+      const link = String(j?.link || '');
+      if (!link) throw new Error(ar ? 'الرابط غير متاح' : 'Link unavailable');
+
+      const note = correctionNote.trim();
+      const toCopy = note ? `${link}\n\n${note}` : link;
+      try {
+        await navigator.clipboard.writeText(toCopy);
+        alert(
+          ar
+            ? 'تم إنشاء رابط طلب تصحيح. تم نسخه للحافظة لإرساله يدوياً:\n' + link
+            : 'Correction link created and copied to clipboard. Send it manually:\n' + link
+        );
+      } catch {
+        alert(ar ? 'تم إنشاء رابط طلب التصحيح. انسخ الرابط وأرسله يدوياً:\n' + link : 'Correction link created. Copy and send:\n' + link);
+      }
+      setCorrectionNote('');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'Error');
+    } finally {
+      setCorrectionSaving(false);
+    }
+  };
+
   if (!contract) {
     return (
       <div className="space-y-8">
@@ -1299,7 +1411,10 @@ export default function ContractDetailPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmAction('final')}
-                  className="px-4 py-2 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
+                  disabled={!signaturesReadyForAdminFinal}
+                  className={`px-4 py-2 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 ${
+                    !signaturesReadyForAdminFinal ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 >
                   {ar ? 'اعتماد نهائي' : 'Final Approval'}
                 </button>
@@ -1350,6 +1465,171 @@ export default function ContractDetailPage() {
             {contract.adminApprovedAt && <span>{ar ? 'الإدارة:' : 'Admin:'} {new Date(contract.adminApprovedAt).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</span>}
             {contract.tenantApprovedAt && <span>{ar ? `${tenantWordAr}:` : `${tenantWordEn}:`} {new Date(contract.tenantApprovedAt).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</span>}
             {contract.landlordApprovedAt && <span>{ar ? 'المالك:' : 'Landlord:'} {new Date(contract.landlordApprovedAt).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</span>}
+          </div>
+        )}
+
+        {contract?.bookingId && (latestVerificationMedia.client || latestVerificationMedia.owner) && (
+          <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-bold text-stone-900">{ar ? 'مرفقات التوثيق (صور السلفي/التوقيع/البطاقة)' : 'Verification attachments (selfie/signature/ID)'}</p>
+            <p className="mt-1 text-xs text-stone-600 leading-relaxed">
+              {ar ? 'هذه الصور تعتبر مرفقات للعقد وتستخدم للمراجعة وطلب التصحيح قبل الاعتماد النهائي.' : 'These images are contract attachments used for review and correction requests before final approval.'}
+            </p>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {latestVerificationMedia.client ? (
+                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                  <p className="text-xs font-bold text-stone-900">{ar ? tenantWordAr : tenantWordEn}</p>
+                  <div className="mt-2 grid gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'السلفي' : 'Selfie'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.client.selfieDataUrl}
+                        alt="selfie"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.client.selfieDataUrl)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'التوقيع' : 'Signature'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.client.signatureDataUrl}
+                        alt="signature"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.client.signatureDataUrl)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'البطاقة (أمام)' : 'ID front'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.client.idCardFrontDataUrl}
+                        alt="id-front"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.client.idCardFrontDataUrl)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'البطاقة (خلف)' : 'ID back'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.client.idCardBackDataUrl}
+                        alt="id-back"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.client.idCardBackDataUrl)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {latestVerificationMedia.owner ? (
+                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                  <p className="text-xs font-bold text-stone-900">{ar ? (isSale ? 'البائع (المالك)' : 'المالك') : (isSale ? 'Seller (owner)' : 'Owner')}</p>
+                  <div className="mt-2 grid gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'السلفي' : 'Selfie'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.owner.selfieDataUrl}
+                        alt="selfie"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.owner.selfieDataUrl)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'التوقيع' : 'Signature'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.owner.signatureDataUrl}
+                        alt="signature"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.owner.signatureDataUrl)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'البطاقة (أمام)' : 'ID front'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.owner.idCardFrontDataUrl}
+                        alt="id-front"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.owner.idCardFrontDataUrl)}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-stone-700">{ar ? 'البطاقة (خلف)' : 'ID back'}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestVerificationMedia.owner.idCardBackDataUrl}
+                        alt="id-back"
+                        className="mt-2 w-full rounded-xl border border-stone-200 bg-white"
+                        onClick={() => setZoomedImageUrl(latestVerificationMedia.owner.idCardBackDataUrl)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {actingRole === 'ADMIN' && signaturesReadyForAdminFinal && (
+              <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-bold text-amber-950">{ar ? 'طلب تصحيح قبل الاعتماد النهائي' : 'Request correction before final approval'}</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
+                  {ar ? 'إذا كان هناك خطأ في الصور أو التوقيع، اطلب من الطرف إعادة التوقيع/الصور عبر رابط جديد.' : 'If photos or signature are incorrect, request the party to resubmit via a new signing link.'}
+                </p>
+
+                <label className="mt-3 block text-xs font-semibold text-amber-950">
+                  {ar ? 'ملاحظة للتصحيح (اختياري)' : 'Correction note (optional)'}
+                </label>
+                <textarea
+                  value={correctionNote}
+                  onChange={(e) => setCorrectionNote(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-amber-300"
+                  rows={3}
+                  placeholder={ar ? 'مثال: يرجى إعادة صورة البطاقة بشكل أوضح…' : 'Example: Please retake the ID clearer…'}
+                />
+
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={correctionSaving}
+                    onClick={() => void requestCorrection('CLIENT')}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
+                      correctionSaving ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 text-white'
+                    }`}
+                  >
+                    {ar ? 'تصحيح' : 'Correct'} {tenantWordAr}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={correctionSaving}
+                    onClick={() => void requestCorrection('OWNER')}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
+                      correctionSaving ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700 text-white'
+                    }`}
+                  >
+                    {ar ? 'تصحيح' : 'Correct'} {isSale ? (ar ? 'البائع (المالك)' : 'Seller (owner)') : ar ? 'المالك' : 'Owner'}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={correctionSaving}
+                    onClick={async () => {
+                      await requestCorrection('CLIENT');
+                      await requestCorrection('OWNER');
+                    }}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
+                      correctionSaving ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-[#8B6F47] hover:bg-[#6B5535] text-white'
+                    }`}
+                  >
+                    {ar ? 'تصحيح الجميع' : 'Correct both'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -3575,6 +3855,14 @@ export default function ContractDetailPage() {
                 if (action === 'edit') setAdminEditMode(true);
                 else if (action === 'final') {
                   if (!contract?.bookingId) { alert(ar ? 'العقد غير مرتبط بحجز' : 'Contract has no booking'); return; }
+                  if (!signaturesReadyForAdminFinal) {
+                    alert(
+                      ar
+                        ? 'لا يمكن اعتماد العقد نهائياً قبل اكتمال صور التوثيق والتوقيع (السلفي + التوقيع + بطاقة الهوية أمام/خلف) من طرفي العقد.'
+                        : 'Final approval requires completed verification media (selfie + signature + ID front/back) from both parties.'
+                    );
+                    return;
+                  }
                   if (!areAllRequiredDocumentsApproved(contract!.bookingId)) { alert(ar ? 'يجب اعتماد جميع المستندات أولاً' : 'Approve all documents first'); return; }
                   const bChecks = getChecksByBooking(contract!.bookingId);
                   if (bChecks.length > 0 && !areAllChecksApproved(contract!.bookingId)) { alert(ar ? 'يجب اعتماد جميع الشيكات أولاً' : 'Approve all cheques first'); return; }

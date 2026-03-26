@@ -56,16 +56,16 @@ export async function POST(req: NextRequest) {
     };
 
     const list: SignatureRequest[] = Array.isArray(booking.signatureRequests) ? booking.signatureRequests : [];
-    // إلغاء أي طلب توقيع معلّق لنفس الطرف قبل إنشاء طلب جديد
+    // إلغاء أي طلب توقيع سابق لنفس الطرف قبل إنشاء طلب جديد
+    // (حتى لو كان COMPLETED) لأن التصحيح يعني استبدال التوقيع/الصور السابقة.
     for (const item of list) {
-      if (item.actorRole === actorRole && item.status === 'PENDING') {
-        item.status = 'CANCELLED';
-      }
+      if (item.actorRole !== actorRole) continue;
+      if (item.status !== 'CANCELLED') item.status = 'CANCELLED';
     }
 
     // معالجة بيانات قديمة: إذا أُنشئ طلب توقيع جديد، نُرجع المرحلة خطوة للخلف
     // حتى لا يظهر "معتمد" قبل اكتمال التوقيع فعلياً.
-    if (actorRole === 'CLIENT' && booking.contractStage === 'TENANT_APPROVED') {
+    if (actorRole === 'CLIENT' && ['TENANT_APPROVED', 'LANDLORD_APPROVED', 'APPROVED'].includes(String(booking.contractStage))) {
       booking.contractStage = 'ADMIN_APPROVED';
       const cd = (booking.contractData || {}) as Record<string, unknown>;
       booking.contractData = {
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         tenantApprovedByLastName: undefined,
         tenantApprovedBySerial: undefined,
       };
-    } else if (actorRole === 'OWNER' && booking.contractStage === 'LANDLORD_APPROVED') {
+    } else if (actorRole === 'OWNER' && ['LANDLORD_APPROVED', 'APPROVED'].includes(String(booking.contractStage))) {
       booking.contractStage = 'TENANT_APPROVED';
       const cd = (booking.contractData || {}) as Record<string, unknown>;
       booking.contractData = {
