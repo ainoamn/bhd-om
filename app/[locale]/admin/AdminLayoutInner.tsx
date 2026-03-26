@@ -70,10 +70,45 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const impersonationSession = getImpersonationSessionFromStorage();
   const isImpersonating = !!impersonationSession;
 
-  // آخر جلسة معروفة (للحالات غير الانتحال)
+  // آخر جلسة معروفة (للحالات غير الانتحال). لا نمسحها فوراً عند unauthenticated —
+  // NextAuth قد يعرض unauthenticated لحظياً أثناء إعادة الجلب (مثلاً بعد التركيز أو التحديث).
   const lastKnownSessionRef = useRef<typeof session>(null);
-  if (session?.user) lastKnownSessionRef.current = session;
-  if (status === 'unauthenticated') lastKnownSessionRef.current = null;
+  const clearStaleSessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signingOutRef = useRef(false);
+
+  if (session?.user) {
+    lastKnownSessionRef.current = session;
+    if (typeof window !== 'undefined' && clearStaleSessionTimeoutRef.current) {
+      window.clearTimeout(clearStaleSessionTimeoutRef.current);
+      clearStaleSessionTimeoutRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (status === 'authenticated' && session?.user) signingOutRef.current = false;
+  }, [status, session]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (status !== 'unauthenticated') return;
+    if (signingOutRef.current) {
+      lastKnownSessionRef.current = null;
+      return;
+    }
+    if (session?.user) return;
+    if (clearStaleSessionTimeoutRef.current) window.clearTimeout(clearStaleSessionTimeoutRef.current);
+    clearStaleSessionTimeoutRef.current = window.setTimeout(() => {
+      lastKnownSessionRef.current = null;
+      clearStaleSessionTimeoutRef.current = null;
+    }, 750);
+    return () => {
+      if (clearStaleSessionTimeoutRef.current) {
+        window.clearTimeout(clearStaleSessionTimeoutRef.current);
+        clearStaleSessionTimeoutRef.current = null;
+      }
+    };
+  }, [status, session]);
 
   const mockSession = typeof window !== 'undefined' ? (window as any)?.mockNextAuthSession : undefined;
   const fallbackSession = mockSession || session || lastKnownSessionRef.current;
@@ -191,8 +226,33 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
 
   const isAdminPath = pathname?.includes('/admin');
 
+  const handleSignOut = () => {
+    signingOutRef.current = true;
+    lastKnownSessionRef.current = null;
+    if (typeof window !== 'undefined' && clearStaleSessionTimeoutRef.current) {
+      window.clearTimeout(clearStaleSessionTimeoutRef.current);
+      clearStaleSessionTimeoutRef.current = null;
+    }
+    void signOut({ callbackUrl: `/${locale}/login` });
+  };
+
+  // أثناء جلب الجلسة الأولى لا نعرض شاشة الدخول (تجنب وميض بعد F5).
+  const showSessionLoading =
+    isAdminPath && !isImpersonating && !mockSession && !currentSession && status === 'loading';
+
   // عدم حجب الواجهة أبداً — عرض اللوحة والمحتوى فوراً (سرعة التنقل). نعرض "يجب تسجيل الدخول" فقط عند التأكد من عدم المصادقة.
   const showLoginRequired = !currentSession && status === 'unauthenticated' && isAdminPath;
+
+  if (showSessionLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+        <div className="flex flex-col items-center gap-4 text-neutral-600">
+          <div className="h-10 w-10 rounded-full border-2 border-[#8B6F47] border-t-transparent animate-spin" aria-hidden />
+          <p className="text-sm font-medium">{locale === 'ar' ? 'جاري التحميل…' : 'Loading…'}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (showLoginRequired) {
     const loginUrl = `/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`;
@@ -420,7 +480,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           <div className="admin-sidebar-footer-actions">
             <button
               type="button"
-              onClick={() => signOut({ callbackUrl: `/${locale}/login` })}
+              onClick={handleSignOut}
               className="admin-nav-link admin-nav-link--external flex-1 min-w-0 justify-center"
               title={locale === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
             >
