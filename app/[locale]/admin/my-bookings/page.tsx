@@ -68,6 +68,33 @@ function getBookingStatusDisplay(
   const hasContract = hasContractForUnit(linked.propertyId, linked.unitKey);
   const c = getContractByBooking(id);
 
+  const getDisplayStageFromServer = (
+    booking: PropertyBooking | undefined,
+    fallbackStage?: string
+  ): 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED' | undefined => {
+    const stage = (booking?.contractStage || fallbackStage) as
+      | 'DRAFT'
+      | 'ADMIN_APPROVED'
+      | 'TENANT_APPROVED'
+      | 'LANDLORD_APPROVED'
+      | 'APPROVED'
+      | 'CANCELLED'
+      | undefined;
+    const reqs: any[] = Array.isArray((booking as any)?.signatureRequests) ? (((booking as any).signatureRequests as any[]) ?? []) : [];
+    const hasMedia = (role: 'CLIENT' | 'OWNER') => {
+      const r = reqs.find((x) => String(x?.actorRole) === role && String(x?.status) === 'COMPLETED');
+      return !!(r?.selfieDataUrl && r?.signatureDataUrl && r?.idCardFrontDataUrl && r?.idCardBackDataUrl);
+    };
+    const clientDone = hasMedia('CLIENT');
+    const ownerDone = hasMedia('OWNER');
+    if (stage === 'ADMIN_APPROVED' && clientDone) return 'TENANT_APPROVED';
+    if (stage === 'TENANT_APPROVED' && ownerDone) return 'LANDLORD_APPROVED';
+    // في حال كانت المرحلة محلية/قديمة لكن التواقيع مكتملة على الخادم
+    if (clientDone && !ownerDone) return 'TENANT_APPROVED';
+    if (clientDone && ownerDone && stage !== 'APPROVED') return 'LANDLORD_APPROVED';
+    return stage;
+  };
+
   if (hasContract && c) {
     const kind = (c.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const allDocsAndChecksApproved =
@@ -88,18 +115,19 @@ function getBookingStatusDisplay(
         sub: ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed',
       };
     }
-    if (c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED') {
+    const stage = getDisplayStageFromServer(fullBooking, c.status);
+    if (stage === 'ADMIN_APPROVED' || stage === 'TENANT_APPROVED' || stage === 'LANDLORD_APPROVED') {
       // سيناريو الاعتمادات الموحد: إدارة (مبدئي) → العميل (مستأجر/مشتري/مستثمر) → المالك → إدارة (نهائي)
       const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
       const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
       const ownerAr = kind === 'SALE' ? 'المالك (البائع)' : 'المالك';
       const ownerEn = kind === 'SALE' ? 'Seller' : 'Landlord';
       const next =
-        c.status === 'ADMIN_APPROVED'
+        stage === 'ADMIN_APPROVED'
           ? ar
             ? `بانتظار اعتماد ${actorAr}`
             : `Waiting for ${actorEn} approval`
-          : c.status === 'TENANT_APPROVED'
+          : stage === 'TENANT_APPROVED'
             ? ar
               ? `بانتظار اعتماد ${ownerAr}`
               : `Waiting for ${ownerEn} approval`
@@ -120,7 +148,7 @@ function getBookingStatusDisplay(
 
   // لا يوجد عقد في localStorage (العقد قد يكون أنشأه الأدمن على جهاز آخر) — للحجز المؤكد والدفع مؤكد نعرض «عقد مسودة - بانتظار رفع المستندات» وزر إكمال البيانات
   if (!c && (effectiveStatus === 'CONFIRMED' || effectiveStatus === 'PENDING')) {
-    const stage = fullBooking?.contractStage;
+    const stage = getDisplayStageFromServer(fullBooking, fullBooking?.contractStage);
     const kindFromBooking = (fullBooking?.contractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const paymentOrAccountantConfirmed = !!(fullBooking?.paymentConfirmed || fullBooking?.accountantConfirmedAt);
 
@@ -256,8 +284,12 @@ export default function MyBookingsPage() {
       window.setTimeout(() => void run(attempt + 1), delay);
     };
     void run(0);
+    const iv = window.setInterval(() => {
+      void run(0);
+    }, 5000);
     return () => {
       alive = false;
+      window.clearInterval(iv);
     };
   }, [status]);
 
