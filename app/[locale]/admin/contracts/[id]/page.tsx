@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
   getContractById,
@@ -18,6 +19,7 @@ import {
   type RentalContract,
   type CheckInfo,
   type CheckType,
+  type ContractApprovalActor,
 } from '@/lib/data/contracts';
 import {
   calcMunicipalityFees,
@@ -152,11 +154,26 @@ const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
   CANCELLED: { ar: 'مُشطوب', en: 'Cancelled' },
 };
 
+function sessionToContractActor(session: {
+  user?: { name?: string | null; serialNumber?: string | null };
+} | null | undefined): ContractApprovalActor | undefined {
+  const u = session?.user;
+  if (!u) return undefined;
+  const name = (u.name || '').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? '';
+  const lastName = parts.slice(1).join(' ') || '';
+  const serial = (u.serialNumber || '').trim() || undefined;
+  if (!firstName && !lastName && !serial) return undefined;
+  return { firstName, lastName, serial };
+}
+
 export default function ContractDetailPage() {
   const params = useParams();
   const id = params?.id as string;
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
+  const { data: session } = useSession();
 
   const [contract, setContract] = useState<RentalContract | null>(null);
   const [form, setForm] = useState<Partial<RentalContract>>({});
@@ -1014,7 +1031,7 @@ export default function ContractDetailPage() {
           }
         }
 
-        const updated = approveContractByAdmin(id);
+        const updated = approveContractByAdmin(id, sessionToContractActor(session));
         if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
 
         // إرسال الرسائل يمكن أن يكون ثقيلاً — نفصله أيضاً
@@ -1036,13 +1053,13 @@ export default function ContractDetailPage() {
   };
 
   const handleApproveTenant = () => {
-    const updated = approveContractByTenant(id);
+    const updated = approveContractByTenant(id, sessionToContractActor(session));
     if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
     loadContract();
   };
 
   const handleApproveLandlord = () => {
-    const updated = approveContractByLandlord(id);
+    const updated = approveContractByLandlord(id, sessionToContractActor(session));
     if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
     loadContract();
   };

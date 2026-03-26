@@ -245,10 +245,34 @@ export interface RentalContract {
   adminApprovedAt?: string;
   tenantApprovedAt?: string;
   landlordApprovedAt?: string;
+  /** من نفّذ الاعتماد (للعرض مع التاريخ) */
+  adminApprovedByFirstName?: string;
+  adminApprovedByLastName?: string;
+  adminApprovedBySerial?: string;
+  tenantApprovedByFirstName?: string;
+  tenantApprovedByLastName?: string;
+  tenantApprovedBySerial?: string;
+  landlordApprovedByFirstName?: string;
+  landlordApprovedByLastName?: string;
+  landlordApprovedBySerial?: string;
+  /** من أنشأ سجل العقد / آخر من حدّثه (اختياري) */
+  contractCreatedByFirstName?: string;
+  contractCreatedByLastName?: string;
+  contractCreatedBySerial?: string;
+  contractUpdatedByFirstName?: string;
+  contractUpdatedByLastName?: string;
+  contractUpdatedBySerial?: string;
 
   createdAt: string;
   updatedAt: string;
 }
+
+/** بيانات المُعتمد لحفظها مع التواريخ */
+export type ContractApprovalActor = {
+  firstName?: string;
+  lastName?: string;
+  serial?: string;
+};
 
 const STORAGE_KEY = 'bhd_rental_contracts';
 
@@ -454,19 +478,31 @@ export function isContractDataComplete(c: RentalContract): boolean {
   return getContractMissingFields(c).length === 0;
 }
 
-export function approveContractByAdmin(id: string): RentalContract | null {
+export function approveContractByAdmin(id: string, actor?: ContractApprovalActor): RentalContract | null {
   const c = getContractById(id);
   if (!c || c.status !== 'DRAFT') return null;
   if (!isContractDataComplete(c)) return null; // لا يعتمد إذا كانت البيانات ناقصة
   const now = new Date().toISOString();
-  return updateContract(id, { status: 'ADMIN_APPROVED', adminApprovedAt: now });
+  const patch: Partial<RentalContract> = { status: 'ADMIN_APPROVED', adminApprovedAt: now };
+  if (actor) {
+    if (actor.firstName != null) patch.adminApprovedByFirstName = actor.firstName;
+    if (actor.lastName != null) patch.adminApprovedByLastName = actor.lastName;
+    if (actor.serial != null) patch.adminApprovedBySerial = actor.serial;
+  }
+  return updateContract(id, patch);
 }
 
-export function approveContractByTenant(id: string): RentalContract | null {
+export function approveContractByTenant(id: string, actor?: ContractApprovalActor): RentalContract | null {
   const c = getContractById(id);
   if (!c || c.status !== 'ADMIN_APPROVED') return null;
   const now = new Date().toISOString();
-  const updated = updateContract(id, { status: 'TENANT_APPROVED', tenantApprovedAt: now });
+  const patch: Partial<RentalContract> = { status: 'TENANT_APPROVED', tenantApprovedAt: now };
+  if (actor) {
+    if (actor.firstName != null) patch.tenantApprovedByFirstName = actor.firstName;
+    if (actor.lastName != null) patch.tenantApprovedByLastName = actor.lastName;
+    if (actor.serial != null) patch.tenantApprovedBySerial = actor.serial;
+  }
+  const updated = updateContract(id, patch);
   if (updated) {
     const next = getContractById(id)!;
     if (next.landlordApprovedAt) {
@@ -477,14 +513,20 @@ export function approveContractByTenant(id: string): RentalContract | null {
   return updated;
 }
 
-export function approveContractByLandlord(id: string): RentalContract | null {
+export function approveContractByLandlord(id: string, actor?: ContractApprovalActor): RentalContract | null {
   const c = getContractById(id);
   if (!c || (c.status !== 'ADMIN_APPROVED' && c.status !== 'TENANT_APPROVED')) return null;
   const now = new Date().toISOString();
-  const updated = updateContract(id, {
+  const patch: Partial<RentalContract> = {
     status: c.status === 'TENANT_APPROVED' ? 'APPROVED' : 'LANDLORD_APPROVED',
     landlordApprovedAt: now,
-  });
+  };
+  if (actor) {
+    if (actor.firstName != null) patch.landlordApprovedByFirstName = actor.firstName;
+    if (actor.lastName != null) patch.landlordApprovedByLastName = actor.lastName;
+    if (actor.serial != null) patch.landlordApprovedBySerial = actor.serial;
+  }
+  const updated = updateContract(id, patch);
   if (updated && c.status === 'TENANT_APPROVED') {
     setPropertyRentedFromContract(updated);
   }
@@ -502,6 +544,15 @@ export function revertContractToDraft(id: string): RentalContract | null {
     adminApprovedAt: undefined,
     tenantApprovedAt: undefined,
     landlordApprovedAt: undefined,
+    adminApprovedByFirstName: undefined,
+    adminApprovedByLastName: undefined,
+    adminApprovedBySerial: undefined,
+    tenantApprovedByFirstName: undefined,
+    tenantApprovedByLastName: undefined,
+    tenantApprovedBySerial: undefined,
+    landlordApprovedByFirstName: undefined,
+    landlordApprovedByLastName: undefined,
+    landlordApprovedBySerial: undefined,
   });
 }
 

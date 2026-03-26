@@ -28,6 +28,20 @@ const STATUS_LABELS: Record<ContractStatus, { ar: string; en: string }> = {
   CANCELLED: { ar: 'مُشطوب', en: 'Cancelled' },
 };
 
+function sessionToContractActor(session: {
+  user?: { name?: string | null; serialNumber?: string | null };
+} | null | undefined) {
+  const u = session?.user;
+  if (!u) return undefined;
+  const name = (u.name || '').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? '';
+  const lastName = parts.slice(1).join(' ') || '';
+  const serial = (u.serialNumber || '').trim() || undefined;
+  if (!firstName && !lastName && !serial) return undefined;
+  return { firstName, lastName, serial };
+}
+
 export default function AdminContractsPage() {
   const { data: session } = useSession();
   const params = useParams();
@@ -222,7 +236,7 @@ export default function AdminContractsPage() {
   };
 
   const handleApproveByAdmin = (id: string) => {
-    approveContractByAdmin(id);
+    approveContractByAdmin(id, sessionToContractActor(session));
     loadData();
   };
 

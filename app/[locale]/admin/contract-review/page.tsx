@@ -5,9 +5,9 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getPropertyById, getPropertyDataOverrides, getPropertyDisplayText } from '@/lib/data/properties';
+import { getPropertyById, getPropertyDataOverrides, type Property } from '@/lib/data/properties';
 import type { PropertyBooking } from '@/lib/data/bookings';
-import type { CheckInfo, RentalContract } from '@/lib/data/contracts';
+import type { CheckInfo, ContractApprovalActor, RentalContract } from '@/lib/data/contracts';
 import { getContractByBooking, getContractById } from '@/lib/data/contracts';
 
 type ContractKind = 'RENT' | 'SALE' | 'INVESTMENT';
@@ -59,6 +59,42 @@ function str(v?: string | number | null) {
   return s;
 }
 
+function formatIsoLocal(iso: string, ar: boolean) {
+  try {
+    return new Date(iso).toLocaleString(ar ? 'ar-OM' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return iso;
+  }
+}
+
+function sessionToContractActor(session: {
+  user?: { name?: string | null; serialNumber?: string | null };
+} | null | undefined): ContractApprovalActor | undefined {
+  const u = session?.user;
+  if (!u) return undefined;
+  const name = (u.name || '').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? '';
+  const lastName = parts.slice(1).join(' ') || '';
+  const serial = (u.serialNumber || '').trim() || undefined;
+  if (!firstName && !lastName && !serial) return undefined;
+  return { firstName, lastName, serial };
+}
+
+function actorDisplayLine(ar: boolean, first?: string, last?: string, serial?: string): string | null {
+  const fullName = [first, last].filter(Boolean).join(' ').trim();
+  if (!fullName && !serial) return null;
+  const bits: string[] = [];
+  if (fullName) bits.push(ar ? `${fullName}` : fullName);
+  if (serial) bits.push(ar ? `رقم النظام: ${serial}` : `Serial: ${serial}`);
+  return bits.join(ar ? ' — ' : ' — ');
+}
+
+function salePercentAmount(base: number, pct: number | null | undefined): number | null {
+  if (pct == null || Number.isNaN(Number(pct))) return null;
+  return Math.round(base * (Number(pct) / 100) * 1000) / 1000;
+}
+
 function hasRentAccountFields(c: Partial<RentalContract> | null | undefined): boolean {
   if (!c) return false;
   return [
@@ -80,8 +116,66 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="grid min-w-0 grid-cols-1 gap-1.5 border-b border-stone-100/90 px-3 py-2.5 last:border-b-0 transition-colors hover:bg-white/90 sm:grid-cols-[minmax(9rem,13rem)_1fr] sm:gap-4 sm:px-4 sm:py-3 md:grid-cols-[minmax(10rem,14rem)_1fr]">
       <span className="min-w-0 text-sm font-medium leading-snug text-stone-500">{label}</span>
-      <span className="min-w-0 break-words text-base font-semibold leading-relaxed text-stone-900">{value}</span>
+      <div className="min-w-0 break-words text-base font-semibold leading-relaxed text-stone-900">{value}</div>
     </div>
+  );
+}
+
+/** حقول العقار من بيانات الموقع (العنوان، المكان، القطعة، …) */
+function PropertyDetailFields({ property, ar }: { property: Property; ar: boolean }) {
+  const rows: Array<{ label: string; value: string }> = [];
+  const push = (labelAr: string, labelEn: string, val: unknown) => {
+    if (val === undefined || val === null || val === '') return;
+    if (typeof val === 'object') return;
+    const s = String(val).trim();
+    if (!s) return;
+    rows.push({ label: ar ? labelAr : labelEn, value: s });
+  };
+  push('الرقم المتسلسل للعقار', 'Property serial', property.serialNumber);
+  push('العنوان (عربي)', 'Title (AR)', property.titleAr);
+  push('العنوان (إنجليزي)', 'Title (EN)', property.titleEn);
+  push('الموقع (عربي)', 'Location (AR)', property.locationAr);
+  push('الموقع (إنجليزي)', 'Location (EN)', property.locationEn);
+  push('المحافظة', 'Governorate', ar ? property.governorateAr : property.governorateEn);
+  push('الولاية / المنطقة', 'State / area', ar ? property.stateAr : property.stateEn);
+  push('القرية / المكان', 'Village', ar ? property.villageAr : property.villageEn);
+  push('المنطقة التفصيلية', 'Detailed area', ar ? property.areaAr : property.areaEn);
+  push('نوع العقار', 'Property type', ar ? property.propertyTypeAr : property.propertyTypeEn);
+  push('النوع الفرعي', 'Sub-type', ar ? property.propertySubTypeAr : property.propertySubTypeEn);
+  push('رقم القطعة', 'Land parcel no.', property.landParcelNumber);
+  push('رقم العقار', 'Property no.', property.propertyNumber);
+  push('الرسم المساحي (الكروركي)', 'Survey map no.', property.surveyMapNumber);
+  push('رقم المجمع', 'Complex no.', property.complexNumber);
+  push('السكة / الزقاق', 'Street / alley', property.streetAlleyNumber);
+  push('نوع استعمال الأرض', 'Land use', property.landUseType);
+  push('المساحة (م²)', 'Area (m²)', property.area != null ? String(property.area) : '');
+  push('السعر المعروض', 'Listed price', property.price != null ? String(property.price) : '');
+  push('غرف النوم', 'Bedrooms', property.bedrooms != null ? String(property.bedrooms) : '');
+  push('دورات المياه', 'Bathrooms', property.bathrooms != null ? String(property.bathrooms) : '');
+  push('المجالس', 'Majlis', property.majlis != null ? String(property.majlis) : '');
+  push('غرف المعيشة', 'Living rooms', property.livingRooms != null ? String(property.livingRooms) : '');
+  push('مواقف السيارات', 'Parking', property.parkingSpaces != null ? String(property.parkingSpaces) : '');
+  push('رقم عداد الكهرباء', 'Electricity meter', property.electricityMeterNumber);
+  push('رقم عداد الماء', 'Water meter', property.waterMeterNumber);
+  push('هاتف المبنى', 'Building phone', property.buildingPhoneNumber);
+  push('رقم إدارة المبنى', 'Building management no.', property.buildingManagementNumber);
+  push('اسم المسؤول (إدارة المبنى)', 'Building manager', property.responsiblePersonName);
+  push('رقم الصيانة', 'Maintenance no.', property.maintenanceNumber);
+  push('المسؤول عن الصيانة', 'Maintenance contact', property.maintenanceResponsibleName);
+  const desc = (ar ? property.descriptionAr : property.descriptionEn) || '';
+  if (rows.length === 0 && !String(desc).trim()) return null;
+  return (
+    <>
+      {rows.map((row, i) => (
+        <Field key={`${row.label}-${i}`} label={row.label} value={row.value} />
+      ))}
+      {String(desc).trim() ? (
+        <Field
+          label={ar ? 'الوصف' : 'Description'}
+          value={<span className="whitespace-pre-wrap font-normal">{String(desc).trim()}</span>}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -273,6 +367,7 @@ export default function ContractReviewPage() {
       const now = new Date().toISOString();
       const nextStage: ContractStage = canClientApprove ? 'TENANT_APPROVED' : 'LANDLORD_APPROVED';
       const base = effectiveContract || {};
+      const actor = sessionToContractActor(session);
       const nextContractData: Partial<RentalContract> = {
         ...base,
         status: nextStage as RentalContract['status'],
@@ -280,6 +375,21 @@ export default function ContractReviewPage() {
         landlordApprovedAt: canOwnerApprove ? now : base.landlordApprovedAt,
         updatedAt: now,
       };
+      if (actor) {
+        if (canClientApprove) {
+          nextContractData.tenantApprovedByFirstName = actor.firstName;
+          nextContractData.tenantApprovedByLastName = actor.lastName;
+          nextContractData.tenantApprovedBySerial = actor.serial;
+        }
+        if (canOwnerApprove) {
+          nextContractData.landlordApprovedByFirstName = actor.firstName;
+          nextContractData.landlordApprovedByLastName = actor.lastName;
+          nextContractData.landlordApprovedBySerial = actor.serial;
+        }
+        nextContractData.contractUpdatedByFirstName = actor.firstName;
+        nextContractData.contractUpdatedByLastName = actor.lastName;
+        nextContractData.contractUpdatedBySerial = actor.serial;
+      }
 
       const payload: PropertyBooking = {
         ...booking,
@@ -316,6 +426,11 @@ export default function ContractReviewPage() {
 
   const c = effectiveContract;
   const hasAnyContractPayload = !!(c && Object.keys(c).length > 0);
+
+  const salePriceBase = useMemo(() => {
+    const n = Number((c?.totalSaleAmount ?? booking?.priceAtBooking) ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }, [c?.totalSaleAmount, booking?.priceAtBooking]);
 
   return (
     <div className="min-h-[60vh] bg-gradient-to-b from-stone-50 via-white to-stone-50/90 pb-10">
@@ -391,10 +506,10 @@ export default function ContractReviewPage() {
                   </span>
                   <h2 className="text-base font-bold text-stone-900 sm:text-lg">{ar ? 'العقار' : 'Property'}</h2>
                 </div>
-                <p className="text-sm font-semibold leading-relaxed text-stone-800 sm:text-base">{getPropertyDisplayText(property)}</p>
                 <div className="mt-4 rounded-xl border border-white/80 bg-white/70 shadow-inner">
-                  <Field label={ar ? 'عنوان العقد (عربي)' : 'Title (AR)'} value={str(c?.propertyTitleAr)} />
-                  <Field label={ar ? 'عنوان العقد (إنجليزي)' : 'Title (EN)'} value={str(c?.propertyTitleEn)} />
+                  <PropertyDetailFields property={property} ar={ar} />
+                  <Field label={ar ? 'عنوان العقد (عربي)' : 'Contract title (AR)'} value={str(c?.propertyTitleAr)} />
+                  <Field label={ar ? 'عنوان العقد (إنجليزي)' : 'Contract title (EN)'} value={str(c?.propertyTitleEn)} />
                   <Field label={ar ? 'مفتاح الوحدة' : 'Unit key'} value={str(c?.unitKey)} />
                 </div>
               </section>
@@ -515,11 +630,27 @@ export default function ContractReviewPage() {
                 <div className="mt-3 space-y-1 text-sm">
                   <Field
                     label={ar ? 'السمسرة (%)' : 'Brokerage %'}
-                    value={c?.saleBrokerageFeePercent != null ? `${c.saleBrokerageFeePercent}% (${payerLabel(ar, c.saleBrokerageFeePayer)})` : ''}
+                    value={
+                      c?.saleBrokerageFeePercent != null
+                        ? (() => {
+                            const amt = salePercentAmount(salePriceBase, c.saleBrokerageFeePercent);
+                            const pct = `${c.saleBrokerageFeePercent}% (${payerLabel(ar, c.saleBrokerageFeePayer)})`;
+                            return amt != null ? `${pct} — ${omr(ar, amt)}` : pct;
+                          })()
+                        : ''
+                    }
                   />
                   <Field
                     label={ar ? 'رسوم الإسكان (%)' : 'Housing %'}
-                    value={c?.saleHousingFeePercent != null ? `${c.saleHousingFeePercent}% (${payerLabel(ar, c.saleHousingFeePayer)})` : ''}
+                    value={
+                      c?.saleHousingFeePercent != null
+                        ? (() => {
+                            const amt = salePercentAmount(salePriceBase, c.saleHousingFeePercent);
+                            const pct = `${c.saleHousingFeePercent}% (${payerLabel(ar, c.saleHousingFeePayer)})`;
+                            return amt != null ? `${pct} — ${omr(ar, amt)}` : pct;
+                          })()
+                        : ''
+                    }
                   />
                   <Field
                     label={ar ? 'رسوم بلدية' : 'Municipality fees'}
@@ -677,8 +808,29 @@ export default function ContractReviewPage() {
             ) : null}
 
             <Section title={ar ? 'حالة الاعتمادات والتواريخ' : 'Approval timestamps'}>
-              <Field label={ar ? 'حالة العقد في الملف' : 'Contract status'} value={str(c?.status)} />
-              <Field label={ar ? 'اعتماد إداري مبدئي' : 'Admin approved at'} value={str(c?.adminApprovedAt)} />
+              <Field
+                label={ar ? 'حالة العقد في الملف' : 'Contract status'}
+                value={stageLabel(ar, (c?.status || booking.contractStage) as ContractStage, kind)}
+              />
+              <Field
+                label={ar ? 'اعتماد إداري مبدئي' : 'Admin pre-approval'}
+                value={
+                  c?.adminApprovedAt || c?.adminApprovedBySerial || c?.adminApprovedByFirstName ? (
+                    <>
+                      {c?.adminApprovedAt ? (
+                        <div className="font-semibold">{formatIsoLocal(c.adminApprovedAt, ar)}</div>
+                      ) : null}
+                      {actorDisplayLine(ar, c?.adminApprovedByFirstName, c?.adminApprovedByLastName, c?.adminApprovedBySerial) ? (
+                        <div className="mt-1 text-sm font-normal text-stone-600">
+                          {actorDisplayLine(ar, c?.adminApprovedByFirstName, c?.adminApprovedByLastName, c?.adminApprovedBySerial)}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    ''
+                  )
+                }
+              />
               <Field
                 label={
                   ar
@@ -688,16 +840,81 @@ export default function ContractReviewPage() {
                         ? 'اعتماد المستثمر'
                         : 'اعتماد المستأجر'
                     : kind === 'SALE'
-                      ? 'Buyer approved at'
+                      ? 'Buyer approval'
                       : kind === 'INVESTMENT'
-                        ? 'Investor approved at'
-                        : 'Tenant approved at'
+                        ? 'Investor approval'
+                        : 'Tenant approval'
                 }
-                value={str(c?.tenantApprovedAt)}
+                value={
+                  c?.tenantApprovedAt || c?.tenantApprovedBySerial || c?.tenantApprovedByFirstName ? (
+                    <>
+                      {c?.tenantApprovedAt ? (
+                        <div className="font-semibold">{formatIsoLocal(c.tenantApprovedAt, ar)}</div>
+                      ) : null}
+                      {actorDisplayLine(ar, c?.tenantApprovedByFirstName, c?.tenantApprovedByLastName, c?.tenantApprovedBySerial) ? (
+                        <div className="mt-1 text-sm font-normal text-stone-600">
+                          {actorDisplayLine(ar, c?.tenantApprovedByFirstName, c?.tenantApprovedByLastName, c?.tenantApprovedBySerial)}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    ''
+                  )
+                }
               />
-              <Field label={ar ? 'اعتماد المالك' : 'Landlord approved at'} value={str(c?.landlordApprovedAt)} />
-              <Field label={ar ? 'أُنشئ' : 'Created'} value={str(c?.createdAt)} />
-              <Field label={ar ? 'آخر تحديث' : 'Updated'} value={str(c?.updatedAt)} />
+              <Field
+                label={ar ? 'اعتماد المالك' : 'Owner approval'}
+                value={
+                  c?.landlordApprovedAt || c?.landlordApprovedBySerial || c?.landlordApprovedByFirstName ? (
+                    <>
+                      {c?.landlordApprovedAt ? (
+                        <div className="font-semibold">{formatIsoLocal(c.landlordApprovedAt, ar)}</div>
+                      ) : null}
+                      {actorDisplayLine(ar, c?.landlordApprovedByFirstName, c?.landlordApprovedByLastName, c?.landlordApprovedBySerial) ? (
+                        <div className="mt-1 text-sm font-normal text-stone-600">
+                          {actorDisplayLine(ar, c?.landlordApprovedByFirstName, c?.landlordApprovedByLastName, c?.landlordApprovedBySerial)}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    ''
+                  )
+                }
+              />
+              <Field
+                label={ar ? 'أُنشئ' : 'Created'}
+                value={
+                  c?.createdAt ? (
+                    <>
+                      <div className="font-semibold">{formatIsoLocal(c.createdAt, ar)}</div>
+                      {actorDisplayLine(ar, c?.contractCreatedByFirstName, c?.contractCreatedByLastName, c?.contractCreatedBySerial) ? (
+                        <div className="mt-1 text-sm font-normal text-stone-600">
+                          {actorDisplayLine(ar, c?.contractCreatedByFirstName, c?.contractCreatedByLastName, c?.contractCreatedBySerial)}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    ''
+                  )
+                }
+              />
+              <Field
+                label={ar ? 'آخر تحديث' : 'Last updated'}
+                value={
+                  c?.updatedAt ? (
+                    <>
+                      <div className="font-semibold">{formatIsoLocal(c.updatedAt, ar)}</div>
+                      {actorDisplayLine(ar, c?.contractUpdatedByFirstName, c?.contractUpdatedByLastName, c?.contractUpdatedBySerial) ? (
+                        <div className="mt-1 text-sm font-normal text-stone-600">
+                          {actorDisplayLine(ar, c?.contractUpdatedByFirstName, c?.contractUpdatedByLastName, c?.contractUpdatedBySerial)}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    ''
+                  )
+                }
+              />
             </Section>
 
             {!hasAnyContractPayload ? (
@@ -711,8 +928,8 @@ export default function ContractReviewPage() {
               </div>
             ) : null}
 
-            {canClientApprove || canOwnerApprove ? (
-              <div className="rounded-2xl border border-stone-200/90 bg-white p-4 shadow-sm ring-1 ring-stone-900/[0.03] sm:p-5">
+            <div className="sticky bottom-4 z-10 mt-8 flex flex-col gap-6 rounded-2xl border border-stone-200/90 bg-white/95 p-4 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:p-5">
+              {canClientApprove || canOwnerApprove ? (
                 <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-stone-800 sm:text-base">
                   <input
                     type="checkbox"
@@ -726,35 +943,37 @@ export default function ContractReviewPage() {
                       : 'I confirm that I have read the full contract details and agree to its terms.'}
                   </span>
                 </label>
-              </div>
-            ) : null}
+              ) : null}
 
-            <div className="sticky bottom-4 z-10 mt-2 flex flex-col gap-3 rounded-2xl border border-stone-200/90 bg-white/95 p-4 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-              <Link
-                href={`/${locale}/admin/my-bookings`}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-5 py-2.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
+              <div
+                className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${canClientApprove || canOwnerApprove ? 'border-t border-stone-200/90 pt-6' : ''}`}
               >
-                {ar ? '← العودة لحجوزاتي' : '← Back to my bookings'}
-              </Link>
-
-              {canClientApprove || canOwnerApprove ? (
-                <button
-                  type="button"
-                  onClick={approve}
-                  disabled={saving || !readConfirmed}
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-lg transition ${
-                    saving || !readConfirmed
-                      ? 'cursor-not-allowed bg-stone-400 opacity-80'
-                      : 'bg-gradient-to-l from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800'
-                  }`}
+                <Link
+                  href={`/${locale}/admin/my-bookings`}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-5 py-2.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
                 >
-                  {saving ? (ar ? 'جاري الاعتماد...' : 'Approving...') : ar ? '✓ اعتماد العقد' : '✓ Approve contract'}
-                </button>
-              ) : (
-                <span className="text-center text-sm text-stone-500 sm:text-end">
-                  {ar ? 'لا يوجد إجراء اعتماد متاح حالياً' : 'No approval action available right now'}
-                </span>
-              )}
+                  {ar ? '← العودة لحجوزاتي' : '← Back to my bookings'}
+                </Link>
+
+                {canClientApprove || canOwnerApprove ? (
+                  <button
+                    type="button"
+                    onClick={approve}
+                    disabled={saving || !readConfirmed}
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-lg transition ${
+                      saving || !readConfirmed
+                        ? 'cursor-not-allowed bg-stone-400 opacity-80'
+                        : 'bg-gradient-to-l from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800'
+                    }`}
+                  >
+                    {saving ? (ar ? 'جاري الاعتماد...' : 'Approving...') : ar ? '✓ اعتماد العقد' : '✓ Approve contract'}
+                  </button>
+                ) : (
+                  <span className="text-center text-sm text-stone-500 sm:text-end">
+                    {ar ? 'لا يوجد إجراء اعتماد متاح حالياً' : 'No approval action available right now'}
+                  </span>
+                )}
+              </div>
             </div>
           </>
         )}
