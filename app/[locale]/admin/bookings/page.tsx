@@ -126,7 +126,7 @@ export default function AdminBookingsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/bookings');
+        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
         if (res.ok && !cancelled) {
           const serverBookings = await res.json();
           if (Array.isArray(serverBookings) && serverBookings.length > 0) {
@@ -138,6 +138,19 @@ export default function AdminBookingsPage() {
       }
       if (!cancelled) loadData();
     })();
+
+    // تحديث دوري لتفادي كاش المتصفح/التأخير بعد الاعتماد
+    const iv = window.setInterval(() => {
+      if (cancelled) return;
+      fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((serverBookings) => {
+          if (!Array.isArray(serverBookings) || serverBookings.length === 0) return;
+          mergeBookingsFromServer(serverBookings);
+          loadData();
+        })
+        .catch(() => {});
+    }, 5000);
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_property_bookings' || e.key === 'bhd_booking_documents' || e.key === 'bhd_booking_cancellation_requests') loadData();
       if (e.key === 'bhd_bank_accounts') setBankAccountsVersion((v) => v + 1);
@@ -145,6 +158,7 @@ export default function AdminBookingsPage() {
     window.addEventListener('storage', onStorage);
     return () => {
       cancelled = true;
+      window.clearInterval(iv);
       window.removeEventListener('storage', onStorage);
     };
   }, []);

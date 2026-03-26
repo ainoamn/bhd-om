@@ -340,9 +340,21 @@ export default function MyBookingsPage() {
                   /** مرحلة العقد على الخادم أولاً؛ إن وُجدت لا نعتمد على حالة المسودة المحلية (قد تكون قديمة). */
                   const stageFromServer = full?.contractStage;
                   const statusFromLocal = c?.status;
+                  const paymentOrAccountantConfirmedRow = !!(
+                    full?.paymentConfirmed ||
+                    full?.accountantConfirmedAt ||
+                    (b as any).paymentConfirmed ||
+                    (b as any).accountantConfirmedAt
+                  );
+                  // زر اعتماد العميل/المشتري:
+                  // - الحالة القياسية: ADMIN_APPROVED
+                  // - fallback: إذا يوجد contractId والدفع مؤكد لكن contractStage لم يصل بعد من الخادم (تزامن بطيء/كاش)
                   const showClientApprove =
                     userRole !== 'OWNER' &&
-                    (stageFromServer != null ? stageFromServer === 'ADMIN_APPROVED' : statusFromLocal === 'ADMIN_APPROVED');
+                    (stageFromServer != null
+                      ? stageFromServer === 'ADMIN_APPROVED'
+                      : statusFromLocal === 'ADMIN_APPROVED' ||
+                        (!!hasContractId && paymentOrAccountantConfirmedRow && effectiveStatus === 'CONFIRMED'));
                   const showOwnerApprove =
                     userRole === 'OWNER' &&
                     (stageFromServer != null ? stageFromServer === 'TENANT_APPROVED' : statusFromLocal === 'TENANT_APPROVED');
@@ -373,7 +385,6 @@ export default function MyBookingsPage() {
                           {needComplete && (
                             <Link
                               href={(() => {
-                                const paymentOrAccountantConfirmedRow = !!(full?.paymentConfirmed || full?.accountantConfirmedAt || (b as any).paymentConfirmed || (b as any).accountantConfirmedAt);
                                 return paymentOrAccountantConfirmedRow ? contractReviewUrl : contractTermsUrl;
                               })()}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
@@ -388,7 +399,6 @@ export default function MyBookingsPage() {
                                   areAllRequiredDocumentsApproved(b.id) &&
                                   (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
                                 const hasContractId = !!full?.contractId;
-                                const paymentOrAccountantConfirmedRow = !!(full?.paymentConfirmed || full?.accountantConfirmedAt || (b as any).paymentConfirmed || (b as any).accountantConfirmedAt);
                                 if (paymentOrAccountantConfirmedRow) return locale === 'ar' ? `مراجعة واعتماد (${actorAr})` : `Review & approve (${actorEn})`;
                                 if (!docsApproved && !hasContractId) return locale === 'ar' ? 'إكمال البيانات' : 'Complete data';
                                 return locale === 'ar' ? `مراجعة واعتماد (${actorAr})` : `Review & approve (${actorEn})`;
