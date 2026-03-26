@@ -45,6 +45,20 @@ const TYPE_LABELS: Record<string, { ar: string; en: string }> = {
   VIEWING: { ar: 'معاينة', en: 'Viewing' },
 };
 
+type ContractStageLike = 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
+
+function getDisplayContractStageForBooking(b: PropertyBooking, contractStatus?: string): ContractStageLike | undefined {
+  const stage = (b.contractStage || contractStatus) as ContractStageLike | undefined;
+  const reqs = Array.isArray((b as any)?.signatureRequests) ? ((b as any).signatureRequests as any[]) : [];
+  const latestClient = reqs.find((r) => String(r?.actorRole) === 'CLIENT');
+  const latestOwner = reqs.find((r) => String(r?.actorRole) === 'OWNER');
+  const clientPendingOrFailed = ['PENDING', 'FAILED'].includes(String(latestClient?.status || ''));
+  const ownerPendingOrFailed = ['PENDING', 'FAILED'].includes(String(latestOwner?.status || ''));
+  if (stage === 'TENANT_APPROVED' && clientPendingOrFailed) return 'ADMIN_APPROVED';
+  if (stage === 'LANDLORD_APPROVED' && ownerPendingOrFailed) return 'TENANT_APPROVED';
+  return stage;
+}
+
 /** هل الوحدة/العقار متاح للحجز؟ (لا حجز فعال ولا عقد إيجار نافذ) - excludeBookingId لاستثناء حجز عند التعديل */
 function isUnitAvailableForBooking(
   propertyId: number,
@@ -517,9 +531,14 @@ export default function AdminBookingsPage() {
                                 const approved = getApprovedContractForBooking(b);
                                 const isApproved = !!approved;
                                 const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
-                                const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : c.status === 'APPROVED'
+                                const displayStage = getDisplayContractStageForBooking(b, c?.status);
+                                const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : displayStage === 'APPROVED'
                                   ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
-                                  : c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED'
+                                  : displayStage === 'ADMIN_APPROVED'
+                                    ? (ar ? 'بانتظار توقيع المشتري' : 'Waiting for buyer signature')
+                                    : displayStage === 'TENANT_APPROVED'
+                                      ? (ar ? 'بانتظار توقيع البائع (المالك)' : 'Waiting for seller (owner) signature')
+                                      : displayStage === 'LANDLORD_APPROVED'
                                     ? allDocsAndChecksApproved
                                       ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
                                       : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
@@ -723,9 +742,14 @@ export default function AdminBookingsPage() {
                             const approved = getApprovedContractForBooking(b);
                             const isApproved = !!approved;
                             const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
-                            const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : c.status === 'APPROVED'
+                            const displayStage = getDisplayContractStageForBooking(b, c?.status);
+                            const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : displayStage === 'APPROVED'
                               ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
-                              : c.status === 'ADMIN_APPROVED' || c.status === 'TENANT_APPROVED' || c.status === 'LANDLORD_APPROVED'
+                              : displayStage === 'ADMIN_APPROVED'
+                                ? (ar ? 'بانتظار توقيع المشتري' : 'Waiting for buyer signature')
+                                : displayStage === 'TENANT_APPROVED'
+                                  ? (ar ? 'بانتظار توقيع البائع (المالك)' : 'Waiting for seller (owner) signature')
+                                  : displayStage === 'LANDLORD_APPROVED'
                                 ? allDocsAndChecksApproved
                                   ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
                                   : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')

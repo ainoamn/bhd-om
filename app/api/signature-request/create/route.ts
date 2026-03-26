@@ -62,6 +62,33 @@ export async function POST(req: NextRequest) {
         item.status = 'CANCELLED';
       }
     }
+
+    // معالجة بيانات قديمة: إذا أُنشئ طلب توقيع جديد، نُرجع المرحلة خطوة للخلف
+    // حتى لا يظهر "معتمد" قبل اكتمال التوقيع فعلياً.
+    if (actorRole === 'CLIENT' && booking.contractStage === 'TENANT_APPROVED') {
+      booking.contractStage = 'ADMIN_APPROVED';
+      const cd = (booking.contractData || {}) as Record<string, unknown>;
+      booking.contractData = {
+        ...cd,
+        status: 'ADMIN_APPROVED',
+        tenantApprovedAt: undefined,
+        tenantApprovedByFirstName: undefined,
+        tenantApprovedByLastName: undefined,
+        tenantApprovedBySerial: undefined,
+      };
+    } else if (actorRole === 'OWNER' && booking.contractStage === 'LANDLORD_APPROVED') {
+      booking.contractStage = 'TENANT_APPROVED';
+      const cd = (booking.contractData || {}) as Record<string, unknown>;
+      booking.contractData = {
+        ...cd,
+        status: 'TENANT_APPROVED',
+        landlordApprovedAt: undefined,
+        landlordApprovedByFirstName: undefined,
+        landlordApprovedByLastName: undefined,
+        landlordApprovedBySerial: undefined,
+      };
+    }
+
     list.unshift(reqObj);
     booking.signatureRequests = list;
 

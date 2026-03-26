@@ -12,6 +12,7 @@ import { getContractByBooking, getContractById } from '@/lib/data/contracts';
 
 type ContractKind = 'RENT' | 'SALE' | 'INVESTMENT';
 type ContractStage = NonNullable<PropertyBooking['contractStage']>;
+type StageLike = 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
 
 function stageLabel(ar: boolean, stage?: ContractStage, kind: ContractKind = 'RENT') {
   if (!stage) return ar ? 'غير محدد' : 'Unknown';
@@ -29,6 +30,19 @@ function stageLabel(ar: boolean, stage?: ContractStage, kind: ContractKind = 'RE
   if (stage === 'APPROVED') return ar ? 'معتمد نهائياً' : 'Final approved';
   if (stage === 'CANCELLED') return ar ? 'ملغي' : 'Cancelled';
   return stage;
+}
+
+function getDisplayStage(booking: PropertyBooking | null | undefined): ContractStage | undefined {
+  if (!booking) return undefined;
+  const stage = booking.contractStage as StageLike | undefined;
+  const reqs = Array.isArray((booking as any)?.signatureRequests) ? ((booking as any).signatureRequests as any[]) : [];
+  const latestClient = reqs.find((r) => String(r?.actorRole) === 'CLIENT');
+  const latestOwner = reqs.find((r) => String(r?.actorRole) === 'OWNER');
+  const clientPendingOrFailed = ['PENDING', 'FAILED'].includes(String(latestClient?.status || ''));
+  const ownerPendingOrFailed = ['PENDING', 'FAILED'].includes(String(latestOwner?.status || ''));
+  if (stage === 'TENANT_APPROVED' && clientPendingOrFailed) return 'ADMIN_APPROVED';
+  if (stage === 'LANDLORD_APPROVED' && ownerPendingOrFailed) return 'TENANT_APPROVED';
+  return stage as ContractStage | undefined;
 }
 
 function actorLabel(ar: boolean, kind: ContractKind) {
@@ -606,17 +620,19 @@ export default function ContractReviewPage() {
     return { duration, finance, checks: checksStep, rentAcct: rentAcctStep, guarantees, approvals };
   }, [kind, effectiveContract]);
 
+  const displayStage = useMemo(() => getDisplayStage(booking), [booking]);
+
   const canClientApprove = useMemo(() => {
-    if (!booking?.contractStage) return false;
-    if (booking.contractStage !== 'ADMIN_APPROVED') return false;
+    if (!displayStage) return false;
+    if (displayStage !== 'ADMIN_APPROVED') return false;
     return userRole !== 'OWNER';
-  }, [booking?.contractStage, userRole]);
+  }, [displayStage, userRole]);
 
   const canOwnerApprove = useMemo(() => {
-    if (!booking?.contractStage) return false;
-    if (booking.contractStage !== 'TENANT_APPROVED') return false;
+    if (!displayStage) return false;
+    if (displayStage !== 'TENANT_APPROVED') return false;
     return userRole === 'OWNER';
-  }, [booking?.contractStage, userRole]);
+  }, [displayStage, userRole]);
 
   const approve = async () => {
     if (!booking) return;
@@ -719,7 +735,7 @@ export default function ContractReviewPage() {
             <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-md ring-1 ring-stone-900/[0.04]">
               <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 bg-stone-50/80 px-4 py-3 sm:px-5">
                 <KindBadge kind={kind} ar={ar} />
-                <StageBadge stage={booking.contractStage} ar={ar} kind={kind} />
+                <StageBadge stage={displayStage} ar={ar} kind={kind} />
               </div>
               <DataTable
                 rows={[
@@ -1038,7 +1054,7 @@ export default function ContractReviewPage() {
               </p>
               <DataTable
                 rows={[
-                  { label: ar ? 'حالة العقد في الملف' : 'Contract status', value: stageLabel(ar, (c?.status || booking.contractStage) as ContractStage, kind) },
+                  { label: ar ? 'حالة العقد في الملف' : 'Contract status', value: stageLabel(ar, (displayStage || c?.status || booking.contractStage) as ContractStage, kind) },
                   {
                     label: ar ? 'اعتماد إداري مبدئي' : 'Admin pre-approval',
                     value:
@@ -1068,7 +1084,8 @@ export default function ContractReviewPage() {
                             ? 'Investor approval'
                             : 'Tenant approval',
                     value:
-                      c?.tenantApprovedAt || c?.tenantApprovedBySerial || c?.tenantApprovedByFirstName ? (
+                      ((displayStage === 'TENANT_APPROVED' || displayStage === 'LANDLORD_APPROVED' || displayStage === 'APPROVED') &&
+                      (c?.tenantApprovedAt || c?.tenantApprovedBySerial || c?.tenantApprovedByFirstName)) ? (
                         <ApprovalAuditCell
                           ar={ar}
                           atIso={c?.tenantApprovedAt}
@@ -1090,7 +1107,8 @@ export default function ContractReviewPage() {
                           ? 'Seller (owner) approval'
                           : 'Owner approval',
                     value:
-                      c?.landlordApprovedAt || c?.landlordApprovedBySerial || c?.landlordApprovedByFirstName ? (
+                      ((displayStage === 'LANDLORD_APPROVED' || displayStage === 'APPROVED') &&
+                      (c?.landlordApprovedAt || c?.landlordApprovedBySerial || c?.landlordApprovedByFirstName)) ? (
                         <ApprovalAuditCell
                           ar={ar}
                           atIso={c?.landlordApprovedAt}
