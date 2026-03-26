@@ -42,6 +42,135 @@ async function compressImageDataUrl(dataUrl: string, maxW = 720, jpegQuality = 0
   return canvas.toDataURL('image/jpeg', jpegQuality);
 }
 
+type FacingMode = 'user' | 'environment';
+
+function CameraCapture({
+  ar,
+  facingMode,
+  title,
+  description,
+  value,
+  onChange,
+}: {
+  ar: boolean;
+  facingMode: FacingMode;
+  title: string;
+  description?: string;
+  value: string;
+  onChange: (dataUrl: string) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [camError, setCamError] = useState('');
+
+  const stop = () => {
+    const s = streamRef.current;
+    if (s) {
+      for (const t of s.getTracks()) t.stop();
+    }
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
+
+  const start = async () => {
+    setCamError('');
+    setStarting(true);
+    try {
+      stop();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      const v = videoRef.current;
+      if (v) {
+        v.srcObject = stream;
+        await v.play().catch(() => {});
+      }
+    } catch (e) {
+      setCamError(e instanceof Error ? e.message : ar ? 'تعذر فتح الكاميرا' : 'Failed to open camera');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  useEffect(() => {
+    // افتح الكاميرا تلقائياً طالما لا توجد صورة ملتقطة
+    if (!isDataUrlImage(value)) {
+      void start();
+    }
+    return () => stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facingMode]);
+
+  const capture = async () => {
+    setCamError('');
+    const v = videoRef.current;
+    if (!v) return;
+    const w = Math.max(1, v.videoWidth || 0);
+    const h = Math.max(1, v.videoHeight || 0);
+    if (w < 2 || h < 2) {
+      setCamError(ar ? 'انتظر تشغيل الكاميرا ثم حاول مرة أخرى' : 'Camera not ready yet');
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(v, 0, 0, w, h);
+    const raw = canvas.toDataURL('image/jpeg', 0.9);
+    const compressed = await compressImageDataUrl(raw, 1080, 0.82);
+    onChange(compressed);
+    stop();
+  };
+
+  const retake = async () => {
+    onChange('');
+    await start();
+  };
+
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+      <h2 className="text-[16px] font-semibold text-stone-900">{title}</h2>
+      {description ? <p className="mt-1 text-xs text-stone-600">{description}</p> : null}
+
+      {camError ? <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{camError}</div> : null}
+
+      <div className="mt-3 space-y-3">
+        {isDataUrlImage(value) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="capture" className="w-full rounded-2xl border border-stone-200 bg-stone-50" />
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-stone-200 bg-black">
+            <video ref={videoRef} playsInline muted className="h-80 w-full object-cover" />
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            disabled={starting || isDataUrlImage(value)}
+            onClick={capture}
+            className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white ${starting || isDataUrlImage(value) ? 'bg-stone-400' : 'bg-[#8B6F47]'}`}
+          >
+            {ar ? 'التقاط' : 'Capture'}
+          </button>
+          <button
+            type="button"
+            disabled={starting}
+            onClick={() => (isDataUrlImage(value) ? void retake() : void start())}
+            className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-sm font-semibold text-stone-800"
+          >
+            {isDataUrlImage(value) ? (ar ? 'إعادة الالتقاط' : 'Retake') : ar ? 'تشغيل الكاميرا' : 'Start camera'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SignaturePad({
   onChange,
 }: {
@@ -158,6 +287,8 @@ export default function SignPage() {
   const locale = String((params as any)?.locale || 'ar');
   const ar = locale === 'ar';
 
+  type Step = 'SELFIE' | 'SIGN' | 'ID';
+
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState<ApiReq | null>(null);
   const [error, setError] = useState('');
@@ -171,6 +302,7 @@ export default function SignPage() {
   const [idCardBackSaved, setIdCardBackSaved] = useState(false);
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState<Step>('SELFIE');
   const draftKey = useMemo(() => `sign_${token}`, [token]);
 
   useEffect(() => {
@@ -199,6 +331,7 @@ export default function SignPage() {
   useEffect(() => {
     if (!token) return;
     const d = loadDraft<{
+      step?: Step;
       selfie?: string;
       selfieSaved?: boolean;
       signature?: string;
@@ -210,6 +343,7 @@ export default function SignPage() {
       name?: string;
     }>(draftKey);
     if (!d) return;
+    if (d.step === 'SELFIE' || d.step === 'SIGN' || d.step === 'ID') setStep(d.step);
     if (typeof d.selfie === 'string') setSelfie(d.selfie);
     if (typeof d.selfieSaved === 'boolean') setSelfieSaved(d.selfieSaved);
     if (typeof d.signature === 'string') setSignature(d.signature);
@@ -224,6 +358,7 @@ export default function SignPage() {
   useEffect(() => {
     const t = window.setTimeout(() => {
       saveDraft(draftKey, {
+        step,
         selfie,
         selfieSaved,
         signature,
@@ -236,7 +371,7 @@ export default function SignPage() {
       });
     }, 800);
     return () => window.clearTimeout(t);
-  }, [draftKey, selfie, selfieSaved, signature, signatureSaved, idCardFront, idCardFrontSaved, idCardBack, idCardBackSaved, name]);
+  }, [draftKey, step, selfie, selfieSaved, signature, signatureSaved, idCardFront, idCardFrontSaved, idCardBack, idCardBackSaved, name]);
 
   const canSubmit = useMemo(
     () =>
@@ -252,44 +387,7 @@ export default function SignPage() {
     [selfieSaved, signatureSaved, idCardFrontSaved, idCardBackSaved, selfie, signature, idCardFront, idCardBack, submitting]
   );
 
-  const onPickSelfie = async (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('read failed'));
-      reader.readAsDataURL(file);
-    });
-    const compressed = await compressImageDataUrl(dataUrl, 720, 0.75);
-    setSelfie(compressed);
-    setSelfieSaved(false);
-  };
-
-  const onPickIdCardFront = async (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('read failed'));
-      reader.readAsDataURL(file);
-    });
-    const compressed = await compressImageDataUrl(dataUrl, 1080, 0.82);
-    setIdCardFront(compressed);
-    setIdCardFrontSaved(false);
-  };
-
-  const onPickIdCardBack = async (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('read failed'));
-      reader.readAsDataURL(file);
-    });
-    const compressed = await compressImageDataUrl(dataUrl, 1080, 0.82);
-    setIdCardBack(compressed);
-    setIdCardBackSaved(false);
-  };
+  // لا نسمح برفع ملفات؛ الالتقاط يتم مباشرة من كاميرا الهاتف
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -322,6 +420,7 @@ export default function SignPage() {
       setIdCardFrontSaved(false);
       setIdCardBack('');
       setIdCardBackSaved(false);
+      setStep('SELFIE');
       clearDraft(draftKey);
     } catch (e) {
       const msg = e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'Error';
@@ -375,128 +474,133 @@ export default function SignPage() {
       <div className="mx-auto max-w-lg space-y-6 p-4 pb-16">
         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
           <h1 className="text-[20px] font-bold text-stone-900">{ar ? 'توثيق العقد' : 'Contract verification'}</h1>
-          <p className="mt-2 text-sm text-stone-600">
-            {ar
-              ? 'الخطوات: 1) صورة سلفي وحفظ 2) توقيع وحفظ 3) بطاقة شخصية (أمام/خلف) وحفظ 4) إرسال'
-              : 'Steps: 1) Selfie + Save 2) Signature + Save 3) ID card front/back + Save 4) Submit'}
-          </p>
+          <p className="mt-2 text-sm text-stone-600">{ar ? 'اتبع الخطوات بالتسلسل لإكمال التوثيق.' : 'Follow the steps in order to complete verification.'}</p>
         </div>
 
-        {selfieSaved ? (
-        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-[16px] font-semibold text-stone-900">{ar ? '١) صورة سلفي' : '1) Selfie'}</h2>
-          <p className="mt-1 text-xs text-stone-600">{ar ? 'ستُستخدم للتوثيق فقط.' : 'Used for verification only.'}</p>
-          <div className="mt-3 space-y-3">
-            <input
-              type="file"
-              accept="image/*"
-              capture="user"
-              onChange={(e) => onPickSelfie(e.target.files?.[0] || null)}
-              className={`block w-full rounded-xl border px-3 py-2 text-sm ${isDataUrlImage(selfie) && !selfieSaved ? 'border-red-500' : selfieSaved ? 'border-green-500' : 'border-stone-200'}`}
+        {step === 'SELFIE' ? (
+          <>
+            <CameraCapture
+              ar={ar}
+              facingMode="user"
+              title={ar ? '١) صورة سلفي' : '1) Selfie'}
+              description={ar ? 'سيتم فتح الكاميرا مباشرة لالتقاط السلفي.' : 'Camera opens directly to capture a selfie.'}
+              value={selfie}
+              onChange={(v) => {
+                setSelfie(v);
+                setSelfieSaved(false);
+              }}
             />
-            {isDataUrlImage(selfie) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={selfie} alt="selfie" className="w-full rounded-xl border border-stone-200" />
-            ) : null}
             <button
               type="button"
               disabled={!isDataUrlImage(selfie)}
-              onClick={() => setSelfieSaved(true)}
-              className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(selfie) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
-            >
-              {selfieSaved ? (ar ? 'تم حفظ صورة السلفي' : 'Selfie saved') : ar ? 'حفظ صورة السلفي' : 'Save selfie'}
-            </button>
-          </div>
-        </div>
-        ) : (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            {ar ? 'يرجى حفظ صورة السلفي أولاً للانتقال لخطوة التوقيع.' : 'Please save your selfie first to continue to signature.'}
-          </div>
-        )}
-
-        {selfieSaved && signatureSaved ? (
-        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-[16px] font-semibold text-stone-900">{ar ? '٢) التوقيع' : '2) Signature'}</h2>
-          <p className="mt-1 text-xs text-stone-600">{ar ? 'وقّع داخل المربع.' : 'Sign in the box.'}</p>
-          <div className="mt-3">
-            <SignaturePad
-              onChange={(v) => {
-                setSignature(v);
-                setSignatureSaved(false);
+              onClick={() => {
+                setSelfieSaved(true);
+                setStep('SIGN');
               }}
-            />
-          </div>
-          <div className="mt-4">
-            <label className="text-xs font-semibold text-stone-700">{ar ? 'الاسم (اختياري)' : 'Name (optional)'}</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#8B6F47]"
-              placeholder={ar ? 'اكتب اسمك' : 'Type your name'}
-            />
-          </div>
-          <button
-            type="button"
-            disabled={!isDataUrlImage(signature)}
-            onClick={() => setSignatureSaved(true)}
-            className={`mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(signature) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
-          >
-            {signatureSaved ? (ar ? 'تم حفظ التوقيع' : 'Signature saved') : ar ? 'حفظ التوقيع' : 'Save signature'}
-          </button>
-        </div>
+              className={`w-full rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-md ${
+                isDataUrlImage(selfie) ? 'bg-gradient-to-l from-[#8B6F47] to-[#6B5535]' : 'bg-stone-400'
+              }`}
+            >
+              {ar ? 'حفظ السلفي والمتابعة للتوقيع' : 'Save selfie & continue'}
+            </button>
+          </>
         ) : null}
 
-        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-[16px] font-semibold text-stone-900">{ar ? '٣) تصوير البطاقة الشخصية' : '3) ID card capture'}</h2>
-          <p className="mt-1 text-xs text-stone-600">{ar ? 'صوّر الوجه الأمامي ثم الخلفي مع الحفظ لكل صورة.' : 'Capture front then back and save each image.'}</p>
-          <div className="mt-3 space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-stone-700">{ar ? 'البطاقة من الأمام' : 'ID front side'}</label>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => onPickIdCardFront(e.target.files?.[0] || null)}
-                className={`block w-full rounded-xl border px-3 py-2 text-sm ${isDataUrlImage(idCardFront) && !idCardFrontSaved ? 'border-red-500' : idCardFrontSaved ? 'border-green-500' : 'border-stone-200'}`}
-              />
-              {isDataUrlImage(idCardFront) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={idCardFront} alt="id-front" className="w-full rounded-xl border border-stone-200" />
-              ) : null}
+        {step === 'SIGN' ? (
+          <>
+            <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <h2 className="text-[16px] font-semibold text-stone-900">{ar ? '٢) التوقيع' : '2) Signature'}</h2>
+              <p className="mt-1 text-xs text-stone-600">{ar ? 'وقّع بإصبعك داخل المربع.' : 'Sign with your finger inside the box.'}</p>
+              <div className="mt-3">
+                <SignaturePad
+                  onChange={(v) => {
+                    setSignature(v);
+                    setSignatureSaved(false);
+                  }}
+                />
+              </div>
+              <div className="mt-4">
+                <label className="text-xs font-semibold text-stone-700">{ar ? 'الاسم (اختياري)' : 'Name (optional)'}</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#8B6F47]"
+                  placeholder={ar ? 'اكتب اسمك' : 'Type your name'}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                disabled={!isDataUrlImage(idCardFront)}
-                onClick={() => setIdCardFrontSaved(true)}
-                className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(idCardFront) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
+                onClick={() => setStep('SELFIE')}
+                className="rounded-2xl border border-stone-200 bg-white px-5 py-3 text-sm font-bold text-stone-800 shadow-sm"
               >
-                {idCardFrontSaved ? (ar ? 'تم حفظ صورة الأمام' : 'Front image saved') : ar ? 'حفظ صورة الأمام' : 'Save front image'}
+                {ar ? 'رجوع' : 'Back'}
+              </button>
+              <button
+                type="button"
+                disabled={!isDataUrlImage(signature)}
+                onClick={() => {
+                  setSignatureSaved(true);
+                  setStep('ID');
+                }}
+                className={`rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-md ${
+                  isDataUrlImage(signature) ? 'bg-gradient-to-l from-[#8B6F47] to-[#6B5535]' : 'bg-stone-400'
+                }`}
+              >
+                {ar ? 'حفظ التوقيع والمتابعة للبطاقة' : 'Save signature & continue'}
               </button>
             </div>
+          </>
+        ) : null}
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-stone-700">{ar ? 'البطاقة من الخلف' : 'ID back side'}</label>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => onPickIdCardBack(e.target.files?.[0] || null)}
-                className={`block w-full rounded-xl border px-3 py-2 text-sm ${isDataUrlImage(idCardBack) && !idCardBackSaved ? 'border-red-500' : idCardBackSaved ? 'border-green-500' : 'border-stone-200'}`}
-              />
-              {isDataUrlImage(idCardBack) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={idCardBack} alt="id-back" className="w-full rounded-xl border border-stone-200" />
-              ) : null}
-              <button
-                type="button"
-                disabled={!isDataUrlImage(idCardBack)}
-                onClick={() => setIdCardBackSaved(true)}
-                className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(idCardBack) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
-              >
-                {idCardBackSaved ? (ar ? 'تم حفظ صورة الخلف' : 'Back image saved') : ar ? 'حفظ صورة الخلف' : 'Save back image'}
-              </button>
-            </div>
-          </div>
-        </div>
+        {step === 'ID' ? (
+          <>
+            <CameraCapture
+              ar={ar}
+              facingMode="environment"
+              title={ar ? '٣) البطاقة الشخصية (الأمام)' : '3) ID card (front)'}
+              description={ar ? 'استخدم الكاميرا الخلفية لتصوير وجه البطاقة الأمامي.' : 'Use the back camera to capture the front side.'}
+              value={idCardFront}
+              onChange={(v) => {
+                setIdCardFront(v);
+                setIdCardFrontSaved(false);
+              }}
+            />
+            <button
+              type="button"
+              disabled={!isDataUrlImage(idCardFront)}
+              onClick={() => setIdCardFrontSaved(true)}
+              className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${
+                isDataUrlImage(idCardFront) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'
+              }`}
+            >
+              {idCardFrontSaved ? (ar ? 'تم حفظ صورة الأمام' : 'Front saved') : ar ? 'حفظ صورة الأمام' : 'Save front'}
+            </button>
+
+            <CameraCapture
+              ar={ar}
+              facingMode="environment"
+              title={ar ? '٤) البطاقة الشخصية (الخلف)' : '4) ID card (back)'}
+              description={ar ? 'الآن صوّر وجه البطاقة الخلفي.' : 'Now capture the back side.'}
+              value={idCardBack}
+              onChange={(v) => {
+                setIdCardBack(v);
+                setIdCardBackSaved(false);
+              }}
+            />
+            <button
+              type="button"
+              disabled={!isDataUrlImage(idCardBack)}
+              onClick={() => setIdCardBackSaved(true)}
+              className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${
+                isDataUrlImage(idCardBack) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'
+              }`}
+            >
+              {idCardBackSaved ? (ar ? 'تم حفظ صورة الخلف' : 'Back saved') : ar ? 'حفظ صورة الخلف' : 'Save back'}
+            </button>
+          </>
+        ) : null}
 
         {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{error}</div> : null}
 
