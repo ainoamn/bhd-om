@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname, useParams, useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession, signOut, getSession } from 'next-auth/react';
+import type { Session } from 'next-auth';
 import Icon from '@/components/icons/Icon';
 import RoleBasedSidebar from '@/components/admin/RoleBasedSidebar';
 import { getContactForUser } from '@/lib/data/addressBook';
@@ -70,10 +71,17 @@ function sessionPayloadHasUser(session: unknown): boolean {
   return 'user' in session && !!(session as { user?: unknown }).user;
 }
 
+const SESSION_HINT_KEY = 'bhd_admin_session_hint';
+
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams();
   const { data: session, status } = useSession();
+
+  /** جلسة من getSession() — أحياناً تُستكمل بعد useSession وتُزيل حالة unauthenticated الخاطئة لفترة طويلة على الإنتاج */
+  const [peekSession, setPeekSession] = useState<Session | null>(null);
+  /** لا نعرض شاشة الدخول حتى يكتمل جلب الجلسة مرة على الأقل (يتجنب ~20ث من شاشة الدخول ثم الدخول الفعلي) */
+  const [sessionFetchSettled, setSessionFetchSettled] = useState(false);
 
   // مصدر واحد: عند وجود "فتح حساب" في localStorage نعتمدها فقط — لا نعرض أبداً بيانات الأدمن أو قائمة الأدمن
   const impersonationSession = getImpersonationSessionFromStorage();
@@ -100,6 +108,33 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   }, [status, session]);
 
   useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      try {
+        sessionStorage.setItem(SESSION_HINT_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [status, session]);
+
+  useEffect(() => {
+    let alive = true;
+    const timeout = window.setTimeout(() => {
+      if (alive) setSessionFetchSettled(true);
+    }, 60000);
+    void getSession().then((s) => {
+      if (!alive) return;
+      window.clearTimeout(timeout);
+      setSessionFetchSettled(true);
+      if (s?.user) setPeekSession(s);
+    });
+    return () => {
+      alive = false;
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     if (status !== 'unauthenticated') return;
     if (signingOutRef.current) {
@@ -121,7 +156,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   }, [status, session]);
 
   const mockSession = typeof window !== 'undefined' ? (window as any)?.mockNextAuthSession : undefined;
-  const fallbackSession = mockSession || session || lastKnownSessionRef.current;
+  const fallbackSession = mockSession || session || lastKnownSessionRef.current || peekSession;
 
   // الجلسة الفعالة: إن كنا في وضع "فتح حساب" نعتمد localStorage فقط؛ وإلا الجلسة العادية
   const currentSession = isImpersonating ? impersonationSession : fallbackSession;
@@ -239,6 +274,12 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const handleSignOut = () => {
     signingOutRef.current = true;
     lastKnownSessionRef.current = null;
+    setPeekSession(null);
+    try {
+      sessionStorage.removeItem(SESSION_HINT_KEY);
+    } catch {
+      /* ignore */
+    }
     if (typeof window !== 'undefined' && clearStaleSessionTimeoutRef.current) {
       window.clearTimeout(clearStaleSessionTimeoutRef.current);
       clearStaleSessionTimeoutRef.current = null;
@@ -246,12 +287,17 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     void signOut({ callbackUrl: `/${locale}/login` });
   };
 
-  // أثناء جلب الجلسة الأولى لا نعرض شاشة الدخول (تجنب وميض بعد F5).
+  // أثناء جلب الجلسة: لا نعرض شاشة الدخول حتى يستقر useSession أو يكتمل getSession() (يُصلح التأخير الطويل على الإنتاج).
   const showSessionLoading =
-    isAdminPath && !isImpersonating && !mockSession && !currentSession && status === 'loading';
+    isAdminPath &&
+    !isImpersonating &&
+    !mockSession &&
+    !currentSession &&
+    (status === 'loading' || !sessionFetchSettled);
 
-  // عدم حجب الواجهة أبداً — عرض اللوحة والمحتوى فوراً (سرعة التنقل). نعرض "يجب تسجيل الدخول" فقط عند التأكد من عدم المصادقة.
-  const showLoginRequired = !currentSession && status === 'unauthenticated' && isAdminPath;
+  // بعد استقرار الجلب: إن لم تكن هناك جلسة فعلاً نعرض طلب الدخول.
+  const showLoginRequired =
+    sessionFetchSettled && !currentSession && status === 'unauthenticated' && isAdminPath;
 
   if (showSessionLoading) {
     return (
