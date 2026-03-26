@@ -676,7 +676,7 @@ export default function ContractReviewPage() {
 
   return (
     <div className="min-h-[60vh] bg-gradient-to-b from-stone-50 via-white to-stone-50/90 pb-10">
-      <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 [&_.admin-page-subtitle]:mt-2 [&_.admin-page-subtitle]:text-base [&_.admin-page-subtitle]:sm:text-lg [&_.admin-page-title]:text-xl [&_.admin-page-title]:sm:text-2xl [&_.admin-page-title]:lg:text-[1.5rem]">
+      <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
         <AdminPageHeader title={pageTitle} subtitle={ar ? 'اقرأ تفاصيل العقد ثم قم بالاعتماد' : 'Read contract details then approve'} />
       </div>
 

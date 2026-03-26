@@ -41,6 +41,11 @@
   --space-title-paragraph: 1.5rem;   /* بين السطر والعنوان - لا يقل عن 1.5 */
   --space-heading-block: 1.5rem;     /* بين العنوان والمربع/المستطيل (البطاقة أو القسم) - لا يقل عن 1.5 */
   --space-heading-media: 1.5rem;     /* بين العناوين والصور والإطارات */
+
+  /* Word typography scale (pt → px): 1pt ≈ 1.333px */
+  --font-word-title: 33.333px;    /* 25pt in Word */
+  --font-word-subtitle: 29.333px; /* 22pt in Word */
+  --font-word-body: 24px;         /* 18pt in Word */
 }
 
 @theme inline {
@@ -85,13 +90,15 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   line-height: 1.6; /* لا تقل عن 1.5 */
+  font-size: var(--font-word-body) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* Typography - مسافة بين السطور لا تقل عن 1.5 */
-p, span, div, li, td, th, label, input, textarea, select {
+p, li, td, th, label, input, textarea, select {
   line-height: var(--line-height-min) !important;
+  font-size: var(--font-word-body) !important;
 }
 
 html {
@@ -107,19 +114,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: var(--font-word-title) !important;
   line-height: 1.35;
   font-weight: 700;
 }
 
 h2 {
-  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-size: var(--font-word-subtitle) !important;
   line-height: 1.4;
   font-weight: 600;
 }
 
 h3 {
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-size: var(--font-word-subtitle) !important;
   line-height: 1.45;
   font-weight: 600;
 }
@@ -127,7 +134,7 @@ h3 {
 p {
   line-height: 1.5;
   color: var(--neutral-700);
-  font-size: 1rem;
+  font-size: var(--font-word-body) !important;
 }
 
 /* Spacing - بين السطر والعنوان لا يقل عن 1.5 */
@@ -291,7 +298,7 @@ img[src="/omr-symbol.png"] {
 }
 
 .section-title h2 {
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: var(--font-word-title) !important;
   font-weight: 600;
   line-height: 1.5;
   color: var(--neutral-800);
@@ -299,7 +306,7 @@ img[src="/omr-symbol.png"] {
 }
 
 .section-title p {
-  font-size: 1.125rem;
+  font-size: var(--font-word-subtitle) !important;
   line-height: var(--line-height-min);
   color: var(--neutral-600);
   max-width: 700px;
