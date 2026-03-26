@@ -17,6 +17,8 @@ export type SignatureRequest = {
   // مخرجات التوثيق (تجريبية)
   selfieDataUrl?: string;
   signatureDataUrl?: string;
+  idCardFrontDataUrl?: string;
+  idCardBackDataUrl?: string;
   signatureName?: string;
   deviceInfo?: string;
 };

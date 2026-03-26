@@ -78,17 +78,26 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     const body = (await req.json()) as Partial<{
       selfieDataUrl: string;
       signatureDataUrl: string;
+      idCardFrontDataUrl: string;
+      idCardBackDataUrl: string;
       signatureName: string;
       deviceInfo: string;
     }>;
 
     const selfieDataUrl = typeof body.selfieDataUrl === 'string' ? body.selfieDataUrl : '';
     const signatureDataUrl = typeof body.signatureDataUrl === 'string' ? body.signatureDataUrl : '';
+    const idCardFrontDataUrl = typeof body.idCardFrontDataUrl === 'string' ? body.idCardFrontDataUrl : '';
+    const idCardBackDataUrl = typeof body.idCardBackDataUrl === 'string' ? body.idCardBackDataUrl : '';
     const signatureName = typeof body.signatureName === 'string' ? body.signatureName.trim() : '';
     const deviceInfo = typeof body.deviceInfo === 'string' ? body.deviceInfo.slice(0, 500) : '';
 
-    if (!selfieDataUrl.startsWith('data:image/') || !signatureDataUrl.startsWith('data:image/')) {
-      return NextResponse.json({ error: 'Missing selfie/signature' }, { status: 400 });
+    if (
+      !selfieDataUrl.startsWith('data:image/') ||
+      !signatureDataUrl.startsWith('data:image/') ||
+      !idCardFrontDataUrl.startsWith('data:image/') ||
+      !idCardBackDataUrl.startsWith('data:image/')
+    ) {
+      return NextResponse.json({ error: 'Missing selfie/signature/id-card images' }, { status: 400 });
     }
 
     const rows = await prisma.bookingStorage.findMany({
@@ -116,6 +125,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
           completedAt: now,
           selfieDataUrl,
           signatureDataUrl,
+          idCardFrontDataUrl,
+          idCardBackDataUrl,
           signatureName: signatureName || cur.signatureName,
           deviceInfo,
         };

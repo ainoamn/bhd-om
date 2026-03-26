@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/utils/draftStorage';
 
 type ApiReq = {
   ok: true;
@@ -161,9 +162,16 @@ export default function SignPage() {
   const [info, setInfo] = useState<ApiReq | null>(null);
   const [error, setError] = useState('');
   const [selfie, setSelfie] = useState<string>('');
+  const [selfieSaved, setSelfieSaved] = useState(false);
   const [signature, setSignature] = useState<string>('');
+  const [signatureSaved, setSignatureSaved] = useState(false);
+  const [idCardFront, setIdCardFront] = useState<string>('');
+  const [idCardFrontSaved, setIdCardFrontSaved] = useState(false);
+  const [idCardBack, setIdCardBack] = useState<string>('');
+  const [idCardBackSaved, setIdCardBackSaved] = useState(false);
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const draftKey = useMemo(() => `sign_${token}`, [token]);
 
   useEffect(() => {
     let alive = true;
@@ -188,7 +196,61 @@ export default function SignPage() {
     };
   }, [token, ar]);
 
-  const canSubmit = useMemo(() => isDataUrlImage(selfie) && isDataUrlImage(signature) && !submitting, [selfie, signature, submitting]);
+  useEffect(() => {
+    if (!token) return;
+    const d = loadDraft<{
+      selfie?: string;
+      selfieSaved?: boolean;
+      signature?: string;
+      signatureSaved?: boolean;
+      idCardFront?: string;
+      idCardFrontSaved?: boolean;
+      idCardBack?: string;
+      idCardBackSaved?: boolean;
+      name?: string;
+    }>(draftKey);
+    if (!d) return;
+    if (typeof d.selfie === 'string') setSelfie(d.selfie);
+    if (typeof d.selfieSaved === 'boolean') setSelfieSaved(d.selfieSaved);
+    if (typeof d.signature === 'string') setSignature(d.signature);
+    if (typeof d.signatureSaved === 'boolean') setSignatureSaved(d.signatureSaved);
+    if (typeof d.idCardFront === 'string') setIdCardFront(d.idCardFront);
+    if (typeof d.idCardFrontSaved === 'boolean') setIdCardFrontSaved(d.idCardFrontSaved);
+    if (typeof d.idCardBack === 'string') setIdCardBack(d.idCardBack);
+    if (typeof d.idCardBackSaved === 'boolean') setIdCardBackSaved(d.idCardBackSaved);
+    if (typeof d.name === 'string') setName(d.name);
+  }, [draftKey, token]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      saveDraft(draftKey, {
+        selfie,
+        selfieSaved,
+        signature,
+        signatureSaved,
+        idCardFront,
+        idCardFrontSaved,
+        idCardBack,
+        idCardBackSaved,
+        name,
+      });
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [draftKey, selfie, selfieSaved, signature, signatureSaved, idCardFront, idCardFrontSaved, idCardBack, idCardBackSaved, name]);
+
+  const canSubmit = useMemo(
+    () =>
+      selfieSaved &&
+      signatureSaved &&
+      idCardFrontSaved &&
+      idCardBackSaved &&
+      isDataUrlImage(selfie) &&
+      isDataUrlImage(signature) &&
+      isDataUrlImage(idCardFront) &&
+      isDataUrlImage(idCardBack) &&
+      !submitting,
+    [selfieSaved, signatureSaved, idCardFrontSaved, idCardBackSaved, selfie, signature, idCardFront, idCardBack, submitting]
+  );
 
   const onPickSelfie = async (file: File | null) => {
     if (!file) return;
@@ -200,6 +262,33 @@ export default function SignPage() {
     });
     const compressed = await compressImageDataUrl(dataUrl, 720, 0.75);
     setSelfie(compressed);
+    setSelfieSaved(false);
+  };
+
+  const onPickIdCardFront = async (file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('read failed'));
+      reader.readAsDataURL(file);
+    });
+    const compressed = await compressImageDataUrl(dataUrl, 1080, 0.82);
+    setIdCardFront(compressed);
+    setIdCardFrontSaved(false);
+  };
+
+  const onPickIdCardBack = async (file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('read failed'));
+      reader.readAsDataURL(file);
+    });
+    const compressed = await compressImageDataUrl(dataUrl, 1080, 0.82);
+    setIdCardBack(compressed);
+    setIdCardBackSaved(false);
   };
 
   const submit = async () => {
@@ -213,6 +302,8 @@ export default function SignPage() {
         body: JSON.stringify({
           selfieDataUrl: selfie,
           signatureDataUrl: signature,
+          idCardFrontDataUrl: idCardFront,
+          idCardBackDataUrl: idCardBack,
           signatureName: name.trim(),
           deviceInfo: navigator.userAgent,
         }),
@@ -221,10 +312,17 @@ export default function SignPage() {
         const j = await res.json().catch(() => null);
         throw new Error(String(j?.error || (ar ? 'فشل إرسال التوقيع' : 'Failed to submit')));
       }
-      const j = await res.json();
+      await res.json();
       setInfo((prev) => (prev ? ({ ...prev, request: { ...(prev.request as any), status: 'COMPLETED' } } as any) : prev));
       setSelfie('');
+      setSelfieSaved(false);
       setSignature('');
+      setSignatureSaved(false);
+      setIdCardFront('');
+      setIdCardFrontSaved(false);
+      setIdCardBack('');
+      setIdCardBackSaved(false);
+      clearDraft(draftKey);
     } catch (e) {
       const msg = e instanceof Error ? e.message : ar ? 'حدث خطأ' : 'Error';
       setError(msg);
@@ -266,7 +364,7 @@ export default function SignPage() {
       <div className="min-h-screen grid place-items-center p-6">
         <div className="w-full max-w-md rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-950">
           <p className="text-lg font-bold">{ar ? 'تم التوقيع بنجاح' : 'Signed successfully'}</p>
-          <p className="mt-2 text-sm">{ar ? 'شكراً لك. تم حفظ السلفي والتوقيع في النظام.' : 'Thank you. Your selfie and signature were saved.'}</p>
+          <p className="mt-2 text-sm">{ar ? 'شكراً لك. تم حفظ السلفي والتوقيع وصور البطاقة في النظام.' : 'Thank you. Your selfie, signature, and ID images were saved.'}</p>
         </div>
       </div>
     );
@@ -278,10 +376,13 @@ export default function SignPage() {
         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
           <h1 className="text-[20px] font-bold text-stone-900">{ar ? 'توثيق العقد' : 'Contract verification'}</h1>
           <p className="mt-2 text-sm text-stone-600">
-            {ar ? 'الخطوات: 1) التقط صورة سلفي 2) وقّع بإصبعك 3) إرسال' : 'Steps: 1) Take a selfie 2) Sign 3) Submit'}
+            {ar
+              ? 'الخطوات: 1) صورة سلفي وحفظ 2) توقيع وحفظ 3) بطاقة شخصية (أمام/خلف) وحفظ 4) إرسال'
+              : 'Steps: 1) Selfie + Save 2) Signature + Save 3) ID card front/back + Save 4) Submit'}
           </p>
         </div>
 
+        {selfieSaved ? (
         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
           <h2 className="text-[16px] font-semibold text-stone-900">{ar ? '١) صورة سلفي' : '1) Selfie'}</h2>
           <p className="mt-1 text-xs text-stone-600">{ar ? 'ستُستخدم للتوثيق فقط.' : 'Used for verification only.'}</p>
@@ -291,20 +392,39 @@ export default function SignPage() {
               accept="image/*"
               capture="user"
               onChange={(e) => onPickSelfie(e.target.files?.[0] || null)}
-              className="block w-full text-sm"
+              className={`block w-full rounded-xl border px-3 py-2 text-sm ${isDataUrlImage(selfie) && !selfieSaved ? 'border-red-500' : selfieSaved ? 'border-green-500' : 'border-stone-200'}`}
             />
             {isDataUrlImage(selfie) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={selfie} alt="selfie" className="w-full rounded-xl border border-stone-200" />
             ) : null}
+            <button
+              type="button"
+              disabled={!isDataUrlImage(selfie)}
+              onClick={() => setSelfieSaved(true)}
+              className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(selfie) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
+            >
+              {selfieSaved ? (ar ? 'تم حفظ صورة السلفي' : 'Selfie saved') : ar ? 'حفظ صورة السلفي' : 'Save selfie'}
+            </button>
           </div>
         </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {ar ? 'يرجى حفظ صورة السلفي أولاً للانتقال لخطوة التوقيع.' : 'Please save your selfie first to continue to signature.'}
+          </div>
+        )}
 
+        {selfieSaved && signatureSaved ? (
         <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
           <h2 className="text-[16px] font-semibold text-stone-900">{ar ? '٢) التوقيع' : '2) Signature'}</h2>
           <p className="mt-1 text-xs text-stone-600">{ar ? 'وقّع داخل المربع.' : 'Sign in the box.'}</p>
           <div className="mt-3">
-            <SignaturePad onChange={setSignature} />
+            <SignaturePad
+              onChange={(v) => {
+                setSignature(v);
+                setSignatureSaved(false);
+              }}
+            />
           </div>
           <div className="mt-4">
             <label className="text-xs font-semibold text-stone-700">{ar ? 'الاسم (اختياري)' : 'Name (optional)'}</label>
@@ -314,6 +434,67 @@ export default function SignPage() {
               className="mt-2 w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#8B6F47]"
               placeholder={ar ? 'اكتب اسمك' : 'Type your name'}
             />
+          </div>
+          <button
+            type="button"
+            disabled={!isDataUrlImage(signature)}
+            onClick={() => setSignatureSaved(true)}
+            className={`mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(signature) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
+          >
+            {signatureSaved ? (ar ? 'تم حفظ التوقيع' : 'Signature saved') : ar ? 'حفظ التوقيع' : 'Save signature'}
+          </button>
+        </div>
+        ) : null}
+
+        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="text-[16px] font-semibold text-stone-900">{ar ? '٣) تصوير البطاقة الشخصية' : '3) ID card capture'}</h2>
+          <p className="mt-1 text-xs text-stone-600">{ar ? 'صوّر الوجه الأمامي ثم الخلفي مع الحفظ لكل صورة.' : 'Capture front then back and save each image.'}</p>
+          <div className="mt-3 space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-stone-700">{ar ? 'البطاقة من الأمام' : 'ID front side'}</label>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => onPickIdCardFront(e.target.files?.[0] || null)}
+                className={`block w-full rounded-xl border px-3 py-2 text-sm ${isDataUrlImage(idCardFront) && !idCardFrontSaved ? 'border-red-500' : idCardFrontSaved ? 'border-green-500' : 'border-stone-200'}`}
+              />
+              {isDataUrlImage(idCardFront) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={idCardFront} alt="id-front" className="w-full rounded-xl border border-stone-200" />
+              ) : null}
+              <button
+                type="button"
+                disabled={!isDataUrlImage(idCardFront)}
+                onClick={() => setIdCardFrontSaved(true)}
+                className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(idCardFront) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
+              >
+                {idCardFrontSaved ? (ar ? 'تم حفظ صورة الأمام' : 'Front image saved') : ar ? 'حفظ صورة الأمام' : 'Save front image'}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-stone-700">{ar ? 'البطاقة من الخلف' : 'ID back side'}</label>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => onPickIdCardBack(e.target.files?.[0] || null)}
+                className={`block w-full rounded-xl border px-3 py-2 text-sm ${isDataUrlImage(idCardBack) && !idCardBackSaved ? 'border-red-500' : idCardBackSaved ? 'border-green-500' : 'border-stone-200'}`}
+              />
+              {isDataUrlImage(idCardBack) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={idCardBack} alt="id-back" className="w-full rounded-xl border border-stone-200" />
+              ) : null}
+              <button
+                type="button"
+                disabled={!isDataUrlImage(idCardBack)}
+                onClick={() => setIdCardBackSaved(true)}
+                className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold ${isDataUrlImage(idCardBack) ? 'bg-[#8B6F47] text-white' : 'bg-stone-300 text-stone-600'}`}
+              >
+                {idCardBackSaved ? (ar ? 'تم حفظ صورة الخلف' : 'Back image saved') : ar ? 'حفظ صورة الخلف' : 'Save back image'}
+              </button>
+            </div>
           </div>
         </div>
 
