@@ -45,7 +45,7 @@
   /* Word typography scale (pt → px): 1pt ≈ 1.333px */
   --font-word-title: 33.333px;    /* 25pt in Word */
   --font-word-subtitle: 26.667px; /* 20pt in Word */
-  --font-word-body: 20px;         /* 15pt in Word */
+  --font-word-body: 16px;         /* 12pt in Word */
 }
 
 @theme inline {
