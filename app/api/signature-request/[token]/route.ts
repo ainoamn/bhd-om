@@ -132,6 +132,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
         };
         list[idx] = updated;
 
+        // ضمان توقيع واحد لكل طرف: عند اكتمال توقيع طرف ما، نلغي أي طلبات أخرى معلّقة/فاشلة لنفس الطرف
+        for (let i = 0; i < list.length; i++) {
+          if (i === idx) continue;
+          const it = list[i] as any;
+          if (it?.actorRole === updated.actorRole && ['PENDING', 'FAILED'].includes(String(it?.status || ''))) {
+            list[i] = { ...it, status: 'CANCELLED' };
+          }
+        }
+
         // بعد نجاح التوقيع: نُحدّث مرحلة العقد فقط الآن (بدلاً من الاعتماد عند النقر)
         const cd = (booking?.contractData || {}) as Record<string, any>;
         const sigActor = splitName(updated.signatureName);

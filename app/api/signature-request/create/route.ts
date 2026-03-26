@@ -9,6 +9,7 @@ type CreateBody = {
   actorPhone?: string;
   contractKind?: 'RENT' | 'SALE' | 'INVESTMENT';
   locale?: string;
+  forceNew?: boolean;
 };
 
 export async function POST(req: NextRequest) {
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
     const actorPhone = typeof body.actorPhone === 'string' ? body.actorPhone.trim() : undefined;
     const contractKind = body.contractKind;
     const locale = typeof body.locale === 'string' && body.locale ? body.locale : 'ar';
+    const forceNew = body.forceNew === true;
 
     if (!bookingId || !actorRole) {
       return NextResponse.json({ error: 'Missing bookingId/actorRole' }, { status: 400 });
@@ -42,6 +44,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid booking data' }, { status: 500 });
     }
 
+    const list: SignatureRequest[] = Array.isArray(booking.signatureRequests) ? booking.signatureRequests : [];
+
+    // إعادة استخدام الطلب المعلّق لنفس الطرف (منع إنشاء توكنات متعددة بالنقر المتكرر)
+    if (!forceNew) {
+      const pending = list.find((r) => r?.actorRole === actorRole && r?.status === 'PENDING');
+      if (pending?.token) {
+        const origin = req.nextUrl.origin;
+        const link = buildSignatureLink(origin, locale, String(pending.token));
+        return NextResponse.json({ ok: true, token: pending.token, link, request: pending, reused: true });
+      }
+    }
+
     const sigToken = generateSignatureToken();
     const now = new Date().toISOString();
 
@@ -55,7 +69,6 @@ export async function POST(req: NextRequest) {
       status: 'PENDING',
     };
 
-    const list: SignatureRequest[] = Array.isArray(booking.signatureRequests) ? booking.signatureRequests : [];
     // إلغاء أي طلب توقيع سابق لنفس الطرف قبل إنشاء طلب جديد
     // (حتى لو كان COMPLETED) لأن التصحيح يعني استبدال التوقيع/الصور السابقة.
     for (const item of list) {

@@ -63,20 +63,29 @@ async function scanifyDocumentDataUrl(dataUrl: string, maxW = 1280): Promise<str
   const imageData = ctx.getImageData(0, 0, w, h);
   const d = imageData.data;
 
-  // grayscale + contrast + simple threshold (scan-like)
-  // thresholds tuned for phone camera; keep it lightweight.
-  const contrast = 1.35;
-  const threshold = 190;
+  // Color "scan": boost contrast/brightness while preserving color.
+  // Keep it lightweight (no heavy filters).
+  const contrast = 1.22;
+  const brightness = 10; // -255..255
+  const saturation = 1.08;
   for (let i = 0; i < d.length; i += 4) {
-    const r = d[i]!;
-    const g = d[i + 1]!;
-    const b = d[i + 2]!;
-    let y = 0.299 * r + 0.587 * g + 0.114 * b; // luminance
-    y = (y - 128) * contrast + 128;
-    const v = y >= threshold ? 255 : 0;
-    d[i] = v;
-    d[i + 1] = v;
-    d[i + 2] = v;
+    const r0 = d[i]!;
+    const g0 = d[i + 1]!;
+    const b0 = d[i + 2]!;
+    const y = 0.299 * r0 + 0.587 * g0 + 0.114 * b0;
+
+    let r = (r0 - 128) * contrast + 128 + brightness;
+    let g = (g0 - 128) * contrast + 128 + brightness;
+    let b = (b0 - 128) * contrast + 128 + brightness;
+
+    // saturation: pull away from luminance while keeping color
+    r = y + (r - y) * saturation;
+    g = y + (g - y) * saturation;
+    b = y + (b - y) * saturation;
+
+    d[i] = Math.max(0, Math.min(255, Math.round(r)));
+    d[i + 1] = Math.max(0, Math.min(255, Math.round(g)));
+    d[i + 2] = Math.max(0, Math.min(255, Math.round(b)));
     d[i + 3] = 255;
   }
   ctx.putImageData(imageData, 0, 0);

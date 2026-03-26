@@ -682,6 +682,7 @@ export default function ContractReviewPage() {
           actorPhone: phone ? String(phone) : undefined,
           contractKind: kind,
           locale,
+          forceNew: true,
         }),
       });
       if (!res.ok) {

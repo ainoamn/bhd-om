@@ -1113,6 +1113,10 @@ export default function ContractDetailPage() {
     // داخل صفحة الإدارة: يجب إرسال طلب اعتماد للطرف (مشتري/مستأجر/مستثمر) وليس اعتماده من الإدارة.
     const role = (session?.user as { role?: string } | undefined)?.role;
     if (role === 'ADMIN') {
+      if (contract?.status !== 'ADMIN_APPROVED') {
+        alert(ar ? 'لا يمكن إرسال توقيع الطرف قبل الاعتماد المبدئي من الإدارة' : 'Cannot request party signature before preliminary admin approval');
+        return;
+      }
       if (!contract?.bookingId) {
         alert(ar ? 'العقد غير مرتبط بحجز' : 'Contract has no booking');
         return;
@@ -1160,6 +1164,14 @@ export default function ContractDetailPage() {
     // داخل صفحة الإدارة: يجب إرسال طلب اعتماد للمالك/البائع وليس اعتماده من الإدارة.
     const role = (session?.user as { role?: string } | undefined)?.role;
     if (role === 'ADMIN') {
+      if (contract?.status !== 'TENANT_APPROVED') {
+        alert(
+          ar
+            ? 'لا يمكن إرسال توقيع المالك قبل توقيع المشتري/المستأجر أولاً'
+            : 'Cannot request owner signature before the client signs first'
+        );
+        return;
+      }
       if (!contract?.bookingId) {
         alert(ar ? 'العقد غير مرتبط بحجز' : 'Contract has no booking');
         return;
@@ -1228,6 +1240,7 @@ export default function ContractDetailPage() {
           actorPhone: phone,
           contractKind: ((contract as any)?.propertyContractKind ?? 'RENT') as any,
           locale,
+          forceNew: true,
         }),
       });
       if (!res.ok) {
