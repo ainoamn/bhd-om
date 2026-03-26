@@ -55,20 +55,57 @@ function str(v?: string | number | null) {
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === undefined || value === null || value === '') return null;
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start sm:gap-3 text-sm py-1.5 border-b border-gray-100 last:border-0">
-      <span className="text-gray-500 shrink-0 sm:w-52">{label}</span>
-      <span className="text-gray-900 font-medium break-words flex-1">{value}</span>
+    <div className="grid grid-cols-1 md:grid-cols-[minmax(10rem,14rem)_1fr] gap-1 md:gap-4 px-4 py-3 border-b border-stone-100/90 last:border-b-0 text-sm transition-colors hover:bg-white/90">
+      <span className="text-stone-500 font-medium leading-snug">{label}</span>
+      <span className="text-stone-900 font-semibold break-words leading-relaxed">{value}</span>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, step }: { title: string; children: React.ReactNode; step?: number }) {
   return (
-    <div className="p-4 rounded-xl border border-gray-100 bg-white">
-      <h3 className="text-sm font-bold text-gray-900 border-b border-gray-200 pb-2 mb-2">{title}</h3>
-      <div className="space-y-0">{children}</div>
-    </div>
+    <section className="rounded-2xl border border-stone-200/90 bg-white shadow-[0_4px_28px_-14px_rgba(107,85,53,0.22)] overflow-hidden ring-1 ring-stone-900/[0.03]">
+      <header className="flex items-center gap-3 px-5 py-4 bg-gradient-to-l from-[#8B6F47]/[0.09] via-[#C9A961]/[0.04] to-transparent border-b border-stone-100">
+        {step != null ? (
+          <span className="inline-flex h-10 min-w-[2.5rem] items-center justify-center rounded-xl bg-gradient-to-br from-[#8B6F47] to-[#6B5535] px-2 text-sm font-bold text-white shadow-md">
+            {step}
+          </span>
+        ) : (
+          <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-[#8B6F47]" aria-hidden />
+        )}
+        <h2 className="text-base font-bold text-stone-800 tracking-tight">{title}</h2>
+      </header>
+      <div className="p-3 sm:p-4">
+        <div className="rounded-xl border border-stone-100 bg-stone-50/60 overflow-hidden">{children}</div>
+      </div>
+    </section>
   );
+}
+
+function KindBadge({ kind, ar }: { kind: ContractKind; ar: boolean }) {
+  const map: Record<ContractKind, { ar: string; en: string }> = {
+    SALE: { ar: 'عقد بيع', en: 'Sale' },
+    INVESTMENT: { ar: 'عقد استثمار', en: 'Investment' },
+    RENT: { ar: 'عقد إيجار', en: 'Rental' },
+  };
+  return (
+    <span className="inline-flex items-center rounded-full border border-[#8B6F47]/30 bg-[#8B6F47]/10 px-3 py-1 text-xs font-bold text-[#5c4a32]">
+      {ar ? map[kind].ar : map[kind].en}
+    </span>
+  );
+}
+
+function StageBadge({ stage, ar }: { stage?: ContractStage; ar: boolean }) {
+  const label = stageLabel(ar, stage);
+  const tone =
+    stage === 'APPROVED'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+      : stage === 'CANCELLED'
+        ? 'border-red-200 bg-red-50 text-red-900'
+        : stage === 'ADMIN_APPROVED' || stage === 'TENANT_APPROVED' || stage === 'LANDLORD_APPROVED'
+          ? 'border-amber-200 bg-amber-50 text-amber-900'
+          : 'border-stone-200 bg-stone-100 text-stone-800';
+  return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone}`}>{label}</span>;
 }
 
 export default function ContractReviewPage() {
@@ -222,57 +259,87 @@ export default function ContractReviewPage() {
   const hasAnyContractPayload = !!(c && Object.keys(c).length > 0);
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[60vh] bg-gradient-to-b from-stone-50 via-white to-stone-50/90 pb-10">
       <AdminPageHeader title={pageTitle} subtitle={ar ? 'اقرأ تفاصيل العقد ثم قم بالاعتماد' : 'Read contract details then approve'} />
 
-      <div className="admin-card p-6 space-y-4">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6">
         {!bookingId ? (
-          <p className="text-gray-600">{ar ? 'رابط غير صالح' : 'Invalid link'}</p>
+          <p className="rounded-2xl border border-stone-200 bg-white p-8 text-center text-stone-600 shadow-sm">{ar ? 'رابط غير صالح' : 'Invalid link'}</p>
         ) : loading ? (
-          <p className="text-gray-600">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+          <div className="space-y-4 rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
+            <div className="mx-auto h-10 w-10 animate-pulse rounded-full bg-stone-200" />
+            <div className="mx-auto h-4 w-48 animate-pulse rounded bg-stone-200" />
+            <div className="space-y-3 pt-4">
+              <div className="h-24 animate-pulse rounded-xl bg-stone-100" />
+              <div className="h-40 animate-pulse rounded-xl bg-stone-100" />
+              <div className="h-32 animate-pulse rounded-xl bg-stone-100" />
+            </div>
+            <p className="text-center text-sm text-stone-500">{ar ? 'جاري تحميل تفاصيل العقد...' : 'Loading contract details...'}</p>
+          </div>
         ) : error && !booking ? (
-          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900">
-            <p className="font-semibold">{ar ? 'تنبيه' : 'Notice'}</p>
-            <p className="text-sm mt-1">{error}</p>
-            <Link href={`/${locale}/admin/my-bookings`} className="inline-block mt-3 text-[#8B6F47] font-semibold hover:underline">
+          <div className="rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-6 text-amber-950 shadow-md">
+            <p className="text-lg font-bold">{ar ? 'تنبيه' : 'Notice'}</p>
+            <p className="mt-2 text-sm leading-relaxed opacity-90">{error}</p>
+            <Link
+              href={`/${locale}/admin/my-bookings`}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#8B6F47] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#6B5535]"
+            >
               {ar ? 'العودة لحجوزاتي' : 'Back to my bookings'}
             </Link>
           </div>
         ) : !booking ? (
-          <p className="text-gray-600">{ar ? 'لا توجد بيانات' : 'No data'}</p>
+          <p className="rounded-2xl border border-stone-200 bg-white p-8 text-center text-stone-600 shadow-sm">{ar ? 'لا توجد بيانات' : 'No data'}</p>
         ) : (
           <>
             {error ? (
-              <div className="p-3 rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm">{error}</div>
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900 shadow-sm">{error}</div>
             ) : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm text-gray-600">{ar ? 'رقم الحجز' : 'Booking ID'}</div>
-                <div className="font-semibold text-gray-900">{booking.id}</div>
-              </div>
-              {c?.id ? (
-                <div>
-                  <div className="text-sm text-gray-600">{ar ? 'رقم العقد' : 'Contract ID'}</div>
-                  <div className="font-semibold text-gray-900">{c.id}</div>
+            <div className="rounded-2xl border border-stone-200/90 bg-white p-5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] ring-1 ring-stone-900/[0.04]">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <KindBadge kind={kind} ar={ar} />
+                  <StageBadge stage={booking.contractStage} ar={ar} />
                 </div>
-              ) : null}
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold">{ar ? 'المرحلة:' : 'Stage:'}</span> {stageLabel(ar, booking.contractStage)}
+              </div>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-stone-100 bg-stone-50/80 px-4 py-3 shadow-inner">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-stone-500">{ar ? 'رقم الحجز' : 'Booking ID'}</div>
+                  <div className="mt-1 font-mono text-sm font-bold text-stone-900 break-all">{booking.id}</div>
+                </div>
+                {c?.id ? (
+                  <div className="rounded-xl border border-stone-100 bg-stone-50/80 px-4 py-3 shadow-inner">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-stone-500">{ar ? 'رقم العقد' : 'Contract ID'}</div>
+                    <div className="mt-1 font-mono text-sm font-bold text-stone-900 break-all">{c.id}</div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-stone-200 bg-white px-4 py-3 text-sm text-stone-500 shadow-inner">
+                    {ar ? 'رقم العقد غير مُسجّل بعد' : 'Contract ID not set'}
+                  </div>
+                )}
               </div>
             </div>
 
             {property && (
-              <div className="p-4 rounded-xl border border-gray-100 bg-gray-50">
-                <div className="text-sm font-semibold text-gray-900">{ar ? 'العقار' : 'Property'}</div>
-                <div className="text-sm text-gray-700 mt-1">{getPropertyDisplayText(property)}</div>
-                <Field label={ar ? 'عنوان العقد (عربي)' : 'Title (AR)'} value={str(c?.propertyTitleAr)} />
-                <Field label={ar ? 'عنوان العقد (إنجليزي)' : 'Title (EN)'} value={str(c?.propertyTitleEn)} />
-                <Field label={ar ? 'مفتاح الوحدة' : 'Unit key'} value={str(c?.unitKey)} />
-              </div>
+              <section className="rounded-2xl border border-[#8B6F47]/20 bg-gradient-to-br from-[#8B6F47]/[0.06] via-white to-[#C9A961]/[0.05] p-5 shadow-md ring-1 ring-[#8B6F47]/10">
+                <div className="mb-4 flex items-center gap-2 border-b border-[#8B6F47]/15 pb-3">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#8B6F47]/15 text-[#6B5535] ring-1 ring-[#8B6F47]/20" aria-hidden>
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </span>
+                  <h2 className="text-lg font-bold text-stone-900">{ar ? 'العقار' : 'Property'}</h2>
+                </div>
+                <p className="text-base font-semibold leading-relaxed text-stone-800">{getPropertyDisplayText(property)}</p>
+                <div className="mt-4 rounded-xl border border-white/80 bg-white/70 shadow-inner">
+                  <Field label={ar ? 'عنوان العقد (عربي)' : 'Title (AR)'} value={str(c?.propertyTitleAr)} />
+                  <Field label={ar ? 'عنوان العقد (إنجليزي)' : 'Title (EN)'} value={str(c?.propertyTitleEn)} />
+                  <Field label={ar ? 'مفتاح الوحدة' : 'Unit key'} value={str(c?.unitKey)} />
+                </div>
+              </section>
             )}
 
-            <Section title={ar ? `١. بيانات ${actorLabel(ar, kind)}` : `1. ${actorLabel(ar, kind)} details`}>
+            <Section step={1} title={ar ? `بيانات ${actorLabel(ar, kind)}` : `${actorLabel(ar, kind)} details`}>
               <Field label={ar ? 'الاسم' : 'Name'} value={str(c?.tenantName) || booking.name} />
               <Field label={ar ? 'البريد' : 'Email'} value={str(c?.tenantEmail) || booking.email} />
               <Field label={ar ? 'الهاتف' : 'Phone'} value={str(c?.tenantPhone) || booking.phone} />
@@ -287,7 +354,7 @@ export default function ContractReviewPage() {
               <Field label={ar ? 'المنصب' : 'Position'} value={str(c?.tenantPosition)} />
             </Section>
 
-            <Section title={ar ? `٢. بيانات ${ownerLabel(ar, kind)}` : `2. ${ownerLabel(ar, kind)} details`}>
+            <Section step={2} title={ar ? `بيانات ${ownerLabel(ar, kind)}` : `${ownerLabel(ar, kind)} details`}>
               <Field label={ar ? 'الاسم' : 'Name'} value={str(c?.landlordName)} />
               <Field label={ar ? 'البريد' : 'Email'} value={str(c?.landlordEmail)} />
               <Field label={ar ? 'الهاتف' : 'Phone'} value={str(c?.landlordPhone)} />
@@ -302,7 +369,7 @@ export default function ContractReviewPage() {
             </Section>
 
             {kind === 'SALE' && c?.saleViaBroker ? (
-              <Section title={ar ? '٣. بيانات الوسيط (السمسار)' : '3. Broker'}>
+              <Section step={3} title={ar ? 'بيانات الوسيط (السمسار)' : 'Broker details'}>
                 <Field label={ar ? 'الاسم' : 'Name'} value={str(c.brokerName)} />
                 <Field label={ar ? 'الهاتف' : 'Phone'} value={str(c.brokerPhone)} />
                 <Field label={ar ? 'البريد' : 'Email'} value={str(c.brokerEmail)} />
@@ -312,14 +379,14 @@ export default function ContractReviewPage() {
             ) : null}
 
             {kind === 'SALE' ? (
-              <Section title={ar ? '٤. تاريخ البيع ونقل الملكية' : '4. Sale & transfer dates'}>
+              <Section step={c?.saleViaBroker ? 4 : 3} title={ar ? 'تاريخ البيع ونقل الملكية' : 'Sale & transfer dates'}>
                 <Field label={ar ? 'تاريخ البيع' : 'Sale date'} value={str(c?.saleDate)} />
                 <Field label={ar ? 'تاريخ نقل الملكية' : 'Transfer date'} value={str(c?.transferOfOwnershipDate)} />
                 <Field label={ar ? 'ملاحظة' : 'Note'} value={str(c?.saleDatesNote)} />
                 <Field label={ar ? 'طريقة الدفع (ملخص)' : 'Payment method'} value={str(c?.salePaymentMethod)} />
               </Section>
             ) : (
-              <Section title={ar ? '٣. مدة العقد والتواريخ' : '3. Duration & dates'}>
+              <Section step={3} title={ar ? 'مدة العقد والتواريخ' : 'Duration & dates'}>
                 <Field label={ar ? 'مدة العقد (شهر)' : 'Duration (months)'} value={c?.durationMonths != null ? String(c.durationMonths) : ''} />
                 <Field label={ar ? 'تاريخ البداية' : 'Start date'} value={str(c?.startDate)} />
                 <Field label={ar ? 'تاريخ النهاية' : 'End date'} value={str(c?.endDate)} />
@@ -329,37 +396,42 @@ export default function ContractReviewPage() {
             )}
 
             {kind === 'SALE' ? (
-              <Section title={ar ? '٥. بيانات البيع والمالية' : '5. Sale & finances'}>
+              <Section step={c?.saleViaBroker ? 5 : 4} title={ar ? 'بيانات البيع والمالية' : 'Sale & finances'}>
                 <Field
                   label={ar ? 'ثمن البيع' : 'Sale price'}
                   value={omr(ar, c?.totalSaleAmount ?? booking.priceAtBooking ?? undefined)}
                 />
                 {c?.salePayments && c.salePayments.length > 0 ? (
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-right border-b">{ar ? 'الدفعة' : '#'}</th>
-                          <th className="px-3 py-2 text-right border-b">{ar ? 'المبلغ' : 'Amount'}</th>
-                          <th className="px-3 py-2 text-right border-b">{ar ? 'ملاحظة' : 'Note'}</th>
-                          <th className="px-3 py-2 text-right border-b">{ar ? 'مستند' : 'Doc'}</th>
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+                    <table className="w-full min-w-[28rem] text-sm">
+                      <thead>
+                        <tr className="bg-gradient-to-l from-[#8B6F47]/12 to-stone-50/90">
+                          <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'الدفعة' : '#'}</th>
+                          <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'المبلغ' : 'Amount'}</th>
+                          <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'ملاحظة' : 'Note'}</th>
+                          <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'مستند' : 'Doc'}</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-stone-100">
                         {c.salePayments.map((p, i) => (
-                          <tr key={i} className="border-b border-gray-100">
-                            <td className="px-3 py-2">{p.installmentNumber}</td>
-                            <td className="px-3 py-2">{omr(ar, p.amount)}</td>
-                            <td className="px-3 py-2">{str(p.note)}</td>
-                            <td className="px-3 py-2">
+                          <tr key={i} className="transition-colors hover:bg-[#8B6F47]/[0.04]">
+                            <td className="px-4 py-3 font-mono font-semibold text-stone-800">{p.installmentNumber}</td>
+                            <td className="px-4 py-3 font-semibold tabular-nums text-stone-900">{omr(ar, p.amount)}</td>
+                            <td className="px-4 py-3 text-stone-700">{str(p.note) || '—'}</td>
+                            <td className="px-4 py-3">
                               {p.documentUrl ? (
-                                <a href={p.documentUrl} target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] underline">
-                                  {ar ? 'فتح' : 'Open'}
+                                <a
+                                  href={p.documentUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 font-semibold text-[#8B6F47] underline decoration-[#8B6F47]/40 underline-offset-2 hover:text-[#6B5535]"
+                                >
+                                  {ar ? 'فتح المستند' : 'Open'}
                                 </a>
                               ) : p.documentFile?.name ? (
-                                <span>{p.documentFile.name}</span>
+                                <span className="text-stone-700">{p.documentFile.name}</span>
                               ) : (
-                                '—'
+                                <span className="text-stone-400">—</span>
                               )}
                             </td>
                           </tr>
@@ -401,12 +473,15 @@ export default function ContractReviewPage() {
                   />
                 </div>
                 {c?.saleOtherFeesList && c.saleOtherFeesList.length > 0 ? (
-                  <div className="mt-3">
-                    <div className="text-xs font-semibold text-gray-600 mb-1">{ar ? 'رسوم أخرى' : 'Other fees'}</div>
-                    <ul className="text-sm space-y-1">
+                  <div className="mt-4 rounded-xl border border-stone-200 bg-white p-4 shadow-inner">
+                    <div className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-500">{ar ? 'رسوم أخرى' : 'Other fees'}</div>
+                    <ul className="space-y-2 text-sm">
                       {c.saleOtherFeesList.map((f, i) => (
-                        <li key={i}>
-                          {str(f.description)} — {omr(ar, f.amount)} ({payerLabel(ar, f.payer)})
+                        <li key={i} className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-stone-50/90 px-3 py-2 border border-stone-100">
+                          <span className="font-medium text-stone-800">{str(f.description)}</span>
+                          <span className="tabular-nums font-semibold text-stone-900">
+                            {omr(ar, f.amount)} <span className="text-stone-500 font-normal">({payerLabel(ar, f.payer)})</span>
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -414,7 +489,7 @@ export default function ContractReviewPage() {
                 ) : null}
               </Section>
             ) : (
-              <Section title={ar ? '٤. المالية والإيجار' : '4. Rent & finances'}>
+              <Section step={4} title={ar ? 'المالية والإيجار' : 'Rent & finances'}>
                 <Field label={ar ? 'الإيجار الشهري' : 'Monthly rent'} value={omr(ar, c?.monthlyRent ?? booking.priceAtBooking)} />
                 <Field label={ar ? 'الإيجار السنوي' : 'Annual rent'} value={omr(ar, c?.annualRent)} />
                 <Field label={ar ? 'الضمان' : 'Deposit'} value={omr(ar, c?.depositAmount)} />
@@ -459,24 +534,24 @@ export default function ContractReviewPage() {
             )}
 
             {kind !== 'SALE' && c?.checks && c.checks.length > 0 ? (
-              <Section title={ar ? '٥. الشيكات (ملخص العقد)' : '5. Contract cheques'}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-right border-b">{ar ? 'النوع' : 'Type'}</th>
-                        <th className="px-3 py-2 text-right border-b">{ar ? 'رقم الشيك' : 'Number'}</th>
-                        <th className="px-3 py-2 text-right border-b">{ar ? 'المبلغ' : 'Amount'}</th>
-                        <th className="px-3 py-2 text-right border-b">{ar ? 'الاستحقاق' : 'Due'}</th>
+              <Section step={5} title={ar ? 'الشيكات (ملخص العقد)' : 'Contract cheques'}>
+                <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+                  <table className="w-full min-w-[24rem] text-sm">
+                    <thead>
+                      <tr className="bg-gradient-to-l from-[#8B6F47]/12 to-stone-50/90">
+                        <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'النوع' : 'Type'}</th>
+                        <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'رقم الشيك' : 'Number'}</th>
+                        <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'المبلغ' : 'Amount'}</th>
+                        <th className="px-4 py-3 text-start font-bold text-stone-800 border-b border-stone-200">{ar ? 'الاستحقاق' : 'Due'}</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-stone-100">
                       {(c.checks as CheckInfo[]).map((ch, i) => (
-                        <tr key={i} className="border-b border-gray-100">
-                          <td className="px-3 py-2">{str(ch.type)}</td>
-                          <td className="px-3 py-2">{str(ch.checkNumber)}</td>
-                          <td className="px-3 py-2">{omr(ar, ch.amount)}</td>
-                          <td className="px-3 py-2">{str(ch.dueDate)}</td>
+                        <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
+                          <td className="px-4 py-3 text-stone-800">{str(ch.type)}</td>
+                          <td className="px-4 py-3 font-mono text-stone-900">{str(ch.checkNumber)}</td>
+                          <td className="px-4 py-3 tabular-nums font-semibold">{omr(ar, ch.amount)}</td>
+                          <td className="px-4 py-3 text-stone-700">{str(ch.dueDate)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -506,11 +581,15 @@ export default function ContractReviewPage() {
             </Section>
 
             {c?.otherFees && c.otherFees.length > 0 ? (
-              <Section title={ar ? 'رسوم أخرى (مصفوفة)' : 'Other fees'}>
-                <ul className="text-sm space-y-1">
+              <Section title={ar ? 'رسوم أخرى' : 'Other fees'}>
+                <ul className="space-y-2 text-sm">
                   {c.otherFees.map((f, i) => (
-                    <li key={i}>
-                      {str(f.description)} — {omr(ar, f.amount)}
+                    <li
+                      key={i}
+                      className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-stone-100 bg-stone-50/90 px-3 py-2"
+                    >
+                      <span className="font-medium text-stone-800">{str(f.description)}</span>
+                      <span className="tabular-nums font-semibold text-stone-900">{omr(ar, f.amount)}</span>
                     </li>
                   ))}
                 </ul>
@@ -536,18 +615,21 @@ export default function ContractReviewPage() {
             </Section>
 
             {!hasAnyContractPayload ? (
-              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900">
-                <div className="font-semibold">{ar ? 'تنبيه' : 'Notice'}</div>
-                <div className="text-sm mt-1">
+              <div className="rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 p-5 text-amber-950 shadow-md ring-1 ring-amber-100">
+                <div className="text-base font-bold">{ar ? 'تنبيه' : 'Notice'}</div>
+                <p className="mt-2 text-sm leading-relaxed opacity-90">
                   {ar
                     ? 'تفاصيل العقد غير مخزنة بعد على الخادم لهذا الحجز. اطلب من الإدارة فتح صفحة العقد وحفظ/مزامنة الحالة مرة أخرى، أو افتح الموقع من نفس الجهاز الذي يحتوي العقد محلياً.'
                     : 'Contract details are not stored on the server for this booking yet. Ask admin to open the contract page once to re-sync, or use a device that has the contract in local storage.'}
-                </div>
+                </p>
               </div>
             ) : null}
 
-            <div className="flex flex-wrap gap-2 items-center justify-between pt-2">
-              <Link href={`/${locale}/admin/my-bookings`} className="text-[#8B6F47] font-semibold hover:underline">
+            <div className="sticky bottom-4 z-10 mt-2 flex flex-col gap-3 rounded-2xl border border-stone-200/90 bg-white/95 p-4 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+              <Link
+                href={`/${locale}/admin/my-bookings`}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-5 py-2.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
+              >
                 {ar ? '← العودة لحجوزاتي' : '← Back to my bookings'}
               </Link>
 
@@ -556,14 +638,14 @@ export default function ContractReviewPage() {
                   type="button"
                   onClick={approve}
                   disabled={saving}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white transition-colors ${
-                    saving ? 'bg-gray-400' : 'bg-emerald-600 hover:bg-emerald-700'
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-lg transition ${
+                    saving ? 'cursor-not-allowed bg-stone-400' : 'bg-gradient-to-l from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800'
                   }`}
                 >
-                  {saving ? (ar ? 'جاري الاعتماد...' : 'Approving...') : ar ? 'اعتماد العقد' : 'Approve contract'}
+                  {saving ? (ar ? 'جاري الاعتماد...' : 'Approving...') : ar ? '✓ اعتماد العقد' : '✓ Approve contract'}
                 </button>
               ) : (
-                <span className="text-gray-500 text-sm">
+                <span className="text-center text-sm text-stone-500 sm:text-end">
                   {ar ? 'لا يوجد إجراء اعتماد متاح حالياً' : 'No approval action available right now'}
                 </span>
               )}
