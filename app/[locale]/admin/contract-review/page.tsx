@@ -296,6 +296,14 @@ function isEmptyValue(v: React.ReactNode): boolean {
   return false;
 }
 
+function signatureStatusLabel(ar: boolean, status?: string) {
+  if (!status) return ar ? '—' : '—';
+  if (status === 'COMPLETED') return ar ? 'مكتمل' : 'Completed';
+  if (status === 'PENDING') return ar ? 'بانتظار التوقيع' : 'Pending';
+  if (status === 'CANCELLED') return ar ? 'ملغي' : 'Cancelled';
+  return status;
+}
+
 /** جدول بند / قيمة — متسق على كل الشاشات */
 function DataTable({ rows, caption }: { rows: DataRow[]; caption?: string }) {
   const filtered = rows.filter((r) => !isEmptyValue(r.value));
@@ -1162,6 +1170,38 @@ export default function ContractReviewPage() {
                         ''
                       ),
                   },
+                  ...(Array.isArray((booking as any)?.signatureRequests) && (booking as any).signatureRequests.length > 0
+                    ? [
+                        {
+                          label: ar ? 'التواقيع الإلكترونية (تجربة)' : 'E-signatures (trial)',
+                          value: (
+                            <div className="space-y-2">
+                              {(booking as any).signatureRequests.slice(0, 6).map((r: any, i: number) => (
+                                <div key={`${r?.token || i}`} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="font-semibold text-stone-900">
+                                      {String(r?.actorRole || '—')} — {signatureStatusLabel(ar, String(r?.status || ''))}
+                                    </span>
+                                    <span className="text-xs text-stone-500 font-mono">{String(r?.token || '').slice(0, 18)}…</span>
+                                  </div>
+                                  {r?.completedAt ? (
+                                    <div className="mt-1 text-xs text-stone-600">
+                                      {ar ? 'وقت الإكمال: ' : 'Completed: '}
+                                      <span className="font-semibold">{formatIsoLocal(String(r.completedAt), ar)}</span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ))}
+                              {(booking as any).signatureRequests.length > 6 ? (
+                                <div className="text-xs text-stone-500">
+                                  {ar ? `+ ${Number((booking as any).signatureRequests.length) - 6} أخرى` : `+ ${Number((booking as any).signatureRequests.length) - 6} more`}
+                                </div>
+                              ) : null}
+                            </div>
+                          ),
+                        },
+                      ]
+                    : []),
                 ]}
               />
             </Section>
