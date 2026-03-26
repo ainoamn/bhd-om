@@ -39,6 +39,7 @@ import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties
 import { getChecksByContract, saveContractChecks } from '@/lib/data/contractChecks';
 import { getDocumentsByBooking, getDocumentFiles, createDocumentRequests, formatDocumentTimestamp, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getDocumentUploadLink, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
+import { getWhatsAppUrl } from '@/lib/signatureRequests';
 import { getContractTypeTerms, getRequiredDocTypesForBooking, CHECK_TYPES, type RequiredCheck } from '@/lib/data/bookingTerms';
 import { saveBookingChecks, getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getActiveBankAccounts, getBankAccountById, getBankAccountDisplay } from '@/lib/data/bankAccounts';
@@ -1053,12 +1054,94 @@ export default function ContractDetailPage() {
   };
 
   const handleApproveTenant = () => {
+    // داخل صفحة الإدارة: يجب إرسال طلب اعتماد للطرف (مشتري/مستأجر/مستثمر) وليس اعتماده من الإدارة.
+    const role = (session?.user as { role?: string } | undefined)?.role;
+    if (role === 'ADMIN') {
+      if (!contract?.bookingId) {
+        alert(ar ? 'العقد غير مرتبط بحجز' : 'Contract has no booking');
+        return;
+      }
+      const phone = String(form?.tenantPhone || '').trim();
+      if (!phone) {
+        alert(ar ? 'لا يوجد رقم هاتف للطرف لإرسال رابط التوقيع' : 'No phone to send signing link');
+        return;
+      }
+      fetch('/api/signature-request/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: contract.bookingId,
+          actorRole: 'CLIENT',
+          actorPhone: phone,
+          contractKind: ((contract as any)?.propertyContractKind ?? 'RENT') as any,
+          locale,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          const link = String(data?.link || '');
+          if (!link) return;
+          const msg = ar
+            ? `مرحباً،\nيرجى إكمال توثيق العقد:\n1) تصوير سلفي\n2) التوقيع عبر شاشة الهاتف\nالرابط:\n${link}`
+            : `Hello,\nPlease complete contract verification:\n1) Selfie\n2) Sign on your phone\nLink:\n${link}`;
+          const wa = getWhatsAppUrl(phone, msg);
+          if (wa) window.open(wa, '_blank', 'noopener');
+          alert(ar ? 'تم إرسال رابط التوقيع للطرف عبر واتساب' : 'Signing link sent via WhatsApp');
+        })
+        .catch(() => {
+          alert(ar ? 'تعذر إنشاء رابط التوقيع' : 'Failed to create signing link');
+        });
+      return;
+    }
+
     const updated = approveContractByTenant(id, sessionToContractActor(session));
     if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
     loadContract();
   };
 
   const handleApproveLandlord = () => {
+    // داخل صفحة الإدارة: يجب إرسال طلب اعتماد للمالك/البائع وليس اعتماده من الإدارة.
+    const role = (session?.user as { role?: string } | undefined)?.role;
+    if (role === 'ADMIN') {
+      if (!contract?.bookingId) {
+        alert(ar ? 'العقد غير مرتبط بحجز' : 'Contract has no booking');
+        return;
+      }
+      const phone = String(form?.landlordPhone || '').trim();
+      if (!phone) {
+        alert(ar ? 'لا يوجد رقم هاتف للمالك/البائع لإرسال رابط التوقيع' : 'No owner/seller phone to send signing link');
+        return;
+      }
+      fetch('/api/signature-request/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: contract.bookingId,
+          actorRole: 'OWNER',
+          actorPhone: phone,
+          contractKind: ((contract as any)?.propertyContractKind ?? 'RENT') as any,
+          locale,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          const link = String(data?.link || '');
+          if (!link) return;
+          const msg = ar
+            ? `مرحباً،\nيرجى إكمال توثيق العقد:\n1) تصوير سلفي\n2) التوقيع عبر شاشة الهاتف\nالرابط:\n${link}`
+            : `Hello,\nPlease complete contract verification:\n1) Selfie\n2) Sign on your phone\nLink:\n${link}`;
+          const wa = getWhatsAppUrl(phone, msg);
+          if (wa) window.open(wa, '_blank', 'noopener');
+          alert(ar ? 'تم إرسال رابط التوقيع للمالك/البائع عبر واتساب' : 'Signing link sent via WhatsApp');
+        })
+        .catch(() => {
+          alert(ar ? 'تعذر إنشاء رابط التوقيع' : 'Failed to create signing link');
+        });
+      return;
+    }
+
     const updated = approveContractByLandlord(id, sessionToContractActor(session));
     if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
     loadContract();
@@ -3467,15 +3550,15 @@ export default function ContractDetailPage() {
             {confirmAction === 'edit' && (ar ? 'إرجاع للتعديل' : 'Return for Edit')}
             {confirmAction === 'final' && (ar ? 'اعتماد نهائي' : 'Final Approval')}
             {confirmAction === 'cancel' && (ar ? 'شطب العقد' : 'Cancel Contract')}
-            {confirmAction === 'tenant' && (ar ? `اعتماد ${tenantWordAr}` : `${tenantWordEn} Approval`)}
-            {confirmAction === 'landlord' && (ar ? 'اعتماد المالك' : 'Landlord Approval')}
+            {confirmAction === 'tenant' && (ar ? `إرسال اعتماد ${tenantWordAr}` : `Send ${tenantWordEn} approval`)}
+            {confirmAction === 'landlord' && (ar ? (isSale ? 'إرسال اعتماد البائع' : 'إرسال اعتماد المالك') : (isSale ? 'Send seller approval' : 'Send landlord approval'))}
           </h3>
           <p className="text-gray-600 mb-6">
             {confirmAction === 'edit' && (ar ? 'سيتم تمكين تعديل بيانات العقد. احفظ التعديلات عند الانتهاء.' : 'Contract will become editable. Save changes when done.')}
             {confirmAction === 'final' && (ar ? 'سيتم اعتماد العقد نهائياً وتحويل الحجز إلى مؤجر. هذا الإجراء لا يمكن التراجع عنه.' : 'Contract will be finally approved and booking will become rented. This cannot be undone.')}
             {confirmAction === 'cancel' && (ar ? 'سيتم شطب هذا العقد. لن يعود قابلاً للاستخدام.' : 'This contract will be cancelled and cannot be used.')}
-            {confirmAction === 'tenant' && (ar ? `سيتم تسجيل اعتماد ${tenantWordAr} على العقد.` : `${tenantWordEn} approval will be recorded on the contract.`)}
-            {confirmAction === 'landlord' && (ar ? 'سيتم تسجيل اعتماد المالك على العقد.' : 'Landlord approval will be recorded on the contract.')}
+            {confirmAction === 'tenant' && (ar ? `سيتم إرسال رابط التوقيع عبر الواتساب إلى ${tenantWordAr} لاعتماد العقد.` : `A WhatsApp signing link will be sent to the ${tenantWordEn.toLowerCase()} to approve the contract.`)}
+            {confirmAction === 'landlord' && (ar ? (isSale ? 'سيتم إرسال رابط التوقيع عبر الواتساب إلى البائع لاعتماد العقد.' : 'سيتم إرسال رابط التوقيع عبر الواتساب إلى المالك لاعتماد العقد.') : (isSale ? 'A WhatsApp signing link will be sent to the seller to approve the contract.' : 'A WhatsApp signing link will be sent to the landlord to approve the contract.'))}
           </p>
           <div className="flex gap-3 justify-end">
             <button
@@ -3506,14 +3589,10 @@ export default function ContractDetailPage() {
                   loadContract();
                 }
                 else if (action === 'tenant') {
-                  const updated = approveContractByTenant(id);
-                  if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
-                  loadContract();
+                  handleApproveTenant();
                 }
                 else if (action === 'landlord') {
-                  const updated = approveContractByLandlord(id);
-                  if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
-                  loadContract();
+                  handleApproveLandlord();
                 }
               }}
               className={`px-5 py-2.5 rounded-xl font-semibold text-white ${
