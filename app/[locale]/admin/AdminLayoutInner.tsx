@@ -73,7 +73,8 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   // آخر جلسة معروفة (للحالات غير الانتحال). لا نمسحها فوراً عند unauthenticated —
   // NextAuth قد يعرض unauthenticated لحظياً أثناء إعادة الجلب (مثلاً بعد التركيز أو التحديث).
   const lastKnownSessionRef = useRef<typeof session>(null);
-  const clearStaleSessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** في المتصفح يعيد setTimeout رقم المعرف؛ تجنب تعارض أنواع Node/DOM */
+  const clearStaleSessionTimeoutRef = useRef<number | null>(null);
   const signingOutRef = useRef(false);
 
   if (session?.user) {
@@ -96,12 +97,13 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       lastKnownSessionRef.current = null;
       return;
     }
-    if (session?.user) return;
+    // عند unauthenticated قد يضيّق TypeScript نوع الجلسة؛ نتحقق بشكل صريح
+    if (session && typeof session === 'object' && 'user' in session && (session as { user?: unknown }).user) return;
     if (clearStaleSessionTimeoutRef.current) window.clearTimeout(clearStaleSessionTimeoutRef.current);
     clearStaleSessionTimeoutRef.current = window.setTimeout(() => {
       lastKnownSessionRef.current = null;
       clearStaleSessionTimeoutRef.current = null;
-    }, 750);
+    }, 750) as number;
     return () => {
       if (clearStaleSessionTimeoutRef.current) {
         window.clearTimeout(clearStaleSessionTimeoutRef.current);

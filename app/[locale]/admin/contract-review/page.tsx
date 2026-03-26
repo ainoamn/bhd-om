@@ -81,13 +81,44 @@ function sessionToContractActor(session: {
   return { firstName, lastName, serial };
 }
 
-function actorDisplayLine(ar: boolean, first?: string, last?: string, serial?: string): string | null {
-  const fullName = [first, last].filter(Boolean).join(' ').trim();
-  if (!fullName && !serial) return null;
-  const bits: string[] = [];
-  if (fullName) bits.push(ar ? `${fullName}` : fullName);
-  if (serial) bits.push(ar ? `رقم النظام: ${serial}` : `Serial: ${serial}`);
-  return bits.join(ar ? ' — ' : ' — ');
+/** تفاصيل اعتماد/إجراء للتوثيق: تاريخ ووقت + اسم المنفّذ + الرقم المتسلسل */
+function ApprovalAuditCell({
+  ar,
+  atIso,
+  firstName,
+  lastName,
+  serial,
+}: {
+  ar: boolean;
+  atIso?: string;
+  firstName?: string;
+  lastName?: string;
+  serial?: string;
+}) {
+  const name = [firstName, lastName].filter(Boolean).join(' ').trim();
+  if (!atIso && !name && !serial) return null;
+  return (
+    <div className="space-y-2 border-s-2 border-[#8B6F47]/25 ps-3">
+      {atIso ? (
+        <p className="text-sm leading-relaxed">
+          <span className="font-medium text-stone-500">{ar ? 'التاريخ والوقت: ' : 'Date & time: '}</span>
+          <span className="font-semibold text-stone-900">{formatIsoLocal(atIso, ar)}</span>
+        </p>
+      ) : null}
+      {name ? (
+        <p className="text-sm leading-relaxed">
+          <span className="font-medium text-stone-500">{ar ? 'اسم المنفّذ: ' : 'Performed by: '}</span>
+          <span className="text-stone-800">{name}</span>
+        </p>
+      ) : null}
+      {serial ? (
+        <p className="text-sm leading-relaxed">
+          <span className="font-medium text-stone-500">{ar ? 'الرقم المتسلسل في النظام: ' : 'System serial no.: '}</span>
+          <span className="font-mono font-semibold text-stone-900">{serial}</span>
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function salePercentAmount(base: number, pct: number | null | undefined): number | null {
@@ -384,6 +415,31 @@ export default function ContractReviewPage() {
     };
   }, [ar, kind]);
 
+  /** أرقام الخطوات لتوحيد العناوين مع بيانات المشتري/المالك */
+  const sectionSteps = useMemo(() => {
+    const ec = effectiveContract;
+    if (kind === 'SALE') {
+      const br = !!ec?.saleViaBroker;
+      return {
+        broker: br ? 3 : undefined,
+        saleDates: br ? 4 : 3,
+        saleFinance: br ? 5 : 4,
+        guarantees: br ? 6 : 5,
+        approvals: br ? 7 : 6,
+      };
+    }
+    let n = 3;
+    const duration = n++;
+    const finance = n++;
+    const checks = !!(ec?.checks && Array.isArray(ec.checks) && ec.checks.length > 0);
+    const checksStep = checks ? n++ : undefined;
+    const rentAcct = hasRentAccountFields(ec);
+    const rentAcctStep = rentAcct ? n++ : undefined;
+    const guarantees = n++;
+    const approvals = n;
+    return { duration, finance, checks: checksStep, rentAcct: rentAcctStep, guarantees, approvals };
+  }, [kind, effectiveContract]);
+
   const canClientApprove = useMemo(() => {
     if (!booking?.contractStage) return false;
     if (booking.contractStage !== 'ADMIN_APPROVED') return false;
@@ -594,8 +650,8 @@ export default function ContractReviewPage() {
             </Section>
 
             {kind === 'SALE' && c?.saleViaBroker ? (
-              <Section step={3} title={ar ? 'بيانات الوسيط (السمسار)' : 'Broker details'}>
-                <DataTable
+              <Section step={sectionSteps.broker} title={ar ? 'بيانات الوسيط (السمسار)' : 'Broker details'}>
+                <DataTablePair
                   rows={[
                     { label: ar ? 'الاسم' : 'Name', value: str(c.brokerName) },
                     { label: ar ? 'الهاتف' : 'Phone', value: str(c.brokerPhone) },
@@ -608,8 +664,8 @@ export default function ContractReviewPage() {
             ) : null}
 
             {kind === 'SALE' ? (
-              <Section step={c?.saleViaBroker ? 4 : 3} title={ar ? 'تاريخ البيع ونقل الملكية' : 'Sale & transfer dates'}>
-                <DataTable
+              <Section step={sectionSteps.saleDates} title={ar ? 'تاريخ البيع ونقل الملكية' : 'Sale & transfer dates'}>
+                <DataTablePair
                   rows={[
                     { label: ar ? 'تاريخ البيع' : 'Sale date', value: str(c?.saleDate) },
                     { label: ar ? 'تاريخ نقل الملكية' : 'Transfer date', value: str(c?.transferOfOwnershipDate) },
@@ -619,7 +675,7 @@ export default function ContractReviewPage() {
                 />
               </Section>
             ) : (
-              <Section step={3} title={ar ? 'مدة العقد والتواريخ' : 'Duration & dates'}>
+              <Section step={sectionSteps.duration} title={ar ? 'مدة العقد والتواريخ' : 'Duration & dates'}>
                 <DataTable
                   rows={[
                     { label: ar ? 'مدة العقد (شهر)' : 'Duration (months)', value: c?.durationMonths != null ? String(c.durationMonths) : '' },
@@ -643,9 +699,9 @@ export default function ContractReviewPage() {
             )}
 
             {kind === 'SALE' ? (
-              <Section step={c?.saleViaBroker ? 5 : 4} title={ar ? 'بيانات البيع والمالية' : 'Sale & finances'}>
+              <Section step={sectionSteps.saleFinance} title={ar ? 'بيانات البيع والمالية' : 'Sale & finances'}>
                 <div className="space-y-4">
-                  <DataTable
+                  <DataTablePair
                     rows={[{ label: ar ? 'ثمن البيع' : 'Sale price', value: omr(ar, c?.totalSaleAmount ?? booking.priceAtBooking ?? undefined) }]}
                   />
                   {c?.salePayments && c.salePayments.length > 0 ? (
@@ -685,7 +741,7 @@ export default function ContractReviewPage() {
                       </table>
                     </div>
                   ) : null}
-                  <DataTable
+                  <DataTablePair
                     rows={[
                       {
                         label: ar ? 'السمسرة (%)' : 'Brokerage %',
@@ -755,7 +811,7 @@ export default function ContractReviewPage() {
                 </div>
               </Section>
             ) : (
-              <Section step={4} title={financeLabels.section}>
+              <Section step={sectionSteps.finance} title={financeLabels.section}>
                 <DataTablePair
                   rows={[
                     { label: financeLabels.monthly, value: omr(ar, c?.monthlyRent ?? booking.priceAtBooking) },
@@ -801,7 +857,7 @@ export default function ContractReviewPage() {
             )}
 
             {kind !== 'SALE' && c?.checks && c.checks.length > 0 ? (
-              <Section step={5} title={ar ? (kind === 'INVESTMENT' ? 'الشيكات (ملخص الاستثمار)' : 'الشيكات (ملخص العقد)') : kind === 'INVESTMENT' ? 'Contract cheques (investment)' : 'Contract cheques'}>
+              <Section step={sectionSteps.checks} title={ar ? (kind === 'INVESTMENT' ? 'الشيكات (ملخص الاستثمار)' : 'الشيكات (ملخص العقد)') : kind === 'INVESTMENT' ? 'Contract cheques (investment)' : 'Contract cheques'}>
                 <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
                   <table className="w-full min-w-[24rem] border-collapse text-sm">
                     <DataTableHead>
@@ -826,7 +882,7 @@ export default function ContractReviewPage() {
             ) : null}
 
             {kind !== 'SALE' && hasRentAccountFields(c) ? (
-              <Section title={financeLabels.checksSection}>
+              <Section step={sectionSteps.rentAcct} title={financeLabels.checksSection}>
                 <DataTablePair
                   rows={[
                     { label: ar ? 'نوع مالك الشيكات' : 'Cheque owner type', value: str(c?.rentChecksOwnerType) },
@@ -844,8 +900,8 @@ export default function ContractReviewPage() {
               </Section>
             ) : null}
 
-            <Section title={ar ? 'ضمانات وشروط إضافية' : 'Guarantees & notes'}>
-              <DataTable
+            <Section step={sectionSteps.guarantees} title={ar ? 'ضمانات وشروط إضافية' : 'Guarantees & notes'}>
+              <DataTablePair
                 rows={[
                   {
                     label: ar ? 'الضمانات' : 'Guarantees',
@@ -892,7 +948,12 @@ export default function ContractReviewPage() {
               </Section>
             ) : null}
 
-            <Section title={ar ? 'حالة الاعتمادات والتواريخ' : 'Approval timestamps'}>
+            <Section step={sectionSteps.approvals} title={ar ? 'حالة الاعتمادات والتواريخ' : 'Approval status & audit trail'}>
+              <p className="mb-4 text-sm leading-relaxed text-stone-600">
+                {ar
+                  ? 'يُعرض لكل خطوة: تاريخ ووقت الإجراء، واسم المنفّذ، والرقم المتسلسل في النظام عند التوفّر — لتوثيق المعاملة.'
+                  : 'Each step shows date & time, performer name, and system serial when recorded — for audit purposes.'}
+              </p>
               <DataTable
                 rows={[
                   { label: ar ? 'حالة العقد في الملف' : 'Contract status', value: stageLabel(ar, (c?.status || booking.contractStage) as ContractStage, kind) },
@@ -900,14 +961,13 @@ export default function ContractReviewPage() {
                     label: ar ? 'اعتماد إداري مبدئي' : 'Admin pre-approval',
                     value:
                       c?.adminApprovedAt || c?.adminApprovedBySerial || c?.adminApprovedByFirstName ? (
-                        <div className="space-y-1">
-                          {c?.adminApprovedAt ? <div className="font-semibold">{formatIsoLocal(c.adminApprovedAt, ar)}</div> : null}
-                          {actorDisplayLine(ar, c?.adminApprovedByFirstName, c?.adminApprovedByLastName, c?.adminApprovedBySerial) ? (
-                            <div className="text-sm font-normal text-stone-600">
-                              {actorDisplayLine(ar, c?.adminApprovedByFirstName, c?.adminApprovedByLastName, c?.adminApprovedBySerial)}
-                            </div>
-                          ) : null}
-                        </div>
+                        <ApprovalAuditCell
+                          ar={ar}
+                          atIso={c?.adminApprovedAt}
+                          firstName={c?.adminApprovedByFirstName}
+                          lastName={c?.adminApprovedByLastName}
+                          serial={c?.adminApprovedBySerial}
+                        />
                       ) : (
                         ''
                       ),
@@ -927,62 +987,65 @@ export default function ContractReviewPage() {
                             : 'Tenant approval',
                     value:
                       c?.tenantApprovedAt || c?.tenantApprovedBySerial || c?.tenantApprovedByFirstName ? (
-                        <div className="space-y-1">
-                          {c?.tenantApprovedAt ? <div className="font-semibold">{formatIsoLocal(c.tenantApprovedAt, ar)}</div> : null}
-                          {actorDisplayLine(ar, c?.tenantApprovedByFirstName, c?.tenantApprovedByLastName, c?.tenantApprovedBySerial) ? (
-                            <div className="text-sm font-normal text-stone-600">
-                              {actorDisplayLine(ar, c?.tenantApprovedByFirstName, c?.tenantApprovedByLastName, c?.tenantApprovedBySerial)}
-                            </div>
-                          ) : null}
-                        </div>
+                        <ApprovalAuditCell
+                          ar={ar}
+                          atIso={c?.tenantApprovedAt}
+                          firstName={c?.tenantApprovedByFirstName}
+                          lastName={c?.tenantApprovedByLastName}
+                          serial={c?.tenantApprovedBySerial}
+                        />
                       ) : (
                         ''
                       ),
                   },
                   {
-                    label: ar ? 'اعتماد المالك' : 'Owner approval',
+                    label:
+                      ar
+                        ? kind === 'SALE'
+                          ? 'اعتماد البائع (المالك)'
+                          : 'اعتماد المالك'
+                        : kind === 'SALE'
+                          ? 'Seller (owner) approval'
+                          : 'Owner approval',
                     value:
                       c?.landlordApprovedAt || c?.landlordApprovedBySerial || c?.landlordApprovedByFirstName ? (
-                        <div className="space-y-1">
-                          {c?.landlordApprovedAt ? <div className="font-semibold">{formatIsoLocal(c.landlordApprovedAt, ar)}</div> : null}
-                          {actorDisplayLine(ar, c?.landlordApprovedByFirstName, c?.landlordApprovedByLastName, c?.landlordApprovedBySerial) ? (
-                            <div className="text-sm font-normal text-stone-600">
-                              {actorDisplayLine(ar, c?.landlordApprovedByFirstName, c?.landlordApprovedByLastName, c?.landlordApprovedBySerial)}
-                            </div>
-                          ) : null}
-                        </div>
+                        <ApprovalAuditCell
+                          ar={ar}
+                          atIso={c?.landlordApprovedAt}
+                          firstName={c?.landlordApprovedByFirstName}
+                          lastName={c?.landlordApprovedByLastName}
+                          serial={c?.landlordApprovedBySerial}
+                        />
                       ) : (
                         ''
                       ),
                   },
                   {
-                    label: ar ? 'أُنشئ' : 'Created',
+                    label: ar ? 'إنشاء سجل العقد' : 'Contract record created',
                     value:
                       c?.createdAt ? (
-                        <div className="space-y-1">
-                          <div className="font-semibold">{formatIsoLocal(c.createdAt, ar)}</div>
-                          {actorDisplayLine(ar, c?.contractCreatedByFirstName, c?.contractCreatedByLastName, c?.contractCreatedBySerial) ? (
-                            <div className="text-sm font-normal text-stone-600">
-                              {actorDisplayLine(ar, c?.contractCreatedByFirstName, c?.contractCreatedByLastName, c?.contractCreatedBySerial)}
-                            </div>
-                          ) : null}
-                        </div>
+                        <ApprovalAuditCell
+                          ar={ar}
+                          atIso={c.createdAt}
+                          firstName={c?.contractCreatedByFirstName}
+                          lastName={c?.contractCreatedByLastName}
+                          serial={c?.contractCreatedBySerial}
+                        />
                       ) : (
                         ''
                       ),
                   },
                   {
-                    label: ar ? 'آخر تحديث' : 'Last updated',
+                    label: ar ? 'آخر تحديث للسجل' : 'Last record update',
                     value:
                       c?.updatedAt ? (
-                        <div className="space-y-1">
-                          <div className="font-semibold">{formatIsoLocal(c.updatedAt, ar)}</div>
-                          {actorDisplayLine(ar, c?.contractUpdatedByFirstName, c?.contractUpdatedByLastName, c?.contractUpdatedBySerial) ? (
-                            <div className="text-sm font-normal text-stone-600">
-                              {actorDisplayLine(ar, c?.contractUpdatedByFirstName, c?.contractUpdatedByLastName, c?.contractUpdatedBySerial)}
-                            </div>
-                          ) : null}
-                        </div>
+                        <ApprovalAuditCell
+                          ar={ar}
+                          atIso={c.updatedAt}
+                          firstName={c?.contractUpdatedByFirstName}
+                          lastName={c?.contractUpdatedByLastName}
+                          serial={c?.contractUpdatedBySerial}
+                        />
                       ) : (
                         ''
                       ),
