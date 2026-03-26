@@ -61,6 +61,15 @@ function getImpersonationSessionFromStorage(): { user: { id: string; name?: stri
   }
 }
 
+/**
+ * عند `status === 'unauthenticated'` يضيّق next-auth نوع `session` بحيث لا يُسمح بـ `session.user` — يفشل `tsc` على CI.
+ * نتحقق عبر `unknown` لتفادي `Property 'user' does not exist on type 'never'`.
+ */
+function sessionPayloadHasUser(session: unknown): boolean {
+  if (session == null || typeof session !== 'object') return false;
+  return 'user' in session && !!(session as { user?: unknown }).user;
+}
+
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams();
@@ -97,8 +106,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       lastKnownSessionRef.current = null;
       return;
     }
-    // عند unauthenticated قد يضيّق TypeScript نوع الجلسة؛ نتحقق بشكل صريح
-    if (session && typeof session === 'object' && 'user' in session && (session as { user?: unknown }).user) return;
+    if (sessionPayloadHasUser(session)) return;
     if (clearStaleSessionTimeoutRef.current) window.clearTimeout(clearStaleSessionTimeoutRef.current);
     clearStaleSessionTimeoutRef.current = window.setTimeout(() => {
       lastKnownSessionRef.current = null;
