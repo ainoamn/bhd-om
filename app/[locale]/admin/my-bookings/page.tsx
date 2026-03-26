@@ -313,6 +313,7 @@ export default function MyBookingsPage() {
                   const hasContractId = !!full?.contractId;
                   const needComplete = bookingStage || hasContractId ? false : needsToCompleteContractData(b, full);
                   const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
+                  const contractReviewUrl = `/${locale}/admin/contract-review?bookingId=${b.id}`;
                   const c = getContractByBooking(b.id) as RentalContract | undefined;
                   const kind = (c?.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
                   const reviewContractUrl = c?.id ? `/${locale}/admin/contracts/${c.id}` : null;
@@ -344,7 +345,10 @@ export default function MyBookingsPage() {
                         <div className="flex flex-wrap gap-2">
                           {needComplete && (
                             <Link
-                              href={contractTermsUrl}
+                              href={(() => {
+                                const paymentOrAccountantConfirmedRow = !!(full?.paymentConfirmed || full?.accountantConfirmedAt || (b as any).paymentConfirmed || (b as any).accountantConfirmedAt);
+                                return paymentOrAccountantConfirmedRow ? contractReviewUrl : contractTermsUrl;
+                              })()}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
                             >
                               {(() => {
