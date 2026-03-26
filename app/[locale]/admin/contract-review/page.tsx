@@ -202,7 +202,7 @@ function SaleFeesByPayerBreakdown({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xs font-semibold text-stone-900 sm:text-sm">{ar ? 'تفصيل الرسوم حسب الدافع' : 'Fees split by payer'}</h3>
+      <h3 className="text-[12px] font-medium leading-snug text-stone-800 sm:text-[13px]">{ar ? 'تفصيل الرسوم حسب الدافع' : 'Fees split by payer'}</h3>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className={colClass}>
           <p className="mb-3 border-b border-stone-100 pb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535] sm:text-sm">
@@ -252,7 +252,7 @@ function SaleFeesByPayerBreakdown({
       ) : null}
 
       <div className="overflow-hidden rounded-xl border-2 border-[#8B6F47]/35 bg-gradient-to-br from-[#8B6F47]/[0.07] to-white p-3 sm:p-4">
-        <p className="mb-3 text-xs font-semibold text-stone-900 sm:text-sm">{ar ? 'ملخص المجاميع' : 'Totals summary'}</p>
+        <p className="mb-3 text-[12px] font-medium text-stone-800 sm:text-[13px]">{ar ? 'ملخص المجاميع' : 'Totals summary'}</p>
         <DataTable
           rows={[
             { label: ar ? 'إجمالي ما على المشتري' : 'Total due from buyer', value: omr(ar, p.buyerSum) },
@@ -403,13 +403,13 @@ function Section({ title, children, step }: { title: string; children: React.Rea
     <section className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-md ring-1 ring-stone-900/[0.04]">
       <header className="flex items-center gap-3 border-b border-stone-200 bg-gradient-to-l from-[#8B6F47]/[0.1] via-[#C9A961]/[0.05] to-white px-4 py-3 sm:px-5 sm:py-3.5">
         {step != null ? (
-          <span className="inline-flex h-9 min-w-[2.25rem] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#8B6F47] to-[#6B5535] px-2.5 text-xs font-bold text-white shadow sm:h-10 sm:min-w-[2.5rem] sm:text-sm">
+          <span className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#8B6F47] to-[#6B5535] px-2 text-[11px] font-bold text-white shadow sm:h-9 sm:min-w-[2.25rem] sm:text-xs">
             {step}
           </span>
         ) : (
           <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-[#8B6F47]" aria-hidden />
         )}
-        <h2 className="text-sm font-semibold leading-snug text-stone-900 sm:text-base">{title}</h2>
+        <h2 className="text-[14px] font-medium leading-snug text-stone-800 sm:text-[14px]">{title}</h2>
       </header>
       <div className="min-w-0 p-3 sm:p-4">{children}</div>
     </section>
@@ -741,7 +741,7 @@ export default function ContractReviewPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                   </span>
-                  <h2 className="text-sm font-semibold text-stone-900 sm:text-base">{ar ? 'العقار' : 'Property'}</h2>
+                  <h2 className="text-[14px] font-medium leading-snug text-stone-800 sm:text-[14px]">{ar ? 'العقار' : 'Property'}</h2>
                 </div>
                 <div className="p-3 sm:p-4">
                   <DataTablePair
