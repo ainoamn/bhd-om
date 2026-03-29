@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — ربط لوحة المالك بالحجوزات والعقارات والمهام (USR-C / دور OWNER)
+
+- **ما تم:** تصحيح `GET /api/bookings` ليعيد للمالك الحجوزات حيث يطابق `contractData` (بريد/هاتف المالك) أو سجل الحجز كعميل؛ جلب الحجوزات في لوحة المالك و«عقاري» دون اشتراط `contactId` في دفتر العناوين؛ «حجوزاتي» للمالك تعرض كل حجوزات السيرفر المفلترة؛ «عقودي» تدمج عقوداً مستمدة من حجوزات الخادم؛ مهام التوثيق في `OwnerDashboard` تستخدم نفس منطق المطابقة؛ ملف مشترك `lib/data/ownerLandlordMatch.ts`؛ عنصر تنقل «حجوزات ومهام العقود» للمالك وربط الباقة بـ `myBookings` ضمن صلاحيات العقود/الإيجار.
+- **الملفات:** `app/api/bookings/route.ts`, `lib/data/ownerLandlordMatch.ts`, `lib/data/contactLinks.ts`, `components/admin/OwnerDashboard.tsx`, `app/[locale]/admin/my-properties/page.tsx`, `app/[locale]/admin/my-bookings/page.tsx`, `app/[locale]/admin/my-contracts/page.tsx`, `lib/config/dashboardRoles.ts`, `lib/subscriptionPlanToDashboard.ts`, `messages/ar.json`, `messages/en.json`
+
 ### جلسة 2026-03-26 — إصلاح وميض «يجب تسجيل الدخول» بعد تحديث الصفحة (لوحة الإدارة/العميل تحت `/admin`)
 
 - **ما تم:** عدم مسح `lastKnownSessionRef` فوراً عند `unauthenticated` (تأخير ~750ms مع إلغاء عند عودة الجلسة) لتفادي نافذة NextAuth القصيرة؛ مسح فوري عند تسجيل الخروج؛ شاشة تحميل بسيطة أثناء `status === 'loading'` بدون جلسة بعدم الانتحال.
