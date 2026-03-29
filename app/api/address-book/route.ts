@@ -10,6 +10,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAuthSubFromRequest } from '@/lib/auth/getAuthSubFromRequest';
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
+import { deleteOtherAddressBookRowsForUser, getDuplicateDropContactIds } from '@/lib/server/addressBookDedupe';
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,9 +20,47 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await prisma.addressBookContact.findMany({
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
     });
-    const contacts = rows.map((r) => (r.data as Record<string, unknown>) ?? {}).filter((c) => c && (c as { id?: string }).id);
+    const drop = getDuplicateDropContactIds(rows);
+    if (drop.size > 0) {
+      await prisma.addressBookContact.deleteMany({
+        where: { contactId: { in: [...drop] } },
+      });
+    }
+    const keptRows = rows.filter((r) => !drop.has(r.contactId));
+
+    const userIds = [
+      ...new Set(
+        keptRows
+          .map((r) => {
+            const uid = (r.data as Record<string, unknown>)?.userId;
+            return typeof uid === 'string' ? uid.trim() : '';
+          })
+          .filter(Boolean)
+      ),
+    ];
+    const users =
+      userIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, serialNumber: true },
+          })
+        : [];
+    const serialByUser = new Map(users.map((u) => [u.id, u.serialNumber]));
+
+    const contacts = keptRows
+      .map((r) => {
+        const c = { ...((r.data as Record<string, unknown>) ?? {}) };
+        if (!(c && typeof (c as { id?: string }).id === 'string')) return null;
+        const uid = typeof c.userId === 'string' ? c.userId.trim() : '';
+        if (uid && serialByUser.has(uid)) {
+          c.serialNumber = serialByUser.get(uid);
+        }
+        return c;
+      })
+      .filter((c): c is Record<string, unknown> => c != null);
+
     return NextResponse.json(contacts);
   } catch (e) {
     console.error('Address book GET error:', e);
@@ -64,6 +103,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'User not found for userId' }, { status: 400 });
       }
       raw.serialNumber = dbUser.serialNumber;
+    }
+
+    if (bodyUserId) {
+      await deleteOtherAddressBookRowsForUser(contactId, bodyUserId);
     }
 
     const ident = await assertAddressBookIdentityUnique(raw, contactId);
