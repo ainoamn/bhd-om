@@ -106,14 +106,18 @@ function getBookingStatusDisplay(
     }
     // تجاوز مشكلة تزامن مستندات localStorage بين الأجهزة:
     // إذا الدفع مؤكد والحجز CONFIRMED ولم نصل لحالة ADMIN_APPROVED/APPROVED على جهاز العميل بعد،
-    // نعرض خطوة انتظار توقيع العميل بدل "عقد مسودة — بانتظار رفع المستندات".
+    // نعرض خطوة انتظار توقيع العميل — **بعد** التحقق من توثيق العميل على الخادم (signatureRequests).
     if (c.status === 'DRAFT' && effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed) {
-      const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
-      const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
-      return {
-        main: ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`,
-        sub: ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed',
-      };
+      const inferredBefore = getDisplayStageFromServer(fullBooking, c.status);
+      // إذا اكتمل توثيق المشتري/المستأجر على الخادم، لا نُبقِ «بانتظار المشتري» (يظهر للمالك خطأ)
+      if (inferredBefore === 'ADMIN_APPROVED' || inferredBefore === undefined) {
+        const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
+        const actorEn = kind === 'SALE' ? 'Buyer' : kind === 'INVESTMENT' ? 'Investor' : 'Tenant';
+        return {
+          main: ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`,
+          sub: ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed',
+        };
+      }
     }
     const stage = getDisplayStageFromServer(fullBooking, c.status);
     if (stage === 'ADMIN_APPROVED' || stage === 'TENANT_APPROVED' || stage === 'LANDLORD_APPROVED') {
@@ -159,20 +163,14 @@ function getBookingStatusDisplay(
     const actorAr = kindFromProperty === 'SALE' ? 'المشتري' : kindFromProperty === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
     const actorEn = kindFromProperty === 'SALE' ? 'Buyer' : kindFromProperty === 'INVESTMENT' ? 'Investor' : 'Tenant';
 
-    const hasContractId = !!fullBooking?.contractId;
-    // حل نهائي للمشكلة الحالية: إذا لدى الحجز `contractId` فهذا يعني أن الإدارة أنشأت عقداً،
-    // وبالتالي مرحلة الاعتماد أصبحت على العميل الآن. لا نعتمد على حالة المستندات المحلية التي قد لا تكون متزامنة بين الأجهزة.
-    if (effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed && hasContractId) {
-      const main = ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`;
-      const sub = ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed';
-      return { main, sub };
-    }
-
-    // إذا الدفع مؤكد والحجز مؤكد، نعرض خطوة انتظار توقيع العميل حتى لو المستندات محلياً غير محدثة.
+    // دفع مؤكد + لا عقد محلي: «بانتظار المشتري» فقط إذا كانت المرحلة على الخادم لا تزال ADMIN_APPROVED أو غير محددة
+    // (بعد توثيق المشتري على الخادم stage = TENANT_APPROVED → يُعرض بانتظار المالك للمالك، لا «بانتظار المشتري»).
     if (effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed) {
-      const main = ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`;
-      const sub = ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed';
-      return { main, sub };
+      if (stage === 'ADMIN_APPROVED' || stage === undefined) {
+        const main = ar ? `بانتظار اعتماد ${actorAr}` : `Waiting for ${actorEn} approval`;
+        const sub = ar ? '✓ مؤكد الدفع' : '✓ Payment confirmed';
+        return { main, sub };
+      }
     }
 
     // إذا كانت مرحلة العقد محفوظة على مستوى الحجز (server/DB) — اعرض السيناريو مباشرة بدون الاعتماد على local contracts أو حالة المستندات المحلية
