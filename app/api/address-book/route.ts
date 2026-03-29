@@ -5,15 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
-
-const secret = process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
+import { getAuthSubFromRequest } from '@/lib/auth/getAuthSubFromRequest';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret });
-    if (!token?.sub) {
+    const sub = await getAuthSubFromRequest(req);
+    if (!sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -30,8 +28,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret });
-    if (!token?.sub) {
+    const sub = await getAuthSubFromRequest(req);
+    if (!sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -45,10 +43,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing contact id' }, { status: 400 });
     }
 
+    /** نسخة قابلة للتخزين JSON (تجنّب حقول غير قابلة للتسلسل) */
+    const data = JSON.parse(JSON.stringify(body)) as object;
+
     await prisma.addressBookContact.upsert({
       where: { contactId },
-      create: { contactId, data: body as object },
-      update: { data: body as object, updatedAt: new Date() },
+      create: { contactId, data },
+      update: { data, updatedAt: new Date() },
     });
 
     return NextResponse.json(body);

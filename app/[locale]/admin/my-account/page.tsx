@@ -191,7 +191,7 @@ export default function MyAccountPage() {
       .catch(() => setSubData(null));
   }, []);
 
-  const handleSaveContact = () => {
+  const handleSaveContact = async () => {
     if (!user?.id) return;
     const fullPhone = form.phoneCountryCode + (form.phone || '').replace(/\D/g, '');
     const miss: string[] = [];
@@ -271,12 +271,20 @@ export default function MyAccountPage() {
           notes: form.notes.trim() || undefined,
           notesEn: form.notesEn.trim() || undefined,
           tags: tagList.length > 0 ? tagList : undefined,
+          userId: fullContact.userId ?? user.id,
         };
         const updated = updateContact(fullContact.id, updates);
         if (updated) {
           setContact(updated);
           setEditing(false);
-          void syncContactToAddressBookApi(updated);
+          const syncRes = await syncContactToAddressBookApi(updated);
+          if (!syncRes.ok) {
+            alert(
+              ar
+                ? `تعذّر مزامنة دفتر العناوين مع الخادم (رمز ${syncRes.status}${syncRes.error ? `: ${syncRes.error}` : ''}).`
+                : `Could not sync address book to the server (HTTP ${syncRes.status}${syncRes.error ? `: ${syncRes.error}` : ''}).`
+            );
+          }
         }
       } else {
         const tagList = form.tags
@@ -311,7 +319,14 @@ export default function MyAccountPage() {
         });
         setContact(created);
         setEditing(false);
-        void syncContactToAddressBookApi(created);
+        const syncCreated = await syncContactToAddressBookApi(created);
+        if (!syncCreated.ok) {
+          alert(
+            ar
+              ? `تعذّر مزامنة دفتر العناوين مع الخادم (رمز ${syncCreated.status}${syncCreated.error ? `: ${syncCreated.error}` : ''}).`
+              : `Could not sync address book to the server (HTTP ${syncCreated.status}${syncCreated.error ? `: ${syncCreated.error}` : ''}).`
+          );
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';

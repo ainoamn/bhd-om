@@ -577,9 +577,13 @@ export function mergeAddressBookApiWithLocal(apiList: Contact[], localList: Cont
   return merged;
 }
 
+export type SyncAddressBookApiResult =
+  | { ok: true }
+  | { ok: false; status: number; error?: string };
+
 /** رفع جهة اتصال إلى الخادم (جدول دفتر العناوين) — يُستدعى بعد الحفظ من «حسابي» أو بعد الدمج */
-export async function syncContactToAddressBookApi(contact: Contact): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
+export async function syncContactToAddressBookApi(contact: Contact): Promise<SyncAddressBookApiResult> {
+  if (typeof window === 'undefined') return { ok: false, status: 0, error: 'ssr' };
   try {
     const res = await fetch('/api/address-book', {
       method: 'POST',
@@ -587,9 +591,22 @@ export async function syncContactToAddressBookApi(contact: Contact): Promise<boo
       credentials: 'include',
       body: JSON.stringify(contact),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok) return { ok: true };
+    let errorText: string | undefined;
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (typeof j?.error === 'string') errorText = j.error;
+    } catch {
+      try {
+        const t = await res.text();
+        if (t) errorText = t.slice(0, 200);
+      } catch {
+        /* ignore */
+      }
+    }
+    return { ok: false, status: res.status, error: errorText };
+  } catch (e) {
+    return { ok: false, status: 0, error: e instanceof Error ? e.message : 'network' };
   }
 }
 

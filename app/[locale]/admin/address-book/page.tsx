@@ -260,8 +260,20 @@ export default function AdminAddressBookPage() {
           await syncContactToAddressBookApi(c);
         }
       }
+      let toPersist = merged;
       try {
-        localStorage.setItem('bhd_address_book', JSON.stringify(merged));
+        const resAfter = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
+        if (resAfter.ok) {
+          const dataAfter = await resAfter.json();
+          if (Array.isArray(dataAfter)) {
+            toPersist = mergeAddressBookApiWithLocal(dataAfter as Contact[], merged);
+          }
+        }
+      } catch {
+        /* بعد فشل الجلب نحتفظ بـ merged */
+      }
+      try {
+        localStorage.setItem('bhd_address_book', JSON.stringify(toPersist));
       } catch {
         // تخزين محلي معطّل أو ممتلئ
       }
