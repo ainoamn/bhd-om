@@ -522,6 +522,10 @@ function ensureSerialNumbers(list: Contact[]): Contact[] {
   const byCat: Record<string, number> = {};
   const serialMap: Record<string, string> = {};
   for (const c of sorted) {
+    /** مرتبط بحساب مستخدم: الرقم المتسلسل USR-* من جدول المستخدمين — لا يُستبدل بـ CNT */
+    if (c.userId || (c.serialNumber?.trim().startsWith('USR-'))) {
+      continue;
+    }
     const code = CATEGORY_SERIAL_CODES[c.category ?? 'OTHER'] ?? 'O';
     const cYear = c.createdAt ? new Date(c.createdAt).getFullYear() : year;
     const key = `${code}-${cYear}`;
@@ -622,6 +626,34 @@ export function findContactByUserId(userId: string): Contact | undefined {
   return getStored().find((c) => (c as { userId?: string }).userId === userId);
 }
 
+/** تكرار الرقم المتسلسل (USR أو CNT) بين جهات دفتر العناوين المحلي */
+export function findDuplicateSerialNumber(serial: string | undefined, excludeContactId?: string): Contact | undefined {
+  const s = (serial || '').trim();
+  if (s.length < 4) return undefined;
+  return getStored().find((c) => {
+    if (excludeContactId && c.id === excludeContactId) return false;
+    return (c.serialNumber || '').trim() === s;
+  });
+}
+
+/** دمج جهة قادمة من الخادم في localStorage وإزالة التكرار لنفس userId */
+export function mergeServerContactIntoLocalStorage(contact: Contact): void {
+  if (typeof window === 'undefined') return;
+  const list = getStored();
+  const uid = contact.userId?.trim();
+  const next = list.filter((c) => {
+    if (uid && c.userId === uid && c.id !== contact.id) return false;
+    return true;
+  });
+  const idx = next.findIndex((c) => c.id === contact.id || (!!uid && c.userId === uid));
+  if (idx >= 0) {
+    next[idx] = { ...next[idx], ...contact };
+  } else {
+    next.unshift(contact);
+  }
+  save(next);
+}
+
 /** جهة اتصال للربط بالمستخدم - من دفتر العناوين أو بيانات المستخدم (للوحات التحكم)
  * يبحث بالترتيب: userId → email → phone (يشمل هاتف الشركة أو هاتف المفوض) */
 export function getContactForUser(user: { id: string; email?: string | null; phone?: string | null }): Contact | Pick<Contact, 'id' | 'email' | 'phone'> {
@@ -657,7 +689,9 @@ function findContactByRepPhone(phone: string): Contact | undefined {
 
 /** مزامنة المستخدمين من قاعدة البيانات إلى دفتر العناوين - إضافة جهات اتصال للمستخدمين دون تطابق
  * يدعم المستخدمين بالبريد العادي أو @nologin.bhd أو بالهاتف فقط */
-export function syncContactsFromUsers(users: Array<{ id: string; email: string; name: string; phone?: string | null }>): { added: number } {
+export function syncContactsFromUsers(
+  users: Array<{ id: string; email: string; name: string; phone?: string | null; serialNumber?: string }>
+): { added: number } {
   const list = getStored();
   let added = 0;
   for (const u of users) {
@@ -691,7 +725,8 @@ export function syncContactsFromUsers(users: Array<{ id: string; email: string; 
       userId: u.id,
     };
     try {
-      createContact(contactData as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
+      const sn = (u.serialNumber || '').trim();
+      createContact(contactData as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>, sn ? { userSerialNumber: sn } : undefined);
       added++;
     } catch {
       // تجاهل إن وُجد تكرار
@@ -819,7 +854,12 @@ export function searchContacts(query: string, includeArchived = false): Contact[
   });
 }
 
-export function createContact(data: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Contact {
+export type CreateContactOptions = { userSerialNumber?: string };
+
+export function createContact(
+  data: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>,
+  options?: CreateContactOptions
+): Contact {
   const crNumber = data.companyData?.commercialRegistrationNumber;
   const dups = findDuplicateContactFields(
     data.phone,
@@ -834,7 +874,11 @@ export function createContact(data: Omit<Contact, 'id' | 'createdAt' | 'updatedA
   if (dups.commercialRegistration) throw new Error('DUPLICATE_COMMERCIAL_REGISTRATION');
 
   const now = new Date().toISOString();
-  const serialNumber = generateContactSerialNumber(data.category ?? 'OTHER');
+  const userSerial = options?.userSerialNumber?.trim();
+  const serialNumber = userSerial || generateContactSerialNumber(data.category ?? 'OTHER');
+  if (findDuplicateSerialNumber(serialNumber)) {
+    throw new Error('DUPLICATE_SERIAL');
+  }
   const contact: Contact = {
     ...data,
     id: generateId(),
@@ -891,6 +935,11 @@ export function updateContact(id: string, updates: Partial<Contact>): Contact | 
   if (dups.civilId) throw new Error('DUPLICATE_CIVIL_ID');
   if (dups.passportNumber) throw new Error('DUPLICATE_PASSPORT');
   if (dups.commercialRegistration) throw new Error('DUPLICATE_COMMERCIAL_REGISTRATION');
+
+  const nextSerial = (merged.serialNumber || current.serialNumber || '').trim();
+  if (nextSerial.length >= 4 && findDuplicateSerialNumber(nextSerial, id)) {
+    throw new Error('DUPLICATE_SERIAL');
+  }
 
   /** تسجيل تغيير التصنيف في السجل */
   const categoryChangeHistory = [...(current.categoryChangeHistory || [])];

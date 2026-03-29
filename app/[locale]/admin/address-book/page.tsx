@@ -63,6 +63,7 @@ import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import { filterContactsByRolePermissions } from '@/lib/data/contactCategoryPermissions';
 import { ROLE_TO_DASHBOARD_TYPE } from '@/lib/config/dashboardRoles';
 import UserBarcode from '@/components/admin/UserBarcode';
+import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 
 const CATEGORY_KEYS: Record<ContactCategory, string> = {
   CLIENT: 'categoryClient',
@@ -178,6 +179,7 @@ export default function AdminAddressBookPage() {
   const [repSearchTarget, setRepSearchTarget] = useState<number | null>(null);
   const [repDropdownOpen, setRepDropdownOpen] = useState<number | null>(null);
   const repDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [serverSyncKey, setServerSyncKey] = useState(0);
   useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (repDropdownOpen === null) return;
@@ -303,7 +305,13 @@ export default function AdminAddressBookPage() {
       cancelled = true;
       window.removeEventListener('storage', onStorage);
     };
-  }, [showArchived, userRole]);
+  }, [showArchived, userRole, serverSyncKey]);
+
+  useEffect(() => {
+    const onUpdated = () => setServerSyncKey((k) => k + 1);
+    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onUpdated);
+  }, []);
 
   useEffect(() => {
     if (isEmbedAdd && mounted) {
@@ -856,6 +864,7 @@ export default function AdminAddressBookPage() {
       setShowModal(false);
       setFormErrors({});
       loadData();
+      emitAddressBookUpdated();
     } else {
         const createdContact = createContact(payload as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
         try {
@@ -890,7 +899,23 @@ export default function AdminAddressBookPage() {
               serialNumber: data.serialNumber,
             };
             if (data.userId) {
-              updateContact(createdContact.id, { userId: data.userId });
+              updateContact(createdContact.id, {
+                userId: data.userId,
+                ...(data.serialNumber ? { serialNumber: data.serialNumber as string } : {}),
+              });
+              const relinked = getContactById(createdContact.id);
+              if (relinked) {
+                try {
+                  await fetch('/api/address-book', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(relinked),
+                  });
+                } catch {
+                  /* ignore */
+                }
+              }
             }
           } else if (!res.ok && data.error) {
             setUserCreateMsg(data.error);
@@ -906,6 +931,7 @@ export default function AdminAddressBookPage() {
         setShowModal(false);
         setFormErrors({});
         loadData();
+        emitAddressBookUpdated();
         if (creds) setGeneratedCreds(creds);
     }
     } catch (err) {

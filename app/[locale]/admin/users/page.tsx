@@ -9,7 +9,9 @@ import {
   getAllContacts,
   createContact,
   syncContactsFromUsers,
+  syncContactToAddressBookApi,
 } from '@/lib/data/addressBook';
+import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { shortenUserSerial } from '@/lib/utils/serialNumber';
 import UserBarcode from '@/components/admin/UserBarcode';
@@ -86,20 +88,25 @@ function AddUserModal({
         const ph = fullPhone.length >= 8
           ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
           : `968${String(Date.now()).slice(-7)}`;
-        createContact({
-          contactType: 'PERSONAL',
-          firstName: nameParts[0] || name.trim(),
-          familyName: nameParts.length > 1 ? nameParts[nameParts.length - 1]! : nameParts[0] || '',
-          secondName: nameParts.length > 3 ? nameParts[1] : undefined,
-          thirdName: nameParts.length > 4 ? nameParts[2] : undefined,
-          nationality: 'عماني',
-          gender: 'MALE',
-          email: data.email && !data.email.includes('@nologin.bhd') ? data.email : undefined,
-          phone: ph,
-          category: 'CLIENT',
-          address: { fullAddress: '—', fullAddressEn: '—' },
-          userId: data.userId,
-        } as Parameters<typeof createContact>[0]);
+        const created = createContact(
+          {
+            contactType: 'PERSONAL',
+            firstName: nameParts[0] || name.trim(),
+            familyName: nameParts.length > 1 ? nameParts[nameParts.length - 1]! : nameParts[0] || '',
+            secondName: nameParts.length > 3 ? nameParts[1] : undefined,
+            thirdName: nameParts.length > 4 ? nameParts[2] : undefined,
+            nationality: 'عماني',
+            gender: 'MALE',
+            email: data.email && !data.email.includes('@nologin.bhd') ? data.email : undefined,
+            phone: ph,
+            category: category === 'LANDLORD' ? 'LANDLORD' : 'CLIENT',
+            address: { fullAddress: '—', fullAddressEn: '—' },
+            userId: data.userId,
+          } as Parameters<typeof createContact>[0],
+          { userSerialNumber: data.serialNumber || undefined }
+        );
+        await syncContactToAddressBookApi(created);
+        emitAddressBookUpdated();
       }
       onSuccess({
         serialNumber: data.serialNumber || '',
@@ -311,6 +318,18 @@ export default function UsersAdminPage() {
     })));
   }, [users]);
 
+  useEffect(() => {
+    const refreshAddrFlags = () => {
+      const list = getAllContacts(true);
+      setContacts(list.map((c) => ({
+        email: (c.email || '').toLowerCase(),
+        userId: (c as { userId?: string }).userId,
+      })));
+    };
+    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, refreshAddrFlags);
+    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, refreshAddrFlags);
+  }, []);
+
   const filteredUsers = users.filter((u) => {
     const q = search.trim().toLowerCase();
     if (q && !u.serialNumber?.toUpperCase().includes(q.toUpperCase()) &&
@@ -349,20 +368,25 @@ export default function UsersAdminPage() {
         ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
         : `968${String(Date.now()).slice(-7)}`; // placeholder when no phone
 
-      createContact({
-        contactType: 'PERSONAL',
-        firstName,
-        secondName,
-        thirdName,
-        familyName: familyName || firstName,
-        nationality: 'عماني',
-        gender: 'MALE',
-        email: user.email?.includes('@nologin.bhd') ? undefined : user.email,
-        phone,
-        category: 'CLIENT',
-        address: { fullAddress: '—', fullAddressEn: '—' },
-        userId: user.id,
-      } as Parameters<typeof createContact>[0]);
+      const created = createContact(
+        {
+          contactType: 'PERSONAL',
+          firstName,
+          secondName,
+          thirdName,
+          familyName: familyName || firstName,
+          nationality: 'عماني',
+          gender: 'MALE',
+          email: user.email?.includes('@nologin.bhd') ? undefined : user.email,
+          phone,
+          category: user.role === 'OWNER' ? 'LANDLORD' : 'CLIENT',
+          address: { fullAddress: '—', fullAddressEn: '—' },
+          userId: user.id,
+        } as Parameters<typeof createContact>[0],
+        { userSerialNumber: user.serialNumber }
+      );
+      await syncContactToAddressBookApi(created);
+      emitAddressBookUpdated();
       setContacts((prev) => [...prev, { email: user.email.toLowerCase(), userId: user.id }]);
       setSyncMsg(locale === 'ar' ? 'تمت الإضافة لدفتر العناوين' : 'Added to address book');
       setTimeout(() => setSyncMsg(null), 2500);
@@ -415,6 +439,7 @@ export default function UsersAdminPage() {
       setUsers((prev) => prev.map((u) => (u.id === editUser.id ? { ...u, ...updated } : u)));
       setEditUser(null);
       setSyncMsg(locale === 'ar' ? 'تم التحديث' : 'Updated');
+      emitAddressBookUpdated();
       setTimeout(() => setSyncMsg(null), 2500);
     } catch {
       setSyncMsg(locale === 'ar' ? 'فشل التحديث' : 'Update failed');

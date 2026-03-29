@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
+import { syncLinkedAddressBookFromUserUpdate } from '@/lib/server/syncUserToAddressBook';
 
 export async function GET(
   req: NextRequest,
@@ -122,6 +123,17 @@ export async function PATCH(
       data: updates,
       select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true, createdAt: true, updatedAt: true },
     });
+
+    try {
+      await syncLinkedAddressBookFromUserUpdate(updated.id, {
+        name: updated.name,
+        email: updated.email,
+        phone: updated.phone,
+        serialNumber: updated.serialNumber,
+      });
+    } catch (syncErr) {
+      console.error('syncLinkedAddressBookFromUserUpdate:', syncErr);
+    }
 
     return NextResponse.json({
       ...updated,

@@ -9,17 +9,16 @@ import Link from 'next/link';
 import Icon from '@/components/icons/Icon';
 import {
   getContactForUser,
-  updateContact,
-  createContact,
   getContactDisplayName,
   isOmaniNationality,
   validateCivilIdExpiry,
   validatePassportExpiry,
   contactAddressHasUsableContent,
-  syncContactToAddressBookApi,
+  mergeServerContactIntoLocalStorage,
   type Contact,
   type ContactAddress,
 } from '@/lib/data/addressBook';
+import { emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
@@ -91,7 +90,7 @@ export default function MyAccountPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const t = useTranslations('admin.nav');
   const tClient = useTranslations('admin.nav.clientNav');
   const tOwner = useTranslations('admin.nav.ownerNav');
@@ -141,10 +140,9 @@ export default function MyAccountPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    const c = getContactForUser({ id: user.id, email: user.email ?? null, phone: user.phone ?? null });
-    setContact('id' in c && c.id ? (c as Contact) : c);
-    if (c && 'id' in c && c.id && 'firstName' in c) {
-      const co = c as Contact;
+    let cancelled = false;
+
+    const fillFormFromContact = (co: Contact) => {
       const { code, number } = parsePhoneToCountryAndNumber(co.phone || '968');
       setForm({
         firstName: co.firstName ?? '',
@@ -170,18 +168,49 @@ export default function MyAccountPage() {
         notesEn: co.notesEn ?? '',
         tags: Array.isArray(co.tags) ? co.tags.join(', ') : '',
       });
-    } else {
-      const { code, number } = parsePhoneToCountryAndNumber(user.phone || '968');
-      const nameParts = (user.name || '').trim().split(/\s+/).filter(Boolean);
-      setForm((prev) => ({
-        ...prev,
-        firstName: nameParts[0] ?? '',
-        familyName: nameParts.slice(1).join(' ') || prev.familyName,
-        email: user.email ?? prev.email,
-        phoneCountryCode: code || '968',
-        phone: number ?? prev.phone,
-      }));
-    }
+    };
+
+    (async () => {
+      try {
+        const res = await fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' });
+        if (cancelled || !res.ok) throw new Error('no-server-contact');
+        const data = await res.json();
+        if (data && typeof data === 'object' && data.id) {
+          const co = data as Contact;
+          mergeServerContactIntoLocalStorage(co);
+          if (!cancelled) {
+            setContact(co);
+            fillFormFromContact(co);
+          }
+          return;
+        }
+      } catch {
+        /* fallback محلي */
+      }
+      if (cancelled) return;
+      const uid = user.id;
+      if (!uid) return;
+      const c = getContactForUser({ id: uid, email: user.email ?? null, phone: user.phone ?? null });
+      setContact('id' in c && c.id ? (c as Contact) : c);
+      if (c && 'id' in c && c.id && 'firstName' in c) {
+        fillFormFromContact(c as Contact);
+      } else {
+        const { code, number } = parsePhoneToCountryAndNumber(user.phone || '968');
+        const nameParts = (user.name || '').trim().split(/\s+/).filter(Boolean);
+        setForm((prev) => ({
+          ...prev,
+          firstName: nameParts[0] ?? '',
+          familyName: nameParts.slice(1).join(' ') || prev.familyName,
+          email: user.email ?? prev.email,
+          phoneCountryCode: code || '968',
+          phone: number ?? prev.phone,
+        }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id, user?.email, user?.phone, user?.name]);
 
   useEffect(() => {
@@ -193,6 +222,9 @@ export default function MyAccountPage() {
 
   const handleSaveContact = async () => {
     if (!user?.id) return;
+    const fc = contact && 'id' in contact && contact.id ? (contact as Contact) : null;
+    if (fc?.contactType === 'COMPANY') return;
+
     const fullPhone = form.phoneCountryCode + (form.phone || '').replace(/\D/g, '');
     const miss: string[] = [];
     if (!fullPhone || fullPhone.replace(/\D/g, '').length < 8) {
@@ -244,96 +276,59 @@ export default function MyAccountPage() {
     }
     setSaving(true);
     try {
-      if (fullContact) {
-        const tagList = form.tags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
-        const updates: Partial<Contact> = {
-          firstName: form.firstName.trim(),
-          secondName: form.secondName.trim(),
-          thirdName: form.thirdName.trim() || undefined,
-          familyName: form.familyName.trim(),
-          nameEn: form.nameEn.trim(),
-          email: form.email.trim() || undefined,
-          phone: fullPhone,
-          phoneSecondary: form.phoneSecondary.trim() || undefined,
-          nationality: form.nationality.trim() || fullContact.nationality,
-          gender: form.gender,
-          civilId: form.civilId.trim() || undefined,
-          civilIdExpiry: form.civilIdExpiry.trim() || undefined,
-          passportNumber: form.passportNumber.trim() || undefined,
-          passportExpiry: form.passportExpiry.trim() || undefined,
-          workplace: form.workplace.trim(),
-          workplaceEn: form.workplaceEn.trim() || undefined,
-          position: form.position.trim() || undefined,
-          address: form.address,
-          notes: form.notes.trim() || undefined,
-          notesEn: form.notesEn.trim() || undefined,
-          tags: tagList.length > 0 ? tagList : undefined,
-          userId: fullContact.userId ?? user.id,
-        };
-        const updated = updateContact(fullContact.id, updates);
-        if (updated) {
-          setContact(updated);
-          setEditing(false);
-          const syncRes = await syncContactToAddressBookApi(updated);
-          if (!syncRes.ok) {
-            alert(
-              ar
-                ? `تعذّر مزامنة دفتر العناوين مع الخادم (رمز ${syncRes.status}${syncRes.error ? `: ${syncRes.error}` : ''}).`
-                : `Could not sync address book to the server (HTTP ${syncRes.status}${syncRes.error ? `: ${syncRes.error}` : ''}).`
-            );
-          }
-        }
-      } else {
-        const tagList = form.tags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
-        const created = createContact({
-          contactType: 'PERSONAL',
-          category: 'CLIENT',
-          firstName: form.firstName.trim(),
-          familyName: form.familyName.trim(),
-          nationality: form.nationality.trim() || 'عماني',
-          gender: form.gender,
-          phone: fullPhone,
-          secondName: form.secondName.trim(),
-          thirdName: form.thirdName.trim() || undefined,
-          nameEn: form.nameEn.trim(),
-          email: form.email.trim() || undefined,
-          phoneSecondary: form.phoneSecondary.trim() || undefined,
-          civilId: form.civilId.trim() || undefined,
-          civilIdExpiry: form.civilIdExpiry.trim() || undefined,
-          passportNumber: form.passportNumber.trim() || undefined,
-          passportExpiry: form.passportExpiry.trim() || undefined,
-          workplace: form.workplace.trim(),
-          workplaceEn: form.workplaceEn.trim() || undefined,
-          position: form.position.trim() || undefined,
-          address: form.address,
-          notes: form.notes.trim() || undefined,
-          notesEn: form.notesEn.trim() || undefined,
-          tags: tagList.length > 0 ? tagList : undefined,
-          userId: user.id,
-        });
-        setContact(created);
-        setEditing(false);
-        const syncCreated = await syncContactToAddressBookApi(created);
-        if (!syncCreated.ok) {
-          alert(
-            ar
-              ? `تعذّر مزامنة دفتر العناوين مع الخادم (رمز ${syncCreated.status}${syncCreated.error ? `: ${syncCreated.error}` : ''}).`
-              : `Could not sync address book to the server (HTTP ${syncCreated.status}${syncCreated.error ? `: ${syncCreated.error}` : ''}).`
-          );
-        }
+      const tagList = form.tags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const payload: Record<string, unknown> = {
+        firstName: form.firstName.trim(),
+        secondName: form.secondName.trim(),
+        thirdName: form.thirdName.trim() || undefined,
+        familyName: form.familyName.trim(),
+        nameEn: form.nameEn.trim(),
+        email: form.email.trim() || undefined,
+        phone: fullPhone,
+        phoneSecondary: form.phoneSecondary.trim() || undefined,
+        nationality: form.nationality.trim() || 'عماني',
+        gender: form.gender,
+        civilId: form.civilId.trim() || undefined,
+        civilIdExpiry: form.civilIdExpiry.trim() || undefined,
+        passportNumber: form.passportNumber.trim() || undefined,
+        passportExpiry: form.passportExpiry.trim() || undefined,
+        workplace: form.workplace.trim(),
+        workplaceEn: form.workplaceEn.trim() || undefined,
+        position: form.position.trim() || undefined,
+        address: form.address,
+        notes: form.notes.trim() || undefined,
+        notesEn: form.notesEn.trim() || undefined,
+        tags: tagList.length > 0 ? tagList : undefined,
+      };
+
+      const res = await fetch('/api/user/linked-contact', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const code = data?.code as string | undefined;
+        if (code === 'DUPLICATE_CIVIL_ID') alert(ar ? 'الرقم المدني مسجّل لجهة أخرى في النظام' : 'Civil ID already registered');
+        else if (code === 'DUPLICATE_PASSPORT') alert(ar ? 'رقم الجواز مسجّل لجهة أخرى' : 'Passport already registered');
+        else if (code === 'DUPLICATE_SERIAL') alert(ar ? 'الرقم المتسلسل مستخدم' : 'Serial number conflict');
+        else if (code === 'DUPLICATE_EMAIL') alert(ar ? 'البريد مستخدم لحساب آخر' : 'Email already in use');
+        else alert((data?.error as string) || (ar ? 'فشل الحفظ' : 'Save failed'));
+        return;
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '';
-      if (msg === 'DUPLICATE_PHONE') alert(ar ? 'رقم الهاتف مسجّل لجهة اتصال أخرى' : 'Phone already registered');
-      else if (msg === 'DUPLICATE_CIVIL_ID') alert(ar ? 'الرقم المدني مسجّل' : 'Civil ID already registered');
-      else if (msg === 'DUPLICATE_PASSPORT') alert(ar ? 'رقم الجواز مسجّل' : 'Passport already registered');
-      else alert(ar ? 'فشل الحفظ' : 'Save failed');
+
+      const saved = data as Contact;
+      mergeServerContactIntoLocalStorage(saved);
+      setContact(saved);
+      setEditing(false);
+      emitAddressBookUpdated();
+      void updateSession?.();
+    } catch {
+      alert(ar ? 'فشل الحفظ' : 'Save failed');
     } finally {
       setSaving(false);
     }

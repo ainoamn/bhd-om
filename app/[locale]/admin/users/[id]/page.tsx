@@ -14,8 +14,10 @@ import {
   isAuthorizedRepresentative,
   getLinkedCompanyName,
   getLinkedRepPosition,
+  syncContactToAddressBookApi,
   type Contact,
 } from '@/lib/data/addressBook';
+import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import LoginAsUserButton from '@/components/admin/LoginAsUserButton';
@@ -142,6 +144,13 @@ export default function UserDetailPage() {
   const [resetResult, setResetResult] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
   const [addingToAddressBook, setAddingToAddressBook] = useState(false);
   const [openingAsUser, setOpeningAsUser] = useState(false);
+  const [, setAddressBookBump] = useState(0);
+
+  useEffect(() => {
+    const h = () => setAddressBookBump((x) => x + 1);
+    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, h);
+    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, h);
+  }, []);
 
   const contact: Contact | null = user
     ? (() => {
@@ -193,6 +202,7 @@ export default function UserDetailPage() {
       setUser((prev) => (prev?.id === editUser.id ? { ...prev, ...updated } : prev));
       setEditUser(null);
       setSyncMsg(ar ? 'تم التحديث' : 'Updated');
+      emitAddressBookUpdated();
       setTimeout(() => setSyncMsg(null), 2500);
     } catch {
       setSyncMsg(ar ? 'فشل التحديث' : 'Update failed');
@@ -244,20 +254,25 @@ export default function UserDetailPage() {
         ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
         : `968${String(Date.now()).slice(-7)}`;
 
-      createContact({
-        contactType: 'PERSONAL',
-        firstName,
-        secondName,
-        thirdName,
-        familyName: familyName || firstName,
-        nationality: 'عماني',
-        gender: 'MALE',
-        email: user.email?.includes('@nologin.bhd') ? undefined : user.email,
-        phone,
-        category: 'CLIENT',
-        address: { fullAddress: '—', fullAddressEn: '—' },
-        userId: user.id,
-      } as Parameters<typeof createContact>[0]);
+      const created = createContact(
+        {
+          contactType: 'PERSONAL',
+          firstName,
+          secondName,
+          thirdName,
+          familyName: familyName || firstName,
+          nationality: 'عماني',
+          gender: 'MALE',
+          email: user.email?.includes('@nologin.bhd') ? undefined : user.email,
+          phone,
+          category: user.role === 'OWNER' ? 'LANDLORD' : 'CLIENT',
+          address: { fullAddress: '—', fullAddressEn: '—' },
+          userId: user.id,
+        } as Parameters<typeof createContact>[0],
+        { userSerialNumber: user.serialNumber }
+      );
+      await syncContactToAddressBookApi(created);
+      emitAddressBookUpdated();
       setSyncMsg(ar ? 'تمت الإضافة لدفتر العناوين' : 'Added to address book');
       setTimeout(() => setSyncMsg(null), 2500);
     } catch {
