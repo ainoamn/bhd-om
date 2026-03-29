@@ -60,8 +60,21 @@ export async function GET(req: NextRequest) {
       if (!user || (userEmailRaw.length < 3 && userPhone8.length < 6)) {
         bookings = [];
       } else if (role === 'OWNER') {
+        const ownedRows = await prisma.property.findMany({
+          where: { ownerId: scope.userId },
+          select: { serialNumber: true },
+        });
+        const ownerPortfolioSerials = new Set(
+          ownedRows.map((r) => String(r.serialNumber || '').trim()).filter(Boolean)
+        );
         bookings = bookings.filter((b) =>
-          bookingVisibleToOwner(b as Record<string, unknown>, userEmailRaw, userPhone8, user.phone)
+          bookingVisibleToOwner(
+            b as Record<string, unknown>,
+            userEmailRaw,
+            userPhone8,
+            user.phone,
+            ownerPortfolioSerials
+          )
         );
       } else {
         bookings = bookings.filter((b) =>

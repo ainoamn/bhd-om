@@ -9,12 +9,12 @@ import Icon from '@/components/icons/Icon';
 import { getContactForUser } from '@/lib/data/addressBook';
 import { getContactLinkedContracts } from '@/lib/data/contactLinks';
 import { getPropertyIdsForLandlord } from '@/lib/data/propertyLandlords';
-import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
+import { getPropertyById, getPropertyDataOverrides, properties as staticProperties } from '@/lib/data/properties';
 import { searchDocuments } from '@/lib/data/accounting';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
 import type { PropertyBooking } from '@/lib/data/bookings';
-import { contractDataMatchesLandlord } from '@/lib/data/ownerLandlordMatch';
+import { bookingRelevantToOwnerContext } from '@/lib/data/ownerLandlordMatch';
 
 export default function OwnerDashboard() {
   const params = useParams();
@@ -37,6 +37,28 @@ export default function OwnerDashboard() {
 
   const landlordContactId = (contact as { id?: string } | null)?.id || '';
   const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const [ownerPortfolioSerials, setOwnerPortfolioSerials] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (userRole !== 'OWNER') {
+      setOwnerPortfolioSerials(new Set());
+      return;
+    }
+    let alive = true;
+    fetch('/api/admin/properties', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { list?: Array<{ serialNumber?: string }> } | null) => {
+        if (!alive) return;
+        const list = Array.isArray(data?.list) ? data.list : [];
+        setOwnerPortfolioSerials(
+          new Set(list.map((p) => String(p.serialNumber || '').trim()).filter(Boolean))
+        );
+      })
+      .catch(() => setOwnerPortfolioSerials(new Set()));
+    return () => {
+      alive = false;
+    };
+  }, [userRole]);
+
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
   useEffect(() => {
     if (userRole !== 'OWNER' && !landlordContactId) return;
@@ -66,13 +88,19 @@ export default function OwnerDashboard() {
     const localIds = landlordContactId && typeof window !== 'undefined' ? getPropertyIdsForLandlord(landlordContactId) : [];
     const derived = new Set<number>();
     for (const b of serverBookings as PropertyBooking[]) {
-      const cd = (b as PropertyBooking)?.contractData as Record<string, unknown> | undefined;
-      if (!contractDataMatchesLandlord(cd, landlordMatchCtx)) continue;
+      if (!bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)) continue;
       const pid = Number(b.propertyId);
       if (Number.isFinite(pid)) derived.add(pid);
     }
-    return Array.from(new Set([...localIds, ...Array.from(derived)])).filter((n) => Number.isFinite(n));
-  }, [landlordContactId, serverBookings, landlordMatchCtx]);
+    const fromPortfolio = new Set<number>();
+    if (ownerPortfolioSerials.size > 0) {
+      for (const p of staticProperties) {
+        const sn = String(p.serialNumber || '').trim();
+        if (sn && ownerPortfolioSerials.has(sn)) fromPortfolio.add(p.id);
+      }
+    }
+    return Array.from(new Set([...localIds, ...Array.from(derived), ...fromPortfolio])).filter((n) => Number.isFinite(n));
+  }, [landlordContactId, serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
   const overrides = getPropertyDataOverrides();
   const properties = propertyIds.map((pid) => getPropertyById(pid, overrides)).filter(Boolean);
 
@@ -82,8 +110,7 @@ export default function OwnerDashboard() {
   const verificationTasks = useMemo(() => {
     const tasks: Array<{ bookingId: string; propertyId: number; token: string; createdAt?: string }> = [];
     for (const b of serverBookings as PropertyBooking[]) {
-      const cd = b.contractData as Record<string, unknown> | undefined;
-      if (!contractDataMatchesLandlord(cd, landlordMatchCtx)) continue;
+      if (!bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)) continue;
       const reqs: unknown[] = Array.isArray((b as PropertyBooking & { signatureRequests?: unknown[] }).signatureRequests)
         ? ((b as PropertyBooking & { signatureRequests: unknown[] }).signatureRequests ?? [])
         : [];
@@ -93,7 +120,7 @@ export default function OwnerDashboard() {
       if (pending?.token) tasks.push({ bookingId: String(b.id), propertyId: Number(b.propertyId), token: String(pending.token), createdAt: pending.createdAt });
     }
     return tasks.slice(0, 10);
-  }, [serverBookings, landlordMatchCtx]);
+  }, [serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
 
   const docs = contact && typeof window !== 'undefined' ? searchDocuments({ contactId: (contact as { id?: string }).id }) : [];
   const invoices = docs.filter((d) => d.type === 'INVOICE' || (d.type as string) === 'SALES_INVOICE');

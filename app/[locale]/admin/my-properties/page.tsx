@@ -7,8 +7,8 @@ import { useTranslations } from 'next-intl';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactForUser } from '@/lib/data/addressBook';
 import { getPropertyIdsForLandlord } from '@/lib/data/propertyLandlords';
-import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
-import { contractDataMatchesLandlord } from '@/lib/data/ownerLandlordMatch';
+import { getPropertyById, getPropertyDataOverrides, properties as staticProperties } from '@/lib/data/properties';
+import { bookingRelevantToOwnerContext } from '@/lib/data/ownerLandlordMatch';
 import { useEffect, useMemo, useState } from 'react';
 import type { PropertyBooking } from '@/lib/data/bookings';
 
@@ -23,7 +23,29 @@ export default function MyPropertiesPage() {
 
   const landlordContactId = (contact as { id?: string } | null)?.id || '';
   const userRole = (session?.user as { role?: string } | undefined)?.role;
-  const [serverDerivedPropertyIds, setServerDerivedPropertyIds] = useState<number[]>([]);
+  const [ownerPortfolioSerials, setOwnerPortfolioSerials] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (userRole !== 'OWNER') {
+      setOwnerPortfolioSerials(new Set());
+      return;
+    }
+    let alive = true;
+    fetch('/api/admin/properties', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { list?: Array<{ serialNumber?: string }> } | null) => {
+        if (!alive) return;
+        const list = Array.isArray(data?.list) ? data.list : [];
+        setOwnerPortfolioSerials(
+          new Set(list.map((p) => String(p.serialNumber || '').trim()).filter(Boolean))
+        );
+      })
+      .catch(() => setOwnerPortfolioSerials(new Set()));
+    return () => {
+      alive = false;
+    };
+  }, [userRole]);
+
+  const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
 
   const landlordMatchCtx = useMemo(
     () => ({
@@ -41,26 +63,31 @@ export default function MyPropertiesPage() {
       .then((r) => (r.ok ? r.json() : []))
       .then((list: PropertyBooking[]) => {
         if (!alive) return;
-        if (!Array.isArray(list)) return;
-        const ids = new Set<number>();
-        for (const b of list) {
-          const cd = b.contractData as Record<string, unknown> | undefined;
-          if (!contractDataMatchesLandlord(cd, landlordMatchCtx)) continue;
-          const pid = Number(b.propertyId);
-          if (Number.isFinite(pid)) ids.add(pid);
-        }
-        setServerDerivedPropertyIds(Array.from(ids).filter((n) => Number.isFinite(n)));
+        if (Array.isArray(list)) setServerBookings(list);
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [landlordContactId, userRole, landlordMatchCtx]);
+  }, [landlordContactId, userRole]);
 
   const propertyIds = useMemo(() => {
     const localIds = landlordContactId && typeof window !== 'undefined' ? getPropertyIdsForLandlord(landlordContactId) : [];
-    return Array.from(new Set([...localIds, ...serverDerivedPropertyIds]));
-  }, [landlordContactId, serverDerivedPropertyIds]);
+    const derived = new Set<number>();
+    for (const b of serverBookings) {
+      if (!bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)) continue;
+      const pid = Number(b.propertyId);
+      if (Number.isFinite(pid)) derived.add(pid);
+    }
+    const fromPortfolio = new Set<number>();
+    if (ownerPortfolioSerials.size > 0) {
+      for (const p of staticProperties) {
+        const sn = String(p.serialNumber || '').trim();
+        if (sn && ownerPortfolioSerials.has(sn)) fromPortfolio.add(p.id);
+      }
+    }
+    return Array.from(new Set([...localIds, ...derived, ...fromPortfolio])).filter((n) => Number.isFinite(n));
+  }, [landlordContactId, serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
   const overrides = getPropertyDataOverrides();
   const properties = propertyIds.map((pid) => getPropertyById(pid, overrides)).filter(Boolean);
 

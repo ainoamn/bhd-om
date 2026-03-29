@@ -20,6 +20,28 @@ export default function MyContractsPage() {
   const user = session?.user as { id?: string; email?: string; phone?: string; role?: string } | undefined;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+  const [ownerPortfolioSerials, setOwnerPortfolioSerials] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (user?.role !== 'OWNER') {
+      setOwnerPortfolioSerials(new Set());
+      return;
+    }
+    let alive = true;
+    fetch('/api/admin/properties', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { list?: Array<{ serialNumber?: string }> } | null) => {
+        if (!alive) return;
+        const list = Array.isArray(data?.list) ? data.list : [];
+        setOwnerPortfolioSerials(
+          new Set(list.map((p) => String(p.serialNumber || '').trim()).filter(Boolean))
+        );
+      })
+      .catch(() => setOwnerPortfolioSerials(new Set()));
+    return () => {
+      alive = false;
+    };
+  }, [user?.role]);
 
   useEffect(() => {
     if (user?.role !== 'OWNER') return;
@@ -45,14 +67,21 @@ export default function MyContractsPage() {
     [contact, user?.email, user?.phone]
   );
 
-  const allContracts = contact && typeof window !== 'undefined' ? getContactLinkedContracts(contact as Parameters<typeof getContactLinkedContracts>[0]) : [];
-  const fromServer =
-    user?.role === 'OWNER' && typeof window !== 'undefined' ? getLandlordContractsFromServerBookings(serverBookings, landlordCtx) : [];
-  const localLandlord = user?.role === 'OWNER' ? allContracts.filter((c) => c.role === 'landlord') : [];
-  const bookingIdsLocal = new Set(localLandlord.map((c) => c.bookingId).filter(Boolean));
-  const extraFromBookings = fromServer.filter((c) => !c.bookingId || !bookingIdsLocal.has(c.bookingId));
-  const contracts =
-    user?.role === 'OWNER' ? [...localLandlord, ...extraFromBookings] : allContracts;
+  const contracts = useMemo(() => {
+    const allContracts =
+      contact && typeof window !== 'undefined'
+        ? getContactLinkedContracts(contact as Parameters<typeof getContactLinkedContracts>[0])
+        : [];
+    if (user?.role !== 'OWNER') return allContracts;
+    const fromServer =
+      typeof window !== 'undefined'
+        ? getLandlordContractsFromServerBookings(serverBookings, landlordCtx, ownerPortfolioSerials)
+        : [];
+    const localLandlord = allContracts.filter((c) => c.role === 'landlord');
+    const bookingIdsLocal = new Set(localLandlord.map((c) => c.bookingId).filter(Boolean));
+    const extraFromBookings = fromServer.filter((c) => !c.bookingId || !bookingIdsLocal.has(c.bookingId));
+    return [...localLandlord, ...extraFromBookings];
+  }, [contact, user?.role, serverBookings, landlordCtx, ownerPortfolioSerials]);
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
   const statusLabels: Record<string, string> = {

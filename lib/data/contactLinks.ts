@@ -4,7 +4,11 @@
 
 import type { Contact, ContactCategory } from './addressBook';
 import { normalizePhoneForComparison } from './addressBook';
-import { contractDataMatchesLandlord, type LandlordMatchContext } from './ownerLandlordMatch';
+import {
+  bookingMatchesOwnerPropertyPortfolio,
+  contractDataMatchesLandlord,
+  type LandlordMatchContext,
+} from './ownerLandlordMatch';
 import { getAllBookings, type PropertyBooking } from './bookings';
 import { getAllContracts, type RentalContract } from './contracts';
 import { searchDocuments } from './accounting';
@@ -149,13 +153,18 @@ export function getContactLinkedContracts(contact: Contact): ContactLinkedContra
  */
 export function getLandlordContractsFromServerBookings(
   bookings: PropertyBooking[],
-  ctx: LandlordMatchContext
+  ctx: LandlordMatchContext,
+  ownerPortfolioSerials?: Set<string> | null
 ): ContactLinkedContract[] {
   const overrides = getPropertyDataOverrides();
   const out: ContactLinkedContract[] = [];
   for (const b of bookings) {
     const cdRaw = b.contractData;
-    if (!contractDataMatchesLandlord(cdRaw as Record<string, unknown> | null | undefined, ctx)) continue;
+    const byContact = contractDataMatchesLandlord(cdRaw as Record<string, unknown> | null | undefined, ctx);
+    const byPortfolio =
+      !!ownerPortfolioSerials &&
+      bookingMatchesOwnerPropertyPortfolio(b as unknown as Record<string, unknown>, ownerPortfolioSerials);
+    if (!byContact && !byPortfolio) continue;
     const cd = (cdRaw || {}) as RentalContract;
     const propertyId = Number(b.propertyId);
     if (!Number.isFinite(propertyId)) continue;
