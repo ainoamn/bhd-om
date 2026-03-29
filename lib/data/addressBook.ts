@@ -4,7 +4,7 @@
  */
 
 import { isContactLinked as checkContactLinked } from './contactLinks';
-import { dedupeContactsList } from './addressBookDedupeShared';
+import { dedupeContactsList, normPhoneForDedupe } from './addressBookDedupeShared';
 
 export type ContactCategory =
   | 'CLIENT'           // عميل
@@ -573,21 +573,34 @@ export function contactRevisionMs(c: Pick<Contact, 'updatedAt' | 'createdAt'>): 
  * — أي جهة وُجدت في استجابة الخادم تُؤخذ **من الخادم فقط** (مصدر الحقيقي بين الأجهزة؛ يمنع بقاء نسخة قديمة في متصفح المدير بعد حفظ العميل من «حسابي»).
  * — الجهات الموجودة محلياً فقط (غير مرفوعة بعد) تُضاف كما هي.
  * — إذا وُجد في الخادم صف لـ userId معيّن، لا تُضاف نسخة محلية أخرى بنفس userId ومعرف CNT مختلف (شبح يخالف «حسابي»).
+ * — إذا الخادم يعرض صفاً مربوطاً بحساب (userId أو linkedUserId) لهذا الهاتف، لا تُعاد نسخة محلية قديمة بلا userId (شبح بنفس الرقم).
  */
 export function mergeAddressBookApiWithLocal(apiList: Contact[], localList: Contact[]): Contact[] {
   const merged: Contact[] = [];
   const seen = new Set<string>();
   const apiUserIds = new Set<string>();
+  const apiPhonesWithLinkedAccount = new Set<string>();
   for (const apiC of apiList) {
     merged.push(apiC);
     seen.add(apiC.id);
     const u = apiC.userId?.trim();
     if (u) apiUserIds.add(u);
+    const linked = typeof apiC.linkedUserId === 'string' ? apiC.linkedUserId.trim() : '';
+    if (u || linked) {
+      const ph = normPhoneForDedupe(apiC.phone);
+      if (ph.length >= 8 && !isCompanyContact(apiC)) {
+        apiPhonesWithLinkedAccount.add(ph);
+      }
+    }
   }
   for (const localC of localList) {
     if (seen.has(localC.id)) continue;
     const uid = localC.userId?.trim();
     if (uid && apiUserIds.has(uid)) {
+      continue;
+    }
+    const ph = normPhoneForDedupe(localC.phone);
+    if (ph.length >= 8 && apiPhonesWithLinkedAccount.has(ph) && !isCompanyContact(localC)) {
       continue;
     }
     merged.push(localC);

@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — S1 vs S2 نفس الهاتف: صف «حسابي» يفوز دائماً
+
+- **ما تم:** في `addressBookDedupeShared` تفضيل `linkedUserId` (Prisma) قبل `userId` في JSON عند تكرار الهاتف/المدني. في `mergeAddressBookApiWithLocal` عدم إعادة شبح محلي بنفس هاتف صف API مربوط بحساب. في `GET /api/address-book` بعد الدمج الأول استدعاء `deleteOtherPersonalRowsSamePhone` لكل صف له `linkedUserId` أو `userId` ثم إعادة جلب الصفوف.
+- **الملفات:** `lib/data/addressBookDedupeShared.ts`, `lib/data/addressBook.ts`, `app/api/address-book/route.ts`
+
 ### جلسة 2026-03-29 — توحيد دفتر الإدارة مع قاعدة البيانات و«حسابي»
 
 - **السبب:** الدمج `mergeAddressBookApiWithLocal` كان يضيف صفاً محلياً بنفس `userId` ومعرف `CNT` مختلف عن صف الخادم، فيظهر للمدير بيانات تختلف عن `/api/user/linked-contact`. كما أن `linkedUserId` من Prisma لم يكن يُمرَّر في GET دفتر العناوين ففقد الدمج المحلي إشارة الصف المرتبط بالحساب.

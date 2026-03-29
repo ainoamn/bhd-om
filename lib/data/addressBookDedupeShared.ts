@@ -66,11 +66,12 @@ function addUserIdDrops(rows: AddressBookDedupeRow[], drop: Set<string>): void {
   }
 }
 
+/** يُفضَّل أولاً الصف المربوط في Prisma (linkedUserId) — مصدر «حسابي» ثم JSON userId ثم الأحدث */
 function sortDuplicateGroup(a: AddressBookDedupeRow, b: AddressBookDedupeRow): number {
+  const wl = (b.linkedUserId ? 1 : 0) - (a.linkedUserId ? 1 : 0);
+  if (wl !== 0) return wl;
   const bu = hasJsonUserId(b) - hasJsonUserId(a);
   if (bu !== 0) return bu;
-  const bl = (b.linkedUserId ? 1 : 0) - (a.linkedUserId ? 1 : 0);
-  if (bl !== 0) return bl;
   return revisionMs(b) - revisionMs(a);
 }
 

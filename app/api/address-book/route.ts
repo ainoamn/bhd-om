@@ -32,7 +32,20 @@ export async function GET(req: NextRequest) {
         where: { contactId: { in: [...drop] } },
       });
     }
-    const keptRows = rows.filter((r) => !drop.has(r.contactId));
+    let keptRows = rows.filter((r) => !drop.has(r.contactId));
+
+    /** بعد الدمج النظري: حذف أي صف شخصي آخر بنفس هاتف صف مربوط بحساب (يفضّل صف «حسابي» / linkedUserId) */
+    const canonical = [...keptRows].sort(
+      (a, b) => (b.linkedUserId ? 1 : 0) - (a.linkedUserId ? 1 : 0)
+    );
+    for (const r of canonical) {
+      const d = (r.data as Record<string, unknown>) || {};
+      if (!r.linkedUserId && typeof d.userId !== 'string') continue;
+      await deleteOtherPersonalRowsSamePhone(r.contactId, d.phone);
+    }
+    keptRows = await prisma.addressBookContact.findMany({
+      orderBy: { updatedAt: 'desc' },
+    });
 
     const userIds = [
       ...new Set(
