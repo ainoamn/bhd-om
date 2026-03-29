@@ -26,7 +26,7 @@ import {
 import { updateBooking, getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
 import { getContractByBooking, type RentalContract } from '@/lib/data/contracts';
 import { getBankAccountById } from '@/lib/data/bankAccounts';
-import { findContactByPhoneOrEmail, updateContact, ensureContactFromBooking, isOmaniNationality, isCompanyContact, getContactDisplayName, getContactLocalizedField, getRepDisplayName } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, updateContact, ensureContactFromBooking, isOmaniNationality, isCompanyContact, getContactDisplayName, getContactLocalizedField, getRepDisplayName, contactAddressHasUsableContent } from '@/lib/data/addressBook';
 import { getAllNationalityValues } from '@/lib/data/nationalities';
 import TranslateField from '@/components/admin/TranslateField';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
@@ -725,7 +725,7 @@ export default function ContractTermsPage() {
     const phoneOk = (contact.phone || '').replace(/\D/g, '').length >= 8;
     const phoneSecondaryOk = (contact.phoneSecondary || '').replace(/\D/g, '').length >= 8;
     const emailOk = (contact.email || '').trim().length >= 3;
-    const addressOk = !!(contact.address?.fullAddress || contact.address?.fullAddressEn || '').trim();
+    const addressOk = contactAddressHasUsableContent(contact.address);
     const workplaceOk = (contact.workplace || '').trim().length >= 1;
     const workplaceEnOk = (contact.workplaceEn || '').trim().length >= 1;
     const omani = isOmaniNationality(contact.nationality || '');

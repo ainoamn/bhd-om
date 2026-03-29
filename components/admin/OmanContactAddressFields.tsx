@@ -139,14 +139,19 @@ export default function OmanContactAddressFields({
     []
   );
 
+  const labelCls = 'block text-sm font-semibold text-gray-700 mb-1';
+
   return (
-    <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50/80 p-4">
-      <p className="text-sm font-bold text-gray-800 m-0">
-        {ar ? 'العنوان — محافظة عمان (نفس بيانات النظام)' : 'Address — Oman (same hierarchy as properties)'}
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-5">
+      <h4 className="text-sm font-bold text-[#8B6F47] flex items-center gap-2 pb-2 border-b border-gray-200 m-0">
+        <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center text-base" aria-hidden>
+          📍
+        </span>
+        {ar ? 'العنوان (سلطنة عمان — نفس بيانات العقارات)' : 'Address (Oman — same data as properties)'}
+      </h4>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'المحافظة' : 'Governorate'}</label>
+          <label className={labelCls}>{ar ? 'المحافظة' : 'Governorate'}</label>
           <select
             value={gov}
             onChange={(e) => onGovernorate(e.target.value)}
@@ -161,7 +166,7 @@ export default function OmanContactAddressFields({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'الولاية / المنطقة' : 'State / area'}</label>
+          <label className={labelCls}>{ar ? 'الولاية / المنطقة' : 'State / area'}</label>
           <select
             value={st}
             onChange={(e) => onState(e.target.value)}
@@ -177,7 +182,7 @@ export default function OmanContactAddressFields({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'المنطقة التفصيلية' : 'Detailed area'}</label>
+          <label className={labelCls}>{ar ? 'المنطقة التفصيلية' : 'Detailed area'}</label>
           <select
             value={address.area || ''}
             onChange={(e) => onArea(e.target.value)}
@@ -193,7 +198,7 @@ export default function OmanContactAddressFields({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'القرية / المكان' : 'Village / place'}</label>
+          <label className={labelCls}>{ar ? 'القرية / المكان' : 'Village / place'}</label>
           <input
             type="text"
             value={address.village ?? ''}
@@ -202,8 +207,10 @@ export default function OmanContactAddressFields({
             placeholder={ar ? 'مثال: حي، شارع فرعي' : 'e.g. neighborhood'}
           />
         </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'السكة / الشارع' : 'Street'}</label>
+          <label className={labelCls}>{ar ? 'السكة / الشارع' : 'Street'}</label>
           <input
             type="text"
             value={address.street ?? ''}
@@ -212,7 +219,7 @@ export default function OmanContactAddressFields({
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'المبنى' : 'Building'}</label>
+          <label className={labelCls}>{ar ? 'المبنى' : 'Building'}</label>
           <input
             type="text"
             value={address.building ?? ''}
@@ -221,7 +228,7 @@ export default function OmanContactAddressFields({
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'الطابق' : 'Floor'}</label>
+          <label className={labelCls}>{ar ? 'الطابق' : 'Floor'}</label>
           <input
             type="text"
             value={address.floor ?? ''}
@@ -231,7 +238,7 @@ export default function OmanContactAddressFields({
         </div>
       </div>
       <div>
-        <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'العنوان الكامل (عربي) *' : 'Full address (AR) *'}</label>
+        <label className={labelCls}>{ar ? 'العنوان الكامل (عربي) *' : 'Full address (AR) *'}</label>
         <textarea
           value={address.fullAddress ?? ''}
           onChange={(e) => onFullArChange(e.target.value)}
@@ -244,7 +251,7 @@ export default function OmanContactAddressFields({
         </p>
       </div>
       <div>
-        <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'العنوان الكامل (إنجليزي)' : 'Full address (EN)'}</label>
+        <label className={labelCls}>{ar ? 'العنوان الكامل (إنجليزي)' : 'Full address (EN)'}</label>
         <textarea
           value={address.fullAddressEn ?? ''}
           onChange={(e) => onFullEnChange(e.target.value)}

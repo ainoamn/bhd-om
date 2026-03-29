@@ -7,14 +7,16 @@ import {
   updateContact,
   getContactById,
   findDuplicateContactFields,
+  contactAddressHasUsableContent,
   type Contact,
   type ContactCategory,
   type ContactAddress,
   type ContactGender,
 } from '@/lib/data/addressBook';
 import TranslateField from '@/components/admin/TranslateField';
+import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
 import DateInput from '@/components/shared/DateInput';
-import { getAllNationalityValues } from '@/lib/data/nationalities';
+import { getNationalitySelectOptions, normalizeNationalityToArabic } from '@/lib/data/nationalities';
 import { isOmaniNationality } from '@/lib/data/addressBook';
 import { siteConfig } from '@/config/site';
 import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
@@ -41,6 +43,7 @@ const emptyAddress: ContactAddress = {
   building: '',
   floor: '',
   fullAddress: '',
+  fullAddressEn: '',
 };
 
 export interface ContactFormModalProps {
@@ -183,7 +186,7 @@ export default function ContactFormModal({
   const getFieldErrorClass = (field: keyof typeof requiredFieldLabels) => {
     if (formErrors[field]) return 'input-required-error';
     const isEmpty =
-      field === 'address' ? !form.address?.fullAddress?.trim() :
+      field === 'address' ? !contactAddressHasUsableContent(form.address) :
       field === 'firstName' ? !form.firstName?.trim() :
       field === 'familyName' ? !form.familyName?.trim() :
       field === 'nationality' ? !form.nationality?.trim() :
@@ -202,7 +205,7 @@ export default function ContactFormModal({
     if (!form.familyName?.trim()) errors.familyName = t('fieldRequired');
     if (!form.nationality?.trim()) errors.nationality = t('fieldRequired');
     if (!form.phone?.trim()) errors.phone = t('fieldRequired');
-    if (!form.address?.fullAddress?.trim()) errors.address = t('fieldRequired');
+    if (!contactAddressHasUsableContent(form.address)) errors.address = t('fieldRequired');
 
     const dups = findDuplicateContactFields(
       form.phone.trim(),
@@ -240,11 +243,20 @@ export default function ContactFormModal({
       return;
     }
 
-    const addr = form.address?.fullAddress
-      ? { fullAddress: form.address.fullAddress }
-      : Object.keys(form.address || {}).some((k) => (form.address as Record<string, string>)[k])
-        ? form.address
-        : undefined;
+    const raw = form.address;
+    const addr: ContactAddress | undefined = contactAddressHasUsableContent(raw)
+      ? {
+          governorate: raw.governorate?.trim() || undefined,
+          state: raw.state?.trim() || undefined,
+          area: raw.area?.trim() || undefined,
+          village: raw.village?.trim() || undefined,
+          street: raw.street?.trim() || undefined,
+          building: raw.building?.trim() || undefined,
+          floor: raw.floor?.trim() || undefined,
+          fullAddress: raw.fullAddress?.trim() || undefined,
+          fullAddressEn: raw.fullAddressEn?.trim() || undefined,
+        }
+      : undefined;
     const payload = {
       firstName: form.firstName.trim(),
       secondName: form.secondName?.trim() || undefined,
@@ -352,7 +364,7 @@ export default function ContactFormModal({
       `}} />
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 contact-form-modal-overlay" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto contact-form-modal-content"
+        className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto contact-form-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4">
@@ -413,20 +425,27 @@ export default function ContactFormModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">{t('nationality')} *</label>
-              <input
-                type="text"
-                list="nationalities-contact-modal"
+              <select
                 required
-                value={form.nationality}
+                value={normalizeNationalityToArabic(form.nationality)}
                 onChange={(e) => setForm({ ...form, nationality: e.target.value })}
-                className={`admin-input w-full ${getFieldErrorClass('nationality')}`}
-                placeholder={t('nationalityPlaceholder')}
-              />
-              <datalist id="nationalities-contact-modal">
-                {getAllNationalityValues(locale).map((val) => (
-                  <option key={val} value={val} />
+                className={`admin-select w-full ${getFieldErrorClass('nationality')}`}
+              >
+                <option value="">{t('nationalityPlaceholder')}</option>
+                {getNationalitySelectOptions(locale).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
                 ))}
-              </datalist>
+                {(() => {
+                  const natAr = normalizeNationalityToArabic(form.nationality);
+                  const opts = getNationalitySelectOptions(locale);
+                  if (natAr && !opts.some((o) => o.value === natAr)) {
+                    return <option value={natAr}>{natAr}</option>;
+                  }
+                  return null;
+                })()}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">{t('gender')}</label>
@@ -493,27 +512,20 @@ export default function ContactFormModal({
               locale={locale}
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{t('category')} *</label>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ContactCategory })} className="admin-select w-full">
-                {(Object.keys(CATEGORY_KEYS) as ContactCategory[]).map((cat) => (
-                  <option key={cat} value={cat}>{t(CATEGORY_KEYS[cat] as 'categoryClient')}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{t('address')} *</label>
-              <input
-                type="text"
-                required
-                value={form.address?.fullAddress || ''}
-                onChange={(e) => setForm({ ...form, address: { ...form.address, fullAddress: e.target.value } })}
-                className={`admin-input w-full ${getFieldErrorClass('address')}`}
-                placeholder={t('addressPlaceholder')}
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">{t('category')} *</label>
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as ContactCategory })} className="admin-select w-full max-w-md">
+              {(Object.keys(CATEGORY_KEYS) as ContactCategory[]).map((cat) => (
+                <option key={cat} value={cat}>{t(CATEGORY_KEYS[cat] as 'categoryClient')}</option>
+              ))}
+            </select>
           </div>
+          <OmanContactAddressFields
+            address={form.address || { ...emptyAddress }}
+            onChange={(next) => setForm({ ...form, address: next })}
+            locale={locale}
+            inputErrorClass={getFieldErrorClass('address')}
+          />
           <div>
             <TranslateField
               label={t('notes')}
@@ -590,7 +602,16 @@ export default function ContactFormModal({
               <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('phone')} *</td><td className="border border-gray-300 px-4 py-2.5">{form.phone?.trim() || '—'}</td></tr>
               <tr><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('phoneAlt')}</td><td className="border border-gray-300 px-4 py-2.5">{form.phoneSecondary?.trim() || '—'}</td></tr>
               <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('email')}</td><td className="border border-gray-300 px-4 py-2.5">{form.email?.trim() || '—'}</td></tr>
-              <tr><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('address')} *</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.fullAddress?.trim() || '—'}</td></tr>
+              <tr><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{locale === 'ar' ? 'المحافظة' : 'Governorate'}</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.governorate?.trim() || '—'}</td></tr>
+              <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{locale === 'ar' ? 'الولاية / المنطقة' : 'State / area'}</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.state?.trim() || '—'}</td></tr>
+              <tr><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{locale === 'ar' ? 'المنطقة التفصيلية' : 'Detailed area'}</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.area?.trim() || '—'}</td></tr>
+              <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{locale === 'ar' ? 'القرية / المكان' : 'Village / place'}</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.village?.trim() || '—'}</td></tr>
+              <tr><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{locale === 'ar' ? 'الشارع' : 'Street'}</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.street?.trim() || '—'}</td></tr>
+              <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{locale === 'ar' ? 'المبنى / الطابق' : 'Building / floor'}</td><td className="border border-gray-300 px-4 py-2.5">{[form.address?.building?.trim(), form.address?.floor?.trim()].filter(Boolean).join(' — ') || '—'}</td></tr>
+              <tr><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('address')} (AR) *</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.fullAddress?.trim() || '—'}</td></tr>
+              {(form.address?.fullAddressEn || '').trim() ? (
+                <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('address')} (EN)</td><td className="border border-gray-300 px-4 py-2.5">{form.address?.fullAddressEn?.trim()}</td></tr>
+              ) : null}
               <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('category')} *</td><td className="border border-gray-300 px-4 py-2.5">{t(CATEGORY_KEYS[form.category] as 'categoryClient')}</td></tr>
               <tr><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('workplace')}</td><td className="border border-gray-300 px-4 py-2.5">{form.workplace?.trim() || '—'}</td></tr>
               <tr className="bg-gray-50/50"><td className="border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 bg-gray-50">{t('civilId')}</td><td className="border border-gray-300 px-4 py-2.5">{form.civilId?.trim() || '—'}</td></tr>

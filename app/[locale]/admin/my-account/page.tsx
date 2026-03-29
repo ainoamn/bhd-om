@@ -15,6 +15,7 @@ import {
   isOmaniNationality,
   validateCivilIdExpiry,
   validatePassportExpiry,
+  contactAddressHasUsableContent,
   type Contact,
   type ContactAddress,
 } from '@/lib/data/addressBook';
@@ -203,7 +204,7 @@ export default function MyAccountPage() {
       alert(ar ? 'الجنسية مطلوبة' : 'Nationality is required');
       return;
     }
-    const addrOk = !!(form.address.fullAddress?.trim() || form.address.fullAddressEn?.trim());
+    const addrOk = contactAddressHasUsableContent(form.address);
     if (!addrOk) {
       alert(ar ? 'أدخل العنوان بالعربية أو الإنجليزية' : 'Enter address in Arabic or English');
       return;

@@ -32,6 +32,7 @@ import {
   validatePhoneWithCountryCode,
   validateCivilIdExpiry,
   validatePassportExpiry,
+  contactAddressHasUsableContent,
   findDuplicateContactFields,
   findContactsByCivilIdOrName,
   findContactsBySerialPrefix,
@@ -671,7 +672,7 @@ export default function AdminAddressBookPage() {
   const getRequiredFieldClass = (field: keyof typeof requiredFieldLabels) => {
     if (formErrors[field]) return 'border-2 border-red-400 ring-2 ring-red-200';
     const isEmpty =
-      field === 'address' ? !(form.address?.fullAddress?.trim() || form.address?.fullAddressEn?.trim()) :
+      field === 'address' ? !contactAddressHasUsableContent(form.address) :
       field === 'firstName' ? !form.firstName?.trim() :
       field === 'familyName' ? !form.familyName?.trim() :
       field === 'nationality' ? !form.nationality?.trim() :
@@ -740,7 +741,7 @@ export default function AdminAddressBookPage() {
     if (!form.familyName?.trim()) errors.familyName = t('fieldRequired');
     if (!form.nationality?.trim()) errors.nationality = t('fieldRequired');
       if (!form.phone?.trim()) errors.phone = errors.phone || t('fieldRequired');
-      if (!(form.address?.fullAddress?.trim() || form.address?.fullAddressEn?.trim())) errors.address = t('fieldRequired');
+      if (!contactAddressHasUsableContent(form.address)) errors.address = t('fieldRequired');
       if (form.civilIdExpiry?.trim() && !validateCivilIdExpiry(form.civilIdExpiry).valid) errors.civilIdExpiry = t('civilIdExpiryMinDays');
       if (form.passportExpiry?.trim() && !validatePassportExpiry(form.passportExpiry).valid) errors.passportExpiry = t('passportExpiryMinDays');
     }
@@ -760,7 +761,7 @@ export default function AdminAddressBookPage() {
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    const hasAddr = form.address?.fullAddress?.trim() || form.address?.fullAddressEn?.trim() || Object.keys(form.address || {}).some((k) => (form.address as Record<string, string>)[k]);
+    const hasAddr = contactAddressHasUsableContent(form.address);
     const addr = hasAddr
       ? {
           ...form.address,
@@ -1544,7 +1545,7 @@ export default function AdminAddressBookPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" data-print-hide onClick={handleCloseModal}>
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* خطوة اختيار النوع - عند الإضافة فقط */}

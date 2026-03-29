@@ -28,6 +28,14 @@ export interface ContactAddress {
   fullAddressEn?: string;
 }
 
+/** عنوان قابل للاستخدام: نص كامل أو أي حقل هيكلي (محافظة، ولاية، …) */
+export function contactAddressHasUsableContent(addr?: ContactAddress | null): boolean {
+  if (!addr) return false;
+  if (addr.fullAddress?.trim() || addr.fullAddressEn?.trim()) return true;
+  const keys: (keyof ContactAddress)[] = ['governorate', 'state', 'area', 'village', 'street', 'building', 'floor'];
+  return keys.some((k) => String(addr[k] ?? '').trim().length > 0);
+}
+
 export type ContactGender = 'MALE' | 'FEMALE';
 
 /** نوع جهة الاتصال: شخصي (ذكر/أنثى) أو شركة */
@@ -247,8 +255,7 @@ function getPersonalProfileIssues(c: Contact): string[] {
     if (!pv.valid) issues.push('phoneInvalid');
   }
   if (!c.email?.trim()) issues.push('email');
-  const addr = c.address;
-  if (!(addr?.fullAddress?.trim() || addr?.fullAddressEn?.trim())) issues.push('address');
+  if (!contactAddressHasUsableContent(c.address)) issues.push('address');
 
   if (isOmaniNationality(c.nationality || '')) {
     if (!c.civilId?.trim()) issues.push('civilId');

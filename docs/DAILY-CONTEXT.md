@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — دفتر العناوين: توحيد نمط العنوان + نافذة ContactFormModal
+
+- **ما تم:** `contactAddressHasUsableContent` في `addressBook` للتحقق من العنوان (نص كامل أو حقول هيكلية). تنسيق `OmanContactAddressFields`: صف محافظة/ولاية/منطقة/قرية على شاشات عريضة، ثم شارع/مبنى/طابق، وعنوان بصيغة البطاقات كصفحة دفتر العناوين. نافذة المodal في دفتر العناوين `max-w-4xl`. `ContactFormModal` (حجوزات، عقود، مستندات الحجز) تستخدم نفس المكوّن + قائمة الجنسيات + حفظ العنوان الكامل؛ طباعة النموذج تعرض المحافظة والولاية والحقول. تحديثات طفيفة: `my-account`، `contract-terms` لاستخدام التحقق الموحد.
+- **الملفات:** `lib/data/addressBook.ts`, `components/admin/OmanContactAddressFields.tsx`, `components/admin/ContactFormModal.tsx`, `app/[locale]/admin/address-book/page.tsx`, `app/[locale]/admin/my-account/page.tsx`, `app/[locale]/properties/[id]/contract-terms/page.tsx`
+
 ### جلسة 2026-03-29 — حسابي ودفتر العناوين: جنسيات كاملة + عنوان عمان متسلسل + ترجمة العنوان
 
 - **ما تم:** قائمة `<select>` لجميع الجنسيات من `NATIONALITIES` (قيمة مخزّنة بالعربي). مكوّن `OmanContactAddressFields` يستخدم `omanLocations` كـ PropertyForm (محافظة → ولاية → منطقة/قرية من القائمة → قرية/مكان نصي + شارع/مبنى/طابق)، يولّد «العنوان الكامل (عربي)» تلقائياً مع إمكانية التعديل، وترجمة تلقائية AR↔EN عبر `/api/translate`. تطبيق في `my-account` و`address-book` (شخصي وشركة ومفوضين).
