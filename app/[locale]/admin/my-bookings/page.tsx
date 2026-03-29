@@ -25,6 +25,44 @@ const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
   CANCELLED: { ar: 'ملغى', en: 'Cancelled' },
 };
 
+/**
+ * يستنتج مرحلة العرض من contractStage + signatureRequests (مثل getBookingStatusDisplay).
+ * يُستخدم أيضاً لأزرار الإجراءات حتى يظهر زر المالك عندما يكون المشتري قد أكمل التوثيق لكن DB لا يزال ADMIN_APPROVED.
+ */
+function inferBookingContractStage(
+  booking: PropertyBooking | undefined,
+  fallbackStage?: string
+): 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED' | undefined {
+  const stage = (booking?.contractStage || fallbackStage) as
+    | 'DRAFT'
+    | 'ADMIN_APPROVED'
+    | 'TENANT_APPROVED'
+    | 'LANDLORD_APPROVED'
+    | 'APPROVED'
+    | 'CANCELLED'
+    | undefined;
+  const reqs: unknown[] = Array.isArray((booking as PropertyBooking & { signatureRequests?: unknown[] })?.signatureRequests)
+    ? ((booking as PropertyBooking & { signatureRequests: unknown[] }).signatureRequests ?? [])
+    : [];
+  const hasMedia = (role: 'CLIENT' | 'OWNER') => {
+    const r = reqs.find((x) => String((x as { actorRole?: string })?.actorRole) === role && String((x as { status?: string })?.status) === 'COMPLETED');
+    return !!(
+      r &&
+      (r as { selfieDataUrl?: string }).selfieDataUrl &&
+      (r as { signatureDataUrl?: string }).signatureDataUrl &&
+      (r as { idCardFrontDataUrl?: string }).idCardFrontDataUrl &&
+      (r as { idCardBackDataUrl?: string }).idCardBackDataUrl
+    );
+  };
+  const clientDone = hasMedia('CLIENT');
+  const ownerDone = hasMedia('OWNER');
+  if (stage === 'ADMIN_APPROVED' && clientDone) return 'TENANT_APPROVED';
+  if (stage === 'TENANT_APPROVED' && ownerDone) return 'LANDLORD_APPROVED';
+  if (clientDone && !ownerDone) return 'TENANT_APPROVED';
+  if (clientDone && ownerDone && stage !== 'APPROVED') return 'LANDLORD_APPROVED';
+  return stage;
+}
+
 /** هل الحجز يحتاج من العميل إكمال بيانات العقد والمستندات (كما يظهر في صفحة الحجز للإدارة). يُعتبر الحجز بحاجة لإكمال البيانات عندما: يوجد عقد مسودة، أو الحجز مؤكد والدفع مؤكد (العقد قد يكون من جهة الإدارة ولا يظهر في localStorage للعميل). */
 function needsToCompleteContractData(
   linked: ContactLinkedBooking,
@@ -68,33 +106,6 @@ function getBookingStatusDisplay(
   const hasContract = hasContractForUnit(linked.propertyId, linked.unitKey);
   const c = getContractByBooking(id);
 
-  const getDisplayStageFromServer = (
-    booking: PropertyBooking | undefined,
-    fallbackStage?: string
-  ): 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED' | undefined => {
-    const stage = (booking?.contractStage || fallbackStage) as
-      | 'DRAFT'
-      | 'ADMIN_APPROVED'
-      | 'TENANT_APPROVED'
-      | 'LANDLORD_APPROVED'
-      | 'APPROVED'
-      | 'CANCELLED'
-      | undefined;
-    const reqs: any[] = Array.isArray((booking as any)?.signatureRequests) ? (((booking as any).signatureRequests as any[]) ?? []) : [];
-    const hasMedia = (role: 'CLIENT' | 'OWNER') => {
-      const r = reqs.find((x) => String(x?.actorRole) === role && String(x?.status) === 'COMPLETED');
-      return !!(r?.selfieDataUrl && r?.signatureDataUrl && r?.idCardFrontDataUrl && r?.idCardBackDataUrl);
-    };
-    const clientDone = hasMedia('CLIENT');
-    const ownerDone = hasMedia('OWNER');
-    if (stage === 'ADMIN_APPROVED' && clientDone) return 'TENANT_APPROVED';
-    if (stage === 'TENANT_APPROVED' && ownerDone) return 'LANDLORD_APPROVED';
-    // في حال كانت المرحلة محلية/قديمة لكن التواقيع مكتملة على الخادم
-    if (clientDone && !ownerDone) return 'TENANT_APPROVED';
-    if (clientDone && ownerDone && stage !== 'APPROVED') return 'LANDLORD_APPROVED';
-    return stage;
-  };
-
   if (hasContract && c) {
     const kind = (c.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const allDocsAndChecksApproved =
@@ -108,7 +119,7 @@ function getBookingStatusDisplay(
     // إذا الدفع مؤكد والحجز CONFIRMED ولم نصل لحالة ADMIN_APPROVED/APPROVED على جهاز العميل بعد،
     // نعرض خطوة انتظار توقيع العميل — **بعد** التحقق من توثيق العميل على الخادم (signatureRequests).
     if (c.status === 'DRAFT' && effectiveStatus === 'CONFIRMED' && paymentOrAccountantConfirmed) {
-      const inferredBefore = getDisplayStageFromServer(fullBooking, c.status);
+      const inferredBefore = inferBookingContractStage(fullBooking, c.status);
       // إذا اكتمل توثيق المشتري/المستأجر على الخادم، لا نُبقِ «بانتظار المشتري» (يظهر للمالك خطأ)
       if (inferredBefore === 'ADMIN_APPROVED' || inferredBefore === undefined) {
         const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
@@ -119,7 +130,7 @@ function getBookingStatusDisplay(
         };
       }
     }
-    const stage = getDisplayStageFromServer(fullBooking, c.status);
+    const stage = inferBookingContractStage(fullBooking, c.status);
     if (stage === 'ADMIN_APPROVED' || stage === 'TENANT_APPROVED' || stage === 'LANDLORD_APPROVED') {
       // سيناريو الاعتمادات الموحد: إدارة (مبدئي) → العميل (مستأجر/مشتري/مستثمر) → المالك → إدارة (نهائي)
       const actorAr = kind === 'SALE' ? 'المشتري' : kind === 'INVESTMENT' ? 'المستثمر' : 'المستأجر';
@@ -152,7 +163,7 @@ function getBookingStatusDisplay(
 
   // لا يوجد عقد في localStorage (العقد قد يكون أنشأه الأدمن على جهاز آخر) — للحجز المؤكد والدفع مؤكد نعرض «عقد مسودة - بانتظار رفع المستندات» وزر إكمال البيانات
   if (!c && (effectiveStatus === 'CONFIRMED' || effectiveStatus === 'PENDING')) {
-    const stage = getDisplayStageFromServer(fullBooking, fullBooking?.contractStage);
+    const stage = inferBookingContractStage(fullBooking, fullBooking?.contractStage);
     const kindFromBooking = (fullBooking?.contractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
     const paymentOrAccountantConfirmed = !!(fullBooking?.paymentConfirmed || fullBooking?.accountantConfirmedAt);
 
@@ -413,9 +424,19 @@ export default function MyBookingsPage() {
                       ? stageFromServer === 'ADMIN_APPROVED' || (stageFromServer === 'TENANT_APPROVED' && hasPendingOrFailedClientSignature)
                       : statusFromLocal === 'ADMIN_APPROVED' ||
                         (!!hasContractId && paymentOrAccountantConfirmedRow && effectiveStatus === 'CONFIRMED'));
+                  const bookingForStage = (full ?? (b as unknown as PropertyBooking)) as PropertyBooking | undefined;
+                  const effectiveStageForActions = inferBookingContractStage(
+                    bookingForStage,
+                    bookingForStage?.contractStage || statusFromLocal
+                  );
+                  const ownerSignaturePending = sigReqs.some((r) =>
+                    String(r?.actorRole) === 'OWNER' && ['PENDING', 'FAILED'].includes(String(r?.status || ''))
+                  );
                   const showOwnerApprove =
                     userRole === 'OWNER' &&
-                    (stageFromServer != null ? stageFromServer === 'TENANT_APPROVED' : statusFromLocal === 'TENANT_APPROVED');
+                    (effectiveStageForActions === 'TENANT_APPROVED' ||
+                      ownerSignaturePending ||
+                      (stageFromServer == null && statusFromLocal === 'TENANT_APPROVED'));
                   return (
                     <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{b.unitDisplay || b.propertyTitleAr}</td>
@@ -480,13 +501,17 @@ export default function MyBookingsPage() {
                                     : ar
                                       ? 'مراجعة واعتماد (المستأجر)'
                                       : 'Review & approve (Tenant)'
-                                : kind === 'SALE'
+                                : ownerSignaturePending
                                   ? ar
-                                    ? 'اعتماد (المالك/البائع)'
-                                    : 'Approve (Seller)'
-                                  : ar
-                                    ? 'اعتماد (المالك)'
-                                    : 'Approve (Landlord)'}
+                                    ? 'توقيع وتوثيق العقد'
+                                    : 'Sign & verify contract'
+                                  : kind === 'SALE'
+                                    ? ar
+                                      ? 'اعتماد (المالك/البائع)'
+                                      : 'Approve (Seller)'
+                                    : ar
+                                      ? 'اعتماد (المالك)'
+                                      : 'Approve (Landlord)'}
                             </Link>
                           )}
                           {!needComplete && !(showClientApprove || showOwnerApprove) && <span className="text-gray-400 text-sm">—</span>}
