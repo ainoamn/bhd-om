@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — سجلات البناء + تدوير (مثل ain-oman-web)
+
+- **ما تم:** استلهام أسلوب المشروع السابق: سجلات بختم زمني في مجلد ثابت وتقليل العدد. `tools/build/run-build.ps1` يطبع **بداية/نهاية** البناء، يشغّل `npm run build` مع **Tee** إلى `tools/build/logs/build-yyyyMMdd_HHmmss.log`، و`Invoke-BuildLogRotation` يحتفظ بآخر **20** ملف `build-*.log`. أمر npm: `npm run build:log`. المجلد مُستثنى في `.gitignore`.
+- **الملفات:** `tools/build/config.ps1`, `tools/build/run-build.ps1`, `package.json`, `.gitignore`
+
 ### جلسة 2026-03-29 — رمز تصفير البيانات في DB + تغيير من الواجهة
 
 - **ما تم:** تخزين رمز الحماية كـ bcrypt في `AppSetting` (`admin_data_reset_pin_hash`)؛ الافتراضي `Abdul100189@` عند أول تشغيل أو بعد `executeResetKeepProperties`؛ `POST /api/admin/data/change-pin`؛ قسم في `/admin/data` لتغيير الرمز (حالي + جديد + تأكيد). `ADMIN_DATA_RESET_PIN` اختياري لأول إنشاء فقط.

@@ -50,3 +50,6 @@ prisma/dev.db
 
 # النسخ الاحتياطية المحلية
 /backups/
+
+# سجلات البناء المحلية (tools/build — ختم زمني + تدوير)
+/tools/build/logs/

@@ -12,6 +12,7 @@
     "dev:clean": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1",
     "sync": "powershell -ExecutionPolicy Bypass -File ./scripts/git-sync.ps1",
     "build": "prisma generate && next build",
+    "build:log": "powershell -ExecutionPolicy Bypass -File ./tools/build/run-build.ps1",
     "db:push": "prisma db push",
     "db:reset-keep-properties": "npx tsx prisma/reset-keep-properties.ts",
     "start": "next start",
