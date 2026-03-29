@@ -5,6 +5,7 @@
 
 import { isContactLinked as checkContactLinked } from './contactLinks';
 import { dedupeContactsList, normPhoneForDedupe } from './addressBookDedupeShared';
+import { emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 
 export type ContactCategory =
   | 'CLIENT'           // عميل
@@ -503,6 +504,25 @@ export function rewriteLocalAddressBookDeduped(): void {
   const list = getAllContacts(true);
   const d = dedupeContactsList(list);
   save(d);
+}
+
+/**
+ * مسح دفتر العناوين من التخزين المحلي فقط.
+ * يُستدعى بعد تصفير قاعدة البيانات على الخادم حتى لا تبقى نسخة قديمة تُدمَج وتُعاد مزامنتها.
+ */
+export function clearAddressBookLocalStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    try {
+      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
+    } catch {
+      /* بعض المتصفحات */
+    }
+    emitAddressBookUpdated();
+  } catch {
+    /* تخزين معطّل */
+  }
 }
 
 function generateId() {

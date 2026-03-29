@@ -5,6 +5,7 @@ import { useState, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { resetAllOperationalData, importBackup, downloadBackup } from '@/lib/data/backup';
+import { clearAddressBookLocalStorage } from '@/lib/data/addressBook';
 
 export default function AdminDataPage() {
   const params = useParams();
@@ -75,6 +76,8 @@ export default function AdminDataPage() {
         }
         return;
       }
+      /** دفتر العناوين يُخزَّن محلياً (`bhd_address_book`)؛ بدون مسحه تبقى البيانات القديمة وتُعاد مزامنتها للخادم */
+      clearAddressBookLocalStorage();
       setServerMessage(
         ar
           ? `تم تصفير قاعدة البيانات (العقارات محفوظة). تسجيل الدخول كـ: ${data.adminEmail ?? '—'} — سيتم تسجيل الخروج لإعادة الدخول.`
