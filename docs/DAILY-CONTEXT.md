@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — تصفير الخادم: مسح دفتر العناوين المحلي
+
+- **ما تم:** بعد `POST /api/admin/data/reset` كان جدول `AddressBookContact` يُصفَّر لكن `localStorage` (`bhd_address_book`) يبقى فيُعاد دمج المحتوى القديم ورفعه للخادم. أضيف `clearAddressBookLocalStorage()` واستدعاؤها بعد نجاح التصفير في `/admin/data`.
+- **الملفات:** `lib/data/addressBook.ts`, `app/[locale]/admin/data/page.tsx`
+
 ### جلسة 2026-03-29 — سجلات البناء + تدوير (مثل ain-oman-web)
 
 - **ما تم:** استلهام أسلوب المشروع السابق: سجلات بختم زمني في مجلد ثابت وتقليل العدد. `tools/build/run-build.ps1` يطبع **بداية/نهاية** البناء، يشغّل `npm run build` مع **Tee** إلى `tools/build/logs/build-yyyyMMdd_HHmmss.log`، و`Invoke-BuildLogRotation` يحتفظ بآخر **20** ملف `build-*.log`. أمر npm: `npm run build:log`. المجلد مُستثنى في `.gitignore`.
