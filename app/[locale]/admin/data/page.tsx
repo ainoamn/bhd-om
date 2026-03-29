@@ -4,8 +4,12 @@ import { useParams } from 'next/navigation';
 import { useState, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { resetAllOperationalData, importBackup, downloadBackup } from '@/lib/data/backup';
-import { clearAddressBookLocalStorage } from '@/lib/data/addressBook';
+import {
+  resetAllOperationalData,
+  importBackup,
+  downloadBackup,
+  clearClientCachesAfterServerDbReset,
+} from '@/lib/data/backup';
 
 export default function AdminDataPage() {
   const params = useParams();
@@ -76,12 +80,12 @@ export default function AdminDataPage() {
         }
         return;
       }
-      /** دفتر العناوين يُخزَّن محلياً (`bhd_address_book`)؛ بدون مسحه تبقى البيانات القديمة وتُعاد مزامنتها للخادم */
-      clearAddressBookLocalStorage();
+      /** حجوزات/عقود/مسودات محلية (`bhd_property_bookings` إلخ) + دفتر العناوين — بدونها يبقى البريد نفسه مرتبطاً بحجوزات قديمة في المتصفح */
+      clearClientCachesAfterServerDbReset();
       setServerMessage(
         ar
-          ? `تم تصفير قاعدة البيانات (العقارات محفوظة). تسجيل الدخول كـ: ${data.adminEmail ?? '—'} — سيتم تسجيل الخروج لإعادة الدخول.`
-          : `Database reset (properties kept). Sign in as: ${data.adminEmail ?? '—'} — signing out...`
+          ? `تم تصفير قاعدة البيانات (العقارات محفوظة) ومسح الحجوزات/العقود والدفتر المحلي في هذا المتصفح. تسجيل الدخول كـ: ${data.adminEmail ?? '—'} — سيتم تسجيل الخروج.`
+          : `Database reset (properties kept) and local bookings/contracts/address book cleared in this browser. Sign in as: ${data.adminEmail ?? '—'} — signing out...`
       );
       setServerResetConfirm(false);
       setTimeout(() => {

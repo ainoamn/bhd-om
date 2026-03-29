@@ -4,6 +4,8 @@
  * استخدم التصدير بانتظام لحفظ نسخة والاستيراد عند الحاجة
  */
 
+import { clearAddressBookLocalStorage } from '@/lib/data/addressBook';
+
 /** جميع مفاتيح البيانات في localStorage - للنسخ الاحتياطي الكامل */
 const BACKUP_KEYS = [
   'bhd_chart_of_accounts',
@@ -205,6 +207,17 @@ export function resetAllOperationalData(): number {
   // 4) إعادة حالة العقارات إلى متاح
   resetPropertyStatuses();
   window.dispatchEvent(new StorageEvent('storage', { key: 'bhd_reset_all' }));
+  return removed;
+}
+
+/**
+ * بعد تصفير قاعدة البيانات على الخادم: يمسح التخزين المحلي التشغيلي + دفتر العناوين.
+ * بدون ذلك تبقى `bhd_property_bookings` وغيرها في المتصفح؛ مستخدم جديد بنفس البريد يرى حجوزات قديمة (مطابقة بالبريد/الهاتف وليس بمعرّف المستخدم).
+ */
+export function clearClientCachesAfterServerDbReset(): number {
+  if (typeof window === 'undefined') return 0;
+  const removed = resetAllOperationalData();
+  clearAddressBookLocalStorage();
   return removed;
 }
 
