@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — رمز تصفير البيانات في DB + تغيير من الواجهة
+
+- **ما تم:** تخزين رمز الحماية كـ bcrypt في `AppSetting` (`admin_data_reset_pin_hash`)؛ الافتراضي `Abdul100189@` عند أول تشغيل أو بعد `executeResetKeepProperties`؛ `POST /api/admin/data/change-pin`؛ قسم في `/admin/data` لتغيير الرمز (حالي + جديد + تأكيد). `ADMIN_DATA_RESET_PIN` اختياري لأول إنشاء فقط.
+- **الملفات:** `lib/server/adminDataPin.ts`, `app/api/admin/data/*`, `app/[locale]/admin/data/page.tsx`, `prisma/seed.ts`, `docs/اقرأني-الدليل-التقني-الشامل.md`, `.env.example`
+
 ### جلسة 2026-03-29 — الدليل التقني الشامل «اقرأني» + ربط الجلسات
 
 - **ما تم:** إنشاء `docs/اقرأني-الدليل-التقني-الشامل.md` كنقطة دخول للطبقات، الربط، الصيانة، المخاطر، وديون تقنية معروفة؛ تحديث `SESSION-START.md`, `SESSION-END.md`, `SITE-SCENARIOS-AND-LINKS.md`, `README.md`, `.cursor/rules/session-context.mdc` للإشارة إليه.
