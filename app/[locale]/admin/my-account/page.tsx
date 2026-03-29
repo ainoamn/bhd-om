@@ -16,6 +16,7 @@ import {
   validateCivilIdExpiry,
   validatePassportExpiry,
   contactAddressHasUsableContent,
+  syncContactToAddressBookApi,
   type Contact,
   type ContactAddress,
 } from '@/lib/data/addressBook';
@@ -275,6 +276,7 @@ export default function MyAccountPage() {
         if (updated) {
           setContact(updated);
           setEditing(false);
+          void syncContactToAddressBookApi(updated);
         }
       } else {
         const tagList = form.tags
@@ -309,6 +311,7 @@ export default function MyAccountPage() {
         });
         setContact(created);
         setEditing(false);
+        void syncContactToAddressBookApi(created);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';

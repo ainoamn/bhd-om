@@ -33,6 +33,9 @@ import {
   validateCivilIdExpiry,
   validatePassportExpiry,
   contactAddressHasUsableContent,
+  mergeAddressBookApiWithLocal,
+  contactRevisionMs,
+  syncContactToAddressBookApi,
   findDuplicateContactFields,
   findContactsByCivilIdOrName,
   findContactsBySerialPrefix,
@@ -246,28 +249,15 @@ export default function AdminAddressBookPage() {
       } catch {
         // الخادم غير متاح — نعتمد التخزين المحلي فقط
       }
-      const apiIds = new Set(listFromApi.map((c) => c.id));
       const localContacts = getAllContacts(true);
-      const localOnly = localContacts.filter((c) => !apiIds.has(c.id));
-      for (const c of localOnly) {
+      const merged = mergeAddressBookApiWithLocal(listFromApi, localContacts);
+      const apiById = new Map(listFromApi.map((c) => [c.id, c]));
+      for (const c of merged) {
         if (cancelled) break;
-        try {
-          await fetch('/api/address-book', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(c),
-          });
-        } catch {
-          // تجاهل فشل المزامنة للجهة الواحدة
-        }
-      }
-      const merged = [...listFromApi];
-      const mergedIds = new Set(merged.map((c) => c.id));
-      for (const c of localOnly) {
-        if (!mergedIds.has(c.id)) {
-          merged.push(c);
-          mergedIds.add(c.id);
+        const apiC = apiById.get(c.id);
+        const pushToServer = !apiC || contactRevisionMs(c) > contactRevisionMs(apiC);
+        if (pushToServer) {
+          await syncContactToAddressBookApi(c);
         }
       }
       try {

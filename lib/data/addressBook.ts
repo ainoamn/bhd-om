@@ -547,6 +547,52 @@ export function getContactById(id: string): Contact | undefined {
   return getStored().find((c) => c.id === id);
 }
 
+/** وقت آخر مراجعة للمقارنة بين نسخة محلية ونسخة خادم */
+export function contactRevisionMs(c: Pick<Contact, 'updatedAt' | 'createdAt'>): number {
+  const t = (c.updatedAt || c.createdAt || '').trim();
+  const ms = t ? new Date(t).getTime() : 0;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * دمج قائمة GET /api/address-book مع localStorage: لكل `id` تُؤخذ النسخة الأحدث حسب `updatedAt`
+ * (يمنع استبدال تعديلات «حسابي» بنسخة قديمة من الخادم).
+ */
+export function mergeAddressBookApiWithLocal(apiList: Contact[], localList: Contact[]): Contact[] {
+  const localById = new Map(localList.map((c) => [c.id, c]));
+  const merged: Contact[] = [];
+  const seen = new Set<string>();
+  for (const apiC of apiList) {
+    const localC = localById.get(apiC.id);
+    if (localC) {
+      merged.push(contactRevisionMs(localC) >= contactRevisionMs(apiC) ? localC : apiC);
+    } else {
+      merged.push(apiC);
+    }
+    seen.add(apiC.id);
+  }
+  for (const localC of localList) {
+    if (!seen.has(localC.id)) merged.push(localC);
+  }
+  return merged;
+}
+
+/** رفع جهة اتصال إلى الخادم (جدول دفتر العناوين) — يُستدعى بعد الحفظ من «حسابي» أو بعد الدمج */
+export async function syncContactToAddressBookApi(contact: Contact): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const res = await fetch('/api/address-book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(contact),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** البحث عن جهة اتصال بالبريد الإلكتروني */
 export function findContactByEmail(email: string): Contact | undefined {
   const e = (email || '').toLowerCase().trim();
