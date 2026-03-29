@@ -324,6 +324,27 @@ export default function OwnerDashboard() {
         </div>
       )}
 
+      {userRole === 'OWNER' && properties.length > 0 && serverBookings.length === 0 && (
+        <div className="admin-card mb-8 border border-slate-200 bg-slate-50/80">
+          <div className="admin-card-header">
+            <h2 className="admin-card-title">{locale === 'ar' ? 'الحجوزات ومهام العقود' : 'Bookings & contract tasks'}</h2>
+          </div>
+          <div className="admin-card-body space-y-3 text-sm text-slate-700">
+            <p>
+              {locale === 'ar'
+                ? 'لا تظهر لك حالياً أي حجوزات مسجّلة على الخادم لهذه العقارات. إن كان هناك حجز أو عقد قيد الإجراء، تأكد أن المدير ربط حسابك كمالك في «إدارة العقارات» (عمود المالك) وأن الحجز مُزامَن مع الخادم. بعد حفظ «البيانات الإضافية» يُفضّل فتح صفحة العقار في لوحة الإدارة مرة أخرى ثم حفظ المالك لتحديث الربط في قاعدة البيانات.'
+                : 'No bookings are on the server yet for your linked properties. If a sale/booking exists, ensure the admin set you as owner on the Properties list and that bookings are synced. Re-save additional property data if needed so the database owner link is updated.'}
+            </p>
+            <Link
+              href={`/${locale}/admin/my-bookings`}
+              className="inline-flex items-center gap-2 font-semibold text-[#8B6F47] hover:underline"
+            >
+              {locale === 'ar' ? 'الانتقال إلى حجوزات ومهام العقود' : 'Go to bookings & contract tasks'}
+            </Link>
+          </div>
+        </div>
+      )}
+
       {!hasAnyBlock && (
         <div className="admin-card p-8 text-center">
           <p className="text-gray-600">

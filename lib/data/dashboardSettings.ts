@@ -159,9 +159,13 @@ export function getEffectiveDashboardConfig(
   if (role === 'ADMIN') return base;
   const dashboardTypeForSections: DashboardType = ROLE_TO_DASHBOARD_TYPE[role];
   const typeSections = getSectionsForRole(dashboardTypeForSections);
-  const allowedByPlan = planPermissionIds && planPermissionIds.length > 0
-    ? getSectionsAllowedByPlan(planPermissionIds)
-    : new Set<DashboardSectionKey>(['dashboard', 'myAccount', 'subscriptions'] as DashboardSectionKey[]);
+  /** بدون صلاحيات باقة: المالك يحصل على أقسام لوحة المالك الافتراضية كاملة (حجوزات، عقود، عقار…) وليس فقط 3 أقسام */
+  const allowedByPlan =
+    planPermissionIds && planPermissionIds.length > 0
+      ? getSectionsAllowedByPlan(planPermissionIds)
+      : role === 'OWNER'
+        ? new Set(defaultDashboardConfigs.OWNER.sections)
+        : new Set<DashboardSectionKey>(['dashboard', 'myAccount', 'subscriptions'] as DashboardSectionKey[]);
   const sections = typeSections.filter((s) => allowedByPlan.has(s));
   const typeConfig = defaultDashboardConfigsByType[dashboardTypeForSections];
   const navItems = (typeConfig?.navItems ?? base.navItems).filter((item) => {

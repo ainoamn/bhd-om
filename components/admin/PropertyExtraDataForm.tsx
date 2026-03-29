@@ -12,6 +12,48 @@ import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
 import { formatSurveyMapNumber } from '@/lib/utils/surveyMapNumber';
 import { omanLocations } from '@/lib/data/omanLocations';
 
+/**
+ * عند حفظ «البيانات الإضافية» يُحفظ المالك في localStorage فقط؛ نُزامن مع Prisma (ownerId)
+ * حتى تظهر الحجوزات والمهام للمالك على أي جهاز وعبر GET /api/bookings.
+ */
+async function syncPrismaOwnerWithLandlordContact(serialNumber: string | undefined, contactId: string | null) {
+  const sn = String(serialNumber || '').trim();
+  if (!sn || !contactId) return;
+  const contact = getContactById(contactId);
+  if (!contact) return;
+  let ownerDbId = (contact as { userId?: string }).userId?.trim();
+  if (!ownerDbId && contact.email) {
+    try {
+      const res = await fetch('/api/admin/users?role=OWNER', { credentials: 'include', cache: 'no-store' });
+      if (res.ok) {
+        const users = (await res.json()) as Array<{ id: string; email?: string }>;
+        const norm = (e: string) => e.trim().toLowerCase();
+        const em = norm(contact.email || '');
+        const m = users.find((u) => norm(u.email || '') === em);
+        if (m?.id) ownerDbId = m.id;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!ownerDbId) return;
+  try {
+    const res = await fetch('/api/admin/properties', { credentials: 'include', cache: 'no-store' });
+    if (!res.ok) return;
+    const data = (await res.json()) as { list?: Array<{ id: string; serialNumber: string }> };
+    const row = data.list?.find((p) => String(p.serialNumber).trim() === sn);
+    if (!row?.id) return;
+    await fetch(`/api/admin/properties/${encodeURIComponent(row.id)}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerId: ownerDbId }),
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 const LAND_USE_TYPES = [
   { ar: 'سكني', en: 'Residential' },
   { ar: 'تجاري', en: 'Commercial' },
@@ -253,6 +295,7 @@ export default function PropertyExtraDataForm({
       internetNumber: form.internetNumber.trim() || undefined,
     } as Partial<Property>);
     if (landlordContactId) setPropertyLandlord(property.id, landlordContactId);
+    void syncPrismaOwnerWithLandlordContact((property as { serialNumber?: string }).serialNumber, landlordContactId);
     clearDraft(draftKey);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
