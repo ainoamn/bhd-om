@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthSubFromRequest } from '@/lib/auth/getAuthSubFromRequest';
 import { prisma } from '@/lib/prisma';
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
-import { deleteOtherAddressBookRowsForUser } from '@/lib/server/addressBookDedupe';
+import { deleteOtherAddressBookRowsForUser, deleteOtherPersonalRowsSamePhone } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 
 function normalizeDigitsPhone(raw: string): string {
@@ -158,6 +158,8 @@ export async function PATCH(req: NextRequest) {
         updatedAt: new Date(),
       },
     });
+
+    await deleteOtherPersonalRowsSamePhone(contactId, merged.phone);
 
     merged.serialNumber = user.serialNumber;
     return NextResponse.json(merged);

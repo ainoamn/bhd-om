@@ -4,6 +4,7 @@
  */
 
 import { isContactLinked as checkContactLinked } from './contactLinks';
+import { dedupeContactsList } from './addressBookDedupeShared';
 
 export type ContactCategory =
   | 'CLIENT'           // عميل
@@ -573,7 +574,7 @@ export function mergeAddressBookApiWithLocal(apiList: Contact[], localList: Cont
   for (const localC of localList) {
     if (!seen.has(localC.id)) merged.push(localC);
   }
-  return merged;
+  return dedupeContactsList(merged);
 }
 
 export type SyncAddressBookApiResult =

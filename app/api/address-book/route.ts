@@ -10,7 +10,11 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAuthSubFromRequest } from '@/lib/auth/getAuthSubFromRequest';
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
-import { deleteOtherAddressBookRowsForUser, getDuplicateDropContactIds } from '@/lib/server/addressBookDedupe';
+import {
+  deleteOtherAddressBookRowsForUser,
+  deleteOtherPersonalRowsSamePhone,
+  getDuplicateDropContactIdsFromDbRows,
+} from '@/lib/server/addressBookDedupe';
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,7 +26,7 @@ export async function GET(req: NextRequest) {
     const rows = await prisma.addressBookContact.findMany({
       orderBy: { updatedAt: 'desc' },
     });
-    const drop = getDuplicateDropContactIds(rows);
+    const drop = getDuplicateDropContactIdsFromDbRows(rows);
     if (drop.size > 0) {
       await prisma.addressBookContact.deleteMany({
         where: { contactId: { in: [...drop] } },
@@ -127,6 +131,10 @@ export async function POST(req: NextRequest) {
       create: { contactId, linkedUserId, data: raw as object },
       update: { data: raw as object, linkedUserId, updatedAt: new Date() },
     });
+
+    if (raw.phone) {
+      await deleteOtherPersonalRowsSamePhone(contactId, raw.phone);
+    }
 
     return NextResponse.json(raw);
   } catch (e) {
