@@ -11,6 +11,7 @@ import { shortenUserSerial } from '@/lib/utils/serialNumber';
 import {
   createContact,
   getContactForUser,
+  mergeServerContactIntoLocalStorage,
   isAuthorizedRepresentative,
   getLinkedCompanyName,
   getLinkedRepPosition,
@@ -144,7 +145,9 @@ export default function UserDetailPage() {
   const [resetResult, setResetResult] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
   const [addingToAddressBook, setAddingToAddressBook] = useState(false);
   const [openingAsUser, setOpeningAsUser] = useState(false);
-  const [, setAddressBookBump] = useState(0);
+  const [addressBookBump, setAddressBookBump] = useState(0);
+  /** من الخادم — نفس مصدر «حسابي»؛ لا يعتمد على localStorage للمدير فقط */
+  const [linkedProfile, setLinkedProfile] = useState<Contact | null>(null);
 
   useEffect(() => {
     const h = () => setAddressBookBump((x) => x + 1);
@@ -152,12 +155,50 @@ export default function UserDetailPage() {
     return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, h);
   }, []);
 
-  const contact: Contact | null = user
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    let cancelled = false;
+    setLinkedProfile(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/users/${uid}/linked-contact`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (cancelled) return;
+        if (res.status === 401 || res.status === 404) {
+          setLinkedProfile(null);
+          return;
+        }
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (data && typeof data === 'object' && data.id) {
+          const co = data as Contact;
+          mergeServerContactIntoLocalStorage(co);
+          setLinkedProfile(co);
+        } else {
+          setLinkedProfile(null);
+        }
+      } catch {
+        if (!cancelled) setLinkedProfile(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, addressBookBump]);
+
+  const contactLocal: Contact | null = user
     ? (() => {
         const found = getContactForUser({ id: user.id, email: user.email, phone: user.phone });
         return found && typeof found === 'object' && 'id' in found && (found as Contact).id ? (found as Contact) : null;
       })()
     : null;
+
+  const contact: Contact | null =
+    linkedProfile && linkedProfile.id ? linkedProfile : contactLocal;
   const isInAddressBook = !!contact;
   const isCompany = contact ? (contact.contactType === 'COMPANY' || !!contact.companyData) : false;
 

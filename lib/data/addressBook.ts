@@ -559,20 +559,15 @@ export function contactRevisionMs(c: Pick<Contact, 'updatedAt' | 'createdAt'>): 
 }
 
 /**
- * دمج قائمة GET /api/address-book مع localStorage: لكل `id` تُؤخذ النسخة الأحدث حسب `updatedAt`
- * (يمنع استبدال تعديلات «حسابي» بنسخة قديمة من الخادم).
+ * دمج GET /api/address-book مع localStorage:
+ * — أي جهة وُجدت في استجابة الخادم تُؤخذ **من الخادم فقط** (مصدر الحقيقي بين الأجهزة؛ يمنع بقاء نسخة قديمة في متصفح المدير بعد حفظ العميل من «حسابي»).
+ * — الجهات الموجودة محلياً فقط (غير مرفوعة بعد) تُضاف كما هي.
  */
 export function mergeAddressBookApiWithLocal(apiList: Contact[], localList: Contact[]): Contact[] {
-  const localById = new Map(localList.map((c) => [c.id, c]));
   const merged: Contact[] = [];
   const seen = new Set<string>();
   for (const apiC of apiList) {
-    const localC = localById.get(apiC.id);
-    if (localC) {
-      merged.push(contactRevisionMs(localC) >= contactRevisionMs(apiC) ? localC : apiC);
-    } else {
-      merged.push(apiC);
-    }
+    merged.push(apiC);
     seen.add(apiC.id);
   }
   for (const localC of localList) {
