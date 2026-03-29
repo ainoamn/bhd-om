@@ -134,6 +134,13 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     };
   }, []);
 
+  /** استقرار الجلسة فوراً عندما يوفّر useSession المستخدم — لا ننتظر getSession() وحدها (يقلل وميض القائمة/الدور) */
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      setSessionFetchSettled(true);
+    }
+  }, [status, session]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (status !== 'unauthenticated') return;
@@ -166,8 +173,17 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const t = useTranslations('admin.nav');
   const { hasUserBar } = useUserBar();
   const userRole = (currentSession?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
+  const hasResolvedRole = userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER';
   const isNonAdmin = userRole === 'CLIENT' || userRole === 'OWNER';
-  const isAdminConfirmed = !isImpersonating && status === 'authenticated' && userRole === 'ADMIN';
+  /**
+   * كان يُشترط status === 'authenticated' فقط؛ بينما getSession() يملأ peekSession أحياناً قبل أن يتحول useSession من loading.
+   * فيُعرض RoleBasedSidebar للأدمن لثوانٍ ثم القائمة الكاملة. نعتبر الأدمن مؤكداً إن كان الدور ADMIN والجلسة معروفة ولم نكن unauthenticated.
+   */
+  const isAdminConfirmed =
+    !isImpersonating &&
+    userRole === 'ADMIN' &&
+    status !== 'unauthenticated' &&
+    (status === 'authenticated' || (status === 'loading' && sessionFetchSettled && !!currentSession?.user));
   const userName = (currentSession?.user as { name?: string })?.name || (currentSession?.user as { serialNumber?: string })?.serialNumber || (currentSession?.user as { email?: string })?.email || (currentSession?.user as { phone?: string })?.phone || '—';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -255,7 +271,8 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     }
   }, [status, isNonAdmin, pathname, locale, router]);
 
-  const effectiveRole = userRole && (userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER') ? userRole : 'CLIENT';
+  const effectiveRole: 'ADMIN' | 'CLIENT' | 'OWNER' =
+    userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER' ? userRole : 'CLIENT';
 
   const contactDashboardType = useMemo(() => {
     if (!currentSession?.user || effectiveRole === 'ADMIN') return undefined;
@@ -288,12 +305,13 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   };
 
   // أثناء جلب الجلسة: لا نعرض شاشة الدخول حتى يستقر useSession أو يكتمل getSession() (يُصلح التأخير الطويل على الإنتاج).
+  // إن وُجد مستخدم في الجلسة لكن الدور لم يُحل بعد أثناء loading — لا نعرض لوحة افتراضية خاطئة (مثلاً CLIENT).
   const showSessionLoading =
     isAdminPath &&
     !isImpersonating &&
     !mockSession &&
-    !currentSession &&
-    (status === 'loading' || !sessionFetchSettled);
+    ((!currentSession && (status === 'loading' || !sessionFetchSettled)) ||
+      (!!currentSession?.user && !hasResolvedRole && status === 'loading'));
 
   // بعد استقرار الجلب: إن لم تكن هناك جلسة فعلاً نعرض طلب الدخول.
   const showLoginRequired =
