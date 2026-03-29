@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — الدليل التقني الشامل «اقرأني» + ربط الجلسات
+
+- **ما تم:** إنشاء `docs/اقرأني-الدليل-التقني-الشامل.md` كنقطة دخول للطبقات، الربط، الصيانة، المخاطر، وديون تقنية معروفة؛ تحديث `SESSION-START.md`, `SESSION-END.md`, `SITE-SCENARIOS-AND-LINKS.md`, `README.md`, `.cursor/rules/session-context.mdc` للإشارة إليه.
+- **الملفات:** `docs/اقرأني-الدليل-التقني-الشامل.md` والملفات المذكورة أعلاه
+
 ### جلسة 2026-03-29 — /admin/data: تصفير الخادم + PIN + نسخ احتياطي/استعادة
 
 - **ما تم:** صفحة `admin/data` تستدعي `POST /api/admin/data/reset` (تنفيذ `executeResetKeepProperties`) مع `ADMIN_DATA_RESET_PIN`؛ `POST /api/admin/data/backup` لتنزيل لقطة JSON؛ `POST /api/admin/data/restore` برفع ملف. منطق مشترك في `lib/server/dataResetKeepProperties.ts` و`dataBackupSnapshot.ts` و`adminDataPin.ts`. `.env.example` يذكر المتغير.
