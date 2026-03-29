@@ -208,6 +208,8 @@ export interface Contact {
   archivedAt?: string;
   /** معرف المستخدم في النظام (Prisma User) - عند ربط الجهة بحساب مستخدم */
   userId?: string;
+  /** يطابق عمود linkedUserId في قاعدة البيانات — يُعبأ من GET /api/address-book للتمييز في الدمج */
+  linkedUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -570,16 +572,25 @@ export function contactRevisionMs(c: Pick<Contact, 'updatedAt' | 'createdAt'>): 
  * دمج GET /api/address-book مع localStorage:
  * — أي جهة وُجدت في استجابة الخادم تُؤخذ **من الخادم فقط** (مصدر الحقيقي بين الأجهزة؛ يمنع بقاء نسخة قديمة في متصفح المدير بعد حفظ العميل من «حسابي»).
  * — الجهات الموجودة محلياً فقط (غير مرفوعة بعد) تُضاف كما هي.
+ * — إذا وُجد في الخادم صف لـ userId معيّن، لا تُضاف نسخة محلية أخرى بنفس userId ومعرف CNT مختلف (شبح يخالف «حسابي»).
  */
 export function mergeAddressBookApiWithLocal(apiList: Contact[], localList: Contact[]): Contact[] {
   const merged: Contact[] = [];
   const seen = new Set<string>();
+  const apiUserIds = new Set<string>();
   for (const apiC of apiList) {
     merged.push(apiC);
     seen.add(apiC.id);
+    const u = apiC.userId?.trim();
+    if (u) apiUserIds.add(u);
   }
   for (const localC of localList) {
-    if (!seen.has(localC.id)) merged.push(localC);
+    if (seen.has(localC.id)) continue;
+    const uid = localC.userId?.trim();
+    if (uid && apiUserIds.has(uid)) {
+      continue;
+    }
+    merged.push(localC);
   }
   return dedupeContactsList(merged);
 }

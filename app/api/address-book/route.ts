@@ -61,6 +61,8 @@ export async function GET(req: NextRequest) {
         if (uid && serialByUser.has(uid)) {
           c.serialNumber = serialByUser.get(uid);
         }
+        /** يُمرَّر للواجهة ليتوافق الدمج المحلي مع منطق Prisma (صف مرتبط بحساب) */
+        c.linkedUserId = r.linkedUserId ?? null;
         return c;
       })
       .filter((c): c is Record<string, unknown> => c != null);

@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     const data = { ...((row.data as Record<string, unknown>) || {}) };
     data.serialNumber = user.serialNumber;
     data.userId = sub;
+    data.linkedUserId = row.linkedUserId ?? sub;
     return NextResponse.json(data);
   } catch (e) {
     console.error('linked-contact GET error:', e);
@@ -162,6 +163,7 @@ export async function PATCH(req: NextRequest) {
     await deleteOtherPersonalRowsSamePhone(contactId, merged.phone);
 
     merged.serialNumber = user.serialNumber;
+    merged.linkedUserId = sub;
     return NextResponse.json(merged);
   } catch (e) {
     console.error('linked-contact PATCH error:', e);

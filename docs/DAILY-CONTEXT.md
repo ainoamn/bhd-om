@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — توحيد دفتر الإدارة مع قاعدة البيانات و«حسابي»
+
+- **السبب:** الدمج `mergeAddressBookApiWithLocal` كان يضيف صفاً محلياً بنفس `userId` ومعرف `CNT` مختلف عن صف الخادم، فيظهر للمدير بيانات تختلف عن `/api/user/linked-contact`. كما أن `linkedUserId` من Prisma لم يكن يُمرَّر في GET دفتر العناوين ففقد الدمج المحلي إشارة الصف المرتبط بالحساب.
+- **ما تم:** تخطي أي جهة محلية لها `userId` موجود أصلاً في استجابة GET؛ إرجاع `linkedUserId` في `GET/POST` دفتر العناوين؛ `GET/PATCH` linked-contact يضيفان `linkedUserId`؛ في `dedupeContactsList` استخدام `userId` كبديل لـ `linkedUserId` عند غياب العمود في الكائن.
+- **الملفات:** `lib/data/addressBook.ts`, `lib/data/addressBookDedupeShared.ts`, `app/api/address-book/route.ts`, `app/api/user/linked-contact/route.ts`
+
 ### جلسة 2026-03-29 — دفتر العناوين vs حسابي: منع الشبح والتكرار
 
 - **ما تم:** عند نجاح `GET /api/address-book` لا يُرفع عند التحميل صف موجود في الـ API؛ لا يُعاد إنشاء صف محلي له `userId` غير ظاهر في استجابة الخادم (شبح بعد الدمج/الحذف). بعد الجلب الثاني: تصفية المحلي لإسقاط صفوف `userId` بـ `id` غير موجود في مجموعة معرفات السيرفر (عندما المجموعة غير فارغة). بعد `syncBookingContactsToAddressBook` استدعاء `rewriteLocalAddressBookDeduped()` لدمج التكرار محلياً.

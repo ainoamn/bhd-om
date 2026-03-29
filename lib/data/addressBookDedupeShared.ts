@@ -121,16 +121,20 @@ export function getDuplicateDropContactIds(rows: AddressBookDedupeRow[]): Set<st
   return drop;
 }
 
-export function dedupeContactsList<T extends { id: string; updatedAt?: string; createdAt?: string; linkedUserId?: string | null }>(
+export function dedupeContactsList<T extends { id: string; updatedAt?: string; createdAt?: string; linkedUserId?: string | null; userId?: string }>(
   contacts: T[]
 ): T[] {
   if (contacts.length <= 1) return contacts;
-  const rows: AddressBookDedupeRow[] = contacts.map((c) => ({
-    contactId: c.id,
-    linkedUserId: typeof c.linkedUserId === 'string' && c.linkedUserId ? c.linkedUserId : null,
-    data: c,
-    updatedAt: new Date((c.updatedAt || c.createdAt || '').trim() || Date.now()),
-  }));
+  const rows: AddressBookDedupeRow[] = contacts.map((c) => {
+    const fromCol = typeof c.linkedUserId === 'string' && c.linkedUserId ? c.linkedUserId : null;
+    const fromJson = typeof c.userId === 'string' && c.userId.trim() ? c.userId.trim() : '';
+    return {
+      contactId: c.id,
+      linkedUserId: fromCol ?? (fromJson || null),
+      data: c,
+      updatedAt: new Date((c.updatedAt || c.createdAt || '').trim() || Date.now()),
+    };
+  });
   const drop = getDuplicateDropContactIds(rows);
   return contacts.filter((c) => !drop.has(c.id));
 }
