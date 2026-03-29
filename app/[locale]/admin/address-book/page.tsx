@@ -49,7 +49,8 @@ import {
 import { getContactLinkedBookings, getContactLinkedContracts, getContactLinkedBookingDocuments, isContactLinked, getContactDerivedCategories, type ContactLinkedBooking, type ContactLinkedContract } from '@/lib/data/contactLinks';
 import { syncBookingContactsToAddressBook } from '@/lib/data/bookings';
 import TranslateField from '@/components/admin/TranslateField';
-import { getAllNationalityValues } from '@/lib/data/nationalities';
+import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
+import { getNationalitySelectOptions, normalizeNationalityToArabic } from '@/lib/data/nationalities';
 import { siteConfig } from '@/config/site';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import DateInput from '@/components/shared/DateInput';
@@ -1658,20 +1659,27 @@ export default function AdminAddressBookPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('nationality')} *</label>
-                  <input
-                    type="text"
-                    list="nationalities"
+                  <select
                     required
-                    value={form.nationality}
+                    value={normalizeNationalityToArabic(form.nationality)}
                     onChange={(e) => setForm({ ...form, nationality: e.target.value })}
-                    className={`admin-input w-full ${getRequiredFieldClass('nationality')}`}
-                    placeholder={t('nationalityPlaceholder')}
-                  />
-                  <datalist id="nationalities">
-                    {getAllNationalityValues(locale).map((val) => (
-                      <option key={val} value={val} />
+                    className={`admin-select w-full ${getRequiredFieldClass('nationality')}`}
+                  >
+                    <option value="">{t('nationalityPlaceholder')}</option>
+                    {getNationalitySelectOptions(locale).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
                     ))}
-                  </datalist>
+                    {(() => {
+                      const natAr = normalizeNationalityToArabic(form.nationality);
+                      const opts = getNationalitySelectOptions(locale);
+                      if (natAr && !opts.some((o) => o.value === natAr)) {
+                        return <option value={natAr}>{natAr}</option>;
+                      }
+                      return null;
+                    })()}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{t('gender')}</label>
@@ -1752,29 +1760,13 @@ export default function AdminAddressBookPage() {
                     ))}
                   </select>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <TranslateField
-                    label={t('address') + ' (عربي) *'}
-                    value={form.address?.fullAddress || ''}
-                    onChange={(v) => setForm({ ...form, address: { ...form.address, fullAddress: v } })}
-                    sourceValue={form.address?.fullAddressEn}
-                    onTranslateFromSource={(v) => setForm({ ...form, address: { ...form.address, fullAddress: v } })}
-                    translateFrom="en"
-                    locale={locale}
-                    inputErrorClass={getRequiredFieldClass('address')}
-                  />
-                  <TranslateField
-                    label={t('address') + ' (EN) *'}
-                    value={form.address?.fullAddressEn || ''}
-                    onChange={(v) => setForm({ ...form, address: { ...form.address, fullAddressEn: v } })}
-                    sourceValue={form.address?.fullAddress}
-                    onTranslateFromSource={(v) => setForm({ ...form, address: { ...form.address, fullAddressEn: v } })}
-                    translateFrom="ar"
-                    locale={locale}
-                    inputErrorClass={getRequiredFieldClass('address')}
-                  />
-                </div>
               </div>
+              <OmanContactAddressFields
+                address={form.address || emptyAddress}
+                onChange={(next) => setForm({ ...form, address: next })}
+                locale={locale}
+                inputErrorClass={getRequiredFieldClass('address')}
+              />
               <div>
                 <TranslateField
                   label={t('notes')}
@@ -2023,12 +2015,30 @@ export default function AdminAddressBookPage() {
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">{t('nationality')} *</label>
-                          <input list="nationalities-rep" value={rep.nationality || ''} onChange={(e) => {
-                            const arr = [...form.authorizedRepresentatives];
-                            arr[idx] = { ...arr[idx], nationality: e.target.value };
-                            setForm({ ...form, authorizedRepresentatives: arr });
-                          }} className={`admin-input w-full text-sm ${getFieldErrorClass(`rep_${idx}_nationality`)}`} placeholder={t('nationalityPlaceholder')} />
-                          <datalist id="nationalities-rep">{getAllNationalityValues(locale).map((v) => <option key={v} value={v} />)}</datalist>
+                          <select
+                            value={normalizeNationalityToArabic(rep.nationality || '')}
+                            onChange={(e) => {
+                              const arr = [...form.authorizedRepresentatives];
+                              arr[idx] = { ...arr[idx], nationality: e.target.value };
+                              setForm({ ...form, authorizedRepresentatives: arr });
+                            }}
+                            className={`admin-select w-full text-sm ${getFieldErrorClass(`rep_${idx}_nationality`)}`}
+                          >
+                            <option value="">{t('nationalityPlaceholder')}</option>
+                            {getNationalitySelectOptions(locale).map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                            {(() => {
+                              const natAr = normalizeNationalityToArabic(rep.nationality || '');
+                              const opts = getNationalitySelectOptions(locale);
+                              if (natAr && !opts.some((o) => o.value === natAr)) {
+                                return <option value={natAr}>{natAr}</option>;
+                              }
+                              return null;
+                            })()}
+                          </select>
                         </div>
                         {isOmaniNationality(rep.nationality || '') ? (
                           <>
@@ -2107,10 +2117,12 @@ export default function AdminAddressBookPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <TranslateField label={t('address') + ' (عربي)'} value={form.address?.fullAddress || ''} onChange={(v) => setForm({ ...form, address: { ...form.address, fullAddress: v } })} sourceValue={form.address?.fullAddressEn} onTranslateFromSource={(v) => setForm({ ...form, address: { ...form.address, fullAddress: v } })} translateFrom="en" locale={locale} />
-                <TranslateField label={t('address') + ' (EN)'} value={form.address?.fullAddressEn || ''} onChange={(v) => setForm({ ...form, address: { ...form.address, fullAddressEn: v } })} sourceValue={form.address?.fullAddress} onTranslateFromSource={(v) => setForm({ ...form, address: { ...form.address, fullAddressEn: v } })} translateFrom="ar" locale={locale} />
-              </div>
+              <OmanContactAddressFields
+                address={form.address || emptyAddress}
+                onChange={(next) => setForm({ ...form, address: next })}
+                locale={locale}
+                inputErrorClass={getRequiredFieldClass('address')}
+              />
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">{t('tags')}</label>
                 <input type="text" value={form.tags?.join(', ') || ''} onChange={(e) => setForm({ ...form, tags: e.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} className="admin-input w-full" placeholder={t('tagsPlaceholder')} />

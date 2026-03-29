@@ -25,6 +25,8 @@ import DateInput from '@/components/shared/DateInput';
 import UnifiedPaymentForm from '@/components/shared/UnifiedPaymentForm';
 import { openReceiptPrintWindow } from '@/lib/utils/receiptPrint';
 import TranslateField from '@/components/admin/TranslateField';
+import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
+import { getNationalitySelectOptions, normalizeNationalityToArabic } from '@/lib/data/nationalities';
 
 type PlanInfo = { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency: string; features?: string[] };
 type SubHistoryItem = {
@@ -575,7 +577,26 @@ export default function MyAccountPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الجنسية' : 'Nationality'}</label>
-                  <input type="text" value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} className="admin-input w-full" />
+                  <select
+                    value={normalizeNationalityToArabic(form.nationality)}
+                    onChange={(e) => setForm({ ...form, nationality: e.target.value })}
+                    className="admin-select w-full"
+                  >
+                    <option value="">{ar ? 'اختر الجنسية' : 'Select nationality'}</option>
+                    {getNationalitySelectOptions(locale).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                    {(() => {
+                      const natAr = normalizeNationalityToArabic(form.nationality);
+                      const opts = getNationalitySelectOptions(locale);
+                      if (natAr && !opts.some((o) => o.value === natAr)) {
+                        return <option value={natAr}>{natAr}</option>;
+                      }
+                      return null;
+                    })()}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الجنس' : 'Gender'}</label>
@@ -612,54 +633,12 @@ export default function MyAccountPage() {
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'المنصب' : 'Position'}</label>
                   <input type="text" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} className="admin-input w-full" />
                 </div>
-                <div className="sm:col-span-2 rounded-xl border border-stone-200 bg-stone-50/80 p-4 space-y-3">
-                  <p className="text-sm font-bold text-gray-800 m-0">{ar ? 'العنوان — نفس حقول دفتر العناوين' : 'Address — same fields as address book'}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(
-                      [
-                        ['governorate', ar ? 'المحافظة' : 'Governorate'],
-                        ['state', ar ? 'الولاية / المنطقة' : 'State / area'],
-                        ['area', ar ? 'المنطقة التفصيلية' : 'Area'],
-                        ['village', ar ? 'القرية / المكان' : 'Village'],
-                        ['street', ar ? 'السكة / الشارع' : 'Street'],
-                        ['building', ar ? 'المبنى' : 'Building'],
-                        ['floor', ar ? 'الطابق' : 'Floor'],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <div key={key}>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
-                        <input
-                          type="text"
-                          value={(form.address as Record<string, string | undefined>)[key] ?? ''}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              address: { ...form.address, [key]: e.target.value },
-                            })
-                          }
-                          className="admin-input w-full"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'العنوان الكامل (عربي) *' : 'Full address (AR) *'}</label>
-                    <textarea
-                      value={form.address.fullAddress ?? ''}
-                      onChange={(e) => setForm({ ...form, address: { ...form.address, fullAddress: e.target.value } })}
-                      className="admin-input w-full"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'العنوان الكامل (إنجليزي)' : 'Full address (EN)'}</label>
-                    <textarea
-                      value={form.address.fullAddressEn ?? ''}
-                      onChange={(e) => setForm({ ...form, address: { ...form.address, fullAddressEn: e.target.value } })}
-                      className="admin-input w-full"
-                      rows={2}
-                    />
-                  </div>
+                <div className="sm:col-span-2">
+                  <OmanContactAddressFields
+                    address={form.address}
+                    onChange={(next) => setForm({ ...form, address: next })}
+                    locale={locale}
+                  />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'ملاحظات' : 'Notes'}</label>

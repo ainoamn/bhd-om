@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — حسابي ودفتر العناوين: جنسيات كاملة + عنوان عمان متسلسل + ترجمة العنوان
+
+- **ما تم:** قائمة `<select>` لجميع الجنسيات من `NATIONALITIES` (قيمة مخزّنة بالعربي). مكوّن `OmanContactAddressFields` يستخدم `omanLocations` كـ PropertyForm (محافظة → ولاية → منطقة/قرية من القائمة → قرية/مكان نصي + شارع/مبنى/طابق)، يولّد «العنوان الكامل (عربي)» تلقائياً مع إمكانية التعديل، وترجمة تلقائية AR↔EN عبر `/api/translate`. تطبيق في `my-account` و`address-book` (شخصي وشركة ومفوضين).
+- **الملفات:** `components/admin/OmanContactAddressFields.tsx`, `lib/data/nationalities.ts`, `app/[locale]/admin/my-account/page.tsx`, `app/[locale]/admin/address-book/page.tsx`
+
 ### جلسة 2026-03-29 — حسابي: ترجمة تلقائية للاسم الإنجليزي
 
 - **ما تم:** استخدام `TranslateField` لحقل الاسم (إنجليزي) مع زر «ترجمة من العربي» يعتمد `/api/translate` ودمج أجزاء الاسم العربي كمصدر.

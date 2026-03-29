@@ -212,3 +212,18 @@ export function getAllNationalityValues(locale?: string): string[] {
   });
   return Array.from(values).sort((a, b) => a.localeCompare(b, locale === 'ar' ? 'ar' : 'en'));
 }
+
+/** خيارات `<select>` للجنسية: القيمة المخزّنة دائماً بالعربي (للتوافق مع isOmaniNationality) */
+export function getNationalitySelectOptions(locale: string): { value: string; label: string }[] {
+  return [...NATIONALITIES]
+    .sort((a, b) => a.ar.localeCompare(b.ar, 'ar'))
+    .map((n) => ({ value: n.ar, label: locale === 'ar' ? n.ar : n.en }));
+}
+
+/** مطابقة قيمة محفوظة قد تكون عربي أو إنجليزي مع السجل الرسمي */
+export function normalizeNationalityToArabic(stored: string | undefined): string {
+  const t = (stored || '').trim();
+  if (!t) return '';
+  const hit = NATIONALITIES.find((n) => n.ar === t || n.en === t);
+  return hit ? hit.ar : t;
+}
