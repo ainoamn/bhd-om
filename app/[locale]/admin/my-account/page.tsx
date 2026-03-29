@@ -204,7 +204,7 @@ export default function MyAccountPage() {
       miss.push(ar ? 'الجنسية' : 'Nationality');
     }
     if (!contactAddressHasUsableContent(form.address)) {
-      miss.push(ar ? 'العنوان' : 'Address');
+      miss.push(ar ? 'العنوان (المحافظة، الولاية، المنطقة التفصيلية)' : 'Address (governorate, state, detailed area)');
     }
     if (!form.firstName?.trim()) miss.push(ar ? 'الاسم الأول' : 'First name');
     if (!form.secondName?.trim()) miss.push(ar ? 'الاسم الثاني' : 'Second name');

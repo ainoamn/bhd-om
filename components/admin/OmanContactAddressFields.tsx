@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { omanLocations } from '@/lib/data/omanLocations';
 import type { ContactAddress } from '@/lib/data/addressBook';
+import { getRequiredFieldClass } from '@/lib/utils/requiredFields';
 
 export function buildContactAddressLine(parts: ContactAddress): string {
   return [parts.governorate, parts.state, parts.area, parts.village, parts.street, parts.building, parts.floor]
@@ -152,13 +153,18 @@ export default function OmanContactAddressFields({
         </span>
         {ar ? 'العنوان (سلطنة عمان — نفس بيانات العقارات)' : 'Address (Oman — same data as properties)'}
       </h4>
+      <p className="text-xs text-gray-600 m-0 -mt-1">
+        {ar
+          ? 'إجباري: المحافظة، الولاية، المنطقة التفصيلية. اختياري: القرية، الشارع، المبنى، الطابق.'
+          : 'Required: governorate, state, detailed area. Optional: village, street, building, floor.'}
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <div>
-          <label className={labelCls}>{ar ? 'المحافظة' : 'Governorate'}</label>
+          <label className={labelCls}>{ar ? 'المحافظة *' : 'Governorate *'}</label>
           <select
             value={gov}
             onChange={(e) => onGovernorate(e.target.value)}
-            className="admin-select w-full"
+            className={`admin-select w-full ${getRequiredFieldClass(true, gov)}`}
           >
             <option value="">{ar ? 'اختر المحافظة' : 'Select governorate'}</option>
             {omanLocations.map((g) => (
@@ -169,11 +175,11 @@ export default function OmanContactAddressFields({
           </select>
         </div>
         <div>
-          <label className={labelCls}>{ar ? 'الولاية / المنطقة' : 'State / area'}</label>
+          <label className={labelCls}>{ar ? 'الولاية / المنطقة *' : 'State / area *'}</label>
           <select
             value={st}
             onChange={(e) => onState(e.target.value)}
-            className="admin-select w-full"
+            className={`admin-select w-full ${getRequiredFieldClass(!!gov, st)}`}
             disabled={!gov}
           >
             <option value="">{ar ? 'اختر الولاية' : 'Select state'}</option>
@@ -185,11 +191,11 @@ export default function OmanContactAddressFields({
           </select>
         </div>
         <div>
-          <label className={labelCls}>{ar ? 'المنطقة التفصيلية' : 'Detailed area'}</label>
+          <label className={labelCls}>{ar ? 'المنطقة التفصيلية *' : 'Detailed area *'}</label>
           <select
             value={address.area || ''}
             onChange={(e) => onArea(e.target.value)}
-            className="admin-select w-full"
+            className={`admin-select w-full ${getRequiredFieldClass(!!st, address.area)}`}
             disabled={!st}
           >
             <option value="">{ar ? 'اختر المنطقة / القرية' : 'Select area / village'}</option>
@@ -201,7 +207,7 @@ export default function OmanContactAddressFields({
           </select>
         </div>
         <div>
-          <label className={labelCls}>{ar ? 'القرية / المكان' : 'Village / place'}</label>
+          <label className={labelCls}>{ar ? 'القرية / المكان (اختياري)' : 'Village / place (optional)'}</label>
           <input
             type="text"
             value={address.village ?? ''}
@@ -213,7 +219,7 @@ export default function OmanContactAddressFields({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className={labelCls}>{ar ? 'السكة / الشارع' : 'Street'}</label>
+          <label className={labelCls}>{ar ? 'السكة / الشارع (اختياري)' : 'Street (optional)'}</label>
           <input
             type="text"
             value={address.street ?? ''}
@@ -222,7 +228,7 @@ export default function OmanContactAddressFields({
           />
         </div>
         <div>
-          <label className={labelCls}>{ar ? 'المبنى' : 'Building'}</label>
+          <label className={labelCls}>{ar ? 'المبنى (اختياري)' : 'Building (optional)'}</label>
           <input
             type="text"
             value={address.building ?? ''}
@@ -231,7 +237,7 @@ export default function OmanContactAddressFields({
           />
         </div>
         <div>
-          <label className={labelCls}>{ar ? 'الطابق' : 'Floor'}</label>
+          <label className={labelCls}>{ar ? 'الطابق (اختياري)' : 'Floor (optional)'}</label>
           <input
             type="text"
             value={address.floor ?? ''}
@@ -241,7 +247,7 @@ export default function OmanContactAddressFields({
         </div>
       </div>
       <div>
-        <label className={labelCls}>{ar ? 'العنوان الكامل (عربي) *' : 'Full address (AR) *'}</label>
+        <label className={labelCls}>{ar ? 'العنوان الكامل (عربي)' : 'Full address (AR)'}</label>
         <textarea
           value={address.fullAddress ?? ''}
           onChange={(e) => onFullArChange(e.target.value)}

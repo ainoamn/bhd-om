@@ -28,12 +28,13 @@ export interface ContactAddress {
   fullAddressEn?: string;
 }
 
-/** عنوان قابل للاستخدام: نص كامل أو أي حقل هيكلي (محافظة، ولاية، …) */
+/**
+ * عنوان عمان صالح للحفظ/العقود: المحافظة + الولاية + المنطقة التفصيلية إجبارية.
+ * القرية والشارع والمبنى والطابق اختيارية.
+ */
 export function contactAddressHasUsableContent(addr?: ContactAddress | null): boolean {
   if (!addr) return false;
-  if (addr.fullAddress?.trim() || addr.fullAddressEn?.trim()) return true;
-  const keys: (keyof ContactAddress)[] = ['governorate', 'state', 'area', 'village', 'street', 'building', 'floor'];
-  return keys.some((k) => String(addr[k] ?? '').trim().length > 0);
+  return !!(addr.governorate?.trim() && addr.state?.trim() && addr.area?.trim());
 }
 
 export type ContactGender = 'MALE' | 'FEMALE';
