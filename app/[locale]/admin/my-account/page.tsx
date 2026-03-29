@@ -28,6 +28,7 @@ import { openReceiptPrintWindow } from '@/lib/utils/receiptPrint';
 import TranslateField from '@/components/admin/TranslateField';
 import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
 import { getNationalitySelectOptions, normalizeNationalityToArabic } from '@/lib/data/nationalities';
+import { getRequiredFieldClass } from '@/lib/utils/requiredFields';
 
 type PlanInfo = { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency: string; features?: string[] };
 type SubHistoryItem = {
@@ -493,6 +494,14 @@ export default function MyAccountPage() {
   const fullContact = contact && 'id' in contact && contact.id ? (contact as Contact) : null;
   const addressDisplay = fullContact ? formatAddress(fullContact.address) : '—';
 
+  const fullPhoneDigits = `${form.phoneCountryCode || ''}${(form.phone || '').replace(/\D/g, '')}`;
+  const phoneMeetsMin = fullPhoneDigits.replace(/\D/g, '').length >= 8;
+  const addrOkVisual = contactAddressHasUsableContent(form.address);
+  const nationalityTrim = form.nationality?.trim() || '';
+  const omaniNat = isOmaniNationality(nationalityTrim);
+  const reqCivil = omaniNat;
+  const reqPassport = Boolean(nationalityTrim) && !omaniNat;
+
   return (
     <div className="admin-main-inner space-y-6">
       <AdminPageHeader title={title} subtitle={ar ? 'بيانات حسابك وباقتك' : 'Your account details and plan'} />
@@ -535,8 +544,13 @@ export default function MyAccountPage() {
           {editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم الأول' : 'First name'}</label>
-                  <input type="text" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="admin-input w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم الأول *' : 'First name *'}</label>
+                  <input
+                    type="text"
+                    value={form.firstName}
+                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    className={`admin-input w-full ${getRequiredFieldClass(true, form.firstName)}`}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم الثاني' : 'Second name'}</label>
@@ -547,8 +561,13 @@ export default function MyAccountPage() {
                   <input type="text" value={form.thirdName} onChange={(e) => setForm({ ...form, thirdName: e.target.value })} className="admin-input w-full" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'اسم العائلة' : 'Family name'}</label>
-                  <input type="text" value={form.familyName} onChange={(e) => setForm({ ...form, familyName: e.target.value })} className="admin-input w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'اسم العائلة *' : 'Family name *'}</label>
+                  <input
+                    type="text"
+                    value={form.familyName}
+                    onChange={(e) => setForm({ ...form, familyName: e.target.value })}
+                    className={`admin-input w-full ${getRequiredFieldClass(true, form.familyName)}`}
+                  />
                 </div>
                 <div className="sm:col-span-2">
                   <TranslateField
@@ -562,14 +581,30 @@ export default function MyAccountPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'البريد الإلكتروني' : 'Email'}</label>
-                  <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="admin-input w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'البريد الإلكتروني *' : 'Email *'}</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className={`admin-input w-full ${getRequiredFieldClass(true, form.email)}`}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الهاتف' : 'Phone'}</label>
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الهاتف *' : 'Phone *'}</label>
                   <div className="flex gap-2">
-                    <PhoneCountryCodeSelect value={form.phoneCountryCode} onChange={(code) => setForm({ ...form, phoneCountryCode: code })} locale={locale as 'ar' | 'en'} />
-                    <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="admin-input flex-1" placeholder="12345678" />
+                    <PhoneCountryCodeSelect
+                      value={form.phoneCountryCode}
+                      onChange={(code) => setForm({ ...form, phoneCountryCode: code })}
+                      locale={locale as 'ar' | 'en'}
+                      selectClassName={getRequiredFieldClass(true, phoneMeetsMin ? 'ok' : '')}
+                    />
+                    <input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      className={`admin-input flex-1 ${getRequiredFieldClass(true, phoneMeetsMin ? 'ok' : '')}`}
+                      placeholder="12345678"
+                    />
                   </div>
                 </div>
                 <div className="sm:col-span-2">
@@ -577,11 +612,11 @@ export default function MyAccountPage() {
                   <input type="tel" value={form.phoneSecondary} onChange={(e) => setForm({ ...form, phoneSecondary: e.target.value })} className="admin-input w-full" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الجنسية' : 'Nationality'}</label>
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الجنسية *' : 'Nationality *'}</label>
                   <select
                     value={normalizeNationalityToArabic(form.nationality)}
                     onChange={(e) => setForm({ ...form, nationality: e.target.value })}
-                    className="admin-select w-full"
+                    className={`admin-select w-full ${getRequiredFieldClass(true, form.nationality)}`}
                   >
                     <option value="">{ar ? 'اختر الجنسية' : 'Select nationality'}</option>
                     {getNationalitySelectOptions(locale).map((o) => (
@@ -600,27 +635,59 @@ export default function MyAccountPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الجنس' : 'Gender'}</label>
-                  <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value as 'MALE' | 'FEMALE' })} className="admin-select w-full">
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الجنس *' : 'Gender *'}</label>
+                  <select
+                    value={form.gender}
+                    onChange={(e) => setForm({ ...form, gender: e.target.value as 'MALE' | 'FEMALE' })}
+                    className={`admin-select w-full ${getRequiredFieldClass(true, form.gender)}`}
+                  >
                     <option value="MALE">{ar ? 'ذكر' : 'Male'}</option>
                     <option value="FEMALE">{ar ? 'أنثى' : 'Female'}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الرقم المدني' : 'Civil ID'}</label>
-                  <input type="text" value={form.civilId} onChange={(e) => setForm({ ...form, civilId: e.target.value })} className="admin-input w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">
+                    {ar ? `الرقم المدني${reqCivil ? ' *' : ''}` : `Civil ID${reqCivil ? ' *' : ''}`}
+                  </label>
+                  <input
+                    type="text"
+                    value={form.civilId}
+                    onChange={(e) => setForm({ ...form, civilId: e.target.value })}
+                    className={`admin-input w-full ${getRequiredFieldClass(reqCivil, form.civilId)}`}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'انتهاء الرقم المدني' : 'Civil ID expiry'}</label>
-                  <DateInput value={normalizeDateForInput(form.civilIdExpiry)} onChange={(v) => setForm({ ...form, civilIdExpiry: v })} locale={locale} className="w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">
+                    {ar ? `انتهاء الرقم المدني${reqCivil ? ' *' : ''}` : `Civil ID expiry${reqCivil ? ' *' : ''}`}
+                  </label>
+                  <DateInput
+                    value={normalizeDateForInput(form.civilIdExpiry)}
+                    onChange={(v) => setForm({ ...form, civilIdExpiry: v })}
+                    locale={locale}
+                    className={`w-full ${getRequiredFieldClass(reqCivil, form.civilIdExpiry)}`}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'رقم الجواز' : 'Passport number'}</label>
-                  <input type="text" value={form.passportNumber} onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} className="admin-input w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">
+                    {ar ? `رقم الجواز${reqPassport ? ' *' : ''}` : `Passport number${reqPassport ? ' *' : ''}`}
+                  </label>
+                  <input
+                    type="text"
+                    value={form.passportNumber}
+                    onChange={(e) => setForm({ ...form, passportNumber: e.target.value })}
+                    className={`admin-input w-full ${getRequiredFieldClass(reqPassport, form.passportNumber)}`}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'انتهاء الجواز' : 'Passport expiry'}</label>
-                  <DateInput value={normalizeDateForInput(form.passportExpiry)} onChange={(v) => setForm({ ...form, passportExpiry: v })} locale={locale} className="w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">
+                    {ar ? `انتهاء الجواز${reqPassport ? ' *' : ''}` : `Passport expiry${reqPassport ? ' *' : ''}`}
+                  </label>
+                  <DateInput
+                    value={normalizeDateForInput(form.passportExpiry)}
+                    onChange={(v) => setForm({ ...form, passportExpiry: v })}
+                    locale={locale}
+                    className={`w-full ${getRequiredFieldClass(reqPassport, form.passportExpiry)}`}
+                  />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'جهة العمل' : 'Workplace'}</label>
@@ -639,6 +706,8 @@ export default function MyAccountPage() {
                     address={form.address}
                     onChange={(next) => setForm({ ...form, address: next })}
                     locale={locale}
+                    sectionClassName={getRequiredFieldClass(true, addrOkVisual ? 'ok' : '')}
+                    inputErrorClass={getRequiredFieldClass(true, addrOkVisual ? 'ok' : '')}
                   />
                 </div>
                 <div className="sm:col-span-2">

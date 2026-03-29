@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — حسابي: إطار أحمر/أخضر للحقول الإجبارية
+
+- **ما تم:** `getRequiredFieldClass` على حقول التعديل (اسم، بريد، هاتف، جنسية، جنس، هوية/جواز حسب الجنسية، قسم العنوان عبر `sectionClassName` + `inputErrorClass`). دعم `button` في `globals.css` لرمز الدولة في `PhoneCountryCodeSelect`. `OmanContactAddressFields` يقبل `sectionClassName` لإطار القسم.
+- **الملفات:** `app/[locale]/admin/my-account/page.tsx`, `components/admin/OmanContactAddressFields.tsx`, `app/[locale]/globals.css`
+
 ### جلسة 2026-03-29 — دفتر العناوين: توحيد نمط العنوان + نافذة ContactFormModal
 
 - **ما تم:** `contactAddressHasUsableContent` في `addressBook` للتحقق من العنوان (نص كامل أو حقول هيكلية). تنسيق `OmanContactAddressFields`: صف محافظة/ولاية/منطقة/قرية على شاشات عريضة، ثم شارع/مبنى/طابق، وعنوان بصيغة البطاقات كصفحة دفتر العناوين. نافذة المodal في دفتر العناوين `max-w-4xl`. `ContactFormModal` (حجوزات، عقود، مستندات الحجز) تستخدم نفس المكوّن + قائمة الجنسيات + حفظ العنوان الكامل؛ طباعة النموذج تعرض المحافظة والولاية والحقول. تحديثات طفيفة: `my-account`، `contract-terms` لاستخدام التحقق الموحد.

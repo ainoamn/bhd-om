@@ -25,11 +25,14 @@ export default function OmanContactAddressFields({
   onChange,
   locale,
   inputErrorClass = '',
+  sectionClassName = '',
 }: {
   address: ContactAddress;
   onChange: (next: ContactAddress) => void;
   locale: string;
   inputErrorClass?: string;
+  /** إطار القسم كاملاً (مثلاً حقل إجباري مجمّع للعنوان) */
+  sectionClassName?: string;
 }) {
   const ar = locale === 'ar';
   const addrRef = useRef(address);
@@ -142,7 +145,7 @@ export default function OmanContactAddressFields({
   const labelCls = 'block text-sm font-semibold text-gray-700 mb-1';
 
   return (
-    <div className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-5">
+    <div className={`space-y-4 rounded-2xl border-2 border-gray-100 bg-gray-50/80 p-5 ${sectionClassName}`.trim()}>
       <h4 className="text-sm font-bold text-[#8B6F47] flex items-center gap-2 pb-2 border-b border-gray-200 m-0">
         <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center text-base" aria-hidden>
           📍

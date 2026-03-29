@@ -444,7 +444,8 @@ img[src="/omr-symbol.png"] {
 .admin-select.input-required-error,
 input.input-required-error,
 select.input-required-error,
-textarea.input-required-error {
+textarea.input-required-error,
+button.input-required-error {
   border-color: rgb(239 68 68) !important;
   --tw-ring-color: rgba(239, 68, 68, 0.25);
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
@@ -454,7 +455,8 @@ textarea.input-required-error {
 .admin-select.input-required-valid,
 input.input-required-valid,
 select.input-required-valid,
-textarea.input-required-valid {
+textarea.input-required-valid,
+button.input-required-valid {
   border-color: rgb(34 197 94) !important;
   --tw-ring-color: rgba(34, 197, 94, 0.2);
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
