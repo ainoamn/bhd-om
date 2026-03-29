@@ -496,6 +496,13 @@ function save(list: Contact[]) {
   } catch {}
 }
 
+/** بعد مزامنة الحجوزات وغيرها — إزالة تكرار الهاتف/userId ثم حفظ المحلي */
+export function rewriteLocalAddressBookDeduped(): void {
+  const list = getAllContacts(true);
+  const d = dedupeContactsList(list);
+  save(d);
+}
+
 function generateId() {
   return `CNT-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }

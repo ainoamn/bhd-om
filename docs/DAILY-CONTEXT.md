@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — دفتر العناوين vs حسابي: منع الشبح والتكرار
+
+- **ما تم:** عند نجاح `GET /api/address-book` لا يُرفع عند التحميل صف موجود في الـ API؛ لا يُعاد إنشاء صف محلي له `userId` غير ظاهر في استجابة الخادم (شبح بعد الدمج/الحذف). بعد الجلب الثاني: تصفية المحلي لإسقاط صفوف `userId` بـ `id` غير موجود في مجموعة معرفات السيرفر (عندما المجموعة غير فارغة). بعد `syncBookingContactsToAddressBook` استدعاء `rewriteLocalAddressBookDeduped()` لدمج التكرار محلياً.
+- **الملفات:** `app/[locale]/admin/address-book/page.tsx`, `lib/data/addressBook.ts` (`rewriteLocalAddressBookDeduped`)
+
 ### جلسة 2026-03-29 — مزامنة «حسابي» مع دفتر العناوين (الخادم + الدمج)
 
 - **ما تم:** بعد الحفظ من `my-account` يُستدعى `POST /api/address-book` (`syncContactToAddressBookApi`). دمج تحميل دفتر العناوين: `mergeAddressBookApiWithLocal` يختار لكل `id` النسخة الأحدث حسب `updatedAt`، ثم يرفع للخادم أي جهة محلية أحدث من نسخة الـ GET — يمنع استبدال تعديلات العميل بنسخة قديمة من Prisma.

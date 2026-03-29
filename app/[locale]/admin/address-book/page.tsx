@@ -34,6 +34,7 @@ import {
   validatePassportExpiry,
   contactAddressHasUsableContent,
   mergeAddressBookApiWithLocal,
+  rewriteLocalAddressBookDeduped,
   contactRevisionMs,
   syncContactToAddressBookApi,
   findDuplicateContactFields,
@@ -242,8 +243,10 @@ export default function AdminAddressBookPage() {
     let cancelled = false;
     (async () => {
       let listFromApi: Contact[] = [];
+      let firstApiOk = false;
       try {
         const res = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
+        firstApiOk = res.ok;
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) listFromApi = data as Contact[];
@@ -257,22 +260,40 @@ export default function AdminAddressBookPage() {
       for (const c of merged) {
         if (cancelled) break;
         const apiC = apiById.get(c.id);
+        const uid = (c as Contact).userId?.trim();
+        if (firstApiOk) {
+          /** الخادم متاح: لا نرفع عند التحميل صفاً موجوداً في API (مصدر الحقيقة الخادم — يمنع طمس «حسابي») */
+          if (apiC) continue;
+          /** صف محلي بـ userId لكنه غير في API = شبح بعد حذف التكرار — لا نعيد إنشائه على الخادم */
+          if (uid) continue;
+          await syncContactToAddressBookApi(c);
+          continue;
+        }
         const pushToServer = !apiC || contactRevisionMs(c) > contactRevisionMs(apiC);
         if (pushToServer) {
           await syncContactToAddressBookApi(c);
         }
       }
       let toPersist = merged;
+      let serverIdSet = new Set(listFromApi.map((c) => c.id));
       try {
         const resAfter = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
         if (resAfter.ok) {
           const dataAfter = await resAfter.json();
           if (Array.isArray(dataAfter)) {
             toPersist = mergeAddressBookApiWithLocal(dataAfter as Contact[], merged);
+            serverIdSet = new Set(dataAfter.map((x) => x.id));
           }
         }
       } catch {
         /* بعد فشل الجلب نحتفظ بـ merged */
+      }
+      if (firstApiOk && serverIdSet.size > 0) {
+        toPersist = toPersist.filter((c) => {
+          const uid = (c as Contact).userId?.trim();
+          if (uid && !serverIdSet.has(c.id)) return false;
+          return true;
+        });
       }
       try {
         localStorage.setItem('bhd_address_book', JSON.stringify(toPersist));
@@ -282,6 +303,7 @@ export default function AdminAddressBookPage() {
       if (cancelled) return;
       try {
         const result = syncBookingContactsToAddressBook();
+        rewriteLocalAddressBookDeduped();
         const all = getAllContacts(showArchived);
         const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
         const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
