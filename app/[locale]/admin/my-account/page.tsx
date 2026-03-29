@@ -24,6 +24,7 @@ import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import DateInput from '@/components/shared/DateInput';
 import UnifiedPaymentForm from '@/components/shared/UnifiedPaymentForm';
 import { openReceiptPrintWindow } from '@/lib/utils/receiptPrint';
+import TranslateField from '@/components/admin/TranslateField';
 
 type PlanInfo = { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency: string; features?: string[] };
 type SubHistoryItem = {
@@ -547,8 +548,15 @@ export default function MyAccountPage() {
                   <input type="text" value={form.familyName} onChange={(e) => setForm({ ...form, familyName: e.target.value })} className="admin-input w-full" />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم (إنجليزي)' : 'Name (English)'}</label>
-                  <input type="text" value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} className="admin-input w-full" />
+                  <TranslateField
+                    label={ar ? 'الاسم (إنجليزي)' : 'Name (English)'}
+                    value={form.nameEn}
+                    onChange={(v) => setForm({ ...form, nameEn: v })}
+                    sourceValue={[form.firstName, form.secondName, form.thirdName, form.familyName].filter(Boolean).join(' ').trim()}
+                    onTranslateFromSource={(v) => setForm({ ...form, nameEn: v })}
+                    translateFrom="ar"
+                    locale={locale}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'البريد الإلكتروني' : 'Email'}</label>
