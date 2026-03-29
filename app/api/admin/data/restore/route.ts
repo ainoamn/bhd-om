@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { importDatabaseSnapshot, SNAPSHOT_VERSION, type DatabaseSnapshotV2 } from '@/lib/server/dataBackupSnapshot';
-import { isAdminDataPinConfigured, verifyAdminDataPin } from '@/lib/server/adminDataPin';
+import { ensureAdminDataPinReady, verifyAdminDataPin } from '@/lib/server/adminDataPin';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -13,12 +13,7 @@ export async function POST(req: NextRequest) {
     if (!token || token.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminDataPinConfigured()) {
-      return NextResponse.json(
-        { error: 'DATA_RESET_PIN_NOT_CONFIGURED', message: 'Set ADMIN_DATA_RESET_PIN (8+ chars) in environment.' },
-        { status: 503 }
-      );
-    }
+    await ensureAdminDataPinReady();
 
     const ct = req.headers.get('content-type') || '';
     let pin: string | undefined;
@@ -38,7 +33,7 @@ export async function POST(req: NextRequest) {
       snapshot = body?.snapshot ?? null;
     }
 
-    if (!verifyAdminDataPin(pin)) {
+    if (!(await verifyAdminDataPin(pin))) {
       return NextResponse.json({ error: 'INVALID_PIN' }, { status: 403 });
     }
     if (!snapshot || snapshot.version !== SNAPSHOT_VERSION) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { executeResetKeepProperties } from '@/lib/server/dataResetKeepProperties';
-import { isAdminDataPinConfigured, verifyAdminDataPin } from '@/lib/server/adminDataPin';
+import { ensureAdminDataPinReady, verifyAdminDataPin } from '@/lib/server/adminDataPin';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -13,15 +13,10 @@ export async function POST(req: NextRequest) {
     if (!token || token.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminDataPinConfigured()) {
-      return NextResponse.json(
-        { error: 'DATA_RESET_PIN_NOT_CONFIGURED', message: 'Set ADMIN_DATA_RESET_PIN (8+ chars) in environment.' },
-        { status: 503 }
-      );
-    }
+    await ensureAdminDataPinReady();
 
     const body = (await req.json().catch(() => ({}))) as { pin?: string };
-    if (!verifyAdminDataPin(body.pin)) {
+    if (!(await verifyAdminDataPin(body.pin))) {
       return NextResponse.json({ error: 'INVALID_PIN' }, { status: 403 });
     }
 

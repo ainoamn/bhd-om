@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { ensureAdminDataPinReady } from '@/lib/server/adminDataPin';
 
 const DEFAULT_PLANS = [
   { code: 'basic', nameAr: 'الخطة الأساسية', nameEn: 'Basic', priceMonthly: 29, priceYearly: 290, sortOrder: 1, featuresJson: '["حتى 5 عقارات","حتى 20 وحدة","إدارة حجوزات أساسية"]', limitsJson: '{"maxProperties":5,"maxUnits":20,"maxBookings":100,"maxUsers":1,"storageGB":1}' },
@@ -34,20 +35,22 @@ async function main() {
       data: { password: hashed, name: 'مدير النظام', role: 'ADMIN', isSuperAdmin: true },
     });
     console.log('Admin user updated:', adminEmail, '(password:', adminPassword + ')');
-    return;
+  } else {
+    await prisma.user.create({
+      data: {
+        serialNumber: 'USR-A-2025-0001',
+        email: adminEmail,
+        password: hashed,
+        name: 'مدير النظام',
+        role: 'ADMIN',
+        isSuperAdmin: true,
+      },
+    });
+    console.log('Admin user created:', adminEmail, '(password:', adminPassword + ')');
   }
 
-  await prisma.user.create({
-    data: {
-      serialNumber: 'USR-A-2025-0001',
-      email: adminEmail,
-      password: hashed,
-      name: 'مدير النظام',
-      role: 'ADMIN',
-      isSuperAdmin: true,
-    },
-  });
-  console.log('Admin user created:', adminEmail, '(password:', adminPassword + ')');
+  await ensureAdminDataPinReady();
+  console.log('Admin data security PIN ensured (AppSetting hash).');
 }
 
 main()

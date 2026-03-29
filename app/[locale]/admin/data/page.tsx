@@ -20,6 +20,11 @@ export default function AdminDataPage() {
   const [serverBusy, setServerBusy] = useState(false);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [pinCurrent, setPinCurrent] = useState('');
+  const [pinNew, setPinNew] = useState('');
+  const [pinRepeat, setPinRepeat] = useState('');
+  const [pinChangeMsg, setPinChangeMsg] = useState<string | null>(null);
+  const [pinChangeErr, setPinChangeErr] = useState<string | null>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
 
   const handleResetLocal = () => {
@@ -63,13 +68,7 @@ export default function AdminDataPage() {
         message?: string;
       };
       if (!res.ok) {
-        if (data.error === 'DATA_RESET_PIN_NOT_CONFIGURED' || res.status === 503) {
-          setServerError(
-            ar
-              ? 'لم يُعرّف ADMIN_DATA_RESET_PIN في الخادم (8 أحرف على الأقل).'
-              : 'ADMIN_DATA_RESET_PIN is not set on the server (min 8 characters).'
-          );
-        } else if (data.error === 'INVALID_PIN') {
+        if (data.error === 'INVALID_PIN') {
           setServerError(ar ? 'رمز الحماية غير صحيح' : 'Invalid security PIN');
         } else {
           setServerError(ar ? 'فشل التصفير على الخادم' : 'Server reset failed');
@@ -109,13 +108,7 @@ export default function AdminDataPage() {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        if (res.status === 503 || data.error === 'DATA_RESET_PIN_NOT_CONFIGURED') {
-          setServerError(
-            ar
-              ? 'لم يُعرّف ADMIN_DATA_RESET_PIN في الخادم.'
-              : 'ADMIN_DATA_RESET_PIN is not set on the server.'
-          );
-        } else if (data.error === 'INVALID_PIN') {
+        if (data.error === 'INVALID_PIN') {
           setServerError(ar ? 'رمز الحماية غير صحيح' : 'Invalid security PIN');
         } else {
           setServerError(ar ? 'فشل النسخ الاحتياطي' : 'Backup failed');
@@ -159,13 +152,7 @@ export default function AdminDataPage() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!res.ok) {
-        if (res.status === 503) {
-          setServerError(
-            ar
-              ? 'لم يُعرّف ADMIN_DATA_RESET_PIN في الخادم.'
-              : 'ADMIN_DATA_RESET_PIN is not set on the server.'
-          );
-        } else if (data.error === 'INVALID_PIN') {
+        if (data.error === 'INVALID_PIN') {
           setServerError(ar ? 'رمز الحماية غير صحيح' : 'Invalid security PIN');
         } else {
           setServerError(data.message || (ar ? 'فشل الاستعادة' : 'Restore failed'));
@@ -181,6 +168,49 @@ export default function AdminDataPage() {
     } finally {
       setServerBusy(false);
       if (restoreInputRef.current) restoreInputRef.current.value = '';
+    }
+  };
+
+  const handleChangePin = async () => {
+    setPinChangeErr(null);
+    setPinChangeMsg(null);
+    if (!pinCurrent.trim() || !pinNew.trim() || !pinRepeat.trim()) {
+      setPinChangeErr(ar ? 'املأ كل الحقول' : 'Fill all fields');
+      return;
+    }
+    if (pinNew !== pinRepeat) {
+      setPinChangeErr(ar ? 'الرمز الجديد وتكراره غير متطابقين' : 'New PIN and repeat do not match');
+      return;
+    }
+    setServerBusy(true);
+    try {
+      const res = await fetch('/api/admin/data/change-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          currentPin: pinCurrent,
+          newPin: pinNew,
+          newPinRepeat: pinRepeat,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      if (!res.ok) {
+        const code = data.code;
+        if (code === 'INVALID_CURRENT') setPinChangeErr(ar ? 'الرمز الحالي غير صحيح' : 'Current PIN is wrong');
+        else if (code === 'MISMATCH') setPinChangeErr(ar ? 'التكرار غير متطابق' : 'Mismatch');
+        else if (code === 'SHORT') setPinChangeErr(ar ? 'الرمز الجديد يجب أن يكون 8 أحرف فأكثر' : 'New PIN must be at least 8 characters');
+        else setPinChangeErr(ar ? 'فشل تغيير الرمز' : 'Failed to change PIN');
+        return;
+      }
+      setPinChangeMsg(ar ? 'تم تغيير رمز الحماية بنجاح.' : 'Security PIN updated successfully.');
+      setPinCurrent('');
+      setPinNew('');
+      setPinRepeat('');
+    } catch {
+      setPinChangeErr(ar ? 'خطأ شبكة' : 'Network error');
+    } finally {
+      setServerBusy(false);
     }
   };
 
@@ -221,8 +251,8 @@ export default function AdminDataPage() {
           </h2>
           <p className="text-gray-600 text-sm mb-4">
             {ar
-              ? 'يُعرَّف على الخادم كمتغير ADMIN_DATA_RESET_PIN (8 أحرف فأكثر). يُطلب لتصفير قاعدة البيانات والنسخ الاحتياطي واستعادته.'
-              : 'Set as ADMIN_DATA_RESET_PIN in server environment (8+ chars). Required for DB reset, backup, and restore.'}
+              ? 'يُخزَّن الرمز في قاعدة البيانات (مشفّر). الافتراضي بعد أول تشغيل أو بعد تصفير قاعدة البيانات: Abdul100189@ — يُفضّل تغييره من القسم التالي. يُستخدم لتصفير الخادم والنسخ الاحتياطي والاستعادة. اختياري: يمكن تعيين ADMIN_DATA_RESET_PIN مرة واحدة لأول إنشاء للسجل إن لم يوجد.'
+              : 'PIN is stored hashed in the database. Default after first boot or after DB reset: Abdul100189@ — change it below. Used for server reset, backup, restore. Optional: ADMIN_DATA_RESET_PIN seeds the first record if none exists.'}
           </p>
           <input
             type="password"
@@ -232,6 +262,58 @@ export default function AdminDataPage() {
             placeholder={ar ? 'أدخل رمز الحماية' : 'Enter security PIN'}
             className="admin-input w-full max-w-md border-2 border-slate-300 rounded-xl px-4 py-2.5"
           />
+        </div>
+
+        {/* تغيير رمز الحماية */}
+        <div className="admin-card p-6 sm:p-8 border-2 border-emerald-100">
+          <h2 className="text-lg font-bold text-gray-900 mb-2">
+            {ar ? 'تغيير رمز الحماية' : 'Change security PIN'}
+          </h2>
+          <p className="text-gray-600 text-sm mb-4">
+            {ar
+              ? 'أدخل الرمز الحالي، ثم الرمز الجديد وتأكيده (8 أحرف فأكثر).'
+              : 'Enter current PIN, then new PIN and confirmation (min 8 characters).'}
+          </p>
+          {pinChangeMsg && (
+            <div className="mb-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">{pinChangeMsg}</div>
+          )}
+          {pinChangeErr && (
+            <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm">{pinChangeErr}</div>
+          )}
+          <div className="grid gap-3 max-w-md">
+            <input
+              type="password"
+              autoComplete="off"
+              value={pinCurrent}
+              onChange={(e) => setPinCurrent(e.target.value)}
+              placeholder={ar ? 'الرمز الحالي' : 'Current PIN'}
+              className="admin-input w-full border-2 border-slate-300 rounded-xl px-4 py-2.5"
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={pinNew}
+              onChange={(e) => setPinNew(e.target.value)}
+              placeholder={ar ? 'الرمز الجديد' : 'New PIN'}
+              className="admin-input w-full border-2 border-slate-300 rounded-xl px-4 py-2.5"
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={pinRepeat}
+              onChange={(e) => setPinRepeat(e.target.value)}
+              placeholder={ar ? 'تأكيد الرمز الجديد' : 'Confirm new PIN'}
+              className="admin-input w-full border-2 border-slate-300 rounded-xl px-4 py-2.5"
+            />
+            <button
+              type="button"
+              disabled={serverBusy}
+              onClick={() => void handleChangePin()}
+              className="px-5 py-2.5 rounded-xl font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 w-fit"
+            >
+              {serverBusy ? (ar ? 'جاري الحفظ…' : 'Saving…') : ar ? 'حفظ الرمز الجديد' : 'Save new PIN'}
+            </button>
+          </div>
         </div>
 
         {/* تصفير قاعدة البيانات — الخادم */}
