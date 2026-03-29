@@ -28,7 +28,7 @@ import { openReceiptPrintWindow } from '@/lib/utils/receiptPrint';
 import TranslateField from '@/components/admin/TranslateField';
 import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
 import { getNationalitySelectOptions, normalizeNationalityToArabic } from '@/lib/data/nationalities';
-import { getRequiredFieldClass } from '@/lib/utils/requiredFields';
+import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
 
 type PlanInfo = { id: string; code: string; nameAr: string; nameEn: string; priceMonthly: number; currency: string; features?: string[] };
 type SubHistoryItem = {
@@ -193,40 +193,51 @@ export default function MyAccountPage() {
   const handleSaveContact = () => {
     if (!user?.id) return;
     const fullPhone = form.phoneCountryCode + (form.phone || '').replace(/\D/g, '');
+    const miss: string[] = [];
     if (!fullPhone || fullPhone.replace(/\D/g, '').length < 8) {
-      alert(ar ? 'الهاتف مطلوب (8 أرقام على الأقل)' : 'Phone required (at least 8 digits)');
-      return;
+      miss.push(ar ? 'الهاتف (8 أرقام على الأقل)' : 'Phone (at least 8 digits)');
     }
     if (!form.email?.trim()) {
-      alert(ar ? 'البريد الإلكتروني مطلوب (للتوافق مع سجل العناوين واعتماد العقود)' : 'Email is required (for address book and contract approval)');
-      return;
+      miss.push(ar ? 'البريد الإلكتروني' : 'Email');
     }
     if (!form.nationality?.trim()) {
-      alert(ar ? 'الجنسية مطلوبة' : 'Nationality is required');
-      return;
+      miss.push(ar ? 'الجنسية' : 'Nationality');
     }
-    const addrOk = contactAddressHasUsableContent(form.address);
-    if (!addrOk) {
-      alert(ar ? 'أدخل العنوان بالعربية أو الإنجليزية' : 'Enter address in Arabic or English');
+    if (!contactAddressHasUsableContent(form.address)) {
+      miss.push(ar ? 'العنوان' : 'Address');
+    }
+    if (!form.firstName?.trim()) miss.push(ar ? 'الاسم الأول' : 'First name');
+    if (!form.secondName?.trim()) miss.push(ar ? 'الاسم الثاني' : 'Second name');
+    if (!form.familyName?.trim()) miss.push(ar ? 'اسم العائلة' : 'Family name');
+    if (!form.nameEn?.trim()) miss.push(ar ? 'الاسم (إنجليزي)' : 'Name (English)');
+    if (!form.workplace?.trim()) miss.push(ar ? 'جهة العمل' : 'Workplace');
+    if (miss.length > 0) {
+      showMissingFieldsAlert(miss, ar);
       return;
     }
     const nat = form.nationality.trim();
     if (nat && isOmaniNationality(nat)) {
-      if (!form.civilId.trim() || !form.civilIdExpiry.trim()) {
-        alert(ar ? 'للجنسية العمانية: الرقم المدني وتاريخ الانتهاء مطلوبان' : 'For Omani nationality: civil ID and expiry are required');
+      const civilMiss: string[] = [];
+      if (!form.civilId.trim()) civilMiss.push(ar ? 'الرقم المدني' : 'Civil ID');
+      if (!form.civilIdExpiry.trim()) civilMiss.push(ar ? 'انتهاء الرقم المدني' : 'Civil ID expiry');
+      if (civilMiss.length > 0) {
+        showMissingFieldsAlert(civilMiss, ar);
         return;
       }
       if (!validateCivilIdExpiry(form.civilIdExpiry).valid) {
-        alert(ar ? 'انتهاء الرقم المدني يجب أن يكون بلا يقل عن 30 يوماً من اليوم' : 'Civil ID expiry must be at least 30 days from today');
+        alert(ar ? 'انتهاء الرقم المدني يجب ألا يقل عن 30 يوماً من اليوم' : 'Civil ID expiry must be at least 30 days from today');
         return;
       }
     } else if (nat && !isOmaniNationality(nat)) {
-      if (!form.passportNumber.trim() || !form.passportExpiry.trim()) {
-        alert(ar ? 'لغير العمانيين: رقم الجواز وتاريخ الانتهاء مطلوبان' : 'For non-Omani: passport number and expiry are required');
+      const passMiss: string[] = [];
+      if (!form.passportNumber.trim()) passMiss.push(ar ? 'رقم الجواز' : 'Passport number');
+      if (!form.passportExpiry.trim()) passMiss.push(ar ? 'انتهاء الجواز' : 'Passport expiry');
+      if (passMiss.length > 0) {
+        showMissingFieldsAlert(passMiss, ar);
         return;
       }
       if (!validatePassportExpiry(form.passportExpiry).valid) {
-        alert(ar ? 'انتهاء الجواز يجب أن يكون بلا يقل عن 90 يوماً من اليوم' : 'Passport expiry must be at least 90 days from today');
+        alert(ar ? 'انتهاء الجواز يجب ألا يقل عن 90 يوماً من اليوم' : 'Passport expiry must be at least 90 days from today');
         return;
       }
     }
@@ -238,11 +249,11 @@ export default function MyAccountPage() {
           .map((t) => t.trim())
           .filter(Boolean);
         const updates: Partial<Contact> = {
-          firstName: form.firstName.trim() || fullContact.firstName,
-          secondName: form.secondName.trim() || undefined,
+          firstName: form.firstName.trim(),
+          secondName: form.secondName.trim(),
           thirdName: form.thirdName.trim() || undefined,
-          familyName: form.familyName.trim() || fullContact.familyName,
-          nameEn: form.nameEn.trim() || undefined,
+          familyName: form.familyName.trim(),
+          nameEn: form.nameEn.trim(),
           email: form.email.trim() || undefined,
           phone: fullPhone,
           phoneSecondary: form.phoneSecondary.trim() || undefined,
@@ -252,7 +263,7 @@ export default function MyAccountPage() {
           civilIdExpiry: form.civilIdExpiry.trim() || undefined,
           passportNumber: form.passportNumber.trim() || undefined,
           passportExpiry: form.passportExpiry.trim() || undefined,
-          workplace: form.workplace.trim() || undefined,
+          workplace: form.workplace.trim(),
           workplaceEn: form.workplaceEn.trim() || undefined,
           position: form.position.trim() || undefined,
           address: form.address,
@@ -266,8 +277,6 @@ export default function MyAccountPage() {
           setEditing(false);
         }
       } else {
-        const firstName = form.firstName.trim() || (user?.name?.split(/\s+/)[0]) || '';
-        const familyName = form.familyName.trim() || (user?.name?.split(/\s+/).slice(1).join(' ')) || '—';
         const tagList = form.tags
           .split(',')
           .map((t) => t.trim())
@@ -275,21 +284,21 @@ export default function MyAccountPage() {
         const created = createContact({
           contactType: 'PERSONAL',
           category: 'CLIENT',
-          firstName: firstName || '—',
-          familyName,
+          firstName: form.firstName.trim(),
+          familyName: form.familyName.trim(),
           nationality: form.nationality.trim() || 'عماني',
           gender: form.gender,
           phone: fullPhone,
-          secondName: form.secondName.trim() || undefined,
+          secondName: form.secondName.trim(),
           thirdName: form.thirdName.trim() || undefined,
-          nameEn: form.nameEn.trim() || undefined,
+          nameEn: form.nameEn.trim(),
           email: form.email.trim() || undefined,
           phoneSecondary: form.phoneSecondary.trim() || undefined,
           civilId: form.civilId.trim() || undefined,
           civilIdExpiry: form.civilIdExpiry.trim() || undefined,
           passportNumber: form.passportNumber.trim() || undefined,
           passportExpiry: form.passportExpiry.trim() || undefined,
-          workplace: form.workplace.trim() || undefined,
+          workplace: form.workplace.trim(),
           workplaceEn: form.workplaceEn.trim() || undefined,
           position: form.position.trim() || undefined,
           address: form.address,
@@ -553,8 +562,13 @@ export default function MyAccountPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم الثاني' : 'Second name'}</label>
-                  <input type="text" value={form.secondName} onChange={(e) => setForm({ ...form, secondName: e.target.value })} className="admin-input w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم الثاني *' : 'Second name *'}</label>
+                  <input
+                    type="text"
+                    value={form.secondName}
+                    onChange={(e) => setForm({ ...form, secondName: e.target.value })}
+                    className={`admin-input w-full ${getRequiredFieldClass(true, form.secondName)}`}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'الاسم الثالث' : 'Third name'}</label>
@@ -571,13 +585,14 @@ export default function MyAccountPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <TranslateField
-                    label={ar ? 'الاسم (إنجليزي)' : 'Name (English)'}
+                    label={ar ? 'الاسم (إنجليزي) *' : 'Name (English) *'}
                     value={form.nameEn}
                     onChange={(v) => setForm({ ...form, nameEn: v })}
                     sourceValue={[form.firstName, form.secondName, form.thirdName, form.familyName].filter(Boolean).join(' ').trim()}
                     onTranslateFromSource={(v) => setForm({ ...form, nameEn: v })}
                     translateFrom="ar"
                     locale={locale}
+                    inputErrorClass={getRequiredFieldClass(true, form.nameEn)}
                   />
                 </div>
                 <div>
@@ -690,8 +705,13 @@ export default function MyAccountPage() {
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'جهة العمل' : 'Workplace'}</label>
-                  <input type="text" value={form.workplace} onChange={(e) => setForm({ ...form, workplace: e.target.value })} className="admin-input w-full" />
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'جهة العمل *' : 'Workplace *'}</label>
+                  <input
+                    type="text"
+                    value={form.workplace}
+                    onChange={(e) => setForm({ ...form, workplace: e.target.value })}
+                    className={`admin-input w-full ${getRequiredFieldClass(true, form.workplace)}`}
+                  />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'جهة العمل (إنجليزي)' : 'Workplace (EN)'}</label>

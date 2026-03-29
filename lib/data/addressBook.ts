@@ -247,7 +247,10 @@ export function isContactProfileCompleteForContractApproval(contact: Contact | n
 function getPersonalProfileIssues(c: Contact): string[] {
   const issues: string[] = [];
   if (!c.firstName?.trim()) issues.push('firstName');
+  if (!c.secondName?.trim()) issues.push('secondName');
   if (!c.familyName?.trim()) issues.push('familyName');
+  if (!c.nameEn?.trim()) issues.push('nameEn');
+  if (!c.workplace?.trim()) issues.push('workplace');
   if (!c.nationality?.trim()) issues.push('nationality');
   if (!c.phone?.trim()) issues.push('phone');
   else {

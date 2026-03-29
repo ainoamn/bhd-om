@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — حسابي: إجبارية الاسم الثاني والإنجليزي وجهة العمل + اكتمال الملف للعقود
+
+- **ما تم:** التحقق عند الحفظ عبر `showMissingFieldsAlert` لمجموعة الحقول؛ إلزام الاسم الأول والثاني والعائلة، الاسم (إنجليزي)، جهة العمل؛ الرقم المدني وانتهاؤه للعمانيين والجواز لغيرهم كما سبق. `getPersonalProfileIssues` يضيف `secondName` و`nameEn` و`workplace` لاعتماد العقد.
+- **الملفات:** `app/[locale]/admin/my-account/page.tsx`, `lib/data/addressBook.ts`
+
 ### جلسة 2026-03-29 — حسابي: إطار أحمر/أخضر للحقول الإجبارية
 
 - **ما تم:** `getRequiredFieldClass` على حقول التعديل (اسم، بريد، هاتف، جنسية، جنس، هوية/جواز حسب الجنسية، قسم العنوان عبر `sectionClassName` + `inputErrorClass`). دعم `button` في `globals.css` لرمز الدولة في `PhoneCountryCodeSelect`. `OmanContactAddressFields` يقبل `sectionClassName` لإطار القسم.
