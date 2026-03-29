@@ -9,6 +9,10 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — سكربت تصفير DB مع الإبقاء على العقارات
+
+- **ما تم:** `prisma/reset-keep-properties.ts` + `npm run db:reset-keep-properties` — يحذف المستخدمين، الحجوزات، دفتر العناوين، سجل الاتصالات، الاشتراكات، المشاريع، المؤسسات، المحاسبة، المحتوى، الإعدادات؛ يُفرّغ مراجع العقار (مالك/منشئ/شركة) ويُبقي صفوف `Property`؛ يعيد خطط الباقات ومستخدم إداري واحد. يتطلب `CONFIRM_RESET=yes`.
+
 ### جلسة 2026-03-29 — S1 vs S2 نفس الهاتف: صف «حسابي» يفوز دائماً
 
 - **ما تم:** في `addressBookDedupeShared` تفضيل `linkedUserId` (Prisma) قبل `userId` في JSON عند تكرار الهاتف/المدني. في `mergeAddressBookApiWithLocal` عدم إعادة شبح محلي بنفس هاتف صف API مربوط بحساب. في `GET /api/address-book` بعد الدمج الأول استدعاء `deleteOtherPersonalRowsSamePhone` لكل صف له `linkedUserId` أو `userId` ثم إعادة جلب الصفوف.
