@@ -111,10 +111,11 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
   },
   OWNER: {
     role: 'OWNER',
-    sections: ['dashboard', 'myProperties', 'myContracts', 'myInvoices', 'notifications', 'myAccount', 'subscriptions'],
+    sections: ['dashboard', 'myProperties', 'myBookings', 'myContracts', 'myInvoices', 'notifications', 'myAccount', 'subscriptions'],
     navItems: [
       { href: '/admin', labelKey: 'ownerNav.dashboard', icon: 'dashboard', section: 'dashboard' },
       { href: '/admin/my-properties', labelKey: 'ownerNav.myProperties', icon: 'building', section: 'myProperties' },
+      { href: '/admin/my-bookings', labelKey: 'ownerNav.myBookings', icon: 'calendar', section: 'myBookings' },
       { href: '/admin/my-contracts', labelKey: 'ownerNav.myContracts', icon: 'archive', section: 'myContracts' },
       { href: '/admin/my-invoices', labelKey: 'ownerNav.myInvoices', icon: 'documentText', section: 'myInvoices' },
       { href: '/admin/notifications', labelKey: 'ownerNav.notifications', icon: 'inbox', section: 'notifications' },

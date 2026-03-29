@@ -14,6 +14,7 @@ import { searchDocuments } from '@/lib/data/accounting';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
 import type { PropertyBooking } from '@/lib/data/bookings';
+import { contractDataMatchesLandlord } from '@/lib/data/ownerLandlordMatch';
 
 export default function OwnerDashboard() {
   const params = useParams();
@@ -35,9 +36,10 @@ export default function OwnerDashboard() {
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
 
   const landlordContactId = (contact as { id?: string } | null)?.id || '';
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
   useEffect(() => {
-    if (!landlordContactId) return;
+    if (userRole !== 'OWNER' && !landlordContactId) return;
     let alive = true;
     fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
@@ -49,20 +51,28 @@ export default function OwnerDashboard() {
     return () => {
       alive = false;
     };
-  }, [landlordContactId]);
+  }, [landlordContactId, userRole]);
+
+  const landlordMatchCtx = useMemo(
+    () => ({
+      contactId: landlordContactId || undefined,
+      userEmail: user?.email,
+      userPhone: user?.phone,
+    }),
+    [landlordContactId, user?.email, user?.phone]
+  );
 
   const propertyIds = useMemo(() => {
     const localIds = landlordContactId && typeof window !== 'undefined' ? getPropertyIdsForLandlord(landlordContactId) : [];
-    const phoneNorm = String((contact as any)?.phone || '').replace(/\D/g, '').slice(-8);
     const derived = new Set<number>();
-    for (const b of serverBookings as any[]) {
-      const cd = (b as any)?.contractData || {};
-      const landlordPhone = String(cd?.landlordPhone || '').replace(/\D/g, '').slice(-8);
-      if (String(cd?.landlordContactId || '') === landlordContactId) derived.add(Number(b.propertyId));
-      else if (phoneNorm && landlordPhone && phoneNorm === landlordPhone) derived.add(Number(b.propertyId));
+    for (const b of serverBookings as PropertyBooking[]) {
+      const cd = (b as PropertyBooking)?.contractData as Record<string, unknown> | undefined;
+      if (!contractDataMatchesLandlord(cd, landlordMatchCtx)) continue;
+      const pid = Number(b.propertyId);
+      if (Number.isFinite(pid)) derived.add(pid);
     }
     return Array.from(new Set([...localIds, ...Array.from(derived)])).filter((n) => Number.isFinite(n));
-  }, [landlordContactId, serverBookings, contact]);
+  }, [landlordContactId, serverBookings, landlordMatchCtx]);
   const overrides = getPropertyDataOverrides();
   const properties = propertyIds.map((pid) => getPropertyById(pid, overrides)).filter(Boolean);
 
@@ -70,20 +80,20 @@ export default function OwnerDashboard() {
   const landlordContracts = contracts.filter((c) => c.role === 'landlord');
 
   const verificationTasks = useMemo(() => {
-    if (!landlordContactId) return [];
-    const phoneNorm = String((contact as any)?.phone || '').replace(/\D/g, '').slice(-8);
     const tasks: Array<{ bookingId: string; propertyId: number; token: string; createdAt?: string }> = [];
-    for (const b of serverBookings as any[]) {
-      const reqs: any[] = Array.isArray((b as any)?.signatureRequests) ? (b as any).signatureRequests : [];
-      const cd = (b as any)?.contractData || {};
-      const landlordPhone = String(cd?.landlordPhone || '').replace(/\D/g, '').slice(-8);
-      const isMine = String(cd?.landlordContactId || '') === landlordContactId || (phoneNorm && landlordPhone && phoneNorm === landlordPhone);
-      if (!isMine) continue;
-      const pending = reqs.find((r) => String(r?.actorRole) === 'OWNER' && String(r?.status) === 'PENDING');
+    for (const b of serverBookings as PropertyBooking[]) {
+      const cd = b.contractData as Record<string, unknown> | undefined;
+      if (!contractDataMatchesLandlord(cd, landlordMatchCtx)) continue;
+      const reqs: unknown[] = Array.isArray((b as PropertyBooking & { signatureRequests?: unknown[] }).signatureRequests)
+        ? ((b as PropertyBooking & { signatureRequests: unknown[] }).signatureRequests ?? [])
+        : [];
+      const pending = reqs.find(
+        (r) => String((r as { actorRole?: string })?.actorRole) === 'OWNER' && String((r as { status?: string })?.status) === 'PENDING'
+      ) as { token?: string; createdAt?: string } | undefined;
       if (pending?.token) tasks.push({ bookingId: String(b.id), propertyId: Number(b.propertyId), token: String(pending.token), createdAt: pending.createdAt });
     }
     return tasks.slice(0, 10);
-  }, [landlordContactId, serverBookings, contact]);
+  }, [serverBookings, landlordMatchCtx]);
 
   const docs = contact && typeof window !== 'undefined' ? searchDocuments({ contactId: (contact as { id?: string }).id }) : [];
   const invoices = docs.filter((d) => d.type === 'INVOICE' || (d.type as string) === 'SALES_INVOICE');

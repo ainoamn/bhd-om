@@ -4,6 +4,7 @@
 
 import type { Contact, ContactCategory } from './addressBook';
 import { normalizePhoneForComparison } from './addressBook';
+import { contractDataMatchesLandlord, type LandlordMatchContext } from './ownerLandlordMatch';
 import { getAllBookings, type PropertyBooking } from './bookings';
 import { getAllContracts, type RentalContract } from './contracts';
 import { searchDocuments } from './accounting';
@@ -141,6 +142,55 @@ export function getContactLinkedContracts(contact: Contact): ContactLinkedContra
       role,
     };
   });
+}
+
+/**
+ * عقود المالك المستمدة من حجوزات الخادم (contractData) عندما لا تُنسَّخ بعد إلى localStorage.
+ */
+export function getLandlordContractsFromServerBookings(
+  bookings: PropertyBooking[],
+  ctx: LandlordMatchContext
+): ContactLinkedContract[] {
+  const overrides = getPropertyDataOverrides();
+  const out: ContactLinkedContract[] = [];
+  for (const b of bookings) {
+    const cdRaw = b.contractData;
+    if (!contractDataMatchesLandlord(cdRaw as Record<string, unknown> | null | undefined, ctx)) continue;
+    const cd = (cdRaw || {}) as RentalContract;
+    const propertyId = Number(b.propertyId);
+    if (!Number.isFinite(propertyId)) continue;
+    const prop = getPropertyById(propertyId, overrides);
+    const unitKey = b.unitKey;
+    const unitPart = unitKey && prop ? getUnitDisplayFromProperty(prop, unitKey, true) : null;
+    const titleAr = b.propertyTitleAr || prop?.titleAr || '';
+    const titleEn = b.propertyTitleEn || prop?.titleEn || '';
+    const unitDisplay = unitPart ? `${titleAr} - ${unitPart}` : titleAr;
+    const stage = b.contractStage;
+    let status: ContactLinkedContract['status'] = 'DRAFT';
+    if (b.status === 'CANCELLED') status = 'CANCELLED';
+    else if (stage === 'APPROVED' || cd.status === 'APPROVED') status = 'ACTIVE';
+    else if (cd.startDate && cd.endDate && new Date(cd.endDate) < new Date()) status = 'ENDED';
+    else if (cd.status === 'DRAFT' || !stage || stage === 'DRAFT') status = 'DRAFT';
+    else status = 'ACTIVE';
+    out.push({
+      id: `booking-contract-${b.id}`,
+      contractId: String(b.contractId || b.id),
+      bookingId: String(b.id),
+      date: b.createdAt,
+      propertyId,
+      propertyTitleAr: titleAr,
+      propertyTitleEn: titleEn,
+      unitKey,
+      unitDisplay,
+      landlordName: String(cd.landlordName || ''),
+      startDate: String(cd.startDate || ''),
+      endDate: String(cd.endDate || ''),
+      status,
+      hasFinancialClaims: false,
+      role: 'landlord',
+    });
+  }
+  return out;
 }
 
 /** المستندات المرفوعة في توثيق العقد - مرتبطة بجهة الاتصال عبر حجوزاتها */

@@ -8,6 +8,7 @@ import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { getDataScope } from '@/lib/auth/adminPermissions';
 import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
+import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
 
 export async function GET(req: NextRequest) {
   try {
@@ -51,20 +52,21 @@ export async function GET(req: NextRequest) {
     if (scope.userId && !scope.isAdmin) {
       const user = await prisma.user.findUnique({
         where: { id: scope.userId },
-        select: { email: true, phone: true },
+        select: { email: true, phone: true, role: true },
       });
-      if (user?.email) {
-        const norm = (s: string) => (s || '').trim().toLowerCase();
-        const normPhone = (s: string) => (s || '').replace(/\D/g, '').replace(/^968/, '').slice(-8);
-        const userEmail = norm(user.email);
-        const userPhone = user.phone ? normPhone(user.phone) : '';
-        bookings = bookings.filter((b) => {
-          const matchEmail = userEmail && norm(String(b.email || '')) === userEmail;
-          const matchPhone = userPhone && normPhone(String(b.phone || '')) === userPhone;
-          return matchEmail || matchPhone;
-        });
-      } else {
+      const role = String(token?.role || user?.role || '');
+      const userEmailRaw = (user?.email || '').trim().toLowerCase();
+      const userPhone8 = normPhoneLast8(user?.phone || '');
+      if (!user || (userEmailRaw.length < 3 && userPhone8.length < 6)) {
         bookings = [];
+      } else if (role === 'OWNER') {
+        bookings = bookings.filter((b) =>
+          bookingVisibleToOwner(b as Record<string, unknown>, userEmailRaw, userPhone8, user.phone)
+        );
+      } else {
+        bookings = bookings.filter((b) =>
+          bookingMatchesClientRecord(b as Record<string, unknown>, userEmailRaw, userPhone8)
+        );
       }
     }
 

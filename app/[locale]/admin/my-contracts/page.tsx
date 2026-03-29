@@ -3,9 +3,11 @@
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
+import { useEffect, useMemo, useState } from 'react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactForUser } from '@/lib/data/addressBook';
-import { getContactLinkedContracts } from '@/lib/data/contactLinks';
+import { getContactLinkedContracts, getLandlordContractsFromServerBookings } from '@/lib/data/contactLinks';
+import type { PropertyBooking } from '@/lib/data/bookings';
 
 export default function MyContractsPage() {
   const params = useParams();
@@ -17,8 +19,40 @@ export default function MyContractsPage() {
 
   const user = session?.user as { id?: string; email?: string; phone?: string; role?: string } | undefined;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
+  const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+
+  useEffect(() => {
+    if (user?.role !== 'OWNER') return;
+    let alive = true;
+    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: PropertyBooking[]) => {
+        if (!alive) return;
+        if (Array.isArray(list)) setServerBookings(list);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user?.role]);
+
+  const landlordCtx = useMemo(
+    () => ({
+      contactId: (contact as { id?: string } | null)?.id || undefined,
+      userEmail: user?.email,
+      userPhone: user?.phone,
+    }),
+    [contact, user?.email, user?.phone]
+  );
+
   const allContracts = contact && typeof window !== 'undefined' ? getContactLinkedContracts(contact as Parameters<typeof getContactLinkedContracts>[0]) : [];
-  const contracts = user?.role === 'OWNER' ? allContracts.filter((c) => c.role === 'landlord') : allContracts;
+  const fromServer =
+    user?.role === 'OWNER' && typeof window !== 'undefined' ? getLandlordContractsFromServerBookings(serverBookings, landlordCtx) : [];
+  const localLandlord = user?.role === 'OWNER' ? allContracts.filter((c) => c.role === 'landlord') : [];
+  const bookingIdsLocal = new Set(localLandlord.map((c) => c.bookingId).filter(Boolean));
+  const extraFromBookings = fromServer.filter((c) => !c.bookingId || !bookingIdsLocal.has(c.bookingId));
+  const contracts =
+    user?.role === 'OWNER' ? [...localLandlord, ...extraFromBookings] : allContracts;
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
   const statusLabels: Record<string, string> = {

@@ -251,6 +251,7 @@ export default function MyBookingsPage() {
   const { data: session, status } = useSession();
   const effectiveUser = useEffectiveUser();
   const t = useTranslations('admin.nav.clientNav');
+  const tOwnerNav = useTranslations('admin.nav.ownerNav');
 
   const user = (effectiveUser
     ? { id: effectiveUser.id, email: effectiveUser.email, phone: effectiveUser.phone }
@@ -299,27 +300,35 @@ export default function MyBookingsPage() {
   // ربط serverBookings بالحجوزات المحلية عبر bookingId فقط لتفادي اختلاف البريد/الهاتف بين الأجهزة
   const localBookingIdSet = new Set(localBookings.map((b) => b.id));
   const serverBookingsForContact: ContactLinkedBooking[] =
-    contact && serverBookings.length > 0
-      ? serverBookings
-          .filter((b) => localBookingIdSet.has(String(b.id)))
-          .map((b) => {
-            return {
+    serverBookings.length > 0
+      ? (() => {
+          const fromServer =
+            userRole === 'OWNER'
+              ? serverBookings
+              : contact
+                ? serverBookings.filter((b) => localBookingIdSet.has(String(b.id)))
+                : [];
+          return fromServer.map(
+            (b): ContactLinkedBooking => ({
               id: String(b.id),
               bookingId: String(b.id),
               date: String(b.createdAt || ''),
               propertyId: Number(b.propertyId),
-              propertyTitleAr: String((b as any).propertyTitleAr || ''),
-              propertyTitleEn: String((b as any).propertyTitleEn || ''),
-              unitKey: (b as any).unitKey ? String((b as any).unitKey) : undefined,
-              unitDisplay: (b as any).unitDisplay ? String((b as any).unitDisplay) : undefined,
+              propertyTitleAr: String((b as PropertyBooking).propertyTitleAr || ''),
+              propertyTitleEn: String((b as PropertyBooking).propertyTitleEn || ''),
+              unitKey: (b as PropertyBooking).unitKey ? String((b as PropertyBooking).unitKey) : undefined,
+              unitDisplay: (b as PropertyBooking & { unitDisplay?: string }).unitDisplay
+              ? String((b as PropertyBooking & { unitDisplay?: string }).unitDisplay)
+              : undefined,
               status: b.status,
               contractId: b.contractId ? String(b.contractId) : undefined,
               hasFinancialClaims: false,
               cardLast4: b.cardLast4,
               cardExpiry: b.cardExpiry,
               cardholderName: b.cardholderName,
-            } satisfies ContactLinkedBooking;
-          })
+            })
+          );
+        })()
       : [];
 
   const bookings: ContactLinkedBooking[] = serverBookingsForContact.length > 0 ? serverBookingsForContact : localBookings;
@@ -328,7 +337,18 @@ export default function MyBookingsPage() {
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader title={t('myBookings')} subtitle={locale === 'ar' ? 'الحجوزات المرتبطة بحسابك' : 'Bookings linked to your account'} />
+      <AdminPageHeader
+        title={userRole === 'OWNER' ? tOwnerNav('myBookings') : t('myBookings')}
+        subtitle={
+          locale === 'ar'
+            ? userRole === 'OWNER'
+              ? 'الحجوزات وطلبات توثيق العقود المرتبطة بك كمالك'
+              : 'الحجوزات المرتبطة بحسابك'
+            : userRole === 'OWNER'
+              ? 'Bookings and contract verification linked to you as owner'
+              : 'Bookings linked to your account'
+        }
+      />
       <div className="admin-card overflow-hidden">
         {bookings.length === 0 ? (
           <div className="p-12 text-center">

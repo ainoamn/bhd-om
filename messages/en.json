@@ -193,6 +193,7 @@
       "ownerNav": {
         "dashboard": "My Dashboard",
         "myProperties": "My Properties",
+        "myBookings": "Bookings & contract tasks",
         "myContracts": "My Contracts",
         "myInvoices": "My Invoices",
         "notifications": "Notifications",
