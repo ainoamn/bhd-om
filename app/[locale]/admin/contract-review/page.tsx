@@ -9,6 +9,7 @@ import { getPropertyById, getPropertyDataOverrides, type Property } from '@/lib/
 import type { PropertyBooking } from '@/lib/data/bookings';
 import type { CheckInfo, ContractApprovalActor, RentalContract } from '@/lib/data/contracts';
 import { getContractByBooking, getContractById } from '@/lib/data/contracts';
+import { getContractReviewDisplayStage } from '@/lib/data/bookingContractStage';
 
 type ContractKind = 'RENT' | 'SALE' | 'INVESTMENT';
 type ContractStage = NonNullable<PropertyBooking['contractStage']>;
@@ -30,19 +31,6 @@ function stageLabel(ar: boolean, stage?: ContractStage, kind: ContractKind = 'RE
   if (stage === 'APPROVED') return ar ? 'معتمد نهائياً' : 'Final approved';
   if (stage === 'CANCELLED') return ar ? 'ملغي' : 'Cancelled';
   return stage;
-}
-
-function getDisplayStage(booking: PropertyBooking | null | undefined): ContractStage | undefined {
-  if (!booking) return undefined;
-  const stage = booking.contractStage as StageLike | undefined;
-  const reqs = Array.isArray((booking as any)?.signatureRequests) ? ((booking as any).signatureRequests as any[]) : [];
-  const latestClient = reqs.find((r) => String(r?.actorRole) === 'CLIENT');
-  const latestOwner = reqs.find((r) => String(r?.actorRole) === 'OWNER');
-  const clientPendingOrFailed = ['PENDING', 'FAILED'].includes(String(latestClient?.status || ''));
-  const ownerPendingOrFailed = ['PENDING', 'FAILED'].includes(String(latestOwner?.status || ''));
-  if (stage === 'TENANT_APPROVED' && clientPendingOrFailed) return 'ADMIN_APPROVED';
-  if (stage === 'LANDLORD_APPROVED' && ownerPendingOrFailed) return 'TENANT_APPROVED';
-  return stage as ContractStage | undefined;
 }
 
 function actorLabel(ar: boolean, kind: ContractKind) {
@@ -451,6 +439,41 @@ function Section({ title, children, step }: { title: string; children: React.Rea
   );
 }
 
+/** قسم قابل للطي — summary مرئي للعناوين الطويلة (مرفقات التوثيق، المستندات الإضافية) */
+function CollapsibleDetails({
+  title,
+  children,
+  defaultOpen = false,
+  className = '',
+}: {
+  title: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+}) {
+  return (
+    <details
+      className={`group overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm open:shadow-md ${className}`}
+      {...(defaultOpen ? { open: true } : {})}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-start [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0 flex-1 text-[14px] font-bold leading-snug text-stone-900">{title}</span>
+        <svg
+          className="h-5 w-5 shrink-0 text-[#8B6F47] transition-transform group-open:rotate-180"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </summary>
+      <div className="border-t border-stone-100 px-4 py-3 sm:px-5 sm:py-4">{children}</div>
+    </details>
+  );
+}
+
 function KindBadge({ kind, ar }: { kind: ContractKind; ar: boolean }) {
   const map: Record<ContractKind, { ar: string; en: string }> = {
     SALE: { ar: 'عقد بيع', en: 'Sale' },
@@ -639,30 +662,38 @@ export default function ContractReviewPage() {
     return { duration, finance, checks: checksStep, rentAcct: rentAcctStep, guarantees, approvals };
   }, [kind, effectiveContract]);
 
-  const displayStage = useMemo(() => getDisplayStage(booking), [booking]);
+  const displayStage = useMemo(() => getContractReviewDisplayStage(booking), [booking]);
 
   const signatureRequests = useMemo(() => {
     if (!booking) return [];
     return Array.isArray((booking as any)?.signatureRequests) ? (((booking as any).signatureRequests as any[]) ?? []) : [];
   }, [booking]);
 
-  const latestCompletedClient = useMemo(
-    () => signatureRequests.find((r) => String(r?.actorRole) === 'CLIENT' && String(r?.status) === 'COMPLETED'),
-    [signatureRequests]
-  );
-  const latestCompletedOwner = useMemo(
-    () => signatureRequests.find((r) => String(r?.actorRole) === 'OWNER' && String(r?.status) === 'COMPLETED'),
-    [signatureRequests]
-  );
+  const latestCompletedClient = useMemo(() => {
+    return signatureRequests.find(
+      (r) =>
+        String(r?.actorRole) === 'CLIENT' &&
+        String(r?.status) === 'COMPLETED' &&
+        r?.selfieDataUrl &&
+        r?.signatureDataUrl &&
+        r?.idCardFrontDataUrl &&
+        r?.idCardBackDataUrl
+    );
+  }, [signatureRequests]);
+  const latestCompletedOwner = useMemo(() => {
+    return signatureRequests.find(
+      (r) =>
+        String(r?.actorRole) === 'OWNER' &&
+        String(r?.status) === 'COMPLETED' &&
+        r?.selfieDataUrl &&
+        r?.signatureDataUrl &&
+        r?.idCardFrontDataUrl &&
+        r?.idCardBackDataUrl
+    );
+  }, [signatureRequests]);
 
-  const clientHasAllMedia = useMemo(() => {
-    const r = latestCompletedClient;
-    return !!(r?.selfieDataUrl && r?.signatureDataUrl && r?.idCardFrontDataUrl && r?.idCardBackDataUrl);
-  }, [latestCompletedClient]);
-  const ownerHasAllMedia = useMemo(() => {
-    const r = latestCompletedOwner;
-    return !!(r?.selfieDataUrl && r?.signatureDataUrl && r?.idCardFrontDataUrl && r?.idCardBackDataUrl);
-  }, [latestCompletedOwner]);
+  const clientHasAllMedia = !!latestCompletedClient;
+  const ownerHasAllMedia = !!latestCompletedOwner;
 
   const createCorrectionRequest = async (actorRole: 'CLIENT' | 'OWNER') => {
     if (!booking) return;
@@ -960,43 +991,50 @@ export default function ContractReviewPage() {
                     rows={[{ label: ar ? 'ثمن البيع' : 'Sale price', value: omr(ar, c?.totalSaleAmount ?? booking.priceAtBooking ?? undefined) }]}
                   />
                   {c?.salePayments && c.salePayments.length > 0 ? (
-                    <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
-                      <table className="w-full min-w-[28rem] border-collapse text-sm">
-                        <DataTableHead>
-                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'الدفعة' : '#'}</th>
-                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'المبلغ' : 'Amount'}</th>
-                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'ملاحظة' : 'Note'}</th>
-                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'مستند' : 'Doc'}</th>
-                        </DataTableHead>
-                        <tbody className="divide-y divide-stone-100">
-                          {c.salePayments.map((p, i) => (
-                            <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
-                              <td className="px-4 py-3 font-mono font-semibold text-stone-800">{p.installmentNumber}</td>
-                              <td className="px-4 py-3 font-semibold tabular-nums text-stone-900">{omr(ar, p.amount)}</td>
-                              <td className="px-4 py-3 text-stone-700">{str(p.note) || '—'}</td>
-                              <td className="px-4 py-3">
-                                {p.documentUrl ? (
-                                  <a
-                                    href={p.documentUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-semibold text-[#8B6F47] underline decoration-[#8B6F47]/40 underline-offset-2 hover:text-[#6B5535]"
-                                  >
-                                    {ar ? 'فتح المستند' : 'Open'}
-                                  </a>
-                                ) : p.documentFile?.name ? (
-                                  <span className="text-stone-700">{p.documentFile.name}</span>
-                                ) : (
-                                  <span className="text-stone-400">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <CollapsibleDetails
+                      title={ar ? 'دفعات البيع وجدول المستندات المرفقة' : 'Sale installments & attached documents'}
+                      defaultOpen={false}
+                    >
+                      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
+                        <table className="w-full min-w-[28rem] border-collapse text-sm">
+                          <DataTableHead>
+                            <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'الدفعة' : '#'}</th>
+                            <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'المبلغ' : 'Amount'}</th>
+                            <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'ملاحظة' : 'Note'}</th>
+                            <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'مستند' : 'Doc'}</th>
+                          </DataTableHead>
+                          <tbody className="divide-y divide-stone-100">
+                            {c.salePayments.map((p, i) => (
+                              <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
+                                <td className="px-4 py-3 font-mono font-semibold text-stone-800">{p.installmentNumber}</td>
+                                <td className="px-4 py-3 font-semibold tabular-nums text-stone-900">{omr(ar, p.amount)}</td>
+                                <td className="px-4 py-3 text-stone-700">{str(p.note) || '—'}</td>
+                                <td className="px-4 py-3">
+                                  {p.documentUrl ? (
+                                    <a
+                                      href={p.documentUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-semibold text-[#8B6F47] underline decoration-[#8B6F47]/40 underline-offset-2 hover:text-[#6B5535]"
+                                    >
+                                      {ar ? 'فتح المستند' : 'Open'}
+                                    </a>
+                                  ) : p.documentFile?.name ? (
+                                    <span className="text-stone-700">{p.documentFile.name}</span>
+                                  ) : (
+                                    <span className="text-stone-400">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CollapsibleDetails>
                   ) : null}
-                  <SaleFeesByPayerBreakdown c={c || {}} salePriceBase={salePriceBase} ar={ar} />
+                  <CollapsibleDetails title={ar ? 'تفصيل الرسوم والمبالغ على الأطراف' : 'Fees and amounts by payer'} defaultOpen={false}>
+                    <SaleFeesByPayerBreakdown c={c || {}} salePriceBase={salePriceBase} ar={ar} />
+                  </CollapsibleDetails>
                 </div>
               </Section>
             ) : (
@@ -1046,28 +1084,45 @@ export default function ContractReviewPage() {
             )}
 
             {kind !== 'SALE' && c?.checks && c.checks.length > 0 ? (
-              <Section step={sectionSteps.checks} title={ar ? (kind === 'INVESTMENT' ? 'الشيكات (ملخص الاستثمار)' : 'الشيكات (ملخص العقد)') : kind === 'INVESTMENT' ? 'Contract cheques (investment)' : 'Contract cheques'}>
-                <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
-                  <table className="w-full min-w-[24rem] border-collapse text-sm">
-                    <DataTableHead>
-                      <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'النوع' : 'Type'}</th>
-                      <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'رقم الشيك' : 'Number'}</th>
-                      <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'المبلغ' : 'Amount'}</th>
-                      <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'الاستحقاق' : 'Due'}</th>
-                    </DataTableHead>
-                    <tbody className="divide-y divide-stone-100">
-                      {(c.checks as CheckInfo[]).map((ch, i) => (
-                        <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
-                          <td className="px-4 py-3 text-stone-800">{str(ch.type)}</td>
-                          <td className="px-4 py-3 font-mono text-stone-900">{str(ch.checkNumber)}</td>
-                          <td className="px-4 py-3 tabular-nums font-semibold">{omr(ar, ch.amount)}</td>
-                          <td className="px-4 py-3 text-stone-700">{str(ch.dueDate)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <section className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-md ring-1 ring-stone-900/[0.04]">
+                <div className="flex items-center gap-3 border-b border-stone-200 bg-gradient-to-l from-[#8B6F47]/[0.1] via-[#C9A961]/[0.05] to-white px-4 py-3 sm:px-5 sm:py-3.5">
+                  {sectionSteps.checks != null ? (
+                    <span className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#8B6F47] to-[#6B5535] px-2 text-[11px] font-bold text-white shadow sm:h-9 sm:min-w-[2.25rem] sm:text-xs">
+                      {sectionSteps.checks}
+                    </span>
+                  ) : null}
+                  <h2 className="text-[14px] font-medium leading-snug text-stone-800 sm:text-[14px]">
+                    {ar ? (kind === 'INVESTMENT' ? 'الشيكات (ملخص الاستثمار)' : 'الشيكات (ملخص العقد)') : kind === 'INVESTMENT' ? 'Contract cheques (investment)' : 'Contract cheques'}
+                  </h2>
                 </div>
-              </Section>
+                <div className="min-w-0 p-3 sm:p-4">
+                  <CollapsibleDetails
+                    title={ar ? 'عرض جدول الشيكات والاستحقاق' : 'Cheques & due dates'}
+                    defaultOpen={false}
+                  >
+                    <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
+                      <table className="w-full min-w-[24rem] border-collapse text-sm">
+                        <DataTableHead>
+                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'النوع' : 'Type'}</th>
+                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'رقم الشيك' : 'Number'}</th>
+                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'المبلغ' : 'Amount'}</th>
+                          <th className="border-b border-stone-200 px-4 py-3 text-start text-xs font-bold text-stone-800 sm:text-sm">{ar ? 'الاستحقاق' : 'Due'}</th>
+                        </DataTableHead>
+                        <tbody className="divide-y divide-stone-100">
+                          {(c.checks as CheckInfo[]).map((ch, i) => (
+                            <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
+                              <td className="px-4 py-3 text-stone-800">{str(ch.type)}</td>
+                              <td className="px-4 py-3 font-mono text-stone-900">{str(ch.checkNumber)}</td>
+                              <td className="px-4 py-3 tabular-nums font-semibold">{omr(ar, ch.amount)}</td>
+                              <td className="px-4 py-3 text-stone-700">{str(ch.dueDate)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CollapsibleDetails>
+                </div>
+              </section>
             ) : null}
 
             {kind !== 'SALE' && hasRentAccountFields(c) ? (
@@ -1103,38 +1158,50 @@ export default function ContractReviewPage() {
               />
             </Section>
 
-            {c?.otherFees && c.otherFees.length > 0 ? (
-              <Section title={ar ? 'رسوم أخرى' : 'Other fees'}>
-                <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
-                  <table className="w-full border-collapse text-sm">
-                    <DataTableHead>
-                      <th className="border-b border-stone-200 px-4 py-3 text-start font-bold text-stone-800">{ar ? 'الوصف' : 'Description'}</th>
-                      <th className="border-b border-stone-200 px-4 py-3 text-end font-bold text-stone-800">{ar ? 'المبلغ' : 'Amount'}</th>
-                    </DataTableHead>
-                    <tbody className="divide-y divide-stone-100">
-                      {c.otherFees.map((f, i) => (
-                        <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
-                          <td className="px-4 py-3 font-medium text-stone-800">{str(f.description)}</td>
-                          <td className="px-4 py-3 text-end tabular-nums font-semibold text-stone-900">{omr(ar, f.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Section>
-            ) : null}
-
-            {c?.hasOtherTaxes ? (
-              <Section title={ar ? 'ضرائب أخرى' : 'Other taxes'}>
-                <DataTable
-                  rows={[
-                    { label: ar ? 'الاسم' : 'Name', value: str(c.otherTaxName) },
-                    { label: ar ? 'النسبة' : 'Rate', value: c.otherTaxRate != null ? String(c.otherTaxRate) : '' },
-                    { label: ar ? 'شهرياً' : 'Monthly', value: omr(ar, c.monthlyOtherTaxAmount) },
-                    { label: ar ? 'الإجمالي' : 'Total', value: omr(ar, c.totalOtherTaxAmount) },
-                  ]}
-                />
-              </Section>
+            {(c?.otherFees && c.otherFees.length > 0) || c?.hasOtherTaxes ? (
+              <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-md ring-1 ring-stone-900/[0.04]">
+                <CollapsibleDetails
+                  title={ar ? 'رسوم وضرائب ومستندات إضافية' : 'Additional fees, taxes & related items'}
+                  defaultOpen={false}
+                >
+                  <div className="space-y-6">
+                    {c?.otherFees && c.otherFees.length > 0 ? (
+                      <div>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535]">{ar ? 'رسوم أخرى' : 'Other fees'}</p>
+                        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
+                          <table className="w-full border-collapse text-sm">
+                            <DataTableHead>
+                              <th className="border-b border-stone-200 px-4 py-3 text-start font-bold text-stone-800">{ar ? 'الوصف' : 'Description'}</th>
+                              <th className="border-b border-stone-200 px-4 py-3 text-end font-bold text-stone-800">{ar ? 'المبلغ' : 'Amount'}</th>
+                            </DataTableHead>
+                            <tbody className="divide-y divide-stone-100">
+                              {c.otherFees.map((f, i) => (
+                                <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
+                                  <td className="px-4 py-3 font-medium text-stone-800">{str(f.description)}</td>
+                                  <td className="px-4 py-3 text-end tabular-nums font-semibold text-stone-900">{omr(ar, f.amount)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : null}
+                    {c?.hasOtherTaxes ? (
+                      <div>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535]">{ar ? 'ضرائب أخرى' : 'Other taxes'}</p>
+                        <DataTable
+                          rows={[
+                            { label: ar ? 'الاسم' : 'Name', value: str(c.otherTaxName) },
+                            { label: ar ? 'النسبة' : 'Rate', value: c.otherTaxRate != null ? String(c.otherTaxRate) : '' },
+                            { label: ar ? 'شهرياً' : 'Monthly', value: omr(ar, c.monthlyOtherTaxAmount) },
+                            { label: ar ? 'الإجمالي' : 'Total', value: omr(ar, c.totalOtherTaxAmount) },
+                          ]}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </CollapsibleDetails>
+              </div>
             ) : null}
 
             <Section step={sectionSteps.approvals} title={ar ? 'حالة الاعتمادات والتواريخ' : 'Approval status & audit trail'}>
@@ -1284,85 +1351,100 @@ export default function ContractReviewPage() {
               />
             </Section>
 
-            <Section title={ar ? 'مرفقات التوثيق (صور السلفي/التوقيع/البطاقة)' : 'Verification attachments (selfie/signature/ID)'}>
-              {clientHasAllMedia || ownerHasAllMedia ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {clientHasAllMedia && latestCompletedClient ? (
-                    <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-[14px] font-bold text-stone-900">{signatureActorLabel(ar, 'CLIENT', kind)} — {ar ? 'المرفقات' : 'Media'}</h3>
-                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">{ar ? 'مكتمل' : 'Completed'}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'السلفي' : 'Selfie'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedClient.selfieDataUrl} alt="selfie" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'التوقيع' : 'Signature'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedClient.signatureDataUrl} alt="signature" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (أمام)' : 'ID front'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedClient.idCardFrontDataUrl} alt="id-front" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (خلف)' : 'ID back'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedClient.idCardBackDataUrl} alt="id-back" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                      </div>
-                      <div className="text-xs text-stone-500 font-mono">
-                        {ar ? 'token: ' : 'token: '}
-                        {String(latestCompletedClient.token).slice(0, 18)}…
-                      </div>
-                    </div>
-                  ) : null}
+            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-md ring-1 ring-stone-900/[0.04]">
+              <CollapsibleDetails
+                title={ar ? 'مرفقات التوثيق (صور السلفي/التوقيع/البطاقة)' : 'Verification attachments (selfie/signature/ID)'}
+                defaultOpen={false}
+              >
+                <div className="space-y-4">
+                  {clientHasAllMedia || ownerHasAllMedia ? (
+                    <div className="grid gap-4 md:grid-cols-1">
+                      {clientHasAllMedia && latestCompletedClient ? (
+                        <CollapsibleDetails
+                          title={
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span>{signatureActorLabel(ar, 'CLIENT', kind)} — {ar ? 'المرفقات' : 'Media'}</span>
+                              <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 border border-emerald-200">
+                                {ar ? 'مكتمل' : 'Done'}
+                              </span>
+                            </span>
+                          }
+                          defaultOpen={false}
+                        >
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                            <div>
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'السلفي' : 'Selfie'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedClient.selfieDataUrl} alt="selfie" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'التوقيع' : 'Signature'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedClient.signatureDataUrl} alt="signature" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (أمام)' : 'ID front'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedClient.idCardFrontDataUrl} alt="id-front" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (خلف)' : 'ID back'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedClient.idCardBackDataUrl} alt="id-back" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                          </div>
+                          <div className="mt-3 text-xs text-stone-500 font-mono">
+                            token: {String(latestCompletedClient.token).slice(0, 18)}…
+                          </div>
+                        </CollapsibleDetails>
+                      ) : null}
 
-                  {ownerHasAllMedia && latestCompletedOwner ? (
-                    <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-[14px] font-bold text-stone-900">{signatureActorLabel(ar, 'OWNER', kind)} — {ar ? 'المرفقات' : 'Media'}</h3>
-                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">{ar ? 'مكتمل' : 'Completed'}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'السلفي' : 'Selfie'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedOwner.selfieDataUrl} alt="selfie" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'التوقيع' : 'Signature'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedOwner.signatureDataUrl} alt="signature" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (أمام)' : 'ID front'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedOwner.idCardFrontDataUrl} alt="id-front" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (خلف)' : 'ID back'}</p>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={latestCompletedOwner.idCardBackDataUrl} alt="id-back" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
-                        </div>
-                      </div>
-                      <div className="text-xs text-stone-500 font-mono">
-                        {ar ? 'token: ' : 'token: '}
-                        {String(latestCompletedOwner.token).slice(0, 18)}…
-                      </div>
+                      {ownerHasAllMedia && latestCompletedOwner ? (
+                        <CollapsibleDetails
+                          title={
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span>{signatureActorLabel(ar, 'OWNER', kind)} — {ar ? 'المرفقات' : 'Media'}</span>
+                              <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 border border-emerald-200">
+                                {ar ? 'مكتمل' : 'Done'}
+                              </span>
+                            </span>
+                          }
+                          defaultOpen={false}
+                        >
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'السلفي' : 'Selfie'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedOwner.selfieDataUrl} alt="selfie" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'التوقيع' : 'Signature'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedOwner.signatureDataUrl} alt="signature" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (أمام)' : 'ID front'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedOwner.idCardFrontDataUrl} alt="id-front" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-xs font-semibold text-stone-600">{ar ? 'بطاقة الهوية (خلف)' : 'ID back'}</p>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={latestCompletedOwner.idCardBackDataUrl} alt="id-back" className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50" />
+                            </div>
+                          </div>
+                          <div className="mt-3 text-xs text-stone-500 font-mono">
+                            token: {String(latestCompletedOwner.token).slice(0, 18)}…
+                          </div>
+                        </CollapsibleDetails>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="text-sm leading-relaxed text-stone-600">{ar ? 'لا توجد مرفقات مكتملة للطرفين بعد.' : 'No completed attachments yet for one or both parties.'}</p>
-              )}
+                  ) : (
+                    <p className="text-sm leading-relaxed text-stone-600">{ar ? 'لا توجد مرفقات مكتملة للطرفين بعد.' : 'No completed attachments yet for one or both parties.'}</p>
+                  )}
 
-              {userRole === 'ADMIN' ? (
-                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  {userRole === 'ADMIN' ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <p className="text-sm font-bold text-amber-950">{ar ? 'طلب تصحيح قبل الاعتماد النهائي' : 'Request correction before final approval'}</p>
                   <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
                     {ar ? 'عند وجود خطأ في البيانات/الصور/التوقيع، اضغط على زر طلب التصحيح لإنشاء رابط توقيع جديد للطرف المعني.' : 'If there is an issue with data/photos/signature, use correction to generate a new signing link for the concerned party.'}
@@ -1418,7 +1500,9 @@ export default function ContractReviewPage() {
                   </div>
                 </div>
               ) : null}
-            </Section>
+                </div>
+              </CollapsibleDetails>
+            </div>
 
             {!hasAnyContractPayload ? (
               <div className="rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 p-5 text-amber-950 shadow-md ring-1 ring-amber-100">
@@ -1472,7 +1556,13 @@ export default function ContractReviewPage() {
                         : 'bg-gradient-to-l from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800'
                     }`}
                   >
-                    {saving ? (ar ? 'جاري الاعتماد...' : 'Approving...') : ar ? '✓ اعتماد العقد' : '✓ Approve contract'}
+                    {saving
+                      ? ar
+                        ? 'جاري التحضير...'
+                        : 'Preparing...'
+                      : ar
+                        ? '✓ متابعة التوقيع والاعتماد'
+                        : '✓ Continue to e-sign & approve'}
                   </button>
                 ) : (
                   <span className="text-center text-sm text-stone-500 sm:text-end">

@@ -10,6 +10,7 @@ import { getContactForUser, normalizePhoneForComparison } from '@/lib/data/addre
 import { getContactLinkedBookings } from '@/lib/data/contactLinks';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { getAllBookings, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
+import { inferBookingContractStage } from '@/lib/data/bookingContractStage';
 import { getContractByBooking, hasContractForUnit } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
@@ -24,44 +25,6 @@ const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
   SOLD: { ar: 'مباع', en: 'Sold' },
   CANCELLED: { ar: 'ملغى', en: 'Cancelled' },
 };
-
-/**
- * يستنتج مرحلة العرض من contractStage + signatureRequests (مثل getBookingStatusDisplay).
- * يُستخدم أيضاً لأزرار الإجراءات حتى يظهر زر المالك عندما يكون المشتري قد أكمل التوثيق لكن DB لا يزال ADMIN_APPROVED.
- */
-function inferBookingContractStage(
-  booking: PropertyBooking | undefined,
-  fallbackStage?: string
-): 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED' | undefined {
-  const stage = (booking?.contractStage || fallbackStage) as
-    | 'DRAFT'
-    | 'ADMIN_APPROVED'
-    | 'TENANT_APPROVED'
-    | 'LANDLORD_APPROVED'
-    | 'APPROVED'
-    | 'CANCELLED'
-    | undefined;
-  const reqs: unknown[] = Array.isArray((booking as PropertyBooking & { signatureRequests?: unknown[] })?.signatureRequests)
-    ? ((booking as PropertyBooking & { signatureRequests: unknown[] }).signatureRequests ?? [])
-    : [];
-  const hasMedia = (role: 'CLIENT' | 'OWNER') => {
-    const r = reqs.find((x) => String((x as { actorRole?: string })?.actorRole) === role && String((x as { status?: string })?.status) === 'COMPLETED');
-    return !!(
-      r &&
-      (r as { selfieDataUrl?: string }).selfieDataUrl &&
-      (r as { signatureDataUrl?: string }).signatureDataUrl &&
-      (r as { idCardFrontDataUrl?: string }).idCardFrontDataUrl &&
-      (r as { idCardBackDataUrl?: string }).idCardBackDataUrl
-    );
-  };
-  const clientDone = hasMedia('CLIENT');
-  const ownerDone = hasMedia('OWNER');
-  if (stage === 'ADMIN_APPROVED' && clientDone) return 'TENANT_APPROVED';
-  if (stage === 'TENANT_APPROVED' && ownerDone) return 'LANDLORD_APPROVED';
-  if (clientDone && !ownerDone) return 'TENANT_APPROVED';
-  if (clientDone && ownerDone && stage !== 'APPROVED') return 'LANDLORD_APPROVED';
-  return stage;
-}
 
 /** هل الحجز يحتاج من العميل إكمال بيانات العقد والمستندات (كما يظهر في صفحة الحجز للإدارة). يُعتبر الحجز بحاجة لإكمال البيانات عندما: يوجد عقد مسودة، أو الحجز مؤكد والدفع مؤكد (العقد قد يكون من جهة الإدارة ولا يظهر في localStorage للعميل). */
 function needsToCompleteContractData(
