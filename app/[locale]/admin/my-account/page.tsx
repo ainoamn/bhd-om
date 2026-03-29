@@ -12,6 +12,9 @@ import {
   updateContact,
   createContact,
   getContactDisplayName,
+  isOmaniNationality,
+  validateCivilIdExpiry,
+  validatePassportExpiry,
   type Contact,
   type ContactAddress,
 } from '@/lib/data/addressBook';
@@ -122,9 +125,12 @@ export default function MyAccountPage() {
     passportNumber: '',
     passportExpiry: '',
     workplace: '',
+    workplaceEn: '',
     position: '',
     address: { ...emptyAddress },
     notes: '',
+    notesEn: '',
+    tags: '',
   });
 
   useEffect(() => {
@@ -151,9 +157,12 @@ export default function MyAccountPage() {
         passportNumber: co.passportNumber ?? '',
         passportExpiry: co.passportExpiry ?? '',
         workplace: co.workplace ?? '',
+        workplaceEn: co.workplaceEn ?? '',
         position: co.position ?? '',
         address: { ...emptyAddress, ...co.address },
         notes: co.notes ?? '',
+        notesEn: co.notesEn ?? '',
+        tags: Array.isArray(co.tags) ? co.tags.join(', ') : '',
       });
     } else {
       const { code, number } = parsePhoneToCountryAndNumber(user.phone || '968');
@@ -183,9 +192,46 @@ export default function MyAccountPage() {
       alert(ar ? 'الهاتف مطلوب (8 أرقام على الأقل)' : 'Phone required (at least 8 digits)');
       return;
     }
+    if (!form.email?.trim()) {
+      alert(ar ? 'البريد الإلكتروني مطلوب (للتوافق مع سجل العناوين واعتماد العقود)' : 'Email is required (for address book and contract approval)');
+      return;
+    }
+    if (!form.nationality?.trim()) {
+      alert(ar ? 'الجنسية مطلوبة' : 'Nationality is required');
+      return;
+    }
+    const addrOk = !!(form.address.fullAddress?.trim() || form.address.fullAddressEn?.trim());
+    if (!addrOk) {
+      alert(ar ? 'أدخل العنوان بالعربية أو الإنجليزية' : 'Enter address in Arabic or English');
+      return;
+    }
+    const nat = form.nationality.trim();
+    if (nat && isOmaniNationality(nat)) {
+      if (!form.civilId.trim() || !form.civilIdExpiry.trim()) {
+        alert(ar ? 'للجنسية العمانية: الرقم المدني وتاريخ الانتهاء مطلوبان' : 'For Omani nationality: civil ID and expiry are required');
+        return;
+      }
+      if (!validateCivilIdExpiry(form.civilIdExpiry).valid) {
+        alert(ar ? 'انتهاء الرقم المدني يجب أن يكون بلا يقل عن 30 يوماً من اليوم' : 'Civil ID expiry must be at least 30 days from today');
+        return;
+      }
+    } else if (nat && !isOmaniNationality(nat)) {
+      if (!form.passportNumber.trim() || !form.passportExpiry.trim()) {
+        alert(ar ? 'لغير العمانيين: رقم الجواز وتاريخ الانتهاء مطلوبان' : 'For non-Omani: passport number and expiry are required');
+        return;
+      }
+      if (!validatePassportExpiry(form.passportExpiry).valid) {
+        alert(ar ? 'انتهاء الجواز يجب أن يكون بلا يقل عن 90 يوماً من اليوم' : 'Passport expiry must be at least 90 days from today');
+        return;
+      }
+    }
     setSaving(true);
     try {
       if (fullContact) {
+        const tagList = form.tags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
         const updates: Partial<Contact> = {
           firstName: form.firstName.trim() || fullContact.firstName,
           secondName: form.secondName.trim() || undefined,
@@ -202,9 +248,12 @@ export default function MyAccountPage() {
           passportNumber: form.passportNumber.trim() || undefined,
           passportExpiry: form.passportExpiry.trim() || undefined,
           workplace: form.workplace.trim() || undefined,
+          workplaceEn: form.workplaceEn.trim() || undefined,
           position: form.position.trim() || undefined,
           address: form.address,
           notes: form.notes.trim() || undefined,
+          notesEn: form.notesEn.trim() || undefined,
+          tags: tagList.length > 0 ? tagList : undefined,
         };
         const updated = updateContact(fullContact.id, updates);
         if (updated) {
@@ -214,6 +263,10 @@ export default function MyAccountPage() {
       } else {
         const firstName = form.firstName.trim() || (user?.name?.split(/\s+/)[0]) || '';
         const familyName = form.familyName.trim() || (user?.name?.split(/\s+/).slice(1).join(' ')) || '—';
+        const tagList = form.tags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
         const created = createContact({
           contactType: 'PERSONAL',
           category: 'CLIENT',
@@ -232,9 +285,12 @@ export default function MyAccountPage() {
           passportNumber: form.passportNumber.trim() || undefined,
           passportExpiry: form.passportExpiry.trim() || undefined,
           workplace: form.workplace.trim() || undefined,
+          workplaceEn: form.workplaceEn.trim() || undefined,
           position: form.position.trim() || undefined,
           address: form.address,
           notes: form.notes.trim() || undefined,
+          notesEn: form.notesEn.trim() || undefined,
+          tags: tagList.length > 0 ? tagList : undefined,
           userId: user.id,
         });
         setContact(created);
@@ -452,7 +508,12 @@ export default function MyAccountPage() {
                 </button>
               </>
             ) : (
-              <button type="button" onClick={() => setEditing(true)} className="admin-btn-primary inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                disabled={fullContact?.contactType === 'COMPANY'}
+                className="admin-btn-primary inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Icon name="pencil" className="w-4 h-4" />
                 {ar ? 'تعديل وتعبئة البيانات' : 'Edit & fill data'}
               </button>
@@ -460,6 +521,13 @@ export default function MyAccountPage() {
           </div>
         </div>
         <div className="admin-card-body space-y-4">
+          {fullContact?.contactType === 'COMPANY' ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              {ar
+                ? 'حسابك مرتبط بسجل «شركة» في دفتر العناوين. تحديث السجل التجاري والمفوضين يتم عادةً عبر الإدارة. إن احتجت تعديلاً، تواصل معنا أو اطلب تحديث السجل من شاشة دفتر العناوين.'
+                : 'Your account is linked to a company record in the address book. CR and authorized representatives are usually updated by admin. Contact us if you need changes.'}
+            </div>
+          ) : null}
           {editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -529,16 +597,73 @@ export default function MyAccountPage() {
                   <input type="text" value={form.workplace} onChange={(e) => setForm({ ...form, workplace: e.target.value })} className="admin-input w-full" />
                 </div>
                 <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'جهة العمل (إنجليزي)' : 'Workplace (EN)'}</label>
+                  <input type="text" value={form.workplaceEn} onChange={(e) => setForm({ ...form, workplaceEn: e.target.value })} className="admin-input w-full" />
+                </div>
+                <div className="sm:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'المنصب' : 'Position'}</label>
                   <input type="text" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} className="admin-input w-full" />
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'العنوان' : 'Address'}</label>
-                  <textarea value={form.address.fullAddress} onChange={(e) => setForm({ ...form, address: { ...form.address, fullAddress: e.target.value } })} className="admin-input w-full" rows={2} />
+                <div className="sm:col-span-2 rounded-xl border border-stone-200 bg-stone-50/80 p-4 space-y-3">
+                  <p className="text-sm font-bold text-gray-800 m-0">{ar ? 'العنوان — نفس حقول دفتر العناوين' : 'Address — same fields as address book'}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {(
+                      [
+                        ['governorate', ar ? 'المحافظة' : 'Governorate'],
+                        ['state', ar ? 'الولاية / المنطقة' : 'State / area'],
+                        ['area', ar ? 'المنطقة التفصيلية' : 'Area'],
+                        ['village', ar ? 'القرية / المكان' : 'Village'],
+                        ['street', ar ? 'السكة / الشارع' : 'Street'],
+                        ['building', ar ? 'المبنى' : 'Building'],
+                        ['floor', ar ? 'الطابق' : 'Floor'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <div key={key}>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
+                        <input
+                          type="text"
+                          value={(form.address as Record<string, string | undefined>)[key] ?? ''}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              address: { ...form.address, [key]: e.target.value },
+                            })
+                          }
+                          className="admin-input w-full"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'العنوان الكامل (عربي) *' : 'Full address (AR) *'}</label>
+                    <textarea
+                      value={form.address.fullAddress ?? ''}
+                      onChange={(e) => setForm({ ...form, address: { ...form.address, fullAddress: e.target.value } })}
+                      className="admin-input w-full"
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'العنوان الكامل (إنجليزي)' : 'Full address (EN)'}</label>
+                    <textarea
+                      value={form.address.fullAddressEn ?? ''}
+                      onChange={(e) => setForm({ ...form, address: { ...form.address, fullAddressEn: e.target.value } })}
+                      className="admin-input w-full"
+                      rows={2}
+                    />
+                  </div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'ملاحظات' : 'Notes'}</label>
                   <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="admin-input w-full" rows={2} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'ملاحظات (إنجليزي)' : 'Notes (EN)'}</label>
+                  <textarea value={form.notesEn} onChange={(e) => setForm({ ...form, notesEn: e.target.value })} className="admin-input w-full" rows={2} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-600 mb-1">{ar ? 'وسوم (مفصولة بفاصلة)' : 'Tags (comma-separated)'}</label>
+                  <input type="text" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className="admin-input w-full" placeholder={ar ? 'مثال: عميل، مهم' : 'e.g. client, priority'} />
                 </div>
               </div>
           ) : fullContact ? (
@@ -561,9 +686,22 @@ export default function MyAccountPage() {
                 {fullContact.passportNumber && <div><span className="font-semibold text-gray-600">{ar ? 'رقم الجواز:' : 'Passport:'}</span> <span className="text-gray-900">{fullContact.passportNumber}</span></div>}
                 {fullContact.passportExpiry && <div><span className="font-semibold text-gray-600">{ar ? 'انتهاء الجواز:' : 'Passport expiry:'}</span> <span className="text-gray-900">{new Date(fullContact.passportExpiry).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</span></div>}
                 {fullContact.workplace && <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'جهة العمل:' : 'Workplace:'}</span> <span className="text-gray-900">{fullContact.workplace}</span></div>}
+                {fullContact.workplaceEn && <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'جهة العمل (إنجليزي):' : 'Workplace (EN):'}</span> <span className="text-gray-900">{fullContact.workplaceEn}</span></div>}
                 {fullContact.position && <div><span className="font-semibold text-gray-600">{ar ? 'المنصب:' : 'Position:'}</span> <span className="text-gray-900">{fullContact.position}</span></div>}
                 <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'العنوان:' : 'Address:'}</span> <span className="text-gray-900">{addressDisplay}</span></div>
+                {fullContact.address?.fullAddressEn?.trim() && (
+                  <div className="sm:col-span-2">
+                    <span className="font-semibold text-gray-600">{ar ? 'العنوان (إنجليزي):' : 'Address (EN):'}</span>{' '}
+                    <span className="text-gray-900">{fullContact.address.fullAddressEn}</span>
+                  </div>
+                )}
                 {fullContact.notes && <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'ملاحظات:' : 'Notes:'}</span> <span className="text-gray-900">{fullContact.notes}</span></div>}
+                {fullContact.notesEn && <div className="sm:col-span-2"><span className="font-semibold text-gray-600">{ar ? 'ملاحظات (إنجليزي):' : 'Notes (EN):'}</span> <span className="text-gray-900">{fullContact.notesEn}</span></div>}
+                {fullContact.tags && fullContact.tags.length > 0 && (
+                  <div className="sm:col-span-2">
+                    <span className="font-semibold text-gray-600">{ar ? 'الوسوم:' : 'Tags:'}</span> <span className="text-gray-900">{fullContact.tags.join(', ')}</span>
+                  </div>
+                )}
               </div>
           ) : (
             <div className="space-y-2 text-gray-600">

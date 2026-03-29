@@ -220,6 +220,88 @@ export function isCompanyContact(c: Contact): boolean {
   return c.contactType === 'COMPANY';
 }
 
+/**
+ * قائمة مفاتيح الحقول الناقصة أو غير الصالحة لجهة الاتصال قبل السماح بخطوة «اعتماد/توقيع العقد» من لوحة العميل.
+ * يُطبَّق نفس منطق سجل العناوين (شخصي: بيانات الهوية/العنوان؛ شركة: بيانات السجل والمفوضين).
+ */
+export function getContactProfileIssuesForContractApproval(contact: Contact | null | undefined): string[] {
+  if (!contact?.id) return ['noContactLinked'];
+  if (isCompanyContact(contact) && contact.companyData) {
+    return getCompanyProfileIssues(contact);
+  }
+  return getPersonalProfileIssues(contact);
+}
+
+export function isContactProfileCompleteForContractApproval(contact: Contact | null | undefined): boolean {
+  return getContactProfileIssuesForContractApproval(contact).length === 0;
+}
+
+function getPersonalProfileIssues(c: Contact): string[] {
+  const issues: string[] = [];
+  if (!c.firstName?.trim()) issues.push('firstName');
+  if (!c.familyName?.trim()) issues.push('familyName');
+  if (!c.nationality?.trim()) issues.push('nationality');
+  if (!c.phone?.trim()) issues.push('phone');
+  else {
+    const pv = validatePhoneWithCountryCode(c.phone.replace(/\D/g, ''), '968');
+    if (!pv.valid) issues.push('phoneInvalid');
+  }
+  if (!c.email?.trim()) issues.push('email');
+  const addr = c.address;
+  if (!(addr?.fullAddress?.trim() || addr?.fullAddressEn?.trim())) issues.push('address');
+
+  if (isOmaniNationality(c.nationality || '')) {
+    if (!c.civilId?.trim()) issues.push('civilId');
+    if (!c.civilIdExpiry?.trim()) issues.push('civilIdExpiry');
+    else if (!validateCivilIdExpiry(c.civilIdExpiry).valid) issues.push('civilIdExpiryInvalid');
+  } else {
+    if (!c.passportNumber?.trim()) issues.push('passportNumber');
+    if (!c.passportExpiry?.trim()) issues.push('passportExpiry');
+    else if (!validatePassportExpiry(c.passportExpiry).valid) issues.push('passportExpiryInvalid');
+  }
+  return issues;
+}
+
+function getCompanyProfileIssues(c: Contact): string[] {
+  const issues: string[] = [];
+  const cd = c.companyData;
+  if (!cd?.companyNameAr?.trim()) issues.push('companyNameAr');
+  if (!cd?.commercialRegistrationNumber?.trim()) issues.push('commercialRegistrationNumber');
+  if (!c.phone?.trim()) issues.push('phone');
+  else {
+    const pv = validatePhoneWithCountryCode(c.phone.replace(/\D/g, ''), '968');
+    if (!pv.valid) issues.push('phoneInvalid');
+  }
+  if (!c.email?.trim()) issues.push('email');
+  const reps = cd?.authorizedRepresentatives ?? [];
+  if (reps.length === 0) issues.push('authorizedRepresentatives');
+  for (let i = 0; i < reps.length; i++) {
+    const r = reps[i];
+    const repName = buildRepNameFromParts(r) || r.name?.trim();
+    if (!repName) issues.push(`rep_${i}_name`);
+    if (!r.nameEn?.trim()) issues.push(`rep_${i}_nameEn`);
+    if (!r.position?.trim()) issues.push(`rep_${i}_position`);
+    if (!r.phone?.trim()) issues.push(`rep_${i}_phone`);
+    else {
+      const repCc = (r as { phoneCountryCode?: string }).phoneCountryCode || '968';
+      const rpv = validatePhoneWithCountryCode(r.phone.replace(/\D/g, ''), repCc);
+      if (!rpv.valid) issues.push(`rep_${i}_phoneInvalid`);
+    }
+    if (!r.nationality?.trim()) issues.push(`rep_${i}_nationality`);
+    const omani = isOmaniNationality(r.nationality || '');
+    if (omani) {
+      if (!r.civilId?.trim()) issues.push(`rep_${i}_civilId`);
+      if (!r.civilIdExpiry?.trim()) issues.push(`rep_${i}_civilIdExpiry`);
+      else if (!validateCivilIdExpiry(r.civilIdExpiry).valid) issues.push(`rep_${i}_civilIdExpiryInvalid`);
+    } else {
+      if (!r.passportNumber?.trim()) issues.push(`rep_${i}_passportNumber`);
+      if (!r.passportExpiry?.trim()) issues.push(`rep_${i}_passportExpiry`);
+      else if (!validatePassportExpiry(r.passportExpiry).valid) issues.push(`rep_${i}_passportExpiryInvalid`);
+    }
+  }
+  return issues;
+}
+
 /** هل الجهة مفوض بالتوقيع لشركة؟ */
 export function isAuthorizedRepresentative(c: Contact): boolean {
   return !!(c.contactType === 'PERSONAL' && c.authorizedForCompanyId);

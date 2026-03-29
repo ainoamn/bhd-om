@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getContactForUser, normalizePhoneForComparison } from '@/lib/data/addressBook';
+import { getContactForUser, getContactProfileIssuesForContractApproval, type Contact } from '@/lib/data/addressBook';
 import { getContactLinkedBookings } from '@/lib/data/contactLinks';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { getAllBookings, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
@@ -17,6 +17,37 @@ import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChec
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import type { ContactLinkedBooking } from '@/lib/data/contactLinks';
 import type { RentalContract } from '@/lib/data/contracts';
+
+/** تسمية مختصرة لحقل ناقص في ملف العميل (للمطالبة بإكمال «حسابي») */
+function describeProfileIssues(ar: boolean, issues: string[]): string {
+  if (issues.length === 0) return '';
+  const map: Record<string, { ar: string; en: string }> = {
+    noContactLinked: { ar: 'ربط سجل دفتر العناوين بحسابك', en: 'Link an address-book record to your account' },
+    firstName: { ar: 'الاسم الأول', en: 'First name' },
+    familyName: { ar: 'اسم العائلة', en: 'Family name' },
+    nationality: { ar: 'الجنسية', en: 'Nationality' },
+    phone: { ar: 'الهاتف', en: 'Phone' },
+    phoneInvalid: { ar: 'هاتف صالح', en: 'Valid phone' },
+    email: { ar: 'البريد الإلكتروني', en: 'Email' },
+    address: { ar: 'العنوان (عربي أو إنجليزي)', en: 'Address (AR or EN)' },
+    civilId: { ar: 'الرقم المدني', en: 'Civil ID' },
+    civilIdExpiry: { ar: 'انتهاء الرقم المدني', en: 'Civil ID expiry' },
+    civilIdExpiryInvalid: { ar: 'انتهاء الرقم المدني (صالح 30+ يوماً)', en: 'Civil ID expiry (30+ days valid)' },
+    passportNumber: { ar: 'رقم الجواز', en: 'Passport number' },
+    passportExpiry: { ar: 'انتهاء الجواز', en: 'Passport expiry' },
+    passportExpiryInvalid: { ar: 'انتهاء الجواز (صالح 90+ يوماً)', en: 'Passport expiry (90+ days valid)' },
+    companyNameAr: { ar: 'اسم الشركة', en: 'Company name' },
+    commercialRegistrationNumber: { ar: 'السجل التجاري', en: 'Commercial registration' },
+    authorizedRepresentatives: { ar: 'مفوّض بالتوقيع', en: 'Authorized representative' },
+  };
+  const labels = issues.slice(0, 5).map((k) => {
+    if (map[k]) return ar ? map[k].ar : map[k].en;
+    if (k.startsWith('rep_')) return ar ? 'بيانات مفوّض' : 'Representative data';
+    return k;
+  });
+  const more = issues.length > 5 ? (ar ? ` +${issues.length - 5}` : ` +${issues.length - 5}`) : '';
+  return labels.join(ar ? '، ' : ', ') + more;
+}
 
 const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
   PENDING: { ar: 'قيد الانتظار', en: 'Pending' },
@@ -232,6 +263,10 @@ export default function MyBookingsPage() {
     (effectiveUser as { role?: string } | undefined)?.role ||
     (session?.user as { role?: string } | undefined)?.role;
   const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
+  const contactForProfile =
+    contact && typeof contact === 'object' && 'id' in contact && (contact as Contact).id ? (contact as Contact) : null;
+  const profileIssues = contactForProfile ? getContactProfileIssuesForContractApproval(contactForProfile) : ['noContactLinked'];
+  const profileComplete = profileIssues.length === 0;
 
   const [dataVersion, setDataVersion] = useState(0);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
@@ -321,6 +356,23 @@ export default function MyBookingsPage() {
               : 'Bookings linked to your account'
         }
       />
+      {!profileComplete && (userRole === 'CLIENT' || userRole === 'OWNER') ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 shadow-sm">
+          <p className="font-semibold m-0 mb-1">
+            {locale === 'ar' ? 'اكتمل ملفك في «حسابي» قبل اعتماد أو توقيع العقد' : 'Complete your profile in My Account before approving or signing'}
+          </p>
+          <p className="m-0 opacity-90 mb-2">
+            {locale === 'ar' ? 'ناقص أو يحتاج تحديث:' : 'Missing or needs update:'}{' '}
+            {describeProfileIssues(locale === 'ar', profileIssues)}
+          </p>
+          <Link
+            href={`/${locale}/admin/my-account`}
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-700 px-4 py-2 font-semibold text-white hover:bg-amber-800 transition-colors no-underline"
+          >
+            {locale === 'ar' ? 'الانتقال إلى حسابي' : 'Go to My Account'}
+          </Link>
+        </div>
+      ) : null}
       <div className="admin-card overflow-hidden">
         {bookings.length === 0 ? (
           <div className="p-12 text-center">
@@ -447,7 +499,7 @@ export default function MyBookingsPage() {
                               })()}
                             </Link>
                           )}
-                          {(showClientApprove || showOwnerApprove) && (
+                          {(showClientApprove || showOwnerApprove) && profileComplete && (
                             <Link
                               href={contractReviewUrl}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
@@ -475,6 +527,14 @@ export default function MyBookingsPage() {
                                     : ar
                                       ? 'اعتماد (المالك)'
                                       : 'Approve (Landlord)'}
+                            </Link>
+                          )}
+                          {(showClientApprove || showOwnerApprove) && !profileComplete && (
+                            <Link
+                              href={`/${locale}/admin/my-account`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-colors"
+                            >
+                              {ar ? 'أكمل البيانات في حسابي أولاً' : 'Complete profile in My Account first'}
                             </Link>
                           )}
                           {!needComplete && !(showClientApprove || showOwnerApprove) && <span className="text-gray-400 text-sm">—</span>}
