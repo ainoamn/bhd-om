@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — /admin/data: تصفير الخادم + PIN + نسخ احتياطي/استعادة
+
+- **ما تم:** صفحة `admin/data` تستدعي `POST /api/admin/data/reset` (تنفيذ `executeResetKeepProperties`) مع `ADMIN_DATA_RESET_PIN`؛ `POST /api/admin/data/backup` لتنزيل لقطة JSON؛ `POST /api/admin/data/restore` برفع ملف. منطق مشترك في `lib/server/dataResetKeepProperties.ts` و`dataBackupSnapshot.ts` و`adminDataPin.ts`. `.env.example` يذكر المتغير.
+- **الملفات:** `app/[locale]/admin/data/page.tsx`, `app/api/admin/data/*`, `lib/server/*`, `prisma/reset-keep-properties.ts`, `.env.example`
+
 ### جلسة 2026-03-29 — سكربت تصفير DB مع الإبقاء على العقارات
 
 - **ما تم:** `prisma/reset-keep-properties.ts` + `npm run db:reset-keep-properties` — يحذف المستخدمين، الحجوزات، دفتر العناوين، سجل الاتصالات، الاشتراكات، المشاريع، المؤسسات، المحاسبة، المحتوى، الإعدادات؛ يُفرّغ مراجع العقار (مالك/منشئ/شركة) ويُبقي صفوف `Property`؛ يعيد خطط الباقات ومستخدم إداري واحد. يتطلب `CONFIRM_RESET=yes`.
