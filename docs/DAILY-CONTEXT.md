@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — تصفير الخادم: مسح الحجوزات/العقود المحلية (تضارب نفس البريد)
+
+- **السبب:** الحجوزات تُعرَّف في الواجهة غالباً بمطابقة **البريد/الهاتف** مع سجل الحجز؛ `bhd_property_bookings` في `localStorage` لم يُمس عند تصفير الخادم فقط، فيظهر لمستخدم جديد بنفس الإيميل حجوزات قديمة.
+- **ما تم:** `clearClientCachesAfterServerDbReset()` في `backup.ts` = `resetAllOperationalData()` + `clearAddressBookLocalStorage()`؛ تُستدعى بعد نجاح التصفير في `/admin/data` مع تحديث رسالة النجاح.
+
 ### جلسة 2026-03-29 — تصفير الخادم: مسح دفتر العناوين المحلي
 
 - **ما تم:** بعد `POST /api/admin/data/reset` كان جدول `AddressBookContact` يُصفَّر لكن `localStorage` (`bhd_address_book`) يبقى فيُعاد دمج المحتوى القديم ورفعه للخادم. أضيف `clearAddressBookLocalStorage()` واستدعاؤها بعد نجاح التصفير في `/admin/data`.
