@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — معالجة بقاء بيانات "حسابي" بعد التصفير
+
+- **السبب:** بقاء `userSession` (انتحال قديم) في `localStorage` قد يفرض هوية مستخدم قديم في الواجهة، ومع fallback محلي في `my-account` عبر email/phone قد تُعرض بيانات CNT قديمة.
+- **ما تم:** في `AuthSessionLocalIsolation` إزالة userSession/جلسة mock تلقائياً عند عدم تطابقها مع المستخدم الحقيقي authenticated. وفي `my-account` جعل fallback المحلي يعتمد `findContactByUserId` فقط (بدون email/phone) لمنع تسرب بيانات مستخدم سابق.
+- **الملفات:** `components/AuthSessionLocalIsolation.tsx`, `app/[locale]/admin/my-account/page.tsx`
+
 ### جلسة 2026-03-29 — تصفير الخادم: مسح الحجوزات/العقود المحلية (تضارب نفس البريد)
 
 - **السبب:** الحجوزات تُعرَّف في الواجهة غالباً بمطابقة **البريد/الهاتف** مع سجل الحجز؛ `bhd_property_bookings` في `localStorage` لم يُمس عند تصفير الخادم فقط، فيظهر لمستخدم جديد بنفس الإيميل حجوزات قديمة.
