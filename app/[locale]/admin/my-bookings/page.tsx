@@ -7,9 +7,8 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactForUser, getContactProfileIssuesForContractApproval, type Contact } from '@/lib/data/addressBook';
-import { getContactLinkedBookings } from '@/lib/data/contactLinks';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
-import { getAllBookings, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
+import { type PropertyBooking } from '@/lib/data/bookings';
 import { inferBookingContractStage } from '@/lib/data/bookingContractStage';
 import { getContractByBooking, hasContractForUnit } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
@@ -270,6 +269,7 @@ export default function MyBookingsPage() {
 
   const [dataVersion, setDataVersion] = useState(0);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+  const [serverLoaded, setServerLoaded] = useState(false);
   useEffect(() => {
     let alive = true;
     const run = async (attempt: number) => {
@@ -277,9 +277,16 @@ export default function MyBookingsPage() {
         const r = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
         const data = r.ok ? ((await r.json()) as PropertyBooking[]) : [];
         if (!alive) return;
-        if (Array.isArray(data) && data.length > 0) {
+        if (r.ok && Array.isArray(data)) {
+          setServerLoaded(true);
           setServerBookings(data);
-          mergeBookingsFromServer(data);
+          // عند التصفير قد يبقى تخزين محلي قديم؛ الخادم هو المصدر النهائي لـ "حجوزاتي".
+          // إذا رجع الخادم قائمة فارغة، لا نسمح بسقوط fallback للمحلي.
+          if (data.length === 0 && typeof window !== 'undefined') {
+            try {
+              localStorage.removeItem('bhd_property_bookings');
+            } catch {}
+          }
           setDataVersion((v) => v + 1);
           return;
         }
@@ -301,44 +308,29 @@ export default function MyBookingsPage() {
     };
   }, [status]);
 
-  const localBookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
-  const allBookings = typeof window !== 'undefined' ? (serverBookings.length > 0 ? serverBookings : getAllBookings()) : [];
-
-  // ربط serverBookings بالحجوزات المحلية عبر bookingId فقط لتفادي اختلاف البريد/الهاتف بين الأجهزة
-  const localBookingIdSet = new Set(localBookings.map((b) => b.id));
-  const serverBookingsForContact: ContactLinkedBooking[] =
-    serverBookings.length > 0
-      ? (() => {
-          const fromServer =
-            userRole === 'OWNER'
-              ? serverBookings
-              : contact
-                ? serverBookings.filter((b) => localBookingIdSet.has(String(b.id)))
-                : [];
-          return fromServer.map(
-            (b): ContactLinkedBooking => ({
-              id: String(b.id),
-              bookingId: String(b.id),
-              date: String(b.createdAt || ''),
-              propertyId: Number(b.propertyId),
-              propertyTitleAr: String((b as PropertyBooking).propertyTitleAr || ''),
-              propertyTitleEn: String((b as PropertyBooking).propertyTitleEn || ''),
-              unitKey: (b as PropertyBooking).unitKey ? String((b as PropertyBooking).unitKey) : undefined,
-              unitDisplay: (b as PropertyBooking & { unitDisplay?: string }).unitDisplay
-              ? String((b as PropertyBooking & { unitDisplay?: string }).unitDisplay)
-              : undefined,
-              status: b.status,
-              contractId: b.contractId ? String(b.contractId) : undefined,
-              hasFinancialClaims: false,
-              cardLast4: b.cardLast4,
-              cardExpiry: b.cardExpiry,
-              cardholderName: b.cardholderName,
-            })
-          );
-        })()
-      : [];
-
-  const bookings: ContactLinkedBooking[] = serverBookingsForContact.length > 0 ? serverBookingsForContact : localBookings;
+  const allBookings = serverBookings;
+  const bookings: ContactLinkedBooking[] = serverLoaded
+    ? serverBookings.map(
+        (b): ContactLinkedBooking => ({
+          id: String(b.id),
+          bookingId: String(b.id),
+          date: String(b.createdAt || ''),
+          propertyId: Number(b.propertyId),
+          propertyTitleAr: String((b as PropertyBooking).propertyTitleAr || ''),
+          propertyTitleEn: String((b as PropertyBooking).propertyTitleEn || ''),
+          unitKey: (b as PropertyBooking).unitKey ? String((b as PropertyBooking).unitKey) : undefined,
+          unitDisplay: (b as PropertyBooking & { unitDisplay?: string }).unitDisplay
+            ? String((b as PropertyBooking & { unitDisplay?: string }).unitDisplay)
+            : undefined,
+          status: b.status,
+          contractId: b.contractId ? String(b.contractId) : undefined,
+          hasFinancialClaims: false,
+          cardLast4: b.cardLast4,
+          cardExpiry: b.cardExpiry,
+          cardholderName: b.cardholderName,
+        })
+      )
+    : [];
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
 
