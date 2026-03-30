@@ -164,7 +164,10 @@ export default function AdminContractsPage() {
   };
 
   const confirmedBookingsWithoutContract = bookings.filter((b) => {
-    if (b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || getContractByBooking(b.id)) return false;
+    const hasServerContract =
+      !!String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim() ||
+      !!((b as PropertyBooking & { contractData?: unknown }).contractData);
+    if (b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || hasServerContract || getContractByBooking(b.id)) return false;
     return getPropertyKind(b.propertyId) === contractKind;
   });
 
