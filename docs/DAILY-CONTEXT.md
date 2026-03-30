@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-29 — إضافة robots + sitemap
+
+- **ما تم:** إنشاء `app/robots.ts` و `app/sitemap.ts` لتوليد `robots.txt` و `sitemap.xml` تلقائياً وتحسين SEO التقني (روابط AR/EN + الصفحات العامة + منع فهرسة admin/api).
+- **الملفات:** `app/robots.ts`, `app/sitemap.ts`
+
 ### جلسة 2026-03-29 — "حجوزاتي" تعتمد الخادم فقط (منع بقايا localStorage)
 
 - **السبب:** صفحة `my-bookings` كانت تسمح fallback محلي (`bhd_property_bookings`) عند نقص/فراغ بيانات الخادم، فيظهر حجز قديم بعد التصفير.
