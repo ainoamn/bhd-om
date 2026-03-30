@@ -3,9 +3,8 @@
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getContactForUser } from '@/lib/data/addressBook';
-import { searchDocuments } from '@/lib/data/accounting';
 
 export default function MyInvoicesPage() {
   const params = useParams();
@@ -16,11 +15,31 @@ export default function MyInvoicesPage() {
   const tOwner = useTranslations('admin.nav.ownerNav');
 
   const user = session?.user as { id?: string; email?: string; phone?: string; role?: string } | undefined;
-  const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
-  const docs = contact && typeof window !== 'undefined' ? searchDocuments({ contactId: (contact as { id?: string }).id }) : [];
-  const invoices = docs.filter((d) => d.type === 'INVOICE' || (d.type as string) === 'SALES_INVOICE');
+  const [invoices, setInvoices] = useState<Array<{ id: string; serialNumber?: string; date?: string; totalAmount?: number }>>([]);
+  const [loaded, setLoaded] = useState(false);
 
-  const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    fetch('/api/me/accounting-documents?type=INVOICE', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (!alive) return;
+        setInvoices(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setInvoices([]);
+      })
+      .finally(() => {
+        if (alive) setLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
+
+  const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
 
   const title = user?.role === 'OWNER' ? tOwner('myInvoices') : tClient('myInvoices');
 
@@ -28,7 +47,11 @@ export default function MyInvoicesPage() {
     <div className="space-y-6">
       <AdminPageHeader title={title} subtitle={locale === 'ar' ? 'الفواتير المرتبطة بحسابك' : 'Invoices linked to your account'} />
       <div className="admin-card overflow-hidden">
-        {invoices.length === 0 ? (
+        {!loaded ? (
+          <div className="p-12 text-center">
+            <p className="text-gray-500">{locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}</p>
+          </div>
+        ) : invoices.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-gray-500">{locale === 'ar' ? 'لا توجد فواتير' : 'No invoices'}</p>
           </div>

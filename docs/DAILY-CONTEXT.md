@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — تحويل صفحات حساب العميل إلى Server-first
+
+- **ما تم:** إضافة `GET /api/me/accounting-documents` لقراءة مستندات المحاسبة الخاصة بالمستخدم من قاعدة البيانات عبر `contactId` المرتبط بالمستخدم.
+- **ما تم:** تحديث `my-invoices` و `my-receipts` لاستخدام API الجديد بدل `searchDocuments` المحلي.
+- **ما تم:** تحديث `my-properties` لإلغاء fallback المحلي `propertyLandlords` والاعتماد على حجوزات الخادم + محفظة عقارات المالك.
+- **ما تم:** تحديث `my-contracts` لإلغاء اعتماد العقود المحلية كمسار أساسي واعتماد بيانات الخادم/booking contractData.
+- **الملفات:** `app/api/me/accounting-documents/route.ts`, `app/[locale]/admin/my-invoices/page.tsx`, `app/[locale]/admin/my-receipts/page.tsx`, `app/[locale]/admin/my-properties/page.tsx`, `app/[locale]/admin/my-contracts/page.tsx`
+
 ### جلسة 2026-03-29 — إضافة robots + sitemap
 
 - **ما تم:** إنشاء `app/robots.ts` و `app/sitemap.ts` لتوليد `robots.txt` و `sitemap.xml` تلقائياً وتحسين SEO التقني (روابط AR/EN + الصفحات العامة + منع فهرسة admin/api).

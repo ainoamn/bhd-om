@@ -3,9 +3,8 @@
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getContactForUser } from '@/lib/data/addressBook';
-import { searchDocuments } from '@/lib/data/accounting';
 
 export default function MyReceiptsPage() {
   const params = useParams();
@@ -13,18 +12,42 @@ export default function MyReceiptsPage() {
   const { data: session } = useSession();
   const t = useTranslations('admin.nav.clientNav');
 
-  const user = session?.user as { id?: string; email?: string; phone?: string } | undefined;
-  const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
-  const docs = contact && typeof window !== 'undefined' ? searchDocuments({ contactId: (contact as { id?: string }).id }) : [];
-  const receipts = docs.filter((d) => d.type === 'RECEIPT');
+  const user = session?.user as { id?: string } | undefined;
+  const [receipts, setReceipts] = useState<Array<{ id: string; serialNumber?: string; date?: string; totalAmount?: number }>>([]);
+  const [loaded, setLoaded] = useState(false);
 
-  const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    fetch('/api/me/accounting-documents?type=RECEIPT', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (!alive) return;
+        setReceipts(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setReceipts([]);
+      })
+      .finally(() => {
+        if (alive) setLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
+
+  const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
 
   return (
     <div className="space-y-6">
       <AdminPageHeader title={t('myReceipts')} subtitle={locale === 'ar' ? 'الإيصالات المرتبطة بحسابك' : 'Receipts linked to your account'} />
       <div className="admin-card overflow-hidden">
-        {receipts.length === 0 ? (
+        {!loaded ? (
+          <div className="p-12 text-center">
+            <p className="text-gray-500">{locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}</p>
+          </div>
+        ) : receipts.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-gray-500">{locale === 'ar' ? 'لا توجد إيصالات' : 'No receipts'}</p>
           </div>

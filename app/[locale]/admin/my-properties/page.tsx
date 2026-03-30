@@ -5,8 +5,6 @@ import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getContactForUser } from '@/lib/data/addressBook';
-import { getPropertyIdsForLandlord } from '@/lib/data/propertyLandlords';
 import { getPropertyById, getPropertyDataOverrides, properties as staticProperties } from '@/lib/data/properties';
 import { bookingRelevantToOwnerContext } from '@/lib/data/ownerLandlordMatch';
 import { useEffect, useMemo, useState } from 'react';
@@ -19,9 +17,7 @@ export default function MyPropertiesPage() {
   const t = useTranslations('admin.nav.ownerNav');
 
   const user = session?.user as { id?: string; email?: string; phone?: string } | undefined;
-  const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
-
-  const landlordContactId = (contact as { id?: string } | null)?.id || '';
+  const [landlordContactId, setLandlordContactId] = useState('');
   const userRole = (session?.user as { role?: string } | undefined)?.role;
   const [ownerPortfolioSerials, setOwnerPortfolioSerials] = useState<Set<string>>(() => new Set());
   useEffect(() => {
@@ -46,6 +42,24 @@ export default function MyPropertiesPage() {
   }, [userRole]);
 
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((row) => {
+        if (!alive) return;
+        setLandlordContactId(row && typeof row === 'object' && typeof row.id === 'string' ? row.id : '');
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLandlordContactId('');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
 
   const landlordMatchCtx = useMemo(
     () => ({
@@ -72,7 +86,6 @@ export default function MyPropertiesPage() {
   }, [landlordContactId, userRole]);
 
   const propertyIds = useMemo(() => {
-    const localIds = landlordContactId && typeof window !== 'undefined' ? getPropertyIdsForLandlord(landlordContactId) : [];
     const derived = new Set<number>();
     for (const b of serverBookings) {
       if (!bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)) continue;
@@ -86,7 +99,7 @@ export default function MyPropertiesPage() {
         if (sn && ownerPortfolioSerials.has(sn)) fromPortfolio.add(p.id);
       }
     }
-    return Array.from(new Set([...localIds, ...derived, ...fromPortfolio])).filter((n) => Number.isFinite(n));
+    return Array.from(new Set([...derived, ...fromPortfolio])).filter((n) => Number.isFinite(n));
   }, [landlordContactId, serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
   const overrides = getPropertyDataOverrides();
   const properties = propertyIds.map((pid) => getPropertyById(pid, overrides)).filter(Boolean);
