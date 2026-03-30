@@ -19,6 +19,20 @@ function buildIdentity(user: unknown): string {
   return id || email || '';
 }
 
+function clearStaleImpersonationArtifacts(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem('userSession');
+    localStorage.removeItem('isSwitchingUser');
+  } catch {}
+  try {
+    delete (window as unknown as Record<string, unknown>).currentUser;
+    delete (window as unknown as Record<string, unknown>).isLoginAsUser;
+    delete (window as unknown as Record<string, unknown>).originalAdminId;
+    delete (window as unknown as Record<string, unknown>).mockNextAuthSession;
+  } catch {}
+}
+
 /**
  * يمنع "تسريب" بيانات localStorage بين المستخدمين على نفس المتصفح.
  * عند تغيّر المستخدم authenticated: نمسح البيانات التشغيلية المحلية (حجوزات/عقود/مستندات…).
@@ -31,6 +45,19 @@ export default function AuthSessionLocalIsolation() {
     if (status !== 'authenticated') return;
     const identity = buildIdentity(session?.user);
     if (!identity) return;
+
+    // إذا بقيت userSession من "فتح حساب" لكنها لا تطابق المستخدم الحقيقي الحالي
+    // فإنها قد تفرض هوية قديمة في الواجهة. نمسحها فوراً.
+    try {
+      const raw = localStorage.getItem('userSession');
+      if (raw) {
+        const p = JSON.parse(raw) as { loginAsUser?: boolean; id?: string; email?: string };
+        const hintedIdentity = (p.id || '').trim() || normalizeEmail(p.email || '');
+        if (p.loginAsUser && hintedIdentity && hintedIdentity !== identity) {
+          clearStaleImpersonationArtifacts();
+        }
+      }
+    } catch {}
 
     let prev = '';
     try {

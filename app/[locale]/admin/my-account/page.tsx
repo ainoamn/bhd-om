@@ -8,7 +8,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import Link from 'next/link';
 import Icon from '@/components/icons/Icon';
 import {
-  getContactForUser,
+  findContactByUserId,
   getContactDisplayName,
   isOmaniNationality,
   validateCivilIdExpiry,
@@ -190,10 +190,10 @@ export default function MyAccountPage() {
       if (cancelled) return;
       const uid = user.id;
       if (!uid) return;
-      const c = getContactForUser({ id: uid, email: user.email ?? null, phone: user.phone ?? null });
-      setContact('id' in c && c.id ? (c as Contact) : c);
-      if (c && 'id' in c && c.id && 'firstName' in c) {
-        fillFormFromContact(c as Contact);
+      const c = findContactByUserId(uid);
+      setContact(c || { id: '', email: user.email ?? undefined, phone: user.phone ?? undefined });
+      if (c) {
+        fillFormFromContact(c);
       } else {
         const { code, number } = parsePhoneToCountryAndNumber(user.phone || '968');
         const nameParts = (user.name || '').trim().split(/\s+/).filter(Boolean);
