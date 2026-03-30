@@ -7,10 +7,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
 import { getContactForUser } from '@/lib/data/addressBook';
-import { getContactLinkedContracts } from '@/lib/data/contactLinks';
-import { getPropertyIdsForLandlord } from '@/lib/data/propertyLandlords';
 import { getPropertyById, getPropertyDataOverrides, properties as staticProperties } from '@/lib/data/properties';
-import { searchDocuments } from '@/lib/data/accounting';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
 import type { PropertyBooking } from '@/lib/data/bookings';
@@ -33,9 +30,8 @@ export default function OwnerDashboard() {
   const can = (section: DashboardSectionKey) => allowedSections.includes(section);
 
   const user = session?.user as { id?: string; email?: string; name?: string; phone?: string } | undefined;
-  const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
-
-  const landlordContactId = (contact as { id?: string } | null)?.id || '';
+  const _contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
+  const [landlordContactId, setLandlordContactId] = useState('');
   const userRole = (session?.user as { role?: string } | undefined)?.role;
   const [ownerPortfolioSerials, setOwnerPortfolioSerials] = useState<Set<string>>(() => new Set());
   useEffect(() => {
@@ -60,6 +56,43 @@ export default function OwnerDashboard() {
   }, [userRole]);
 
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+  const [invoicesCount, setInvoicesCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((row) => {
+        if (!alive) return;
+        setLandlordContactId(row && typeof row === 'object' && typeof row.id === 'string' ? row.id : '');
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLandlordContactId('');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    fetch('/api/me/accounting-documents?type=INVOICE', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        if (!alive) return;
+        setInvoicesCount(Array.isArray(list) ? list.length : 0);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setInvoicesCount(0);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
   useEffect(() => {
     if (userRole !== 'OWNER' && !landlordContactId) return;
     let alive = true;
@@ -85,7 +118,6 @@ export default function OwnerDashboard() {
   );
 
   const propertyIds = useMemo(() => {
-    const localIds = landlordContactId && typeof window !== 'undefined' ? getPropertyIdsForLandlord(landlordContactId) : [];
     const derived = new Set<number>();
     for (const b of serverBookings as PropertyBooking[]) {
       if (!bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)) continue;
@@ -99,13 +131,24 @@ export default function OwnerDashboard() {
         if (sn && ownerPortfolioSerials.has(sn)) fromPortfolio.add(p.id);
       }
     }
-    return Array.from(new Set([...localIds, ...Array.from(derived), ...fromPortfolio])).filter((n) => Number.isFinite(n));
+    return Array.from(new Set([...Array.from(derived), ...fromPortfolio])).filter((n) => Number.isFinite(n));
   }, [landlordContactId, serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
   const overrides = getPropertyDataOverrides();
   const properties = propertyIds.map((pid) => getPropertyById(pid, overrides)).filter(Boolean);
 
-  const contracts = contact && typeof window !== 'undefined' ? getContactLinkedContracts(contact as Parameters<typeof getContactLinkedContracts>[0]) : [];
-  const landlordContracts = contracts.filter((c) => c.role === 'landlord');
+  const landlordContracts = useMemo(() => {
+    return serverBookings
+      .filter((b) => bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials))
+      .filter((b) => !!((b as PropertyBooking & { contractData?: unknown }).contractData))
+      .map((b) => ({
+        id: String(b.id),
+        propertyTitleAr: String(b.propertyTitleAr || ''),
+        unitDisplay: String((b as PropertyBooking & { unitDisplay?: string }).unitDisplay || b.propertyTitleAr || ''),
+        startDate: String(((b as PropertyBooking & { contractData?: Record<string, unknown> }).contractData || {}).startDate || b.createdAt || ''),
+        endDate: String(((b as PropertyBooking & { contractData?: Record<string, unknown> }).contractData || {}).endDate || b.createdAt || ''),
+        status: String(b.contractStage || 'DRAFT'),
+      }));
+  }, [serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
 
   const verificationTasks = useMemo(() => {
     const tasks: Array<{ bookingId: string; propertyId: number; token: string; createdAt?: string }> = [];
@@ -122,11 +165,8 @@ export default function OwnerDashboard() {
     return tasks.slice(0, 10);
   }, [serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
 
-  const docs = contact && typeof window !== 'undefined' ? searchDocuments({ contactId: (contact as { id?: string }).id }) : [];
-  const invoices = docs.filter((d) => d.type === 'INVOICE' || (d.type as string) === 'SALES_INVOICE');
-
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
-  const contractStatusKey = (s: string) => (s === 'ACTIVE' ? (locale === 'ar' ? 'نشط' : 'Active') : s === 'ENDED' ? (locale === 'ar' ? 'منتهي' : 'Ended') : s);
+  const contractStatusKey = (s: string) => (s === 'APPROVED' ? (locale === 'ar' ? 'نشط' : 'Active') : s === 'ENDED' ? (locale === 'ar' ? 'منتهي' : 'Ended') : (locale === 'ar' ? 'مسودة' : 'Draft'));
 
   const hasAnyBlock = can('dashboard') || can('myProperties') || can('myContracts') || can('myInvoices') || can('notifications') || can('subscriptions');
   const [subscription, setSubscription] = useState<{ planNameAr?: string; planNameEn?: string; status?: string; endAt?: string } | null>(null);
@@ -214,7 +254,7 @@ export default function OwnerDashboard() {
                   <Icon name="documentText" className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-gray-900">{invoices.length}</div>
+                  <div className="text-xl font-bold text-gray-900">{invoicesCount}</div>
                   <div className="text-sm text-gray-500">{tNav('myInvoices')}</div>
                 </div>
               </div>

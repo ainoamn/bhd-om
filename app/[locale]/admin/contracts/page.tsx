@@ -13,7 +13,7 @@ import {
   type RentalContract,
   type ContractStatus,
 } from '@/lib/data/contracts';
-import { getAllBookings, updateBooking, getBookingDisplayName } from '@/lib/data/bookings';
+import { updateBooking, getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
 import { getContactById, getContactDisplayName, findContactByPhoneOrEmail, isOmaniNationality } from '@/lib/data/addressBook';
@@ -56,7 +56,7 @@ export default function AdminContractsPage() {
   const contractKind: 'RENT' | 'SALE' | 'INVESTMENT' = kindParam === 'SALE' ? 'SALE' : kindParam === 'INVESTMENT' ? 'INVESTMENT' : 'RENT';
 
   const [contracts, setContracts] = useState<RentalContract[]>([]);
-  const [bookings, setBookings] = useState<ReturnType<typeof getAllBookings>>([]);
+  const [bookings, setBookings] = useState<PropertyBooking[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [mounted, setMounted] = useState(false);
 
@@ -64,13 +64,16 @@ export default function AdminContractsPage() {
 
   const loadData = () => {
     setContracts(getAllContracts());
-    setBookings(getAllBookings());
   };
 
   useEffect(() => {
     loadData();
+    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: PropertyBooking[]) => setBookings(Array.isArray(list) ? list : []))
+      .catch(() => setBookings([]));
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'bhd_rental_contracts' || e.key === 'bhd_property_bookings') loadData();
+      if (e.key === 'bhd_rental_contracts') loadData();
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -80,7 +83,7 @@ export default function AdminContractsPage() {
   useEffect(() => {
     const createFrom = searchParams?.get('createFrom');
     if (!createFrom || !mounted) return;
-    const b = getAllBookings().find((x) => x.id === createFrom);
+    const b = bookings.find((x) => x.id === createFrom);
     if (!b || b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || getContractByBooking(b.id)) return;
     if (!isPropertyExtraDataComplete(b.propertyId)) {
       const msgAr = 'يجب إكمال البيانات الإضافية للمبنى أولاً قبل إنشاء عقد الإيجار.\n\nاضغط موافق للانتقال إلى صفحة إكمال البيانات.';
@@ -148,7 +151,7 @@ export default function AdminContractsPage() {
     loadData();
     window.history.replaceState({}, '', `/${locale}/admin/contracts?kind=${propType}`);
     window.location.href = `/${locale}/admin/contracts/${contract.id}`;
-  }, [searchParams?.get('createFrom'), mounted, locale]);
+  }, [searchParams?.get('createFrom'), mounted, locale, bookings]);
 
   const dataOverrides = getPropertyDataOverrides();
   const getPropertyKind = (propertyId: number): 'RENT' | 'SALE' | 'INVESTMENT' => {

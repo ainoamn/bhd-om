@@ -9,7 +9,6 @@ import { useSession, signOut, getSession } from 'next-auth/react';
 import type { Session } from 'next-auth';
 import Icon from '@/components/icons/Icon';
 import RoleBasedSidebar from '@/components/admin/RoleBasedSidebar';
-import { getContactForUser } from '@/lib/data/addressBook';
 import { ALL_DASHBOARD_TYPES } from '@/lib/config/dashboardRoles';
 import { getAdminNavGroupsConfig } from '@/lib/config/adminNav';
 import { siteConfig } from '@/config/site';
@@ -274,17 +273,35 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const effectiveRole: 'ADMIN' | 'CLIENT' | 'OWNER' =
     userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER' ? userRole : 'CLIENT';
 
+  const [linkedCategory, setLinkedCategory] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!currentSession?.user || effectiveRole === 'ADMIN') {
+      setLinkedCategory(undefined);
+      return;
+    }
+    let alive = true;
+    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((row) => {
+        if (!alive) return;
+        const cat = row && typeof row === 'object' ? String((row as { category?: unknown }).category || '') : '';
+        setLinkedCategory(cat || undefined);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLinkedCategory(undefined);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [currentSession?.user, effectiveRole]);
+
   const contactDashboardType = useMemo(() => {
     if (!currentSession?.user || effectiveRole === 'ADMIN') return undefined;
     const explicit = (currentSession.user as { dashboardType?: string | null }).dashboardType;
     if (explicit && ALL_DASHBOARD_TYPES.includes(explicit as any)) return explicit as any;
-    try {
-      const contact = getContactForUser({ id: (currentSession.user as { id: string }).id });
-      return (contact as any)?.category;
-    } catch {
-      return undefined;
-    }
-  }, [currentSession?.user, effectiveRole]);
+    return linkedCategory;
+  }, [currentSession?.user, effectiveRole, linkedCategory]);
 
   const isAdminPath = pathname?.includes('/admin');
 

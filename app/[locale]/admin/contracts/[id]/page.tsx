@@ -33,7 +33,7 @@ import {
 } from '@/lib/contractCalculations';
 import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, getAllContacts, isOmaniNationality, isCompanyContact, updateContact, type Contact } from '@/lib/data/addressBook';
 import ContactFormModal from '@/components/admin/ContactFormModal';
-import { getAllBookings, mergeBookingsFromServer, updateBooking } from '@/lib/data/bookings';
+import { mergeBookingsFromServer, updateBooking, type PropertyBooking } from '@/lib/data/bookings';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import { getChecksByContract, saveContractChecks } from '@/lib/data/contractChecks';
@@ -201,6 +201,14 @@ export default function ContractDetailPage() {
   const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }));
 
   const [bookingPollTick, setBookingPollTick] = useState(0);
+  const [bookingById, setBookingById] = useState<Record<string, PropertyBooking>>({});
+  const getBooking = useCallback(
+    (bookingId?: string | null) => {
+      if (!bookingId) return null;
+      return bookingById[bookingId] ?? null;
+    },
+    [bookingById]
+  );
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setAdminEditMode(false); }, [contract?.status, id]);
@@ -217,6 +225,7 @@ export default function ContractDetailPage() {
         if (!Array.isArray(list)) return;
         const found = list.find((b) => b?.id === contract.bookingId) as any | undefined;
         if (!found || cancelled) return;
+        setBookingById((prev) => ({ ...prev, [String(found.id)]: found as PropertyBooking }));
         mergeBookingsFromServer([found]);
         setBookingPollTick((t) => t + 1);
       } catch {
@@ -235,7 +244,7 @@ export default function ContractDetailPage() {
 
   const signaturesReadyForAdminFinal = useMemo(() => {
     if (!contract?.bookingId) return false;
-    const b = getAllBookings().find((x) => x.id === contract.bookingId);
+    const b = getBooking(contract.bookingId);
     if (!b) return false;
     const reqs: any[] = Array.isArray((b as any)?.signatureRequests) ? ((b as any).signatureRequests as any[]) : [];
 
@@ -245,17 +254,17 @@ export default function ContractDetailPage() {
     };
 
     return hasMedia('CLIENT') && hasMedia('OWNER');
-  }, [contract?.bookingId, bookingPollTick]);
+  }, [contract?.bookingId, bookingPollTick, getBooking]);
 
   const latestVerificationMedia = useMemo(() => {
     if (!contract?.bookingId) return { client: null as any, owner: null as any };
-    const b = getAllBookings().find((x) => x.id === contract.bookingId);
+    const b = getBooking(contract.bookingId);
     if (!b) return { client: null as any, owner: null as any };
     const reqs: any[] = Array.isArray((b as any)?.signatureRequests) ? ((b as any).signatureRequests as any[]) : [];
     const client = reqs.find((x) => String(x?.actorRole) === 'CLIENT' && String(x?.status) === 'COMPLETED') ?? null;
     const owner = reqs.find((x) => String(x?.actorRole) === 'OWNER' && String(x?.status) === 'COMPLETED') ?? null;
     return { client, owner };
-  }, [contract?.bookingId, bookingPollTick]);
+  }, [contract?.bookingId, bookingPollTick, getBooking]);
 
   const loadContract = useCallback(() => {
     const c = getContractById(id);
@@ -289,7 +298,7 @@ export default function ContractDetailPage() {
     if (!c) return;
     let updated = { ...c };
     if (c.bookingId) {
-      const b = getAllBookings().find((x) => x.id === c.bookingId);
+      const b = getBooking(c.bookingId);
       if (b) {
         if (b.depositReceiptNumber && !(updated.depositCashReceiptNumber ?? '').trim()) {
           updated = { ...updated, depositCashReceiptNumber: b.depositReceiptNumber };
@@ -343,7 +352,7 @@ export default function ContractDetailPage() {
     setForm(updated);
     updateContract(id, updated);
     loadContract();
-  }, [id, locale, loadContract]);
+  }, [id, locale, loadContract, getBooking]);
 
   const syncContractStageToBookingAndServer = useCallback(async (updatedContract: RentalContract) => {
     if (!updatedContract.bookingId) return;
@@ -980,7 +989,7 @@ export default function ContractDetailPage() {
       const bookingId = updated.bookingId;
       const propertyId = updated.propertyId;
       const contractType = (updated.contractType ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
-      const booking = getAllBookings().find((b) => b.id === bookingId);
+      const booking = getBooking(bookingId);
       const contact = booking ? findContactByPhoneOrEmail(booking.phone, booking.email) : null;
 
       // مزامنة شيكات العقد مع شيكات الحجز حتى يراها المستأجر في صفحة الرفع
@@ -1094,7 +1103,7 @@ export default function ContractDetailPage() {
         // إرسال الرسائل يمكن أن يكون ثقيلاً — نفصله أيضاً
         if (c.bookingId && typeof window !== 'undefined') {
           setTimeout(() => {
-            const b = getAllBookings().find((x) => x.id === c.bookingId);
+            const b = getBooking(c.bookingId);
             if (!b) return;
             const link = getDocumentUploadLink(window.location.origin, locale, c.propertyId, b.id, b.email);
             const msg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${link}` : `Hello, please complete the contract documentation by uploading the required documents:\n${link}`;
@@ -1358,7 +1367,7 @@ export default function ContractDetailPage() {
       )}
       {/* تنبيه المستندات والشيكات — لا يمكن الاعتماد إلا بعد رفع المستندات واعتمادها */}
       {isDraft && isContractDataComplete(contract) && contract.bookingId && (() => {
-        const booking = getAllBookings().find((b) => b.id === contract.bookingId);
+        const booking = getBooking(contract.bookingId);
         const contact = booking ? findContactByPhoneOrEmail(booking.phone, booking.email) : null;
         const filterByNationality = (list: import('@/lib/data/bookingTerms').ContractDocRequirement[], co: unknown): import('@/lib/data/bookingTerms').ContractDocRequirement[] =>
           (co && !isCompanyContact(co as Contact) && isOmaniNationality((co as { nationality?: string })?.nationality || ''))

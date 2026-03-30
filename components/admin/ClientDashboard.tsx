@@ -6,11 +6,9 @@ import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
-import { getContactForUser } from '@/lib/data/addressBook';
-import { getContactLinkedBookings, getContactLinkedContracts } from '@/lib/data/contactLinks';
-import { searchDocuments } from '@/lib/data/accounting';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
+import type { PropertyBooking } from '@/lib/data/bookings';
 
 export default function ClientDashboard() {
   const params = useParams();
@@ -30,17 +28,58 @@ export default function ClientDashboard() {
   const can = (section: DashboardSectionKey) => allowedSections.includes(section);
 
   const user = session?.user as { id?: string; email?: string; name?: string; phone?: string } | undefined;
-  const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
+  const [bookings, setBookings] = useState<PropertyBooking[]>([]);
+  const [contracts, setContracts] = useState<PropertyBooking[]>([]);
+  const [receiptsCount, setReceiptsCount] = useState(0);
+  const [invoicesCount, setInvoicesCount] = useState(0);
 
-  const bookings = contact && typeof window !== 'undefined' ? getContactLinkedBookings(contact as Parameters<typeof getContactLinkedBookings>[0]) : [];
-  const contracts = contact && typeof window !== 'undefined' ? getContactLinkedContracts(contact as Parameters<typeof getContactLinkedContracts>[0]) : [];
-  const docs = contact && typeof window !== 'undefined' ? searchDocuments({ contactId: (contact as { id?: string }).id }) : [];
-  const receipts = docs.filter((d) => d.type === 'RECEIPT');
-  const invoices = docs.filter((d) => d.type === 'INVOICE' || (d.type as string) === 'SALES_INVOICE');
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    fetch('/api/bookings', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: PropertyBooking[]) => {
+        if (!alive) return;
+        const rows = Array.isArray(list) ? list : [];
+        setBookings(rows);
+        setContracts(rows.filter((b) => !!((b as PropertyBooking & { contractData?: unknown }).contractData)));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setBookings([]);
+        setContracts([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    Promise.all([
+      fetch('/api/me/accounting-documents?type=RECEIPT', { credentials: 'include', cache: 'no-store' }),
+      fetch('/api/me/accounting-documents?type=INVOICE', { credentials: 'include', cache: 'no-store' }),
+    ])
+      .then(async ([r1, r2]) => {
+        if (!alive) return;
+        const [d1, d2] = await Promise.all([r1.ok ? r1.json() : [], r2.ok ? r2.json() : []]);
+        setReceiptsCount(Array.isArray(d1) ? d1.length : 0);
+        setInvoicesCount(Array.isArray(d2) ? d2.length : 0);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setReceiptsCount(0);
+        setInvoicesCount(0);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
   const statusKey = (s: string) => (s === 'PENDING' ? (locale === 'ar' ? 'قيد الانتظار' : 'Pending') : s === 'CONFIRMED' ? (locale === 'ar' ? 'مؤكد' : 'Confirmed') : s === 'RENTED' ? (locale === 'ar' ? 'تم الإيجار' : 'Rented') : s);
-  const contractStatusKey = (s: string) => (s === 'ACTIVE' ? (locale === 'ar' ? 'نشط' : 'Active') : s === 'ENDED' ? (locale === 'ar' ? 'منتهي' : 'Ended') : s);
+  const contractStatusKey = (s: string) => (s === 'APPROVED' ? (locale === 'ar' ? 'نشط' : 'Active') : s === 'DRAFT' ? (locale === 'ar' ? 'مسودة' : 'Draft') : s);
 
   const hasAnyBlock = can('dashboard') || can('myBookings') || can('myContracts') || can('myInvoices') || can('myReceipts') || can('notifications') || can('subscriptions');
   const [subscription, setSubscription] = useState<{ planNameAr?: string; planNameEn?: string; status?: string; endAt?: string } | null>(null);
@@ -170,7 +209,7 @@ export default function ClientDashboard() {
                   <Icon name="documentText" className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-gray-900">{receipts.length}</div>
+                  <div className="text-xl font-bold text-gray-900">{receiptsCount}</div>
                   <div className="text-sm text-gray-500">{tNav('myReceipts')}</div>
                 </div>
               </div>
@@ -183,7 +222,7 @@ export default function ClientDashboard() {
                   <Icon name="documentText" className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-gray-900">{invoices.length}</div>
+                  <div className="text-xl font-bold text-gray-900">{invoicesCount}</div>
                   <div className="text-sm text-gray-500">{tNav('myInvoices')}</div>
                 </div>
               </div>
@@ -223,8 +262,8 @@ export default function ClientDashboard() {
                     {bookings.slice(0, 5).map((b) => (
                       <li key={b.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100">
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{b.unitDisplay || b.propertyTitleAr}</p>
-                          <p className="text-xs text-gray-500">{fmtDate(b.date)} · {statusKey(b.status)}</p>
+                          <p className="font-medium text-gray-900 text-sm">{b.propertyTitleAr}</p>
+                          <p className="text-xs text-gray-500">{fmtDate(String(b.createdAt || ''))} · {statusKey(b.status)}</p>
                         </div>
                         <Icon name="chevronLeft" className="w-5 h-5 text-gray-400" />
                       </li>
@@ -250,8 +289,8 @@ export default function ClientDashboard() {
                     {contracts.slice(0, 5).map((c) => (
                       <li key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100">
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{c.unitDisplay || c.propertyTitleAr}</p>
-                          <p className="text-xs text-gray-500">{fmtDate(c.startDate)} – {fmtDate(c.endDate)} · {contractStatusKey(c.status)}</p>
+                          <p className="font-medium text-gray-900 text-sm">{c.propertyTitleAr}</p>
+                          <p className="text-xs text-gray-500">{fmtDate(String(c.createdAt || ''))} · {contractStatusKey(String(c.contractStage || 'DRAFT'))}</p>
                         </div>
                         <Icon name="chevronLeft" className="w-5 h-5 text-gray-400" />
                       </li>

@@ -11,7 +11,7 @@ import OwnerDashboard from '@/components/admin/OwnerDashboard';
 import { properties } from '@/lib/data/properties';
 import { projects } from '@/lib/data/projects';
 import { users } from '@/lib/data/users';
-import { getAllBookings, getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
+import { getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
 import { getAllContracts } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
 
@@ -69,33 +69,20 @@ export default function AdminDashboardPage() {
   const [subscriptionsFilter, setSubscriptionsFilter] = useState<'all' | 'active' | 'expired'>('all');
   const [subscriptionsSearch, setSubscriptionsSearch] = useState('');
 
-  const loadRealData = () => {
-    if (typeof window === 'undefined') return;
-    setBookings(getAllBookings());
-    setContracts(getAllContracts());
-  };
-
   useEffect(() => {
-    loadRealData();
+    if (typeof window !== 'undefined') setContracts(getAllContracts());
     (async () => {
       try {
-        const res = await fetch('/api/bookings');
+        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
         if (res.ok) {
           const serverBookings = await res.json();
-          if (Array.isArray(serverBookings) && serverBookings.length > 0) {
-            mergeBookingsFromServer(serverBookings);
-            loadRealData();
-          }
+          if (Array.isArray(serverBookings)) setBookings(serverBookings);
+          if (Array.isArray(serverBookings) && serverBookings.length > 0) mergeBookingsFromServer(serverBookings);
         }
       } catch {
         // تجاهل
       }
     })();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key && STORAGE_KEYS.some((k) => e.key === k)) loadRealData();
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   useEffect(() => {
