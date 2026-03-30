@@ -12,7 +12,6 @@ import { properties } from '@/lib/data/properties';
 import { projects } from '@/lib/data/projects';
 import { users } from '@/lib/data/users';
 import { getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
-import { getAllContracts } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
 
 const STORAGE_KEYS = ['bhd_property_bookings', 'bhd_rental_contracts'];
@@ -62,7 +61,6 @@ export default function AdminDashboardPage() {
   const userRole = useEffectiveRole(serverRole);
 
   const [bookings, setBookings] = useState<PropertyBooking[]>([]);
-  const [contracts, setContracts] = useState<ReturnType<typeof getAllContracts>>([]);
   type SubItem = { id: string; status: string; startAt: string; endAt: string; user: { name: string; email: string; serialNumber: string }; plan: { nameAr: string; nameEn: string } };
   const [subscriptionList, setSubscriptionList] = useState<SubItem[]>([]);
   const [subscriptionsExpanded, setSubscriptionsExpanded] = useState(false);
@@ -70,7 +68,6 @@ export default function AdminDashboardPage() {
   const [subscriptionsSearch, setSubscriptionsSearch] = useState('');
 
   useEffect(() => {
-    if (typeof window !== 'undefined') setContracts(getAllContracts());
     (async () => {
       try {
         const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
@@ -98,7 +95,11 @@ export default function AdminDashboardPage() {
   const recentBookings = [...bookings]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 8);
-  const activeContracts = contracts.filter((c) => c.status !== 'CANCELLED');
+  const activeContracts = bookings.filter((b) => {
+    const hasContract = !!String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim() || !!((b as PropertyBooking & { contractData?: unknown }).contractData);
+    const stage = String((b as PropertyBooking & { contractStage?: unknown }).contractStage || '');
+    return hasContract && stage !== 'CANCELLED';
+  });
 
   // عرض فوري — استخدام الدور الفعّال (من الجلسة أو من localStorage عند "فتح حساب") لئلا يعود عرض الأدمن
   if (userRole === 'OWNER') return <OwnerDashboard />;

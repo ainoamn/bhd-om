@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, mergeBookingsFromServer, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
-import { getContractByBooking, hasContractForUnit, hasActiveContractForUnit, getAllContracts } from '@/lib/data/contracts';
+import { getContractByBooking, hasActiveContractForUnit, type RentalContract } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getDocumentUploadLink, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
@@ -205,19 +205,28 @@ export default function AdminBookingsPage() {
     void loadData();
   };
 
-  const allContracts = typeof window !== 'undefined' ? getAllContracts() : [];
-  const getContractForBooking = (b: PropertyBooking) =>
-    allContracts.find(
-      (c) =>
-        c.bookingId === b.id ||
-        (b.contractId && c.id === b.contractId) ||
-        (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || ''))
-    );
+  const getContractForBooking = (b: PropertyBooking) => {
+    const hasServerContract =
+      !!String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim() ||
+      !!((b as PropertyBooking & { contractData?: unknown }).contractData);
+    if (hasServerContract) {
+      const cd = ((b as PropertyBooking & { contractData?: Record<string, unknown> }).contractData || {}) as Record<string, unknown>;
+      return {
+        id: String((b as PropertyBooking & { contractId?: unknown }).contractId || b.id),
+        status: String((b as PropertyBooking & { contractStage?: unknown }).contractStage || 'DRAFT'),
+        monthlyRent: Number(cd.monthlyRent || 0),
+        annualRent: Number(cd.annualRent || 0),
+        startDate: String(cd.startDate || ''),
+        endDate: String(cd.endDate || ''),
+      } as Pick<RentalContract, 'id' | 'status' | 'monthlyRent' | 'annualRent' | 'startDate' | 'endDate'>;
+    }
+    return getContractByBooking(b.id);
+  };
   const getApprovedContractForBooking = (b: PropertyBooking) => {
     const c = getContractForBooking(b);
-    return c && c.status === 'APPROVED' ? c : undefined;
+    return c && String(c.status) === 'APPROVED' ? c : undefined;
   };
-  const isStatusLocked = (b: PropertyBooking) => hasContractForUnit(b.propertyId, b.unitKey);
+  const isStatusLocked = (b: PropertyBooking) => !!getContractForBooking(b);
   const hasContract = (b: PropertyBooking) => !!getContractForBooking(b);
 
   const termsForProperty = (propId: number) => getPropertyBookingTerms(String(propId));
