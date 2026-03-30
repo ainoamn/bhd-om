@@ -701,11 +701,20 @@ export function mergeServerContactIntoLocalStorage(contact: Contact): void {
   save(next);
 }
 
-/** جهة اتصال للربط بالمستخدم - من دفتر العناوين أو بيانات المستخدم (للوحات التحكم)
- * يبحث بالترتيب: userId → email → phone (يشمل هاتف الشركة أو هاتف المفوض) */
-export function getContactForUser(user: { id: string; email?: string | null; phone?: string | null }): Contact | Pick<Contact, 'id' | 'email' | 'phone'> {
+/** جهة اتصال للربط بالمستخدم.
+ * الوضع الآمن الافتراضي: userId فقط.
+ * يمكن تفعيل المطابقة التراثية بالبريد/الهاتف عند الحاجة الصريحة فقط. */
+export function getContactForUser(
+  user: { id: string; email?: string | null; phone?: string | null },
+  options?: { allowLegacyMatch?: boolean }
+): Contact | Pick<Contact, 'id' | 'email' | 'phone'> {
   const byUserId = findContactByUserId(user.id);
   if (byUserId) return byUserId;
+  if (!options?.allowLegacyMatch) {
+    const emailNormSafe = (user.email || '').trim().toLowerCase();
+    const phoneSafe = (user.phone || '').trim();
+    return { id: '', email: emailNormSafe || undefined, phone: phoneSafe };
+  }
   const emailNorm = (user.email || '').trim().toLowerCase();
   if (emailNorm && !emailNorm.includes('@nologin.bhd')) {
     const byEmail = findContactByEmail(emailNorm);

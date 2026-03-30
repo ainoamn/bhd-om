@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getContactForUser, getContactProfileIssuesForContractApproval, type Contact } from '@/lib/data/addressBook';
+import { getContactProfileIssuesForContractApproval, type Contact } from '@/lib/data/addressBook';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { type PropertyBooking } from '@/lib/data/bookings';
 import { inferBookingContractStage } from '@/lib/data/bookingContractStage';
@@ -261,11 +261,28 @@ export default function MyBookingsPage() {
   const userRole =
     (effectiveUser as { role?: string } | undefined)?.role ||
     (session?.user as { role?: string } | undefined)?.role;
-  const contact = user ? getContactForUser({ id: user.id || '', email: user.email, phone: user.phone }) : null;
-  const contactForProfile =
-    contact && typeof contact === 'object' && 'id' in contact && (contact as Contact).id ? (contact as Contact) : null;
+  const [contactForProfile, setContactForProfile] = useState<Contact | null>(null);
   const profileIssues = contactForProfile ? getContactProfileIssuesForContractApproval(contactForProfile) : ['noContactLinked'];
   const profileComplete = profileIssues.length === 0;
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((row) => {
+        if (!alive) return;
+        if (row && typeof row === 'object' && typeof row.id === 'string') setContactForProfile(row as Contact);
+        else setContactForProfile(null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setContactForProfile(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
 
   const [dataVersion, setDataVersion] = useState(0);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);

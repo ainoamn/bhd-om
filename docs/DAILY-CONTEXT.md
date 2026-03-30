@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — تشديد ربط contact بالمستخدم (userId-only افتراضياً)
+
+- **ما تم:** تعديل `getContactForUser` في `addressBook.ts` ليكون افتراضياً userId-only، مع خيار `allowLegacyMatch` فقط عند الحاجة الصريحة.
+- **ما تم:** تحديث `my-bookings` لاستخدام `/api/user/linked-contact` مباشرة لقياس اكتمال الملف بدل fallback محلي.
+- **الملفات:** `lib/data/addressBook.ts`, `app/[locale]/admin/my-bookings/page.tsx`
+
 ### جلسة 2026-03-30 — تحويل صفحات حساب العميل إلى Server-first
 
 - **ما تم:** إضافة `GET /api/me/accounting-documents` لقراءة مستندات المحاسبة الخاصة بالمستخدم من قاعدة البيانات عبر `contactId` المرتبط بالمستخدم.
