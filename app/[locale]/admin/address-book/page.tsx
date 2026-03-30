@@ -51,7 +51,7 @@ import {
   type ContactType,
   type AuthorizedRepresentative,
 } from '@/lib/data/addressBook';
-import { getContactLinkedBookings, getContactLinkedContracts, getContactLinkedBookingDocuments, isContactLinked, getContactDerivedCategories, type ContactLinkedBooking, type ContactLinkedContract } from '@/lib/data/contactLinks';
+import { getContactLinkedBookingDocuments, isContactLinked, getContactDerivedCategories, type ContactLinkedBooking, type ContactLinkedContract } from '@/lib/data/contactLinks';
 import { syncBookingContactsToAddressBook, type PropertyBooking } from '@/lib/data/bookings';
 import TranslateField from '@/components/admin/TranslateField';
 import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
@@ -241,7 +241,7 @@ export default function AdminAddressBookPage() {
         cardholderName: (b as PropertyBooking & { cardholderName?: string }).cardholderName,
       }));
     } catch {
-      return getContactLinkedBookings(c);
+      return [];
     }
   };
 
@@ -276,7 +276,7 @@ export default function AdminAddressBookPage() {
       }
       return out;
     } catch {
-      return getContactLinkedContracts(c);
+      return [];
     }
   };
   useEffect(() => {
