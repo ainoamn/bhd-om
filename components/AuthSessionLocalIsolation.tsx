@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { clearOperationalClientDataForNewAuthUser } from '@/lib/data/backup';
+import { clearAddressBookLocalStorage } from '@/lib/data/addressBook';
 
 const LAST_AUTH_KEY = 'bhd_last_auth_user_v1';
 
@@ -37,8 +38,11 @@ export default function AuthSessionLocalIsolation() {
     } catch {}
 
     if (prev && prev !== identity) {
-      // مستخدم جديد على نفس المتصفح → امسح التشغيلية المحلية حتى لا تظهر حجوزات قديمة مرتبطة بالبريد/الهاتف
+      // مستخدم جديد على نفس المتصفح:
+      // - امسح التشغيلية المحلية حتى لا تظهر حجوزات قديمة مرتبطة بالبريد/الهاتف
+      // - امسح دفتر العناوين المحلي حتى لا تظهر بيانات "حسابي" القديمة (CNT-*) لمستخدم آخر
       clearOperationalClientDataForNewAuthUser();
+      clearAddressBookLocalStorage();
     }
 
     try {
