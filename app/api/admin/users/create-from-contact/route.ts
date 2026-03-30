@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
+import { requireAuth, requireRoles } from '@/lib/auth/guard';
+import { checkLimit } from '@/lib/subscriptions/entitlements';
+import { logAudit } from '@/lib/audit';
 
 function generateTempPassword(length = 10): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -34,12 +36,14 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    if (!token || (token.role as string) !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN']);
+    if (forbidden) return forbidden;
+
+    const canCreate = await checkLimit(auth.userId || '', 'users');
+    if (!canCreate) {
+      return NextResponse.json({ error: 'Subscription limit reached' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -84,6 +88,14 @@ export async function POST(req: NextRequest) {
         phone: phone?.trim() || null,
         role,
       },
+    });
+
+    await logAudit({
+      userId: auth.userId || null,
+      action: 'USER_CREATED',
+      targetType: 'User',
+      targetId: user.id,
+      details: { serialNumber: user.serialNumber, source: 'create-from-contact' },
     });
 
     return NextResponse.json({

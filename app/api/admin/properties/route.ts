@@ -2,18 +2,23 @@
  * قائمة العقارات مع نطاق الصلاحيات وعمود «تابع لـ» للأدمن
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { getDataScope, propertyScopeWhere, hasAdminPermission } from '@/lib/auth/adminPermissions';
+import { requireAuth } from '@/lib/auth/guard';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
-    });
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const token = auth.token as {
+      sub?: string;
+      role?: string;
+      isSuperAdmin?: boolean;
+      adminPermissions?: string;
+      organizationId?: string | null;
+    };
     const session = token
       ? {
           user: {

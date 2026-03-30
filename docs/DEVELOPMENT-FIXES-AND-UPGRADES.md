@@ -97,6 +97,26 @@
   3. التأكد من تسجيل خروج فوري
   4. عدم ظهور بيانات قديمة في `my-account`/`my-bookings`
 
+## دفعة RBAC الحالية (تقارب مع متطلبات Kimi مع الحفاظ على التوافق)
+
+- إضافة طبقة أدوار موحدة مع تطبيع للأدوار الحالية والجديدة:
+  - `lib/auth/roles.ts`
+- إضافة مصفوفة صلاحيات مركزية للمسارات:
+  - `lib/auth/permissions.ts`
+- إضافة حارس API موحد:
+  - `lib/auth/guard.ts`
+- إضافة مسار تدقيق موحد:
+  - `lib/audit.ts`
+  - `app/api/audit/log/route.ts`
+- تحديث `proxy.ts`:
+  - حماية مسارات admin/api الحساسة
+  - إعادة التوجيه إلى login عند عدم المصادقة
+  - منع الوصول غير المصرح وتسجيل محاولة التدقيق
+- تحديث APIs:
+  - `app/api/admin/users/route.ts` استخدام guard موحد
+  - `app/api/admin/users/create-from-contact/route.ts` استخدام guard + تحقق حدود الاشتراك + تسجيل تدقيق
+  - `app/api/admin/properties/route.ts` استخدام guard موحد
+
 ## ملاحظات تشغيل
 
 - عند أي تعديل في مسارات الإدارة الحساسة، شغّل:

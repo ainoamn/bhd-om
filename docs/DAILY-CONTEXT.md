@@ -9,6 +9,22 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — دفعة RBAC/Guard/Audit متوافقة مع النظام الحالي
+
+- **ما تم:** إضافة ملفات صلاحيات وأدوار مركزية:
+  - `lib/auth/roles.ts`
+  - `lib/auth/permissions.ts`
+  - `lib/auth/guard.ts`
+- **ما تم:** إضافة مسار تدقيق موحد:
+  - `lib/audit.ts`
+  - `app/api/audit/log/route.ts`
+- **ما تم:** تحديث `proxy.ts` ليحمي مسارات `admin` و `api/admin` و `api/accounting` مع إعادة توجيه/منع حسب الصلاحيات وتسجيل محاولات الوصول غير المصرح.
+- **ما تم:** تحديث APIs التالية لاستخدام guard الموحد:
+  - `app/api/admin/users/route.ts`
+  - `app/api/admin/users/create-from-contact/route.ts`
+  - `app/api/admin/properties/route.ts`
+- **التحقق:** `npx tsc --noEmit` نجح.
+
 ### جلسة 2026-03-30 — استكمال التحويل إلى Server-first + توثيق الإصلاحات
 
 - **ما تم:** تحويل إضافي لمسارات الإدارة لتقليل الاعتماد على التخزين المحلي:

@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/guard';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const role = token.role as string;
-    const isAdmin = role === 'ADMIN';
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const role = auth.role || '';
+    const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
     const url = new URL(req.url);
     const filterRole = url.searchParams.get('role');
 
