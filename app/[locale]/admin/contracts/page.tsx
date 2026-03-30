@@ -55,22 +55,81 @@ export default function AdminContractsPage() {
   const kindParam = kindParamRaw.toUpperCase();
   const contractKind: 'RENT' | 'SALE' | 'INVESTMENT' = kindParam === 'SALE' ? 'SALE' : kindParam === 'INVESTMENT' ? 'INVESTMENT' : 'RENT';
 
-  const [contracts, setContracts] = useState<RentalContract[]>([]);
+  type ContractView = Pick<
+    RentalContract,
+    | 'id'
+    | 'propertyId'
+    | 'unitKey'
+    | 'propertyTitleAr'
+    | 'propertyTitleEn'
+    | 'tenantName'
+    | 'tenantPhone'
+    | 'monthlyRent'
+    | 'totalSaleAmount'
+    | 'startDate'
+    | 'endDate'
+    | 'status'
+    | 'propertyContractKind'
+  > & { source: 'local' | 'server' };
+
+  const [contracts, setContracts] = useState<ContractView[]>([]);
   const [bookings, setBookings] = useState<PropertyBooking[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
-  const loadData = () => {
-    setContracts(getAllContracts());
+  const buildServerContracts = (list: PropertyBooking[]): ContractView[] => {
+    const out: ContractView[] = [];
+    for (const b of list) {
+      const hasServerContract =
+        !!String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim() ||
+        !!((b as PropertyBooking & { contractData?: unknown }).contractData);
+      if (!hasServerContract) continue;
+      const cd = ((b as PropertyBooking & { contractData?: Record<string, unknown> }).contractData || {}) as Record<string, unknown>;
+      const rawStage = String((b as PropertyBooking & { contractStage?: unknown }).contractStage || 'DRAFT');
+      const status: ContractStatus =
+        rawStage === 'ADMIN_APPROVED' || rawStage === 'TENANT_APPROVED' || rawStage === 'LANDLORD_APPROVED' || rawStage === 'APPROVED' || rawStage === 'CANCELLED'
+          ? (rawStage as ContractStatus)
+          : 'DRAFT';
+      out.push({
+        id: String((b as PropertyBooking & { contractId?: unknown }).contractId || b.id),
+        propertyId: Number(b.propertyId),
+        unitKey: b.unitKey ? String(b.unitKey) : undefined,
+        propertyTitleAr: String(b.propertyTitleAr || ''),
+        propertyTitleEn: String(b.propertyTitleEn || ''),
+        tenantName: String((cd.tenantName as string) || b.name || ''),
+        tenantPhone: String((cd.tenantPhone as string) || b.phone || ''),
+        monthlyRent: Number(cd.monthlyRent || b.priceAtBooking || 0),
+        totalSaleAmount: Number(cd.totalSaleAmount || 0),
+        startDate: String(cd.startDate || b.createdAt || ''),
+        endDate: String(cd.endDate || b.createdAt || ''),
+        status,
+        propertyContractKind: ((cd.propertyContractKind as string) || (cd.contractType as string) || 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT',
+        source: 'server',
+      });
+    }
+    return out;
+  };
+
+  const loadData = (latestBookings?: PropertyBooking[]) => {
+    const localContracts = getAllContracts().map((c) => ({ ...c, source: 'local' as const }));
+    const serverContracts = buildServerContracts(latestBookings || bookings);
+    const merged = new Map<string, ContractView>();
+    for (const c of serverContracts) merged.set(c.id, c);
+    for (const c of localContracts) merged.set(c.id, c as ContractView);
+    setContracts(Array.from(merged.values()));
   };
 
   useEffect(() => {
     loadData();
     fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
-      .then((list: PropertyBooking[]) => setBookings(Array.isArray(list) ? list : []))
+      .then((list: PropertyBooking[]) => {
+        const rows = Array.isArray(list) ? list : [];
+        setBookings(rows);
+        loadData(rows);
+      })
       .catch(() => setBookings([]));
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_rental_contracts') loadData();
@@ -159,7 +218,7 @@ export default function AdminContractsPage() {
     return p?.type ?? 'RENT';
   };
 
-  const getContractKind = (c: RentalContract): 'RENT' | 'SALE' | 'INVESTMENT' => {
+  const getContractKind = (c: ContractView): 'RENT' | 'SALE' | 'INVESTMENT' => {
     return c.propertyContractKind ?? getPropertyKind(c.propertyId);
   };
 
@@ -470,7 +529,7 @@ export default function AdminContractsPage() {
                         <Link href={`/${locale}/admin/contracts/${c.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">
                           {ar ? 'عرض / تعديل' : 'View / Edit'}
                         </Link>
-                        {c.status === 'DRAFT' && canApproveContract && (
+                        {c.status === 'DRAFT' && c.source === 'local' && canApproveContract && (
                           <button
                             type="button"
                             onClick={() => handleApproveByAdmin(c.id)}
