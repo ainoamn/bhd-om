@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getAllBookings, updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, mergeBookingsFromServer, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, mergeBookingsFromServer, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
 import { getContractByBooking, hasContractForUnit, hasActiveContractForUnit, getAllContracts } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
@@ -129,9 +129,20 @@ export default function AdminBookingsPage() {
 
   useEffect(() => setMounted(true), []);
 
-  const loadData = () => {
+  const loadData = async () => {
     if (typeof window !== 'undefined') syncPaidBookingsToAccounting(); // مزامنة تلقائية مع المحاسبة
-    setBookings(getAllBookings());
+    try {
+      const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+      const serverBookings = res.ok ? await res.json() : [];
+      if (Array.isArray(serverBookings)) {
+        setBookings(serverBookings);
+        if (serverBookings.length > 0) mergeBookingsFromServer(serverBookings);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    setBookings([]);
   };
 
   const [bankAccountsVersion, setBankAccountsVersion] = useState(0);
@@ -139,31 +150,13 @@ export default function AdminBookingsPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
-        if (res.ok && !cancelled) {
-          const serverBookings = await res.json();
-          if (Array.isArray(serverBookings) && serverBookings.length > 0) {
-            mergeBookingsFromServer(serverBookings);
-          }
-        }
-      } catch {
-        // تجاهل فشل الجلب؛ الاعتماد على التخزين المحلي
-      }
-      if (!cancelled) loadData();
+      if (!cancelled) await loadData();
     })();
 
     // تحديث دوري لتفادي كاش المتصفح/التأخير بعد الاعتماد
     const iv = window.setInterval(() => {
       if (cancelled) return;
-      fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((serverBookings) => {
-          if (!Array.isArray(serverBookings) || serverBookings.length === 0) return;
-          mergeBookingsFromServer(serverBookings);
-          loadData();
-        })
-        .catch(() => {});
+      void loadData();
     }, 5000);
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_property_bookings' || e.key === 'bhd_booking_documents' || e.key === 'bhd_booking_cancellation_requests') loadData();
@@ -207,9 +200,9 @@ export default function AdminBookingsPage() {
 
   const handleStatusChange = (bookingId: string, newStatus: BookingStatus) => {
     updateBookingStatus(bookingId, newStatus);
-    loadData();
-    const updated = getAllBookings().find((b) => b.id === bookingId);
-    if (updated) syncBookingToServer(updated);
+    const updated = bookings.find((b) => b.id === bookingId);
+    if (updated) syncBookingToServer({ ...updated, status: newStatus });
+    void loadData();
   };
 
   const allContracts = typeof window !== 'undefined' ? getAllContracts() : [];

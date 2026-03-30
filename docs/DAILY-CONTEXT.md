@@ -9,6 +9,21 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — استكمال التحويل إلى Server-first + توثيق الإصلاحات
+
+- **ما تم:** تحويل إضافي لمسارات الإدارة لتقليل الاعتماد على التخزين المحلي:
+  - `admin/page` أصبح يجلب الحجوزات من `/api/bookings` مباشرة.
+  - `admin/contracts` و `admin/contracts/[id]` أزيلت منها قراءات `getAllBookings()` المباشرة وتم الاعتماد على بيانات الخادم.
+  - `AdminLayoutInner` يحدد `contactDashboardType` من `/api/user/linked-contact`.
+  - `ClientDashboard` و `OwnerDashboard` اعتماد عدادات الحجوزات/العقود/الفواتير/الإيصالات على API.
+  - `admin/address-book` يستخدم حجوزات الخادم في الطباعة والربط (مع fallback احتياطي).
+  - `admin/bookings` تحميل القائمة من `/api/bookings` كمصدر أساسي.
+- **ما تم:** إضافة ملف توثيق دائم للإصلاحات والترقيات:
+  - `docs/DEVELOPMENT-FIXES-AND-UPGRADES.md`
+  - وربطه من `README.md`.
+- **التحقق:** `npx tsc --noEmit` و `npm run build` نجحا.
+- **Git:** تم رفع دفعة الإصلاحات إلى `master` (commit: `6aaf2f9`) ثم استكمال أعمال إضافية في نفس اليوم.
+
 ### جلسة 2026-03-30 — تشديد ربط contact بالمستخدم (userId-only افتراضياً)
 
 - **ما تم:** تعديل `getContactForUser` في `addressBook.ts` ليكون افتراضياً userId-only، مع خيار `allowLegacyMatch` فقط عند الحاجة الصريحة.
