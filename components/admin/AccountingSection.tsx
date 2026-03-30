@@ -966,7 +966,11 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                 </p>
                 <ul className="space-y-4">
                   {pendingCancellations.map(({ id, bookingId, amountToRefund, booking }) => {
-                    const linkedDocs = typeof window !== 'undefined' ? searchDocuments({ bookingId }) : [];
+                    const linkedDocs = useDb
+                      ? documents.filter((d) => String((d as AccountingDocument & { bookingId?: unknown }).bookingId || '') === String(bookingId))
+                      : typeof window !== 'undefined'
+                        ? searchDocuments({ bookingId })
+                        : [];
                     return (
                     <li key={id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-white rounded-xl border border-red-200/80">
                       <div className="flex-1 min-w-0">
