@@ -117,6 +117,12 @@
   - `app/api/admin/users/create-from-contact/route.ts` استخدام guard + تحقق حدود الاشتراك + تسجيل تدقيق
   - `app/api/admin/properties/route.ts` استخدام guard موحد
 
+### 13) مسارات اشتراك موحدة للتحقق والترقية
+- إضافة `POST /api/subscriptions/check`:
+  - فحص حدود الموارد (`users`, `properties`) حسب الباقة النشطة.
+- إضافة `POST /api/subscriptions/upgrade`:
+  - ترقية/تحديث اشتراك مستخدم من لوحة الإدارة (مع تسجيل تدقيق).
+
 ## ملاحظات تشغيل
 
 - عند أي تعديل في مسارات الإدارة الحساسة، شغّل:
