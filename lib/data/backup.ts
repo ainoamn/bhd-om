@@ -221,6 +221,18 @@ export function clearClientCachesAfterServerDbReset(): number {
   return removed;
 }
 
+/**
+ * عزل البيانات المحلية حسب المستخدم المسجّل دخولاً.
+ * إذا تغيّر المستخدم على نفس المتصفح (مثلاً تسجيل مستخدم جديد بنفس البريد بعد تصفير الخادم)
+ * قد تبقى حجوزات/عقود قديمة محفوظة في localStorage وتظهر في "حجوزاتي".
+ *
+ * هذه الدالة تمسح البيانات التشغيلية المحلية فقط (ولا تمس دفتر العناوين أو إعدادات اللوحة).
+ */
+export function clearOperationalClientDataForNewAuthUser(): number {
+  if (typeof window === 'undefined') return 0;
+  return resetAllOperationalData();
+}
+
 /** تنزيل ملف النسخة الاحتياطية */
 export function downloadBackup(): void {
   if (typeof window === 'undefined') return;

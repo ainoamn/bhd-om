@@ -8,6 +8,7 @@
 import type { Session } from 'next-auth';
 import { SessionProvider } from 'next-auth/react';
 import { ReactNode, useState, useEffect, useCallback } from 'react';
+import AuthSessionLocalIsolation from '@/components/AuthSessionLocalIsolation';
 
 interface AuthProviderWrapperProps {
   children: ReactNode;
@@ -55,6 +56,7 @@ export default function AuthProviderWrapper({ children }: AuthProviderWrapperPro
       refetchInterval={isImpersonating ? 0 : undefined}
       refetchOnWindowFocus={!isImpersonating}
     >
+      <AuthSessionLocalIsolation />
       {children}
     </SessionProvider>
   );
