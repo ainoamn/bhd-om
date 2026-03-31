@@ -123,6 +123,14 @@
 - إضافة `POST /api/subscriptions/upgrade`:
   - ترقية/تحديث اشتراك مستخدم من لوحة الإدارة (مع تسجيل تدقيق).
 
+### 14) تشديد حماية APIs الحرجة (حجوزات + اشتراكات)
+- `app/api/bookings/route.ts`:
+  - فرض المصادقة على GET/POST عبر `requireAuth`.
+  - إضافة فحص أدوار مسموح بها على POST عبر `requireRoles`.
+- `app/api/subscriptions/route.ts`:
+  - استبدال فحص التوكن اليدوي بـ guard موحد.
+  - السماح فقط لأدوار الإدارة (`ADMIN`, `SUPER_ADMIN`) على GET/POST.
+
 ## ملاحظات تشغيل
 
 - عند أي تعديل في مسارات الإدارة الحساسة، شغّل:

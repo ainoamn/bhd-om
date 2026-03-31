@@ -3,10 +3,10 @@
  * GET يستخدم استعلاماً خاماً لقراءة الاشتراكات لتفادي خطأ أعمدة/جدول غير متطابق
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getDocumentByIdFromDb } from '@/lib/accounting/data/dbService';
+import { requireAuth, requireRoles } from '@/lib/auth/guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,14 +29,10 @@ function getSubVal(row: Record<string, unknown>, col: string | undefined): unkno
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
-    });
-    const role = token?.role as string | undefined;
-    if (role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN']);
+    if (forbidden) return forbidden;
 
     const tableSub = await prisma.$queryRaw<{ table_name: string }[]>`
       SELECT table_name FROM information_schema.tables
@@ -222,13 +218,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
-    });
-    if ((token?.role as string) !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN']);
+    if (forbidden) return forbidden;
 
     const body = await req.json().catch(() => ({}));
     const { userId, planId, durationMonths = 12 } = body as { userId: string; planId: string; durationMonths?: number };

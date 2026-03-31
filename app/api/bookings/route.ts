@@ -4,18 +4,17 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { getDataScope } from '@/lib/auth/adminPermissions';
+import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
 import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
-    });
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const token = auth.token as { sub?: string; role?: string; organizationId?: string | null };
     const session = token
       ? {
           user: {
@@ -92,6 +91,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN', 'COMPANY', 'ORG_MANAGER', 'CLIENT', 'OWNER', 'LANDLORD']);
+    if (forbidden) return forbidden;
+
     const body = await req.json();
     const id = typeof body?.id === 'string' ? body.id : null;
     if (!id) {
