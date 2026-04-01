@@ -164,6 +164,14 @@
   - `lib/data/contracts.ts` عبر `/api/contracts`
   - `lib/data/addressBook.ts` عبر `/api/address-book`
 - النتيجة: الصفحات الحرجة لا تعتمد فقط على localStorage، وتلتقط أحدث نسخة خادمية تلقائياً.
+
+### 33) نقل طلبات إلغاء الحجوزات إلى DB-first
+- إضافة API:
+  - `GET/POST /api/settings/booking-cancellation-requests`
+- تحديث `lib/data/bookings.ts` لمسار `booking_cancellation_requests`:
+  - Hydration من الخادم عند أول قراءة.
+  - Sync عند الحفظ.
+  - Bulk sync انتقالي لمرة واحدة للبيانات المحلية القديمة.
 - السلوك الجديد:
   - Hydration تلقائي عند أول قراءة.
   - مزامنة مباشرة لأي تعديل محلي إلى قاعدة البيانات عبر API.

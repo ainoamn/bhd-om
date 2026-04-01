@@ -98,10 +98,15 @@ export interface BookingCancellationRequest {
 }
 
 const STORAGE_KEY = 'bhd_property_bookings';
+const CANCELLATION_API_URL = '/api/settings/booking-cancellation-requests';
 let didBulkSyncBookings = false;
 let bulkSyncInProgress = false;
 let didHydrateBookingsFromServer = false;
 let hydrateBookingsInProgress = false;
+let didHydrateCancellationFromServer = false;
+let hydrateCancellationInProgress = false;
+let didBulkSyncCancellation = false;
+let bulkSyncCancellationInProgress = false;
 
 function syncBookingToServer(booking: PropertyBooking): void {
   if (typeof window === 'undefined') return;
@@ -605,6 +610,20 @@ const CANCELLATION_REQUESTS_KEY = 'bhd_booking_cancellation_requests';
 
 function getStoredCancellationRequests(): BookingCancellationRequest[] {
   if (typeof window === 'undefined') return [];
+  if (!didHydrateCancellationFromServer && !hydrateCancellationInProgress) {
+    hydrateCancellationInProgress = true;
+    fetch(CANCELLATION_API_URL, { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: BookingCancellationRequest[]) => {
+        if (!Array.isArray(rows)) return;
+        localStorage.setItem(CANCELLATION_REQUESTS_KEY, JSON.stringify(rows));
+        didHydrateCancellationFromServer = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydrateCancellationInProgress = false;
+      });
+  }
   try {
     const raw = localStorage.getItem(CANCELLATION_REQUESTS_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -617,11 +636,36 @@ function saveCancellationRequests(list: BookingCancellationRequest[]) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(CANCELLATION_REQUESTS_KEY, JSON.stringify(list));
+    fetch(CANCELLATION_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(list),
+    }).catch(() => {});
   } catch {}
+}
+
+function syncAllCancellationRequestsToServerOnce(): void {
+  if (typeof window === 'undefined') return;
+  if (didBulkSyncCancellation || bulkSyncCancellationInProgress) return;
+  bulkSyncCancellationInProgress = true;
+  try {
+    const all = getStoredCancellationRequests();
+    fetch(CANCELLATION_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(all),
+    }).catch(() => {});
+    didBulkSyncCancellation = true;
+  } finally {
+    bulkSyncCancellationInProgress = false;
+  }
 }
 
 /** طلبات إلغاء الحجوزات بانتظار المحاسبة (استرداد/خصم المبلغ) */
 export function getBookingsPendingCancellation(): (BookingCancellationRequest & { booking: PropertyBooking })[] {
+  syncAllCancellationRequestsToServerOnce();
   const requests = getStoredCancellationRequests().filter((r) => r.status === 'PENDING');
   const bookings = getStoredBookings();
   return requests
