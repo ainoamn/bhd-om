@@ -21,7 +21,7 @@ export default function MyInvoicesPage() {
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
-    fetch('/api/me/accounting-documents?type=INVOICE', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/me/accounting-documents?type=INVOICE', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((list) => {
         if (!alive) return;

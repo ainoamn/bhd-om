@@ -172,7 +172,7 @@ export default function MyAccountPage() {
 
     (async () => {
       try {
-        const res = await fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' });
+        const res = await fetch('/api/user/linked-contact', { credentials: 'include' });
         if (cancelled || !res.ok) throw new Error('no-server-contact');
         const data = await res.json();
         if (data && typeof data === 'object' && data.id) {
@@ -214,7 +214,7 @@ export default function MyAccountPage() {
   }, [user?.id, user?.email, user?.phone, user?.name]);
 
   useEffect(() => {
-    fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/subscriptions/me', { credentials: 'include' })
       .then((r) => r.json())
       .then((d) => setSubData(d))
       .catch(() => setSubData(null));
@@ -502,7 +502,7 @@ export default function MyAccountPage() {
           currency: selectedPlan?.currency ?? 'OMR',
           direction: requestDirection,
         });
-        fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' }).then((r) => r.json()).then((d) => setSubData(d));
+        fetch('/api/subscriptions/me', { credentials: 'include' }).then((r) => r.json()).then((d) => setSubData(d));
       } else {
         alert(data?.error || data?.details || (ar ? 'فشل تنفيذ الطلب' : 'Request failed'));
       }
@@ -852,7 +852,7 @@ export default function MyAccountPage() {
                       const res = await fetch('/api/subscriptions/me/cancel-change-request', { method: 'POST', credentials: 'include' });
                       const data = await res.json();
                       if (res.ok && data?.ok) {
-                        const r = await fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' });
+                        const r = await fetch('/api/subscriptions/me', { credentials: 'include' });
                         const d = await r.json();
                         setSubData(d);
                       } else {

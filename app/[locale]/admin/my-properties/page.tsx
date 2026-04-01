@@ -26,7 +26,7 @@ export default function MyPropertiesPage() {
       return;
     }
     let alive = true;
-    fetch('/api/admin/properties?limit=500&offset=0', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/admin/properties?limit=500&offset=0', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { list?: Array<{ serialNumber?: string }> } | null) => {
         if (!alive) return;
@@ -46,7 +46,7 @@ export default function MyPropertiesPage() {
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
-    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/user/linked-contact', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!alive) return;
@@ -73,7 +73,7 @@ export default function MyPropertiesPage() {
   useEffect(() => {
     if (userRole !== 'OWNER' && !landlordContactId) return;
     let alive = true;
-    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+    fetch('/api/bookings', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: PropertyBooking[]) => {
         if (!alive) return;

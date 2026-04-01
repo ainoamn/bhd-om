@@ -29,7 +29,7 @@ const HERO_DEFAULTS = {
   heroImage: 'https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=1920&q=80',
 };
 
-const FETCH_OPTS = { cache: 'no-store' as RequestCache, credentials: 'include' as RequestCredentials };
+const FETCH_OPTS = { credentials: 'include' as RequestCredentials };
 
 export default function SubscriptionsPage() {
   const params = useParams();

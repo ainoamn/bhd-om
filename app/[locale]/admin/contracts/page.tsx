@@ -130,7 +130,7 @@ export default function AdminContractsPage() {
   useEffect(() => {
     syncAllContractsToServer();
     loadData();
-    fetch('/api/contracts', { cache: 'no-store', credentials: 'include' })
+    fetch('/api/contracts', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: RentalContract[]) => {
         if (Array.isArray(list) && list.length > 0) {
@@ -140,7 +140,7 @@ export default function AdminContractsPage() {
         }
       })
       .catch(() => {});
-    fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+    fetch('/api/bookings', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: PropertyBooking[]) => {
         const rows = Array.isArray(list) ? list : [];

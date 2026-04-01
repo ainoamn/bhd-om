@@ -11,6 +11,11 @@ import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentit
 import { deleteOtherAddressBookRowsForUser, deleteOtherPersonalRowsSamePhone } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+  Vary: 'Cookie, Authorization',
+};
+
 function normalizeDigitsPhone(raw: string): string {
   let digits = raw.replace(/\D/g, '');
   if (digits.startsWith('00')) digits = digits.slice(2);
@@ -36,14 +41,14 @@ export async function GET(req: NextRequest) {
 
     const row = await findAddressBookRowByUserId(sub);
     if (!row) {
-      return NextResponse.json(null);
+      return NextResponse.json(null, { headers: READ_CACHE_HEADERS });
     }
 
     const data = { ...((row.data as Record<string, unknown>) || {}) };
     data.serialNumber = user.serialNumber;
     data.userId = sub;
     data.linkedUserId = row.linkedUserId ?? sub;
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: READ_CACHE_HEADERS });
   } catch (e) {
     console.error('linked-contact GET error:', e);
     return NextResponse.json({ error: 'Failed to load contact' }, { status: 500 });

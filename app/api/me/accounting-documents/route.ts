@@ -6,6 +6,10 @@ import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+  Vary: 'Cookie, Authorization',
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,14 +36,14 @@ export async function GET(req: NextRequest) {
     const contactId = row?.contactId || null;
     if (!contactId) {
       return NextResponse.json([], {
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+        headers: READ_CACHE_HEADERS,
       });
     }
 
     const docs = await getDocumentsFromDb({ type: allowedType });
     const mine = docs.filter((d) => String((d as { contactId?: string | null }).contactId || '') === contactId);
     return NextResponse.json(mine, {
-      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+      headers: READ_CACHE_HEADERS,
     });
   } catch (e) {
     console.error('GET /api/me/accounting-documents:', e);

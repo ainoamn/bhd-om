@@ -16,6 +16,11 @@ import {
   getDuplicateDropContactIdsFromDbRows,
 } from '@/lib/server/addressBookDedupe';
 
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=20, stale-while-revalidate=90',
+  Vary: 'Cookie, Authorization',
+};
+
 export async function GET(req: NextRequest) {
   try {
     const limitRaw = Number(req.nextUrl.searchParams.get('limit') || '0');
@@ -89,6 +94,7 @@ export async function GET(req: NextRequest) {
     const paged = limit > 0 ? contacts.slice(offset, offset + limit) : contacts;
     return NextResponse.json(paged, {
       headers: {
+        ...READ_CACHE_HEADERS,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

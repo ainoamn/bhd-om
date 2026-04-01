@@ -8,6 +8,11 @@ import {
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+  Vary: 'Cookie, Authorization',
+};
+
 async function postDocumentToDb(doc: any) {
   const accounts = await getAccountsFromDb();
   const cashAcc = accounts.find((a: any) => a.code === '1000');
@@ -108,8 +113,7 @@ export async function GET(request: NextRequest) {
     const paged = limit > 0 ? docs.slice(offset, offset + limit) : docs;
     return NextResponse.json(paged, {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        Pragma: 'no-cache',
+        ...READ_CACHE_HEADERS,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

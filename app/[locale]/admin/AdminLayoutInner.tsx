@@ -283,7 +283,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       return;
     }
     let alive = true;
-    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/user/linked-contact', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!alive) return;
@@ -298,6 +298,20 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       alive = false;
     };
   }, [currentSession?.user, effectiveRole]);
+
+  useEffect(() => {
+    const targets = [
+      `/${locale}/admin`,
+      `/${locale}/admin/bookings`,
+      `/${locale}/admin/contracts`,
+      `/${locale}/admin/properties`,
+      `/${locale}/admin/address-book`,
+      `/${locale}/admin/my-bookings`,
+      `/${locale}/admin/my-contracts`,
+      `/${locale}/admin/my-properties`,
+    ];
+    for (const href of targets) router.prefetch(href);
+  }, [router, locale]);
 
   const contactDashboardType = useMemo(() => {
     if (!currentSession?.user || effectiveRole === 'ADMIN') return undefined;

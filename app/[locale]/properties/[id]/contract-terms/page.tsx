@@ -1240,7 +1240,7 @@ export default function ContractTermsPage() {
       let active = true;
       (async () => {
         try {
-          const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+          const res = await fetch('/api/bookings', { credentials: 'include' });
           const list = res.ok ? await res.json() : [];
           const serverMatch = Array.isArray(list)
             ? list.find(

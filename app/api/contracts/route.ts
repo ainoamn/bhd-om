@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
 
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=20, stale-while-revalidate=90',
+  Vary: 'Cookie, Authorization',
+};
+
 function parseBookingRow(row: { bookingId: string; data: string }) {
   try {
     const parsed = JSON.parse(row.data) as Record<string, unknown>;
@@ -46,6 +51,7 @@ export async function GET(req: NextRequest) {
     const paged = limit > 0 ? list.slice(offset, offset + limit) : list;
     return NextResponse.json(paged, {
       headers: {
+        ...READ_CACHE_HEADERS,
         'X-Total-Count': String(list.length),
         'X-Limit': String(limit || list.length),
         'X-Offset': String(offset),

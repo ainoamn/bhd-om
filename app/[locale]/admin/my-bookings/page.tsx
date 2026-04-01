@@ -268,7 +268,7 @@ export default function MyBookingsPage() {
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
-    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/user/linked-contact', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
         if (!alive) return;
@@ -291,7 +291,7 @@ export default function MyBookingsPage() {
     let alive = true;
     const run = async (attempt: number) => {
       try {
-        const r = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const r = await fetch('/api/bookings', { credentials: 'include' });
         const data = r.ok ? ((await r.json()) as PropertyBooking[]) : [];
         if (!alive) return;
         if (r.ok && Array.isArray(data)) {

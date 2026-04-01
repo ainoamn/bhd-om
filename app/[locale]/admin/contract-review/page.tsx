@@ -531,7 +531,7 @@ export default function ContractReviewPage() {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const res = await fetch('/api/bookings', { credentials: 'include' });
         const list = res.ok ? await res.json() : [];
         const found = Array.isArray(list)
           ? (list.find((b: { id?: string }) => String(b?.id) === String(bookingId)) as PropertyBooking | undefined)
@@ -556,12 +556,12 @@ export default function ContractReviewPage() {
     };
   }, [bookingId, ar]);
 
-  // مزامنة حية لطلبات التوقيع/المرفقات (حتى يظهر إدخال الطرف الآخر فور حفظه)
+  // مزامنة خفيفة: عند العودة للنافذة/التبويب + polling احتياطي خفيف
   useEffect(() => {
     if (!bookingId) return;
-    const iv = window.setInterval(async () => {
+    const refresh = async () => {
       try {
-        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const res = await fetch('/api/bookings', { credentials: 'include' });
         const list = res.ok ? await res.json() : [];
         if (!Array.isArray(list)) return;
         const found = list.find((b: { id?: string }) => String(b?.id) === String(bookingId)) as PropertyBooking | undefined;
@@ -569,8 +569,21 @@ export default function ContractReviewPage() {
       } catch {
         // ignore
       }
-    }, 5000);
-    return () => window.clearInterval(iv);
+    };
+    const onFocus = () => void refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    const iv = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh();
+    }, 60000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(iv);
+    };
   }, [bookingId]);
 
   useEffect(() => {

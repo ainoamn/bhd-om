@@ -6,6 +6,11 @@ import {
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
 
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=20, stale-while-revalidate=90',
+  Vary: 'Cookie, Authorization',
+};
+
 export async function GET(request: NextRequest) {
   const role = await getAccountingRoleFromRequest(request);
   if (role === undefined) {
@@ -24,8 +29,7 @@ export async function GET(request: NextRequest) {
     const paged = limit > 0 ? entries.slice(offset, offset + limit) : entries;
     return NextResponse.json(paged, {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        Pragma: 'no-cache',
+        ...READ_CACHE_HEADERS,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

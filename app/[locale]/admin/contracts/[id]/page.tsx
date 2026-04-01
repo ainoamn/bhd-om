@@ -216,7 +216,7 @@ export default function ContractDetailPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/contracts/${id}`, { cache: 'no-store', credentials: 'include' })
+    fetch(`/api/contracts/${id}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row: RentalContract | null) => {
         if (cancelled || !row || typeof row !== 'object' || !('id' in row)) return;
@@ -235,7 +235,7 @@ export default function ContractDetailPage() {
     let cancelled = false;
     const syncOne = async () => {
       try {
-        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const res = await fetch('/api/bookings', { credentials: 'include' });
         if (!res.ok) return;
         const list = (await res.json()) as any[];
         if (!Array.isArray(list)) return;
@@ -249,11 +249,19 @@ export default function ContractDetailPage() {
       }
     };
     void syncOne();
+    const onFocus = () => void syncOne();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void syncOne();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
     const iv = window.setInterval(() => {
-      void syncOne();
-    }, 7000);
+      if (document.visibilityState === 'visible') void syncOne();
+    }, 60000);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(iv);
     };
   }, [contract?.bookingId]);
@@ -408,7 +416,7 @@ export default function ContractDetailPage() {
     // إذا لم يكن الحجز موجوداً محلياً (شائع عند فتح صفحة العقد مباشرة)، اجلبه من الخادم ثم حدّثه
     if (!updatedBooking) {
       try {
-        const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+        const res = await fetch('/api/bookings', { credentials: 'include' });
         const list = res.ok ? await res.json() : [];
         const serverBooking = Array.isArray(list) ? list.find((b) => b?.id === updatedContract.bookingId) : null;
         if (serverBooking) {

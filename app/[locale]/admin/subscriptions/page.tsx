@@ -109,7 +109,7 @@ function mapApiPlanToRow(p: {
   };
 }
 
-const FETCH_OPTS = { cache: 'no-store' as RequestCache, credentials: 'include' as RequestCredentials };
+const FETCH_OPTS = { credentials: 'include' as RequestCredentials };
 
 export default function AdminSubscriptionsPage() {
   const params = useParams();

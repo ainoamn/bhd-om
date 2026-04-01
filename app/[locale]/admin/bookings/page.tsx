@@ -132,7 +132,7 @@ export default function AdminBookingsPage() {
   const loadData = async () => {
     if (typeof window !== 'undefined') syncPaidBookingsToAccounting(); // مزامنة تلقائية مع المحاسبة
     try {
-      const res = await fetch('/api/bookings', { cache: 'no-store', credentials: 'include' });
+      const res = await fetch('/api/bookings', { credentials: 'include' });
       const serverBookings = res.ok ? await res.json() : [];
       if (Array.isArray(serverBookings)) {
         setBookings(serverBookings);

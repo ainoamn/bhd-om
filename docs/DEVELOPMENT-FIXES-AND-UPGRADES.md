@@ -380,3 +380,38 @@
   - `npx tsc --noEmit`
   - `npm run build`
 - أي إصلاح جديد يُسجل هنا باختصار (ماذا ولماذا والملفات المتأثرة).
+
+## إغلاق مراحل الأداء (Phase 1-3) — 2026-03-30
+
+### Phase 1 — تقليل الحمل في الصفحات الثقيلة
+- إزالة `cache: 'no-store'` من أغلب جلب البيانات في صفحات الإدارة الثقيلة واعتماد السلوك الافتراضي للمتصفح + Next.
+- إضافة `router.prefetch(...)` مركزي في `app/[locale]/admin/AdminLayoutInner.tsx` لمسارات الإدارة الأكثر زيارة.
+- تحويل polling العدواني في شاشات العقد/المراجعة إلى:
+  - refresh عند `focus`
+  - refresh عند `visibilitychange`
+  - polling احتياطي خفيف كل 60 ثانية.
+
+### Phase 2 — كاش انتقائي على مستوى API
+- إضافة هيدر كاش آمن (خاص بالمستخدم) على APIs الأساسية:
+  - `app/api/bookings/route.ts`
+  - `app/api/contracts/route.ts`
+  - `app/api/address-book/route.ts`
+  - `app/api/admin/properties/route.ts`
+  - `app/api/user/linked-contact/route.ts`
+- النمط المعتمد:
+  - `Cache-Control: private, max-age=... , stale-while-revalidate=...`
+  - `Vary: Cookie, Authorization`
+
+### Phase 3 — توسيع الكاش الانتقائي لباقي القوائم الكبيرة
+- تطبيق نفس النمط على:
+  - `app/api/accounting/documents/route.ts`
+  - `app/api/accounting/journal/route.ts`
+  - `app/api/accounting/accounts/route.ts`
+  - `app/api/me/accounting-documents/route.ts`
+  - `app/api/subscriptions/route.ts` (مدة أقصر بسبب حساسية الحالة)
+
+### حالة الإغلاق
+- حالة البنود المفتوحة للأداء: **Closed**
+- التحقق الفني بعد الإغلاق:
+  - `ReadLints` بدون أخطاء
+  - `npm run build` ناجح بالكامل

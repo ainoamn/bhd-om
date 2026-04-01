@@ -12,6 +12,10 @@ import { getJsonSetting, upsertJsonSetting } from '@/lib/server/repositories/app
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=10, stale-while-revalidate=30',
+  Vary: 'Cookie, Authorization',
+};
 
 const SUB_COL_MAP: Record<string, string[]> = {
   id: ['id'],
@@ -47,7 +51,7 @@ export async function GET(req: NextRequest) {
     const subTableName = tableSub?.[0]?.table_name;
     if (!subTableName) {
       return NextResponse.json({ list: [] }, {
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+        headers: READ_CACHE_HEADERS,
       });
     }
 
@@ -67,7 +71,7 @@ export async function GET(req: NextRequest) {
     }
     if (selectCols.length < 4) {
       return NextResponse.json({ list: [] }, {
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+        headers: READ_CACHE_HEADERS,
       });
     }
 
@@ -209,8 +213,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ list: paged }, {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        Pragma: 'no-cache',
+        ...READ_CACHE_HEADERS,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

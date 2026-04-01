@@ -164,7 +164,6 @@ export default function UserDetailPage() {
       try {
         const res = await fetch(`/api/admin/users/${uid}/linked-contact`, {
           credentials: 'include',
-          cache: 'no-store',
         });
         if (cancelled) return;
         if (res.status === 401 || res.status === 404) {

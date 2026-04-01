@@ -7,6 +7,10 @@ import { getDataScope, propertyScopeWhere, hasAdminPermission } from '@/lib/auth
 import { requireAuth } from '@/lib/auth/guard';
 
 export const runtime = 'nodejs';
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
+  Vary: 'Cookie, Authorization',
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -80,6 +84,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ list }, {
       headers: {
+        ...READ_CACHE_HEADERS,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

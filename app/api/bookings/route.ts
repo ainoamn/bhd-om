@@ -10,6 +10,11 @@ import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
 import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
 
+const READ_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+  Vary: 'Cookie, Authorization',
+};
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
@@ -91,6 +96,7 @@ export async function GET(req: NextRequest) {
     const paged = limit > 0 ? bookings.slice(offset, offset + limit) : bookings;
     return NextResponse.json(paged, {
       headers: {
+        ...READ_CACHE_HEADERS,
         'X-Total-Count': String(bookings.length),
         'X-Limit': String(limit || bookings.length),
         'X-Offset': String(offset),

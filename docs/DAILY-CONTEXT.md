@@ -622,3 +622,55 @@
 | `docs/SESSION-START.md` | اقرأه في **بداية** كل جلسة — أوامر، تعليمات، ملفات يجب قراءتها |
 | `docs/SESSION-END.md` | نفّذه في **نهاية** كل جلسة — تحديث السياق، رفع، توثيق |
 | `docs/DAILY-CONTEXT.md` | هذا الملف — يُحدَّث بعد كل جلسة؛ مراجعته في بداية الجلسة التالية |
+
+---
+
+### جلسة 2026-03-30 — تحسين أداء شامل (كل الصفحات + API caching)
+
+- **ما تم:**
+  - تنفيذ دفعة شاملة على صفحات الإدارة/الواجهة لإزالة `cache: 'no-store'` من مسارات القراءة العامة.
+  - إضافة prefetch مركزي في `AdminLayoutInner` للمسارات الأكثر استخداماً.
+  - تقليل polling الثقيل في صفحات العقد/المراجعة إلى نمط event-driven (`focus` + `visibilitychange`) مع fallback كل 60 ثانية.
+  - تنفيذ كاش انتقائي آمن على مستوى API للقوائم الكبيرة مع:
+    - `Cache-Control: private, max-age=... , stale-while-revalidate=...`
+    - `Vary: Cookie, Authorization`
+  - تطبيق الكاش الانتقائي على مسارات: الحجوزات، العقود، دفتر العناوين، عقارات الإدارة، linked-contact، مستندات المحاسبة، القيود اليومية، الحسابات، مستندات المستخدم، الاشتراكات.
+
+- **الملفات المُعدّلة:**
+  - `app/[locale]/admin/AdminLayoutInner.tsx`
+  - `app/[locale]/admin/address-book/page.tsx`
+  - `app/[locale]/admin/my-bookings/page.tsx`
+  - `app/[locale]/admin/properties/page.tsx`
+  - `app/[locale]/admin/contracts/page.tsx`
+  - `app/[locale]/admin/contracts/[id]/page.tsx`
+  - `app/[locale]/admin/contract-review/page.tsx`
+  - `app/[locale]/admin/bookings/page.tsx`
+  - `app/[locale]/admin/page.tsx`
+  - `app/[locale]/admin/my-account/page.tsx`
+  - `app/[locale]/admin/my-contracts/page.tsx`
+  - `app/[locale]/admin/my-properties/page.tsx`
+  - `app/[locale]/admin/my-invoices/page.tsx`
+  - `app/[locale]/admin/my-receipts/page.tsx`
+  - `app/[locale]/admin/users/[id]/page.tsx`
+  - `app/[locale]/admin/subscriptions/page.tsx`
+  - `app/[locale]/subscriptions/page.tsx`
+  - `app/[locale]/properties/[id]/contract-terms/page.tsx`
+  - `app/api/bookings/route.ts`
+  - `app/api/contracts/route.ts`
+  - `app/api/address-book/route.ts`
+  - `app/api/admin/properties/route.ts`
+  - `app/api/user/linked-contact/route.ts`
+  - `app/api/accounting/documents/route.ts`
+  - `app/api/accounting/journal/route.ts`
+  - `app/api/accounting/accounts/route.ts`
+  - `app/api/me/accounting-documents/route.ts`
+  - `app/api/subscriptions/route.ts`
+  - `docs/DEVELOPMENT-FIXES-AND-UPGRADES.md`
+
+- **أحداث جديدة:**
+  - إغلاق مراحل الأداء المجدولة (Phase 1-3) بحالة closed.
+  - إبقاء `no-store` فقط في المسارات الحساسة المعتمدة على توكن توقيع/تحقق لحظي.
+
+- **ملاحظات للجلسة القادمة:**
+  - تنفيذ قياس قبل/بعد عبر المتصفح (Network panel) على صفحات: address-book, bookings, contracts, properties.
+  - ضبط `max-age` لكل endpoint حسب نمط تغيّر البيانات الفعلي.
