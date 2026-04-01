@@ -37,3 +37,12 @@ export const CACHE_ME_ACCOUNTING_DOCS_GET = httpCachePrivate(15, 45);
 
 /** قائمة اشتراكات الأدمن: منطق تطبيق/تجديد — حذر من كاش طويل */
 export const CACHE_ADMIN_SUBSCRIPTIONS_GET = httpCachePrivate(8, 25);
+
+/** باقات عامة: تتغير نادراً */
+export const CACHE_PLANS_PUBLIC_GET = 'public, max-age=60, stale-while-revalidate=300';
+
+/** باقات الأدمن: يجب أن تبقى حديثة لكن ليست no-store */
+export const CACHE_ADMIN_PLANS_GET = httpCachePrivate(20, 60);
+
+/** اشتراك المستخدم الحالي: حساس، لكن كاش قصير خاص */
+export const CACHE_SUBSCRIPTION_ME_GET = httpCachePrivate(8, 20);

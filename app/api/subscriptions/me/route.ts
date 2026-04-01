@@ -7,6 +7,7 @@ import { getToken } from 'next-auth/jwt';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getDocumentByIdFromDb, getDocumentsFromDb } from '@/lib/accounting/data/dbService';
+import { CACHE_SUBSCRIPTION_ME_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     const emptyRes = () =>
       NextResponse.json(
         { subscription: null, plans: [], pendingRequest: null },
-        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' } }
+        { headers: { 'Cache-Control': CACHE_SUBSCRIPTION_ME_GET, Vary: HTTP_CACHE_VARY_AUTH } }
       );
 
     const subTable = await prisma.$queryRaw<{ table_name: string }[]>`
@@ -316,7 +317,7 @@ export async function GET(req: NextRequest) {
         pendingRequest,
         subscriptionHistory: historyEnriched,
       },
-      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' } }
+      { headers: { 'Cache-Control': CACHE_SUBSCRIPTION_ME_GET, Vary: HTTP_CACHE_VARY_AUTH } }
     );
   } catch (e) {
     console.error('GET /api/subscriptions/me:', e);

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { CACHE_ADMIN_PLANS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
     const tableName = tableResult?.[0]?.table_name;
     if (!tableName) {
       return NextResponse.json({ list: [] }, {
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+        headers: { 'Cache-Control': CACHE_ADMIN_PLANS_GET, Vary: HTTP_CACHE_VARY_AUTH },
       });
     }
     const columnsResult = await prisma.$queryRaw<{ column_name: string }[]>(
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
     const existingCols = new Set((columnsResult || []).map((r) => r.column_name));
     if (existingCols.size === 0) {
       return NextResponse.json({ list: [] }, {
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+        headers: { 'Cache-Control': CACHE_ADMIN_PLANS_GET, Vary: HTTP_CACHE_VARY_AUTH },
       });
     }
 
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
     }
     if (selectCols.length === 0) {
       return NextResponse.json({ list: [] }, {
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+        headers: { 'Cache-Control': CACHE_ADMIN_PLANS_GET, Vary: HTTP_CACHE_VARY_AUTH },
       });
     }
 
@@ -112,7 +113,7 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({ list }, {
-      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+      headers: { 'Cache-Control': CACHE_ADMIN_PLANS_GET, Vary: HTTP_CACHE_VARY_AUTH },
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

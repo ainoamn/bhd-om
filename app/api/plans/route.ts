@@ -4,6 +4,7 @@
  */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { CACHE_PLANS_PUBLIC_GET } from '@/lib/server/httpCacheHeaders';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,7 @@ export async function GET() {
       sortOrder: p.sortOrder,
     }));
     return NextResponse.json({ list }, {
-      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+      headers: { 'Cache-Control': CACHE_PLANS_PUBLIC_GET, Vary: 'Accept-Language' },
     });
   } catch (e) {
     console.error('GET /api/plans:', e);
