@@ -214,7 +214,11 @@ export async function GET(req: NextRequest) {
       permissionIds: [] as string[],
     };
 
-    const plansRes = await fetch(`${req.nextUrl.origin}/api/plans`, { cache: 'no-store', headers: { cookie: req.headers.get('cookie') || '' } }).then((r) => r.json()).catch(() => ({ list: [] }));
+    const plansRes = await fetch(`${req.nextUrl.origin}/api/plans`, {
+      headers: { cookie: req.headers.get('cookie') || '' },
+    })
+      .then((r) => r.json())
+      .catch(() => ({ list: [] }));
     const plansList = Array.isArray(plansRes?.list) ? plansRes.list : [];
 
     let pendingRequest: { id: string; direction: string; status: string; requestedPlanId: string; requestedPlanNameAr: string; requestedPlanNameEn: string; activationDate: string; amount: number } | null = null;

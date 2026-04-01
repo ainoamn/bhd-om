@@ -153,11 +153,19 @@ export default function AdminBookingsPage() {
       if (!cancelled) await loadData();
     })();
 
-    // تحديث دوري لتفادي كاش المتصفح/التأخير بعد الاعتماد
+    const onFocus = () => {
+      if (!cancelled) void loadData();
+    };
+    const onVisibility = () => {
+      if (!cancelled && document.visibilityState === 'visible') void loadData();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    // polling احتياطي خفيف فقط.
     const iv = window.setInterval(() => {
-      if (cancelled) return;
+      if (cancelled || document.visibilityState !== 'visible') return;
       void loadData();
-    }, 5000);
+    }, 60000);
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_property_bookings' || e.key === 'bhd_booking_documents' || e.key === 'bhd_booking_cancellation_requests') loadData();
       if (e.key === 'bhd_bank_accounts') setBankAccountsVersion((v) => v + 1);
@@ -165,6 +173,8 @@ export default function AdminBookingsPage() {
     window.addEventListener('storage', onStorage);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(iv);
       window.removeEventListener('storage', onStorage);
     };
