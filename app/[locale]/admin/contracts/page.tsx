@@ -10,6 +10,8 @@ import {
   getContractByBooking,
   createContract,
   approveContractByAdmin,
+  mergeContractsFromServer,
+  syncAllContractsToServer,
   type RentalContract,
   type ContractStatus,
 } from '@/lib/data/contracts';
@@ -74,6 +76,7 @@ export default function AdminContractsPage() {
 
   const [contracts, setContracts] = useState<ContractView[]>([]);
   const [bookings, setBookings] = useState<PropertyBooking[]>([]);
+  const [apiContracts, setApiContracts] = useState<RentalContract[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [mounted, setMounted] = useState(false);
 
@@ -112,23 +115,37 @@ export default function AdminContractsPage() {
     return out;
   };
 
-  const loadData = (latestBookings?: PropertyBooking[]) => {
+  const loadData = (latestBookings?: PropertyBooking[], latestApiContracts?: RentalContract[]) => {
     const localContracts = getAllContracts().map((c) => ({ ...c, source: 'local' as const }));
+    const apiContractViews = (latestApiContracts || apiContracts).map((c) => ({ ...c, source: 'server' as const }));
     const serverContracts = buildServerContracts(latestBookings || bookings);
     const merged = new Map<string, ContractView>();
-    for (const c of serverContracts) merged.set(c.id, c);
+    // Local first, then server-derived, then API contracts as source of truth.
     for (const c of localContracts) merged.set(c.id, c as ContractView);
+    for (const c of serverContracts) merged.set(c.id, c);
+    for (const c of apiContractViews) merged.set(c.id, c as ContractView);
     setContracts(Array.from(merged.values()));
   };
 
   useEffect(() => {
+    syncAllContractsToServer();
     loadData();
+    fetch('/api/contracts', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: RentalContract[]) => {
+        if (Array.isArray(list) && list.length > 0) {
+          setApiContracts(list);
+          mergeContractsFromServer(list);
+          loadData(undefined, list);
+        }
+      })
+      .catch(() => {});
     fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: PropertyBooking[]) => {
         const rows = Array.isArray(list) ? list : [];
         setBookings(rows);
-        loadData(rows);
+        loadData(rows, undefined);
       })
       .catch(() => setBookings([]));
     const onStorage = (e: StorageEvent) => {

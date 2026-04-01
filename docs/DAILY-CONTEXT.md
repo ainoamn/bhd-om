@@ -9,6 +9,166 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — دفعة شاملة DB-first لمخازن محلية إضافية
+
+- **ما تم:** إضافة APIs جديدة:
+  - `app/api/settings/company-data/route.ts`
+  - `app/api/settings/property-landlords/route.ts`
+  - `app/api/settings/booking-documents/route.ts`
+  - `app/api/settings/booking-checks/route.ts`
+  - `app/api/settings/contract-checks/route.ts`
+- **ما تم:** تحديث ملفات البيانات:
+  - `lib/data/companyData.ts`
+  - `lib/data/propertyLandlords.ts`
+  - `lib/data/bookingDocuments.ts`
+  - `lib/data/bookingChecks.ts`
+  - `lib/data/contractChecks.ts`
+  - `lib/data/dashboardSettings.ts` (Hydration تلقائي)
+- **الأثر:** نقل إضافي واسع من localStorage-only إلى DB-first في البيانات التشغيلية للموقع.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — نقل شروط الحجز/العقد إلى DB-first
+
+- **ما تم:** إنشاء `app/api/settings/booking-terms/route.ts` (`GET/POST`).
+- **ما تم:** تحديث `lib/data/bookingTerms.ts` لقراءة أولية من الخادم ومزامنة أي حفظ إلى قاعدة البيانات.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — نقل تعديلات حالة/نشر العقارات (Property Overrides) إلى DB-first
+
+- **ما تم:** إنشاء `app/api/settings/property-overrides/route.ts` (`GET/POST`).
+- **ما تم:** تحديث `lib/data/properties.ts` لعمل Hydration من الخادم ومزامنة أي تعديل override مباشرة إلى DB.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — توحيد ربط دفتر العناوين على server-first
+
+- **ما تم:** إضافة دوال server-first في `lib/data/contactLinks.ts` لاشتقاق الحجوزات/العقود/المستندات المرتبطة من `serverBookings`.
+- **ما تم:** تحديث `app/[locale]/admin/address-book/page.tsx` لاستخدام الدوال الجديدة في العرض والطباعة بدل منطق محلي مكرر.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — تحسين دقة المطالبات المالية في دفتر العناوين
+
+- **ما تم:** تحديث `contactLinks` server-first لقبول مستندات محاسبة خادمة وحساب `hasFinancialClaims` من حالات `PENDING/DRAFT`.
+- **ما تم:** `admin/address-book` أصبح يجلب `/api/accounting/documents` ويمررها لدوال الربط في العرض والطباعة.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — تعطيل النسخ المحلي في صفحة إدارة البيانات
+
+- **ما تم:** تحديث `admin/data` لإيقاف خيارات تنزيل/استيراد نسخة `localStorage` من الواجهة.
+- **ما تم:** اعتماد النسخ الاحتياطي/الاستعادة من الخادم كمسار افتراضي وحيد.
+- **الأثر:** تقليل مخاطر إدخال بيانات متصفح قديمة بعد مسار DB-first.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — مزامنة انتقالية مرة واحدة للحجوزات والدفتر
+
+- **ما تم:** في `bookings.ts` إضافة رفع bulk لمرة واحدة لكل الحجوزات المحلية القديمة إلى `/api/bookings`.
+- **ما تم:** في `addressBook.ts` إضافة رفع bulk لمرة واحدة لكل جهات الاتصال المحلية القديمة إلى `/api/address-book`.
+- **الأثر:** تسريع تنظيف فجوة الانتقال ومنع بقاء بيانات محلية غير مزامنة.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — استكمال مزامنة انتقالية للعقود/المستندات/الشيكات
+
+- **ما تم:** إضافة مزامنة bulk لمرة واحدة في:
+  - `contracts.ts`
+  - `bookingDocuments.ts`
+  - `bookingChecks.ts`
+  - `contractChecks.ts`
+- **الأثر:** رفع تلقائي لبقايا البيانات المحلية القديمة عند أول قراءة حتى بدون تعديل يدوي.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — تنظيف backup المحلي بعد التحول إلى DB backup
+
+- **ما تم:** إزالة وظائف النسخ/الاستيراد المحلي من `lib/data/backup.ts` والإبقاء على وظائف التصفير التشغيلي فقط.
+- **الأثر:** توحيد مسار النسخ الاحتياطي على الخادم وتقليل مخاطر استعادة بيانات متصفح قديمة.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — Hydration خادمي للمسارات الحرجة (bookings/contracts/addressBook)
+
+- **ما تم:** إضافة جلب تلقائي عند أول قراءة من الخادم في:
+  - `bookings.ts` (`/api/bookings`)
+  - `contracts.ts` (`/api/contracts`)
+  - `addressBook.ts` (`/api/address-book`)
+- **الأثر:** تقليل الاعتماد على بيانات المتصفح القديمة في أكثر المسارات حساسية.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — تعزيز DB-first للحسابات والقيود اليومية
+
+- **ما تم:** توسيع `app/api/accounting/accounts/route.ts` بإضافة `POST` (بحماية صلاحية `ACCOUNT_EDIT`) لدعم إنشاء/تحديث حسابات دليل الحسابات من الواجهة.
+- **ما تم:** تحديث `lib/data/accounting.ts`:
+  - Hydration من `/api/accounting/accounts` و`/api/accounting/journal`.
+  - مزامنة إنشاء/تحديث الحسابات إلى API.
+  - مزامنة إنشاء القيد إلى API.
+  - مزامنة حالات اعتماد/إلغاء القيد إلى endpoints المخصصة.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — تعزيز المحاسبة نحو DB-first (مستندات المحاسبة)
+
+- **ما تم:** تحديث `lib/data/accounting.ts` لإضافة:
+  - Hydration من `/api/accounting/documents` عند أول قراءة.
+  - مزامنة إنشاء المستندات إلى API.
+  - مزامنة `contactId` عبر PATCH.
+  - مزامنة الاعتماد/الإلغاء عبر endpoints المخصصة.
+- **الأثر:** اتساق أعلى في بيانات المستندات المحاسبية بين المتصفح وقاعدة البيانات.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — نقل إعدادات السنة المالية للمحاسبة إلى DB-first
+
+- **ما تم:** إنشاء `app/api/settings/accounting-fiscal/route.ts` (`GET/POST`).
+- **ما تم:** تحديث `lib/data/accounting.ts` ليقرأ إعدادات السنة المالية من الخادم عند أول تحميل، ويُزامن التعديلات تلقائياً.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — نقل إعدادات الرؤية والإعلانات وصلاحيات التصنيفات إلى DB-first
+
+- **ما تم:** إضافة APIs جديدة:
+  - `app/api/settings/site-visibility/route.ts`
+  - `app/api/settings/ads/route.ts`
+  - `app/api/settings/contact-category-permissions/route.ts`
+- **ما تم:** تحديث طبقات البيانات:
+  - `lib/data/siteSettings.ts`
+  - `lib/data/ads.ts`
+  - `lib/data/contactCategoryPermissions.ts`
+- **الأثر:** إعدادات إظهار الصفحات والإعلانات وصلاحيات تصنيفات دفتر العناوين أصبحت تُدار من قاعدة البيانات مع fallback مرحلي محلي.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — بدء نقل العقود من localStorage إلى DB (مرحلة تنفيذية)
+
+- **ما تم:** إنشاء API عقود جديدة:
+  - `app/api/contracts/route.ts` (`GET/POST`)
+  - `app/api/contracts/[id]/route.ts` (`GET/PATCH`)
+- **ما تم:** اعتماد `bookingStorage` كطبقة تخزين انتقالية للعقد في DB عبر:
+  - `contractId`, `contractStage`, `contractData`.
+- **ما تم:** إضافة جسر مزامنة في `lib/data/contracts.ts`:
+  - `syncContractToServer` لمزامنة إنشاء/تحديث العقود تلقائياً إلى الخادم.
+  - `mergeContractsFromServer` لدمج بيانات الخادم محلياً خلال فترة الانتقال.
+- **ما تم:** ربط شاشات العقود بمصدر DB:
+  - `admin/contracts` يجلب من `/api/contracts`.
+  - `admin/contracts/[id]` يجلب من `/api/contracts/[id]`.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — تعزيز مزامنة الحجوزات إلى DB تلقائياً
+
+- **ما تم:** في `lib/data/bookings.ts` إضافة `syncBookingToServer` لمزامنة الحجز إلى `/api/bookings` تلقائياً عند الإنشاء/التعديل/تغيير الحالة.
+- **الأثر:** تقليل اعتماد التشغيل على `localStorage` كمرجع منفرد، وتحسين الاتساق الفوري بين واجهات المستخدم وبيانات الخادم.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — تعزيز مزامنة دفتر العناوين إلى DB تلقائياً
+
+- **ما تم:** في `lib/data/addressBook.ts` تفعيل مزامنة تلقائية إلى `/api/address-book` بعد إنشاء/تحديث/أرشفة/استعادة أي جهة اتصال.
+- **الأثر:** تقليل مخاطر بقاء تغييرات العناوين والحسابات في `localStorage` فقط، ورفع اتساق البيانات بين الأجهزة.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
+### جلسة 2026-03-30 — نقل إعدادات الحسابات البنكية/قوالب الوثائق/خيارات الطباعة إلى DB-first
+
+- **ما تم:** إضافة APIs جديدة:
+  - `app/api/settings/bank-accounts/route.ts`
+  - `app/api/settings/document-templates/route.ts`
+  - `app/api/settings/print-options/route.ts`
+- **ما تم:** تحديث طبقات البيانات:
+  - `lib/data/bankAccounts.ts`
+  - `lib/data/documentTemplates.ts`
+  - `lib/data/printOptions.ts`
+- **الأثر:** هذه الإعدادات أصبحت تُقرأ من قاعدة البيانات عند التحميل الأول وتُزامن تلقائياً إلى الخادم عند أي تعديل.
+- **التحقق:** `npx tsc --noEmit` نجح.
+
 ### جلسة 2026-03-30 — دفعة RBAC/Guard/Audit متوافقة مع النظام الحالي
 
 - **ما تم:** إضافة ملفات صلاحيات وأدوار مركزية:

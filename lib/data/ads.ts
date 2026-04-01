@@ -5,6 +5,9 @@
 
 const STORAGE_KEY = 'bhd-ads';
 const EVENT_NAME = 'bhd-ads-changed';
+const API_URL = '/api/settings/ads';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
 
 export type AdType = 'slider' | 'banner' | 'promo' | 'floating';
 
@@ -79,11 +82,37 @@ function loadFromStorage(): Ad[] {
   return JSON.parse(JSON.stringify(defaultAds));
 }
 
+async function hydrateFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateFromServer || hydratingFromServer) return;
+  hydratingFromServer = true;
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const payload = (await res.json()) as Ad[];
+    if (!Array.isArray(payload)) return;
+    adsStore = payload;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(adsStore));
+    window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    didHydrateFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingFromServer = false;
+  }
+}
+
 function saveToStorage(): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(adsStore));
     window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(adsStore),
+    }).catch(() => {});
   } catch {
     // ignore
   }
@@ -101,6 +130,7 @@ if (typeof window !== 'undefined') {
 }
 
 export function getAds(): Ad[] {
+  void hydrateFromServer();
   return adsStore;
 }
 

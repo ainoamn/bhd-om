@@ -8,6 +8,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
   getContractById,
   updateContract,
+  mergeContractsFromServer,
   approveContractByAdmin,
   approveContractByTenant,
   approveContractByLandlord,
@@ -212,6 +213,21 @@ export default function ContractDetailPage() {
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setAdminEditMode(false); }, [contract?.status, id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/contracts/${id}`, { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((row: RentalContract | null) => {
+        if (cancelled || !row || typeof row !== 'object' || !('id' in row)) return;
+        mergeContractsFromServer([row as RentalContract]);
+        loadContract();
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   // مزامنة حية لطلبات التوقيع/الصور من السيرفر حتى تظهر للمراجعة على أجهزة أخرى
   useEffect(() => {

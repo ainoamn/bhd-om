@@ -34,6 +34,37 @@ export interface DocumentTemplateSettings {
 export type TemplateType = 'invoice' | 'receipt' | 'quote' | 'creditNote' | 'purchaseOrder' | 'deliveryNote' | 'report';
 
 const STORAGE_KEY = 'bhd_document_templates';
+const API_URL = '/api/settings/document-templates';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
+
+async function hydrateFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateFromServer || hydratingFromServer) return;
+  hydratingFromServer = true;
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (!payload || typeof payload !== 'object') return;
+    saveStored(payload as Record<TemplateType, DocumentTemplateSettings[]>, false);
+    didHydrateFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingFromServer = false;
+  }
+}
+
+function syncToServer(data: Record<TemplateType, DocumentTemplateSettings[]>): void {
+  if (typeof window === 'undefined') return;
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  }).catch(() => {});
+}
 
 const baseTemplate = (id: string, name: string, nameEn: string, variant: TemplateVariant = 'classic', bilingual = false, headerLayout: HeaderLayout = 'left'): DocumentTemplateSettings => ({
   id,
@@ -105,6 +136,7 @@ const DEFAULT_TEMPLATES: Record<TemplateType, DocumentTemplateSettings[]> = {
 
 function getStored(): Record<TemplateType, DocumentTemplateSettings[]> {
   if (typeof window === 'undefined') return DEFAULT_TEMPLATES;
+  void hydrateFromServer();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
@@ -127,11 +159,12 @@ function getStored(): Record<TemplateType, DocumentTemplateSettings[]> {
   }
 }
 
-function saveStored(data: Record<TemplateType, DocumentTemplateSettings[]>): void {
+function saveStored(data: Record<TemplateType, DocumentTemplateSettings[]>, sync = true): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
+    if (sync) syncToServer(data);
   } catch {}
 }
 

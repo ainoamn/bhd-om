@@ -6,92 +6,6 @@
 
 import { clearAddressBookLocalStorage } from '@/lib/data/addressBook';
 
-/** جميع مفاتيح البيانات في localStorage - للنسخ الاحتياطي الكامل */
-const BACKUP_KEYS = [
-  'bhd_chart_of_accounts',
-  'bhd_journal_entries',
-  'bhd_accounting_documents',
-  'bhd_fiscal_settings',
-  'bhd_fiscal_periods',
-  'bhd_audit_log',
-  'bhd_property_bookings',
-  'bhd_property_overrides',
-  'bhd_property_data',
-  'bhd_address_book',
-  'bhd_rental_contracts',
-  'bhd_booking_terms',
-  'bhd_bank_accounts',
-  'bhd-pages-visibility',
-  'bhd-ads',
-  'bhd_booking_checks',
-  'bhd_contract_checks',
-  'bhd_booking_documents',
-  'bhd_booking_cancellation_requests',
-  'bhd_property_landlords',
-  'bhd_document_templates',
-  'bhd_print_options',
-  'bhd_company_data',
-  'bhd_draft_keys',
-  'bhd_dashboard_settings',
-  'bhd_contact_category_permissions',
-] as const;
-
-export interface BackupData {
-  version: number;
-  exportedAt: string;
-  keys: Record<string, string | null>;
-}
-
-/** تصدير جميع البيانات إلى JSON */
-export function exportBackup(): string {
-  if (typeof window === 'undefined') return '{}';
-  const keys: Record<string, string | null> = {};
-  for (const key of BACKUP_KEYS) {
-    keys[key] = localStorage.getItem(key);
-  }
-  // تصدير المسودات (bhd_draft_*) ديناميكياً
-  const draftKeysRaw = localStorage.getItem('bhd_draft_keys');
-  if (draftKeysRaw) {
-    try {
-      const draftIds: string[] = JSON.parse(draftKeysRaw);
-      for (const id of draftIds) {
-        const val = localStorage.getItem('bhd_draft_' + id);
-        if (val !== null) keys['bhd_draft_' + id] = val;
-      }
-    } catch {}
-  }
-  const data: BackupData = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    keys,
-  };
-  return JSON.stringify(data, null, 2);
-}
-
-/** استيراد من نسخة احتياطية */
-export function importBackup(json: string): { success: boolean; restored: number; error?: string } {
-  if (typeof window === 'undefined') return { success: false, restored: 0, error: 'غير متاح' };
-  try {
-    const data = JSON.parse(json) as BackupData;
-    if (!data.keys || typeof data.keys !== 'object') {
-      return { success: false, restored: 0, error: 'تنسيق غير صالح' };
-    }
-    let restored = 0;
-    for (const [key, value] of Object.entries(data.keys)) {
-      if ((key.startsWith('bhd') || key.startsWith('bhd-')) && (value !== null && value !== undefined)) {
-        try {
-          localStorage.setItem(key, value);
-          restored++;
-        } catch {}
-      }
-    }
-    window.dispatchEvent(new StorageEvent('storage', { key: 'bhd_backup_restored' }));
-    return { success: true, restored };
-  } catch (e) {
-    return { success: false, restored: 0, error: e instanceof Error ? e.message : 'خطأ غير معروف' };
-  }
-}
-
 /** مفاتيح البيانات التشغيلية التي تُصفَّر عند إعادة التعيين */
 const RESET_KEYS = [
   'bhd_property_bookings',
@@ -233,15 +147,9 @@ export function clearOperationalClientDataForNewAuthUser(): number {
   return resetAllOperationalData();
 }
 
-/** تنزيل ملف النسخة الاحتياطية */
-export function downloadBackup(): void {
-  if (typeof window === 'undefined') return;
-  const json = exportBackup();
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `bhd-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+/**
+ * تم إيقاف النسخ الاحتياطي المحلي (localStorage) افتراضياً.
+ * النسخ والاستعادة الرسمية أصبحت من الخادم عبر:
+ * - /api/admin/data/backup
+ * - /api/admin/data/restore
+ */

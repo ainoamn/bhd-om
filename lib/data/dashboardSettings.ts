@@ -68,6 +68,7 @@ function saveToStorage(data: DashboardSettingsStore): void {
 }
 
 let store: DashboardSettingsStore = loadFromStorage();
+let didAutoHydrateFromServer = false;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
@@ -79,11 +80,19 @@ if (typeof window !== 'undefined') {
 }
 
 export function getDashboardSettings(): DashboardSettingsStore {
+  if (typeof window !== 'undefined' && !didAutoHydrateFromServer) {
+    didAutoHydrateFromServer = true;
+    void loadDashboardSettingsFromServer();
+  }
   return { ...store };
 }
 
 /** الحصول على الأقسام لنوع معيّن - يدعم RoleKey للتوافق مع القديم و DashboardType. يُفضّل إعدادات الخادم للعميل/المالك. */
 export function getSectionsForRole(roleOrType: RoleKey | DashboardType): DashboardSectionKey[] {
+  if (typeof window !== 'undefined' && !didAutoHydrateFromServer) {
+    didAutoHydrateFromServer = true;
+    void loadDashboardSettingsFromServer();
+  }
   if (roleOrType === 'ADMIN') return (defaultDashboardConfigs.ADMIN?.sections ?? []);
   if (serverStore && Object.prototype.hasOwnProperty.call(serverStore, roleOrType) && Array.isArray(serverStore[roleOrType])) {
     return [...serverStore[roleOrType]!];

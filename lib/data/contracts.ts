@@ -275,6 +275,21 @@ export type ContractApprovalActor = {
 };
 
 const STORAGE_KEY = 'bhd_rental_contracts';
+let didBulkSyncContracts = false;
+let bulkSyncContractsInProgress = false;
+let didHydrateContractsFromServer = false;
+let hydrateContractsInProgress = false;
+
+function syncContractToServer(contract: RentalContract): void {
+  if (typeof window === 'undefined') return;
+  if (!contract.bookingId) return;
+  fetch('/api/contracts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(contract),
+  }).catch(() => {});
+}
 
 function getStored(): RentalContract[] {
   if (typeof window === 'undefined') return [];
@@ -298,7 +313,60 @@ function generateId() {
 }
 
 export function getAllContracts(): RentalContract[] {
+  if (!didHydrateContractsFromServer && !hydrateContractsInProgress && typeof window !== 'undefined') {
+    hydrateContractsInProgress = true;
+    fetch('/api/contracts', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: RentalContract[]) => {
+        if (Array.isArray(list) && list.length > 0) {
+          mergeContractsFromServer(list);
+          didHydrateContractsFromServer = true;
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydrateContractsInProgress = false;
+      });
+  }
+  if (!didBulkSyncContracts && !bulkSyncContractsInProgress) {
+    bulkSyncContractsInProgress = true;
+    try {
+      syncAllContractsToServer();
+      didBulkSyncContracts = true;
+    } finally {
+      bulkSyncContractsInProgress = false;
+    }
+  }
   return getStored();
+}
+
+export function mergeContractsFromServer(list: RentalContract[]): number {
+  const incoming = Array.isArray(list) ? list : [];
+  if (incoming.length === 0) return 0;
+  const current = getStored();
+  const map = new Map(current.map((c) => [c.id, c] as const));
+  let changed = 0;
+  for (const c of incoming) {
+    if (!c?.id) continue;
+    const prev = map.get(c.id);
+    if (!prev || String(prev.updatedAt || '') !== String(c.updatedAt || '')) {
+      map.set(c.id, c);
+      changed++;
+    }
+  }
+  if (changed > 0) save(Array.from(map.values()));
+  return changed;
+}
+
+export function syncAllContractsToServer(): number {
+  const all = getStored();
+  let queued = 0;
+  for (const c of all) {
+    if (!c?.id || !c.bookingId) continue;
+    syncContractToServer(c);
+    queued++;
+  }
+  return queued;
 }
 
 export function getContractById(id: string): RentalContract | undefined {
@@ -359,6 +427,7 @@ export function createContract(data: Omit<RentalContract, 'id' | 'createdAt' | '
   if (contract.bookingId) {
     updateBookingStatus(contract.bookingId, 'RENTED');
   }
+  syncContractToServer(contract);
   return contract;
 }
 
@@ -369,6 +438,7 @@ export function updateContract(id: string, updates: Partial<RentalContract>): Re
   const updated = { ...list[idx], ...updates, updatedAt: new Date().toISOString() };
   list[idx] = updated;
   save(list);
+  syncContractToServer(updated);
   return updated;
 }
 

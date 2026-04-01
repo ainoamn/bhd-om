@@ -6,9 +6,26 @@
 import { getContactById, getContactDisplayName } from './addressBook';
 
 const STORAGE_KEY = 'bhd_property_landlords';
+const API_URL = '/api/settings/property-landlords';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
 
 function getStored(): Record<string, string> {
   if (typeof window === 'undefined') return {};
+  if (!didHydrateFromServer && !hydratingFromServer) {
+    hydratingFromServer = true;
+    fetch(API_URL, { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        didHydrateFromServer = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydratingFromServer = false;
+      });
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -21,6 +38,12 @@ function save(data: Record<string, string>) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    }).catch(() => {});
   } catch {}
 }
 

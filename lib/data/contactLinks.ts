@@ -12,6 +12,7 @@ import {
 import { getAllBookings, type PropertyBooking } from './bookings';
 import { getAllContracts, type RentalContract } from './contracts';
 import { searchDocuments } from './accounting';
+import type { AccountingDocument } from './accounting';
 import { getPropertyById, getPropertyDataOverrides } from './properties';
 import { getUnitDisplayFromProperty } from './bookings';
 import { getDocumentsByBooking, type BookingDocument } from './bookingDocuments';
@@ -104,6 +105,47 @@ export function getContactLinkedBookings(contact: Contact): ContactLinkedBooking
   });
 }
 
+/** ربط الحجوزات من قائمة خادم جاهزة (server-first) */
+export function getContactLinkedBookingsFromServerBookings(
+  contact: Contact,
+  serverBookings: PropertyBooking[],
+  serverDocuments?: AccountingDocument[]
+): ContactLinkedBooking[] {
+  const cId = String(contact.id || '').trim();
+  const cPhone = normalizePhoneForComparison(contact.phone || '');
+  const cEmail = normEmail(contact.email || '');
+  const matches = (Array.isArray(serverBookings) ? serverBookings : []).filter((b) => {
+    const bContactId = String((b as PropertyBooking & { contactId?: unknown }).contactId || '').trim();
+    if (cId && bContactId && cId === bContactId) return true;
+    const bPhone = normalizePhoneForComparison(String((b as PropertyBooking & { phone?: unknown }).phone || ''));
+    const bEmail = normEmail(String((b as PropertyBooking & { email?: unknown }).email || ''));
+    const matchPhone = cPhone.length >= 6 && bPhone.length >= 6 && cPhone === bPhone;
+    const matchEmail = cEmail.length >= 3 && cEmail === bEmail;
+    return matchPhone || matchEmail;
+  });
+  return matches.map((b) => {
+    const hasFinancialClaims = (serverDocuments || []).some((d) =>
+      String(d.bookingId || '') === String(b.id) && (d.status === 'PENDING' || d.status === 'DRAFT')
+    );
+    return {
+    id: String(b.id),
+    bookingId: String(b.id),
+    date: String(b.createdAt || ''),
+    propertyId: Number(b.propertyId),
+    propertyTitleAr: String(b.propertyTitleAr || ''),
+    propertyTitleEn: String(b.propertyTitleEn || ''),
+    unitKey: b.unitKey ? String(b.unitKey) : undefined,
+    unitDisplay: String((b as PropertyBooking & { unitDisplay?: unknown }).unitDisplay || ''),
+    status: b.status,
+    contractId: b.contractId ? String(b.contractId) : undefined,
+    hasFinancialClaims,
+    cardLast4: (b as PropertyBooking & { cardLast4?: string }).cardLast4,
+    cardExpiry: (b as PropertyBooking & { cardExpiry?: string }).cardExpiry,
+    cardholderName: (b as PropertyBooking & { cardholderName?: string }).cardholderName,
+    };
+  });
+}
+
 /** العقود المرتبطة بجهة الاتصال (مستأجر أو مالك - مطابقة الهاتف أو البريد) */
 export function getContactLinkedContracts(contact: Contact): ContactLinkedContract[] {
   const list = getAllContracts();
@@ -146,6 +188,46 @@ export function getContactLinkedContracts(contact: Contact): ContactLinkedContra
       role,
     };
   });
+}
+
+/** ربط العقود من بيانات الحجوزات القادمة من الخادم (contractData داخل booking) */
+export function getContactLinkedContractsFromServerBookings(
+  contact: Contact,
+  serverBookings: PropertyBooking[],
+  serverDocuments?: AccountingDocument[]
+): ContactLinkedContract[] {
+  const linkedBookingIds = new Set(
+    getContactLinkedBookingsFromServerBookings(contact, serverBookings, serverDocuments).map((x) => String(x.bookingId))
+  );
+  const out: ContactLinkedContract[] = [];
+  for (const b of serverBookings) {
+    if (!linkedBookingIds.has(String(b.id))) continue;
+    const hasCd = !!((b as PropertyBooking & { contractData?: unknown }).contractData);
+    if (!hasCd) continue;
+    const cd = ((b as PropertyBooking & { contractData?: Record<string, unknown> }).contractData || {}) as Record<string, unknown>;
+    out.push({
+      id: `booking-contract-${String(b.id)}`,
+      contractId: String((b as PropertyBooking & { contractId?: unknown }).contractId || b.id),
+      bookingId: String(b.id),
+      date: String(b.createdAt || ''),
+      propertyId: Number(b.propertyId),
+      propertyTitleAr: String(b.propertyTitleAr || ''),
+      propertyTitleEn: String(b.propertyTitleEn || ''),
+      unitKey: b.unitKey ? String(b.unitKey) : undefined,
+      unitDisplay: String((b as PropertyBooking & { unitDisplay?: unknown }).unitDisplay || ''),
+      landlordName: String(cd.landlordName || ''),
+      startDate: String(cd.startDate || b.createdAt || ''),
+      endDate: String(cd.endDate || b.createdAt || ''),
+      status: (String((b as PropertyBooking & { contractStage?: unknown }).contractStage || '') === 'APPROVED' ? 'ACTIVE' : 'DRAFT') as ContactLinkedContract['status'],
+      hasFinancialClaims: (serverDocuments || []).some((d) =>
+        (String(d.contractId || '') === String((b as PropertyBooking & { contractId?: unknown }).contractId || b.id) ||
+          String(d.bookingId || '') === String(b.id)) &&
+        (d.status === 'PENDING' || d.status === 'DRAFT')
+      ),
+      role: 'tenant',
+    });
+  }
+  return out;
 }
 
 /**
@@ -219,6 +301,28 @@ export function getContactLinkedBookingDocuments(contact: Contact): Array<Bookin
         propertyTitleAr: b.propertyTitleAr,
         propertyTitleEn: b.propertyTitleEn,
         unitDisplay,
+      });
+    }
+  }
+  return result.sort((a, b) => (b.uploadedAt || b.createdAt || '').localeCompare(a.uploadedAt || a.createdAt || ''));
+}
+
+/** مستندات توثيق مرتبطة بجهة الاتصال من حجوزات خادم جاهزة */
+export function getContactLinkedBookingDocumentsFromServerBookings(
+  contact: Contact,
+  serverBookings: PropertyBooking[]
+): Array<BookingDocument & { bookingDate?: string; propertyTitleAr?: string; propertyTitleEn?: string; unitDisplay?: string }> {
+  const bookings = getContactLinkedBookingsFromServerBookings(contact, serverBookings);
+  const result: Array<BookingDocument & { bookingDate?: string; propertyTitleAr?: string; propertyTitleEn?: string; unitDisplay?: string }> = [];
+  for (const b of bookings) {
+    const docs = getDocumentsByBooking(b.bookingId);
+    for (const d of docs) {
+      result.push({
+        ...d,
+        bookingDate: b.date,
+        propertyTitleAr: b.propertyTitleAr,
+        propertyTitleEn: b.propertyTitleEn,
+        unitDisplay: b.unitDisplay,
       });
     }
   }

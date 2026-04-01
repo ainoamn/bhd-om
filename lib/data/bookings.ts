@@ -98,6 +98,53 @@ export interface BookingCancellationRequest {
 }
 
 const STORAGE_KEY = 'bhd_property_bookings';
+let didBulkSyncBookings = false;
+let bulkSyncInProgress = false;
+let didHydrateBookingsFromServer = false;
+let hydrateBookingsInProgress = false;
+
+function syncBookingToServer(booking: PropertyBooking): void {
+  if (typeof window === 'undefined') return;
+  fetch('/api/bookings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(booking),
+  }).catch(() => {});
+}
+
+function syncAllBookingsToServerOnce(): void {
+  if (typeof window === 'undefined') return;
+  if (didBulkSyncBookings || bulkSyncInProgress) return;
+  bulkSyncInProgress = true;
+  try {
+    const all = getStoredBookings();
+    for (const b of all) {
+      if (!b?.id) continue;
+      syncBookingToServer(b);
+    }
+    didBulkSyncBookings = true;
+  } finally {
+    bulkSyncInProgress = false;
+  }
+}
+
+function hydrateBookingsFromServerOnce(): void {
+  if (typeof window === 'undefined') return;
+  if (didHydrateBookingsFromServer || hydrateBookingsInProgress) return;
+  hydrateBookingsInProgress = true;
+  fetch('/api/bookings', { cache: 'no-store', credentials: 'include' })
+    .then((r) => (r.ok ? r.json() : []))
+    .then((list: PropertyBooking[]) => {
+      if (!Array.isArray(list) || list.length === 0) return;
+      mergeBookingsFromServer(list);
+      didHydrateBookingsFromServer = true;
+    })
+    .catch(() => {})
+    .finally(() => {
+      hydrateBookingsInProgress = false;
+    });
+}
 
 function getStoredBookings(): PropertyBooking[] {
   if (typeof window === 'undefined') return [];
@@ -384,6 +431,7 @@ export function createBooking(data: Omit<PropertyBooking, 'id' | 'createdAt' | '
   const bookings = getStoredBookings();
   bookings.unshift(booking);
   saveBookings(bookings);
+  syncBookingToServer(booking);
   if (data.type === 'BOOKING' && data.paymentConfirmed) {
     setPropertyReservedOnPayment(data.propertyId, data.unitKey);
     createAccountingReceiptFromBooking(booking);
@@ -396,6 +444,8 @@ export function getBookingsByProperty(propertyId: number): PropertyBooking[] {
 }
 
 export function getAllBookings(): PropertyBooking[] {
+  hydrateBookingsFromServerOnce();
+  syncAllBookingsToServerOnce();
   return getStoredBookings();
 }
 
@@ -482,6 +532,7 @@ export function updateBookingStatus(id: string, status: BookingStatus, viewingDa
     const booking = bookings[idx];
     bookings[idx] = { ...booking, status, viewingDate, viewingTime };
     saveBookings(bookings);
+    syncBookingToServer(bookings[idx]);
     syncPropertyStatusOnBookingChange(booking, status);
   }
 }
@@ -494,6 +545,7 @@ export function updateBooking(id: string, updates: Partial<PropertyBooking>): Pr
   const updated = { ...booking, ...updates };
   bookings[idx] = updated;
   saveBookings(bookings);
+  syncBookingToServer(updated);
   if (updates.status) syncPropertyStatusOnBookingChange(booking, updates.status);
   if (updated.type === 'BOOKING' && updated.paymentConfirmed && !booking.paymentConfirmed) {
     createAccountingReceiptFromBooking(updated);

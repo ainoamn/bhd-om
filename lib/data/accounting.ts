@@ -147,6 +147,216 @@ const ACCOUNTS_KEY = STORAGE_KEYS.ACCOUNTS;
 const JOURNAL_KEY = STORAGE_KEYS.JOURNAL;
 const DOCUMENTS_KEY = STORAGE_KEYS.DOCUMENTS;
 const FISCAL_KEY = STORAGE_KEYS.FISCAL;
+const ACCOUNTS_API_URL = '/api/accounting/accounts';
+const JOURNAL_API_URL = '/api/accounting/journal';
+const DOCUMENTS_API_URL = '/api/accounting/documents';
+const FISCAL_API_URL = '/api/settings/accounting-fiscal';
+let didHydrateAccountsFromServer = false;
+let hydratingAccountsFromServer = false;
+let didHydrateJournalFromServer = false;
+let hydratingJournalFromServer = false;
+let didHydrateDocumentsFromServer = false;
+let hydratingDocumentsFromServer = false;
+let didHydrateFiscalFromServer = false;
+let hydratingFiscalFromServer = false;
+
+function mergeByLatest<T extends { id: string; updatedAt?: string; createdAt?: string }>(localRows: T[], serverRows: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const r of localRows) map.set(r.id, r);
+  for (const r of serverRows) {
+    if (!r?.id) continue;
+    const local = map.get(r.id);
+    if (!local) {
+      map.set(r.id, r);
+      continue;
+    }
+    const localTs = new Date(local.updatedAt || local.createdAt || 0).getTime();
+    const serverTs = new Date(r.updatedAt || r.createdAt || 0).getTime();
+    map.set(r.id, serverTs >= localTs ? { ...local, ...r } : local);
+  }
+  return Array.from(map.values());
+}
+
+async function hydrateAccountsFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateAccountsFromServer || hydratingAccountsFromServer) return;
+  hydratingAccountsFromServer = true;
+  try {
+    const res = await fetch(ACCOUNTS_API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const serverRows = (await res.json()) as ChartAccount[];
+    if (!Array.isArray(serverRows)) return;
+    const localRows = getStored<ChartAccount[]>(ACCOUNTS_KEY);
+    saveStored(ACCOUNTS_KEY, mergeByLatest(localRows, serverRows));
+    didHydrateAccountsFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingAccountsFromServer = false;
+  }
+}
+
+async function hydrateJournalFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateJournalFromServer || hydratingJournalFromServer) return;
+  hydratingJournalFromServer = true;
+  try {
+    const res = await fetch(JOURNAL_API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const serverRows = (await res.json()) as JournalEntry[];
+    if (!Array.isArray(serverRows)) return;
+    const localRows = getStored<JournalEntry[]>(JOURNAL_KEY);
+    saveStored(JOURNAL_KEY, mergeByLatest(localRows, serverRows));
+    didHydrateJournalFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingJournalFromServer = false;
+  }
+}
+
+function mergeDocumentsByLatest(localDocs: AccountingDocument[], serverDocs: AccountingDocument[]): AccountingDocument[] {
+  const map = new Map<string, AccountingDocument>();
+  for (const d of localDocs) {
+    if (d?.id) map.set(d.id, d);
+  }
+  for (const d of serverDocs) {
+    if (!d?.id) continue;
+    const current = map.get(d.id);
+    if (!current) {
+      map.set(d.id, d);
+      continue;
+    }
+    const localTs = new Date(current.updatedAt || current.createdAt || 0).getTime();
+    const serverTs = new Date(d.updatedAt || d.createdAt || 0).getTime();
+    map.set(d.id, serverTs >= localTs ? { ...current, ...d } : current);
+  }
+  return Array.from(map.values());
+}
+
+async function hydrateDocumentsFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateDocumentsFromServer || hydratingDocumentsFromServer) return;
+  hydratingDocumentsFromServer = true;
+  try {
+    const res = await fetch(DOCUMENTS_API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const serverDocs = (await res.json()) as AccountingDocument[];
+    if (!Array.isArray(serverDocs)) return;
+    const localDocs = getStored<AccountingDocument[]>(DOCUMENTS_KEY);
+    const merged = mergeDocumentsByLatest(localDocs, serverDocs);
+    saveStored(DOCUMENTS_KEY, merged);
+    didHydrateDocumentsFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingDocumentsFromServer = false;
+  }
+}
+
+async function hydrateFiscalFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateFiscalFromServer || hydratingFiscalFromServer) return;
+  hydratingFiscalFromServer = true;
+  try {
+    const res = await fetch(FISCAL_API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (!payload || typeof payload !== 'object') return;
+    const p = payload as Partial<FiscalSettings>;
+    const next: FiscalSettings = {
+      startMonth: p.startMonth ?? 1,
+      startDay: p.startDay ?? 1,
+      currency: p.currency ?? 'OMR',
+      vatRate: p.vatRate ?? 0,
+    };
+    localStorage.setItem(FISCAL_KEY, JSON.stringify(next));
+    didHydrateFiscalFromServer = true;
+    try {
+      window.dispatchEvent(new StorageEvent('storage', { key: FISCAL_KEY }));
+    } catch {
+      // ignore
+    }
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingFiscalFromServer = false;
+  }
+}
+
+function syncCreatedDocumentToServer(doc: AccountingDocument): void {
+  if (typeof window === 'undefined') return;
+  fetch(DOCUMENTS_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(doc),
+  }).catch(() => {});
+}
+
+function syncDocumentPatchToServer(id: string, patch: { contactId?: string | null; status?: DocumentStatus }): void {
+  if (typeof window === 'undefined') return;
+  if (patch.contactId !== undefined) {
+    fetch(`${DOCUMENTS_API_URL}/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ contactId: patch.contactId }),
+    }).catch(() => {});
+  }
+  if (patch.status === 'APPROVED') {
+    fetch(`${DOCUMENTS_API_URL}/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
+  } else if (patch.status === 'CANCELLED') {
+    fetch(`${DOCUMENTS_API_URL}/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
+  }
+}
+
+function syncAccountToServer(account: ChartAccount): void {
+  if (typeof window === 'undefined') return;
+  fetch(ACCOUNTS_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(account),
+  }).catch(() => {});
+}
+
+function syncJournalCreateToServer(entry: JournalEntry): void {
+  if (typeof window === 'undefined') return;
+  fetch(JOURNAL_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      date: entry.date,
+      lines: entry.lines,
+      descriptionAr: entry.descriptionAr,
+      descriptionEn: entry.descriptionEn,
+      documentType: entry.documentType,
+      documentId: entry.documentId,
+      contactId: entry.contactId,
+      bankAccountId: entry.bankAccountId,
+      propertyId: entry.propertyId,
+      projectId: entry.projectId,
+      status: entry.status,
+    }),
+  }).catch(() => {});
+}
+
+function syncJournalStatusToServer(id: string, status: DocumentStatus): void {
+  if (typeof window === 'undefined') return;
+  if (status === 'APPROVED') {
+    fetch(`${JOURNAL_API_URL}/${encodeURIComponent(id)}/approve`, { method: 'POST', credentials: 'include' }).catch(() => {});
+  } else if (status === 'CANCELLED') {
+    fetch(`${JOURNAL_API_URL}/${encodeURIComponent(id)}/cancel`, { method: 'POST', credentials: 'include' }).catch(() => {});
+  }
+}
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -187,6 +397,7 @@ const DEFAULT_ACCOUNTS: Omit<ChartAccount, 'id' | 'createdAt' | 'updatedAt'>[] =
 
 /** تهيئة دليل الحسابات إذا كان فارغاً + إضافة حساب 1150 للمستخدمين القدامى */
 function ensureChartOfAccounts(): ChartAccount[] {
+  if (typeof window !== 'undefined') void hydrateAccountsFromServer();
   let accounts = getStored<ChartAccount[]>(ACCOUNTS_KEY);
   if (accounts.length === 0) {
     const now = new Date().toISOString();
@@ -255,6 +466,7 @@ export interface FiscalSettings {
 
 export function getFiscalSettings(): FiscalSettings {
   if (typeof window === 'undefined') return { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 };
+  void hydrateFiscalFromServer();
   try {
     const raw = localStorage.getItem(FISCAL_KEY);
     if (raw) return JSON.parse(raw);
@@ -268,6 +480,12 @@ export function saveFiscalSettings(settings: Partial<FiscalSettings>): FiscalSet
   if (typeof window !== 'undefined') {
     localStorage.setItem(FISCAL_KEY, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent('storage', { key: FISCAL_KEY }));
+    fetch(FISCAL_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(next),
+    }).catch(() => {});
   }
   return next;
 }
@@ -286,6 +504,7 @@ export function createAccount(data: Omit<ChartAccount, 'id' | 'createdAt' | 'upd
   };
   accounts.push(account);
   saveStored(ACCOUNTS_KEY, accounts);
+  syncAccountToServer(account);
   return account;
 }
 
@@ -296,6 +515,7 @@ export function updateAccount(id: string, updates: Partial<ChartAccount>): Chart
   if (idx < 0) return null;
   accounts[idx] = { ...accounts[idx], ...updates, updatedAt: new Date().toISOString() };
   saveStored(ACCOUNTS_KEY, accounts);
+  syncAccountToServer(accounts[idx]);
   return accounts[idx];
 }
 
@@ -311,22 +531,29 @@ function generateJournalSerial(): string {
 export function createJournalEntry(data: Omit<JournalEntry, 'id' | 'serialNumber' | 'totalDebit' | 'totalCredit' | 'createdAt' | 'updatedAt'>): JournalEntry {
   ensureDefaultPeriods();
   const result = engineCreateJournal(data as Parameters<typeof engineCreateJournal>[0]);
+  if (result) syncJournalCreateToServer(result as JournalEntry);
   return result as JournalEntry;
 }
 
 /** تحديث قيد يومية - عبر المحرك */
 export function updateJournalEntry(id: string, data: Partial<Omit<JournalEntry, 'id' | 'serialNumber' | 'createdAt'>>): JournalEntry | null {
   const result = engineUpdateJournal(id, data as Parameters<typeof engineUpdateJournal>[1]);
+  if (result && (data as { status?: DocumentStatus }).status) {
+    syncJournalStatusToServer(id, (data as { status: DocumentStatus }).status);
+  }
   return result;
 }
 
 /** إلغاء قيد (soft delete) - لا حذف نهائي */
 export function cancelJournalEntry(id: string): JournalEntry | null {
-  return engineCancelJournal(id);
+  const result = engineCancelJournal(id);
+  if (result) syncJournalStatusToServer(id, 'CANCELLED');
+  return result;
 }
 
 /** الحصول على جميع القيود - يُرحّل المستندات غير المرحّلة تلقائياً ثم يقرأ القيود */
 export function getAllJournalEntries(): JournalEntry[] {
+  if (typeof window !== 'undefined') void hydrateJournalFromServer();
   if (typeof window !== 'undefined') postUnpostedDocuments();
   const raw = getStored<JournalEntry[]>(JOURNAL_KEY);
   return raw
@@ -437,6 +664,8 @@ export function createDocument(data: Omit<AccountingDocument, 'id' | 'serialNumb
       throw err;
     }
   }
+
+  syncCreatedDocumentToServer(doc);
 
   return doc;
 }
@@ -557,6 +786,7 @@ export function postUnpostedDocuments(): PostUnpostedResult {
 /** الحصول على جميع المستندات - يُرحّل أي مستندات غير مُرحّلة تلقائياً قبل القراءة */
 export function getAllDocuments(): AccountingDocument[] {
   if (typeof window !== 'undefined') {
+    void hydrateDocumentsFromServer();
     ensureDefaultPeriods();
     getChartOfAccounts();
     postUnpostedDocuments();
@@ -618,6 +848,10 @@ export function updateDocument(id: string, data: Partial<Omit<AccountingDocument
   saveStored(DOCUMENTS_KEY, docs);
   if (typeof window !== 'undefined') {
     appendAuditLog({ action: 'UPDATE', entityType: 'DOCUMENT', entityId: id, previousState: JSON.stringify(previous.status), newState: JSON.stringify(docs[idx].status) });
+    syncDocumentPatchToServer(id, {
+      contactId: data.contactId === undefined ? undefined : data.contactId ?? null,
+      status: data.status,
+    });
   }
   return docs[idx];
 }

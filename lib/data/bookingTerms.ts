@@ -102,9 +102,26 @@ export interface PropertyBookingTerms {
 }
 
 const STORAGE_KEY = 'bhd_booking_terms';
+const API_URL = '/api/settings/booking-terms';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
 
 function getStoredTerms(): Record<string, PropertyBookingTerms> {
   if (typeof window === 'undefined') return {};
+  if (!didHydrateFromServer && !hydratingFromServer) {
+    hydratingFromServer = true;
+    fetch(API_URL, { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        didHydrateFromServer = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydratingFromServer = false;
+      });
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -117,6 +134,12 @@ function saveTerms(terms: Record<string, PropertyBookingTerms>): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(terms));
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(terms),
+    }).catch(() => {});
   } catch {}
 }
 

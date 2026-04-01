@@ -442,6 +442,10 @@ export function isOmaniNationality(nationality: string): boolean {
 }
 
 const STORAGE_KEY = 'bhd_address_book';
+let didBulkSyncContacts = false;
+let bulkSyncContactsInProgress = false;
+let didHydrateContactsFromServer = false;
+let hydrateContactsInProgress = false;
 
 function migrateContact(raw: Record<string, unknown>): Contact {
   let firstName = raw.firstName as string | undefined;
@@ -476,6 +480,23 @@ function migrateContact(raw: Record<string, unknown>): Contact {
 
 function getStored(): Contact[] {
   if (typeof window === 'undefined') return [];
+  if (!didHydrateContactsFromServer && !hydrateContactsInProgress) {
+    hydrateContactsInProgress = true;
+    fetch('/api/address-book', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((apiList: Contact[]) => {
+        if (!Array.isArray(apiList) || apiList.length === 0) return;
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const localList = raw ? (JSON.parse(raw) as Contact[]) : [];
+        const merged = mergeAddressBookApiWithLocal(apiList, localList);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        didHydrateContactsFromServer = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydrateContactsInProgress = false;
+      });
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const list = raw ? JSON.parse(raw) : [];
@@ -572,6 +593,7 @@ function ensureSerialNumbers(list: Contact[]): Contact[] {
 }
 
 export function getAllContacts(includeArchived = false): Contact[] {
+  syncAllContactsToServerOnce();
   const list = getStored();
   if (includeArchived) return list;
   return list.filter((c) => !c.archived);
@@ -658,6 +680,22 @@ export async function syncContactToAddressBookApi(contact: Contact): Promise<Syn
     return { ok: false, status: res.status, error: errorText };
   } catch (e) {
     return { ok: false, status: 0, error: e instanceof Error ? e.message : 'network' };
+  }
+}
+
+function syncAllContactsToServerOnce(): void {
+  if (typeof window === 'undefined') return;
+  if (didBulkSyncContacts || bulkSyncContactsInProgress) return;
+  bulkSyncContactsInProgress = true;
+  try {
+    const all = getStored();
+    for (const c of all) {
+      if (!c?.id) continue;
+      void syncContactToAddressBookApi(c);
+    }
+    didBulkSyncContacts = true;
+  } finally {
+    bulkSyncContactsInProgress = false;
   }
 }
 
@@ -945,6 +983,7 @@ export function createContact(
   const list = getStored();
   list.unshift(contact);
   save(list);
+  void syncContactToAddressBookApi(contact);
   if (contact.contactType === 'COMPANY' && contact.companyData?.authorizedRepresentatives?.length) {
     syncAuthorizedRepsToAddressBook(contact);
   }
@@ -1010,6 +1049,7 @@ export function updateContact(id: string, updates: Partial<Contact>): Contact | 
   const updated = { ...merged, categoryChangeHistory, updatedAt: new Date().toISOString() };
   list[idx] = updated;
   save(list);
+  void syncContactToAddressBookApi(updated);
   if (updated.contactType === 'COMPANY' && updated.companyData?.authorizedRepresentatives?.length) {
     syncAuthorizedRepsToAddressBook(updated);
   }
@@ -1538,6 +1578,7 @@ export function archiveContact(id: string): boolean {
   const now = new Date().toISOString();
   list[idx] = { ...list[idx], archived: true, archivedAt: now, updatedAt: now };
   save(list);
+  void syncContactToAddressBookApi(list[idx]);
   return true;
 }
 
@@ -1549,6 +1590,7 @@ export function restoreContact(id: string): boolean {
   const { archived, archivedAt, ...rest } = list[idx];
   list[idx] = { ...rest, updatedAt: new Date().toISOString() } as Contact;
   save(list);
+  void syncContactToAddressBookApi(list[idx]);
   return true;
 }
 

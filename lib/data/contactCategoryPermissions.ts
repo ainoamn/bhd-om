@@ -11,6 +11,9 @@ export type PermissionRole = DashboardType;
 
 const STORAGE_KEY = 'bhd_contact_category_permissions';
 export const PERMISSIONS_EVENT = 'bhd_contact_category_permissions_changed';
+const API_URL = '/api/settings/contact-category-permissions';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
 
 /** التصنيفات المعرّفة في دفتر العناوين + شركة (نوع جهة الاتصال) */
 export const ALL_CATEGORIES: (ContactCategory | 'COMPANY')[] = [
@@ -43,11 +46,37 @@ function loadFromStorage(): PermissionsStore {
   return {};
 }
 
+async function hydrateFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateFromServer || hydratingFromServer) return;
+  hydratingFromServer = true;
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (!payload || typeof payload !== 'object') return;
+    store = payload as PermissionsStore;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    window.dispatchEvent(new CustomEvent(PERMISSIONS_EVENT));
+    didHydrateFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingFromServer = false;
+  }
+}
+
 function saveToStorage(data: PermissionsStore): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     window.dispatchEvent(new CustomEvent(PERMISSIONS_EVENT));
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    }).catch(() => {});
   } catch {
     // ignore
   }
@@ -68,6 +97,7 @@ if (typeof window !== 'undefined') {
 const DEFAULT_ALLOWED: ContactCategoryOrCompany[] = [...ALL_CATEGORIES];
 
 export function getAllowedCategoriesForRole(role: PermissionRole): ContactCategoryOrCompany[] {
+  void hydrateFromServer();
   const custom = store[role];
   if (Array.isArray(custom) && custom.length >= 0) {
     return custom;

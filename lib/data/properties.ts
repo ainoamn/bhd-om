@@ -6,6 +6,9 @@
 const STORAGE_KEY = 'bhd_property_overrides';
 const COOKIE_KEY = 'bhd_property_overrides';
 const OLD_DATA_KEY = 'bhd_property_data'; // للترحيل من النسخة القديمة
+const API_URL = '/api/settings/property-overrides';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
 
 export interface VillaApartmentData {
   roomCount?: string;
@@ -68,6 +71,26 @@ export function getPropertyDataOverrides(cookieValue?: string | null): PropertyD
 
 function getStoredOverrides(): PropertyOverrides {
   if (typeof window === 'undefined') return {};
+  if (!didHydrateFromServer && !hydratingFromServer) {
+    hydratingFromServer = true;
+    fetch(API_URL, { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        const local = localStorage.getItem(STORAGE_KEY);
+        if (!local || local === '{}' || local === 'null') {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+          try {
+            document.cookie = `${COOKIE_KEY}=${encodeURIComponent(JSON.stringify(payload))};path=/;max-age=31536000`;
+          } catch {}
+        }
+        didHydrateFromServer = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydratingFromServer = false;
+      });
+  }
   try {
     let raw = localStorage.getItem(STORAGE_KEY);
     let overrides: PropertyOverrides = raw ? JSON.parse(raw) : {};
@@ -97,6 +120,12 @@ function saveOverrides(overrides: PropertyOverrides): void {
     const json = JSON.stringify(overrides);
     localStorage.setItem(STORAGE_KEY, json);
     document.cookie = `${COOKIE_KEY}=${encodeURIComponent(json)};path=/;max-age=31536000`;
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: json,
+    }).catch(() => {});
   } catch {}
 }
 

@@ -5,6 +5,9 @@
 
 const STORAGE_KEY = 'bhd-pages-visibility';
 const EVENT_NAME = 'bhd-pages-visibility-changed';
+const API_URL = '/api/settings/site-visibility';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
 
 export type PageId = 'home' | 'properties' | 'projects' | 'services' | 'about' | 'contact' | 'subscriptions';
 
@@ -42,11 +45,37 @@ function loadFromStorage(): PagesVisibility {
   return { ...defaultVisibility };
 }
 
+async function hydrateFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateFromServer || hydratingFromServer) return;
+  hydratingFromServer = true;
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (!payload || typeof payload !== 'object') return;
+    pagesVisibility = { ...defaultVisibility, ...(payload as PagesVisibility) };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pagesVisibility));
+    window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    didHydrateFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingFromServer = false;
+  }
+}
+
 function saveToStorage(data: PagesVisibility): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    }).catch(() => {});
   } catch {
     // ignore
   }
@@ -64,6 +93,7 @@ if (typeof window !== 'undefined') {
 }
 
 export function getPagesVisibility(): PagesVisibility {
+  void hydrateFromServer();
   return pagesVisibility;
 }
 

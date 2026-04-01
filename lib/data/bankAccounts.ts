@@ -47,9 +47,41 @@ export interface BankAccount {
 }
 
 const STORAGE_KEY = 'bhd_bank_accounts';
+const API_URL = '/api/settings/bank-accounts';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
+
+async function hydrateFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateFromServer || hydratingFromServer) return;
+  hydratingFromServer = true;
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const list = (await res.json()) as BankAccount[];
+    if (!Array.isArray(list)) return;
+    saveStored(list, false);
+    didHydrateFromServer = true;
+  } catch {
+    // ignore network failures, keep local fallback
+  } finally {
+    hydratingFromServer = false;
+  }
+}
+
+function syncToServer(accounts: BankAccount[]): void {
+  if (typeof window === 'undefined') return;
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(accounts),
+  }).catch(() => {});
+}
 
 function getStored(): BankAccount[] {
   if (typeof window === 'undefined') return [];
+  void hydrateFromServer();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -58,11 +90,12 @@ function getStored(): BankAccount[] {
   }
 }
 
-function saveStored(accounts: BankAccount[]): void {
+function saveStored(accounts: BankAccount[], sync = true): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
+    if (sync) syncToServer(accounts);
   } catch {}
 }
 

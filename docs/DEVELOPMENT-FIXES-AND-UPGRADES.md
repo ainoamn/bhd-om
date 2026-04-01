@@ -10,6 +10,164 @@
 
 ## ما تم تنفيذه (منجز)
 
+### 15) بدء ترحيل العقود إلى قاعدة البيانات (DB-backed contracts API)
+- إضافة مسارات API جديدة للعقود:
+  - `GET/POST /api/contracts`
+  - `GET/PATCH /api/contracts/[id]`
+- التخزين الحالي للعقد أصبح عبر قاعدة البيانات باستخدام صفوف `bookingStorage` (حقول `contractId`, `contractStage`, `contractData`) كمخزن انتقالي موحد.
+- هذه الخطوة تنقل CRUD العقود تدريجياً من الاعتماد المحلي إلى مسار API/DB بدون كسر الصفحات الحالية.
+
+### 16) جسر انتقالي (Bridge) بين المحلي وقاعدة البيانات
+- في `lib/data/contracts.ts`:
+  - إضافة `syncContractToServer` لمزامنة أي إنشاء/تحديث عقد تلقائياً إلى `/api/contracts`.
+  - إضافة `mergeContractsFromServer` لدمج عقود الخادم في المخزن المحلي الانتقالي.
+- النتيجة: العقود لم تعد محصورة في `localStorage`، وأصبحت تملك مصدر بيانات مركزي على الخادم.
+
+### 17) ربط صفحات العقود بمصدر DB
+- `app/[locale]/admin/contracts/page.tsx`:
+  - تحميل العقود من `/api/contracts` ودمجها قبل العرض.
+- `app/[locale]/admin/contracts/[id]/page.tsx`:
+  - جلب العقد بالمعرف من `/api/contracts/[id]` ودمجه محلياً عند الفتح.
+- هذا يضمن أن شاشة الإدارة وتفاصيل العقد تقرأ من بيانات الخادم عند توفرها.
+
+### 18) تعزيز ترحيل الحجوزات إلى DB (مزامنة تلقائية عند التعديل)
+- في `lib/data/bookings.ts` تم إضافة مزامنة تلقائية إلى `/api/bookings` عند:
+  - إنشاء حجز `createBooking`
+  - تغيير حالة الحجز `updateBookingStatus`
+  - تحديث بيانات الحجز `updateBooking`
+- هذا يقلل احتمالات انفصال حالة الحجز بين المتصفح وقاعدة البيانات، ويقرب النظام من نمط DB-first بالكامل.
+
+### 19) تعزيز ترحيل دفتر العناوين إلى DB (مزامنة تلقائية)
+- في `lib/data/addressBook.ts` تم تفعيل مزامنة تلقائية إلى `/api/address-book` عند:
+  - إنشاء جهة اتصال `createContact`
+  - تحديث جهة اتصال `updateContact`
+  - أرشفة/استعادة جهة الاتصال `archiveContact` و`restoreContact`
+- هذا يضمن أن تغييرات الحسابات/العناوين لا تبقى محلية فقط، وتنتقل فوراً إلى قاعدة البيانات.
+
+### 20) نقل إعدادات بنكية/قوالب/طباعة إلى DB-first
+- إضافة APIs جديدة لحفظ/قراءة الإعدادات من `AppSetting`:
+  - `GET/POST /api/settings/bank-accounts`
+  - `GET/POST /api/settings/document-templates`
+  - `GET/POST /api/settings/print-options`
+- تحديث طبقات البيانات التالية لتصبح DB-first مع fallback محلي انتقالي:
+  - `lib/data/bankAccounts.ts`
+  - `lib/data/documentTemplates.ts`
+  - `lib/data/printOptions.ts`
+- السلوك الجديد:
+  - Hydration من الخادم عند أول تحميل.
+  - أي تعديل محلي يتزامن تلقائياً إلى API.
+
+### 21) نقل إعدادات الرؤية والإعلانات وصلاحيات تصنيفات الدفتر إلى DB-first
+- إضافة APIs جديدة:
+  - `GET/POST /api/settings/site-visibility`
+  - `GET/POST /api/settings/ads`
+  - `GET/POST /api/settings/contact-category-permissions`
+- تحديث الطبقات المحلية:
+  - `lib/data/siteSettings.ts`
+  - `lib/data/ads.ts`
+  - `lib/data/contactCategoryPermissions.ts`
+- السلوك الجديد:
+  - تحميل تفضيلات الخادم عند أول قراءة.
+  - مزامنة أي تعديل محلي مباشرة إلى DB.
+
+### 22) تعزيز مسار المحاسبة نحو DB-first (المستندات)
+- في `lib/data/accounting.ts`:
+  - إضافة Hydration للمستندات من `/api/accounting/documents` عند أول قراءة.
+  - إضافة مزامنة تلقائية عند إنشاء مستند (`POST /api/accounting/documents`).
+  - إضافة مزامنة تحديثات حرجة:
+    - تحديث `contactId` عبر `PATCH /api/accounting/documents/[id]`.
+    - اعتماد المستند عبر `POST /api/accounting/documents/[id]/approve`.
+    - إلغاء المستند عبر `POST /api/accounting/documents/[id]/cancel`.
+- النتيجة: تقليل الاعتماد التشغيلي على نسخة المستندات المحلية، ورفع اتساق المحاسبة بين الأجهزة.
+
+### 23) نقل إعدادات السنة المالية المحاسبية إلى DB-first
+- إضافة API جديد:
+  - `GET/POST /api/settings/accounting-fiscal`
+- تحديث `lib/data/accounting.ts`:
+  - Hydration لإعدادات السنة المالية من الخادم عند أول قراءة.
+  - مزامنة تلقائية لأي تعديل في `saveFiscalSettings` إلى قاعدة البيانات.
+
+### 24) تعزيز DB-first لدليل الحسابات والقيود اليومية
+- توسيع `app/api/accounting/accounts/route.ts` بإضافة `POST` (صلاحية `ACCOUNT_EDIT`) لإنشاء/تحديث حسابات دليل الحسابات من الواجهة.
+- تحديث `lib/data/accounting.ts`:
+  - Hydration لدليل الحسابات من `/api/accounting/accounts`.
+  - Hydration للقيود اليومية من `/api/accounting/journal`.
+  - مزامنة إنشاء/تحديث الحسابات إلى API.
+  - مزامنة إنشاء القيد إلى `/api/accounting/journal`.
+  - مزامنة تغيير حالة القيد (اعتماد/إلغاء) إلى endpoints المناسبة.
+
+### 25) دفعة شاملة إضافية: نقل مخازن تشغيل متبقية إلى DB-first
+- إضافة APIs إعدادات جديدة:
+  - `GET/POST /api/settings/company-data`
+  - `GET/POST /api/settings/property-landlords`
+  - `GET/POST /api/settings/booking-documents`
+  - `GET/POST /api/settings/booking-checks`
+  - `GET/POST /api/settings/contract-checks`
+- تحديث طبقات البيانات:
+  - `lib/data/companyData.ts`
+  - `lib/data/propertyLandlords.ts`
+  - `lib/data/bookingDocuments.ts`
+  - `lib/data/bookingChecks.ts`
+  - `lib/data/contractChecks.ts`
+  - `lib/data/dashboardSettings.ts` (Hydration تلقائي من الخادم عند أول قراءة)
+- إضافة كذلك:
+  - `GET/POST /api/settings/booking-terms`
+  - تحديث `lib/data/bookingTerms.ts` إلى Hydration + Sync تلقائي مع الخادم.
+  - `GET/POST /api/settings/property-overrides`
+  - تحديث `lib/data/properties.ts` لمزامنة `property_overrides` مع قاعدة البيانات.
+
+### 26) توحيد سجل الروابط في دفتر العناوين على server-first
+- في `lib/data/contactLinks.ts` تمت إضافة دوال server-first مباشرة من قائمة حجوزات الخادم:
+  - `getContactLinkedBookingsFromServerBookings`
+  - `getContactLinkedContractsFromServerBookings`
+  - `getContactLinkedBookingDocumentsFromServerBookings`
+- في `app/[locale]/admin/address-book/page.tsx`:
+  - إزالة منطق الربط المحلي المكرر داخل الصفحة.
+  - استخدام دوال `contactLinks` الجديدة لكل من العرض والطباعة.
+- النتيجة: توحيد أكبر لمسار بيانات الربط على مصدر الخادم وتقليل fallback المحلي.
+
+### 27) دقة أعلى لمؤشر المطالبات المالية (Address Book)
+- تحديث دوال server-first في `lib/data/contactLinks.ts` لدعم مستندات محاسبية خادمة (`serverDocuments`) عند احتساب `hasFinancialClaims`.
+- تحديث `app/[locale]/admin/address-book/page.tsx`:
+  - جلب `/api/accounting/documents` على الواجهة.
+  - تمرير المستندات لدوال الربط بحيث تظهر حالة المطالبات المالية بدقة (PENDING/DRAFT) بدل القيمة الثابتة.
+
+### 28) تقليل الاعتماد المحلي في صفحة إدارة البيانات
+- في `app/[locale]/admin/data/page.tsx` تم تعطيل النسخ الاحتياطي/الاستيراد المحلي (`localStorage`) في الواجهة.
+- أصبح المسار المعتمد افتراضياً للنسخ والاستعادة هو خادم قاعدة البيانات (`/api/admin/data/backup` و`/api/admin/data/restore`).
+- الهدف: منع إعادة إدخال بيانات محلية قديمة بعد التحول إلى DB-first.
+
+### 31) تنظيف طبقة backup المحلية بعد التحول للخادم
+- في `lib/data/backup.ts` تم إزالة وظائف النسخ/الاستعادة المحلية (`exportBackup`, `importBackup`, `downloadBackup`) بعد تعطيلها من الواجهة.
+- الإبقاء فقط على وظائف التصفير التشغيلي المحلي اللازمة لعزل الكاش أثناء الانتقال.
+- النتيجة: تقليل مخاطر إعادة إدخال snapshots محلية قديمة وتوحيد مسار النسخ على خادم DB.
+
+### 29) مزامنة انتقالية شاملة للبيانات المحلية القديمة (مرة واحدة)
+- في `lib/data/bookings.ts`:
+  - إضافة مزامنة bulk لمرة واحدة (`syncAllBookingsToServerOnce`) لرفع الحجوزات المحلية القديمة إلى `/api/bookings`.
+- في `lib/data/addressBook.ts`:
+  - إضافة مزامنة bulk لمرة واحدة (`syncAllContactsToServerOnce`) لرفع جهات الاتصال المحلية القديمة إلى `/api/address-book`.
+- الهدف: منع بقاء بيانات تاريخية محلية غير مرفوعة أثناء الانتقال إلى DB-first.
+
+### 30) استكمال المزامنة الانتقالية لباقي السجلات المحلية
+- في `lib/data/contracts.ts`:
+  - تفعيل مزامنة bulk لمرة واحدة للعقود المحلية القديمة عند أول قراءة.
+- في:
+  - `lib/data/bookingDocuments.ts`
+  - `lib/data/bookingChecks.ts`
+  - `lib/data/contractChecks.ts`
+  تم تفعيل مزامنة bulk لمرة واحدة عند أول قراءة لرفع أي بيانات محلية متبقية إلى APIs الإعدادات.
+
+### 32) إغلاق المسارات الحرجة: Hydration تلقائي من الخادم
+- إضافة Hydration server-first عند أول قراءة في:
+  - `lib/data/bookings.ts` عبر `/api/bookings`
+  - `lib/data/contracts.ts` عبر `/api/contracts`
+  - `lib/data/addressBook.ts` عبر `/api/address-book`
+- النتيجة: الصفحات الحرجة لا تعتمد فقط على localStorage، وتلتقط أحدث نسخة خادمية تلقائياً.
+- السلوك الجديد:
+  - Hydration تلقائي عند أول قراءة.
+  - مزامنة مباشرة لأي تعديل محلي إلى قاعدة البيانات عبر API.
+
 ### 1) الأمان والجلسة بعد التصفير
 - إبطال جلسة المستخدم المحذوف عبر تحقق دوري في `jwt` داخل `lib/auth.ts`.
 - إضافة عزل بيانات الجلسة المحلية بين المستخدمين في `components/AuthSessionLocalIsolation.tsx`.
@@ -80,7 +238,7 @@
 ## المتبقي (قيد التنفيذ / المرحلة التالية)
 
 ### أولوية عالية
-- نقل CRUD العقود بالكامل من `lib/data/contracts` (محلي) إلى API/DB.
+- إكمال فصل واجهة العقود نهائياً عن `localStorage` (تحويل دوال القراءة/الكتابة إلى async server-only داخل `lib/server`).
 - توحيد مسار مستندات الحجز/العقد بحيث يكون مصدره الخادم بالكامل.
 
 ### أولوية متوسطة

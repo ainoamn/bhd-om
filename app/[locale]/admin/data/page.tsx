@@ -6,8 +6,6 @@ import { useSession, signOut } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
   resetAllOperationalData,
-  importBackup,
-  downloadBackup,
   clearClientCachesAfterServerDbReset,
 } from '@/lib/data/backup';
 
@@ -221,11 +219,6 @@ export default function AdminDataPage() {
     }
   };
 
-  const handleLocalBackupDownload = () => {
-    downloadBackup();
-    setServerMessage(ar ? 'تم تنزيل نسخة بيانات المتصفح (localStorage).' : 'Browser data (localStorage) backup downloaded.');
-  };
-
   const showAccessDenied = status === 'unauthenticated' || (status === 'authenticated' && userRole !== 'ADMIN');
 
   if (showAccessDenied) {
@@ -436,38 +429,10 @@ export default function AdminDataPage() {
           {resetError && (
             <div className="mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm">{resetError}</div>
           )}
-          <div className="flex flex-wrap items-center gap-3 mb-6">
-            <button
-              type="button"
-              onClick={handleLocalBackupDownload}
-              className="px-5 py-2.5 rounded-xl font-semibold bg-slate-700 text-white hover:bg-slate-800 transition-colors"
-            >
-              {ar ? 'تنزيل نسخة المتصفح' : 'Download browser backup'}
-            </button>
-            <label className="px-5 py-2.5 rounded-xl font-semibold bg-slate-500 text-white hover:bg-slate-600 cursor-pointer transition-colors">
-              {ar ? 'استيراد إلى المتصفح' : 'Import to browser'}
-              <input
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    const r = importBackup(String(reader.result));
-                    if (r.success) {
-                      setServerMessage(ar ? `استُعيدت ${r.restored} مفتاحاً.` : `Restored ${r.restored} keys.`);
-                      setTimeout(() => window.location.reload(), 1500);
-                    } else {
-                      setResetError(r.error || (ar ? 'فشل الاستيراد' : 'Import failed'));
-                    }
-                  };
-                  reader.readAsText(f);
-                  e.target.value = '';
-                }}
-              />
-            </label>
+          <div className="mb-6 p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-sm">
+            {ar
+              ? 'تم إيقاف النسخ المحلي (localStorage) افتراضياً. استخدم النسخ الاحتياطي/الاستعادة من الخادم أعلاه.'
+              : 'LocalStorage backup/import is disabled by default. Use server backup/restore above.'}
           </div>
           <div className="flex flex-wrap items-center gap-3 border-t border-gray-200 pt-6">
             <span className="text-sm text-gray-500 w-full mb-1">{ar ? 'تصفير التشغيل المحلي فقط:' : 'Reset local operational data only:'}</span>

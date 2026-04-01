@@ -28,6 +28,9 @@ export interface CompanyData {
 }
 
 const STORAGE_KEY = 'bhd_company_data';
+const API_URL = '/api/settings/company-data';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
 
 const DEFAULT: CompanyData = {
   logoUrl: '/logo-bhd.png',
@@ -51,6 +54,21 @@ const DEFAULT: CompanyData = {
 
 function getStored(): CompanyData {
   if (typeof window === 'undefined') return { ...DEFAULT };
+  if (!didHydrateFromServer && !hydratingFromServer) {
+    hydratingFromServer = true;
+    fetch(API_URL, { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        const next = { ...DEFAULT, ...(payload as Partial<CompanyData>) };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        didHydrateFromServer = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydratingFromServer = false;
+      });
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -64,9 +82,16 @@ function getStored(): CompanyData {
 function saveStored(data: CompanyData): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, updatedAt: new Date().toISOString() }));
+    const next = { ...data, updatedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
     window.dispatchEvent(new CustomEvent('bhd_company_data_updated'));
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(next),
+    }).catch(() => {});
   } catch {}
 }
 

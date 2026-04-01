@@ -51,11 +51,20 @@ import {
   type ContactType,
   type AuthorizedRepresentative,
 } from '@/lib/data/addressBook';
-import { getContactLinkedBookingDocuments, isContactLinked, getContactDerivedCategories, type ContactLinkedBooking, type ContactLinkedContract } from '@/lib/data/contactLinks';
+import {
+  getContactLinkedBookingDocumentsFromServerBookings,
+  getContactLinkedBookingsFromServerBookings,
+  getContactLinkedContractsFromServerBookings,
+  isContactLinked,
+  getContactDerivedCategories,
+  type ContactLinkedBooking,
+  type ContactLinkedContract,
+} from '@/lib/data/contactLinks';
 import { syncBookingContactsToAddressBook, type PropertyBooking } from '@/lib/data/bookings';
 import TranslateField from '@/components/admin/TranslateField';
 import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
 import { getNationalitySelectOptions, normalizeNationalityToArabic } from '@/lib/data/nationalities';
+import type { AccountingDocument } from '@/lib/data/accounting';
 import { siteConfig } from '@/config/site';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import DateInput from '@/components/shared/DateInput';
@@ -175,6 +184,7 @@ export default function AdminAddressBookPage() {
   const [form, setForm] = useState(emptyForm);
   const [mounted, setMounted] = useState(false);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+  const [serverDocuments, setServerDocuments] = useState<AccountingDocument[]>([]);
   const [importResult, setImportResult] = useState<number | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [syncResult, setSyncResult] = useState<{ added: number; updated: number } | null>(null);
@@ -210,75 +220,23 @@ export default function AdminAddressBookPage() {
     };
   }, []);
 
-  const getLinkedBookingsServerFirst = (c: Contact): ContactLinkedBooking[] => {
-    try {
-      const cId = String(c.id || '').trim();
-      const cEmail = normEmail(c.email || '');
-      const cPhone8 = normPhoneLast8(c.phone || '');
-      const matches = serverBookings.filter((b) => {
-        const bContactId = String((b as PropertyBooking & { contactId?: unknown }).contactId || '').trim();
-        if (cId && bContactId && bContactId === cId) return true;
-        const bEmail = normEmail(String((b as PropertyBooking & { email?: unknown }).email || ''));
-        const bPhone8 = normPhoneLast8(String((b as PropertyBooking & { phone?: unknown }).phone || ''));
-        const matchEmail = cEmail.length >= 3 && bEmail === cEmail;
-        const matchPhone = cPhone8.length >= 6 && bPhone8.length >= 6 && cPhone8 === bPhone8;
-        return matchEmail || matchPhone;
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/accounting/documents', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: AccountingDocument[]) => {
+        if (!alive) return;
+        setServerDocuments(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setServerDocuments([]);
       });
-      return matches.map((b) => ({
-        id: String(b.id),
-        bookingId: String(b.id),
-        date: String(b.createdAt || ''),
-        propertyId: Number(b.propertyId),
-        propertyTitleAr: String(b.propertyTitleAr || ''),
-        propertyTitleEn: String(b.propertyTitleEn || ''),
-        unitKey: b.unitKey ? String(b.unitKey) : undefined,
-        unitDisplay: String((b as PropertyBooking & { unitDisplay?: unknown }).unitDisplay || ''),
-        status: b.status,
-        contractId: b.contractId ? String(b.contractId) : undefined,
-        hasFinancialClaims: false,
-        cardLast4: (b as PropertyBooking & { cardLast4?: string }).cardLast4,
-        cardExpiry: (b as PropertyBooking & { cardExpiry?: string }).cardExpiry,
-        cardholderName: (b as PropertyBooking & { cardholderName?: string }).cardholderName,
-      }));
-    } catch {
-      return [];
-    }
-  };
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  const getLinkedContractsServerFirst = (c: Contact): ContactLinkedContract[] => {
-    try {
-      const linkedBookingIds = new Set(getLinkedBookingsServerFirst(c).map((x) => String(x.bookingId)));
-      const out: ContactLinkedContract[] = [];
-      for (const b of serverBookings) {
-        if (!linkedBookingIds.has(String(b.id))) continue;
-        const hasCd = !!((b as PropertyBooking & { contractData?: unknown }).contractData);
-        if (!hasCd) continue;
-        const cd = ((b as PropertyBooking & { contractData?: Record<string, unknown> }).contractData || {}) as Record<string, unknown>;
-        const startDate = String(cd.startDate || b.createdAt || '');
-        const endDate = String(cd.endDate || b.createdAt || '');
-        out.push({
-          id: `booking-contract-${String(b.id)}`,
-          contractId: String(b.contractId || b.id),
-          bookingId: String(b.id),
-          date: String(b.createdAt || ''),
-          propertyId: Number(b.propertyId),
-          propertyTitleAr: String(b.propertyTitleAr || ''),
-          propertyTitleEn: String(b.propertyTitleEn || ''),
-          unitKey: b.unitKey ? String(b.unitKey) : undefined,
-          unitDisplay: String((b as PropertyBooking & { unitDisplay?: unknown }).unitDisplay || ''),
-          landlordName: String(cd.landlordName || ''),
-          startDate,
-          endDate,
-          status: (String(b.contractStage || '') === 'APPROVED' ? 'ACTIVE' : 'DRAFT') as any,
-          hasFinancialClaims: false,
-          role: 'tenant',
-        });
-      }
-      return out;
-    } catch {
-      return [];
-    }
-  };
   useEffect(() => {
     if (repDropdownOpen === null) return;
     const close = (e: MouseEvent) => {
@@ -1215,13 +1173,23 @@ export default function AdminAddressBookPage() {
       workplace: form.workplace, workplaceEn: form.workplaceEn, address: form.address, notes: form.notes, notesEn: form.notesEn, tags: form.tags,
       category: form.category, categoryChangeHistory: [], createdAt: '', updatedAt: '',
     } as Contact;
-    const html = buildPrintHtml(c, getLinkedBookingsServerFirst(c), getLinkedContractsServerFirst(c), getContactLinkedBookingDocuments(c));
+    const html = buildPrintHtml(
+      c,
+      getContactLinkedBookingsFromServerBookings(c, serverBookings, serverDocuments),
+      getContactLinkedContractsFromServerBookings(c, serverBookings, serverDocuments),
+      getContactLinkedBookingDocumentsFromServerBookings(c, serverBookings)
+    );
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
   };
 
   const handlePrintContact = (c: Contact) => {
-    const html = buildPrintHtml(c, getLinkedBookingsServerFirst(c), getLinkedContractsServerFirst(c), getContactLinkedBookingDocuments(c));
+    const html = buildPrintHtml(
+      c,
+      getContactLinkedBookingsFromServerBookings(c, serverBookings, serverDocuments),
+      getContactLinkedContractsFromServerBookings(c, serverBookings, serverDocuments),
+      getContactLinkedBookingDocumentsFromServerBookings(c, serverBookings)
+    );
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
   };
@@ -2284,9 +2252,9 @@ export default function AdminAddressBookPage() {
                 const contact = getContactById(editingId);
                 if (!contact) return null;
                 const history = contact.categoryChangeHistory || [];
-                const linkedBookings = getLinkedBookingsServerFirst(contact);
-                const linkedContracts = getLinkedContractsServerFirst(contact);
-                const linkedDocs = getContactLinkedBookingDocuments(contact);
+                const linkedBookings = getContactLinkedBookingsFromServerBookings(contact, serverBookings, serverDocuments);
+                const linkedContracts = getContactLinkedContractsFromServerBookings(contact, serverBookings, serverDocuments);
+                const linkedDocs = getContactLinkedBookingDocumentsFromServerBookings(contact, serverBookings);
                 const statusKey = (s: string) => (s === 'ACTIVE' ? 'statusActive' : s === 'ENDED' ? 'statusEnded' : s === 'RENEWED' ? 'statusRenewed' : s === 'CANCELLED' ? 'statusCancelled' : 'statusDraft');
                 const fmtDate = (d: string) => new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 return (

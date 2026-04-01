@@ -16,9 +16,42 @@ export const DEFAULT_PRINT_OPTIONS = {
 };
 
 const STORAGE_KEY = 'bhd_print_options';
+const API_URL = '/api/settings/print-options';
+let didHydrateFromServer = false;
+let hydratingFromServer = false;
+
+async function hydrateFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (didHydrateFromServer || hydratingFromServer) return;
+  hydratingFromServer = true;
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return;
+    const data = (await res.json()) as Partial<typeof DEFAULT_PRINT_OPTIONS>;
+    if (!data || typeof data !== 'object') return;
+    const next = { ...DEFAULT_PRINT_OPTIONS, ...data };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    didHydrateFromServer = true;
+  } catch {
+    // keep local fallback
+  } finally {
+    hydratingFromServer = false;
+  }
+}
+
+function syncToServer(data: typeof DEFAULT_PRINT_OPTIONS): void {
+  if (typeof window === 'undefined') return;
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  }).catch(() => {});
+}
 
 export function getStoredPrintOptions(): typeof DEFAULT_PRINT_OPTIONS {
   if (typeof window === 'undefined') return DEFAULT_PRINT_OPTIONS;
+  void hydrateFromServer();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
@@ -35,5 +68,6 @@ export function savePrintOptions(opts: Partial<typeof DEFAULT_PRINT_OPTIONS>): v
     const next = { ...current, ...opts };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
+    syncToServer(next);
   } catch {}
 }
