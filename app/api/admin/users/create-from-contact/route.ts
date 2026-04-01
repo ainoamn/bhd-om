@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { checkLimit } from '@/lib/subscriptions/entitlements';
 import { logAudit } from '@/lib/audit';
+import { generateBhdSerial } from '@/lib/server/serialNumbers';
 
 function generateTempPassword(length = 10): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -56,14 +57,7 @@ export async function POST(req: NextRequest) {
     const rawEmail = (parsed.data.email || '').trim();
 
     const code = CATEGORY_PREFIX[category || 'OTHER'] ?? 'O';
-    const year = new Date().getFullYear();
-    const key = `USR-${code}-${year}`;
-    const counter = await prisma.serialCounter.upsert({
-      where: { key },
-      create: { key, lastValue: 1 },
-      update: { lastValue: { increment: 1 } },
-    });
-    const serialNumber = `USR-${code}-${year}-${String(counter.lastValue).padStart(4, '0')}`;
+    const serialNumber = await generateBhdSerial(`USR-${code}`);
 
     const usePlaceholderEmail = !rawEmail || !rawEmail.includes('@');
     const emailLower = usePlaceholderEmail

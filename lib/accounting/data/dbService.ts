@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { generateBhdSerial } from '@/lib/server/serialNumbers';
 import type { AccountingAccountType, AccountingDocType, AccountingDocStatus } from '@prisma/client';
 
 const DEFAULT_ACCOUNTS: Array<{ code: string; nameAr: string; nameEn: string; type: AccountingAccountType; sortOrder: number }> = [
@@ -279,14 +280,7 @@ export async function createJournalEntryInDb(data: {
   await ensureFiscalPeriods();
   const locked = await isPeriodLockedForDate(data.date);
   if (locked) throw new Error('لا يمكن الترحيل: الفترة المالية مغلقة');
-  const year = new Date().getFullYear();
-  const serialKey = `JRN-${year}`;
-  const counter = await prisma.serialCounter.upsert({
-    where: { key: serialKey },
-    create: { key: serialKey, lastValue: 1 },
-    update: { lastValue: { increment: 1 } },
-  });
-  const serialNumber = `JRN-${year}-${String(counter.lastValue).padStart(4, '0')}`;
+  const serialNumber = await generateBhdSerial('ACC-JRN');
   const totalDebit = data.lines.reduce((s, l) => s + l.debit, 0);
   const totalCredit = data.lines.reduce((s, l) => s + l.credit, 0);
   if (Math.abs(totalDebit - totalCredit) > 0.01) {
@@ -430,16 +424,9 @@ export async function createDocumentInDb(data: {
   reference?: string;
   branch?: string;
 }) {
-  const year = new Date().getFullYear();
   const type = data.type as keyof typeof DOC_TYPE_MAP;
   const prefix = DOC_SERIAL_PREFIX[type] || 'DOC';
-  const serialKey = `${prefix}-${year}`;
-  const counter = await prisma.serialCounter.upsert({
-    where: { key: serialKey },
-    create: { key: serialKey, lastValue: 1 },
-    update: { lastValue: { increment: 1 } },
-  });
-  const serialNumber = data.serialNumber?.trim() || `${prefix}-${year}-${String(counter.lastValue).padStart(4, '0')}`;
+  const serialNumber = data.serialNumber?.trim() || (await generateBhdSerial(`ACC-${prefix}`));
   const doc = await prisma.accountingDocument.create({
     data: {
       serialNumber,

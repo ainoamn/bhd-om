@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
+import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
 
 const ROLE_SERIAL_CODE: Record<string, string> = {
   ADMIN: 'A',
@@ -15,22 +16,10 @@ const ROLE_SERIAL_CODE: Record<string, string> = {
   SALES_AGENT: 'S',
 };
 
-function isValidSerialNumber(value: string | null | undefined): boolean {
-  const serial = String(value || '').trim().toUpperCase();
-  return /^USR-[A-Z]-\d{4}-\d{4,5}$/.test(serial);
-}
-
 async function ensureUserSerialNumber(user: { id: string; role: string; serialNumber: string | null | undefined }) {
-  if (isValidSerialNumber(user.serialNumber)) return String(user.serialNumber);
+  if (isValidBhdSerial(user.serialNumber)) return String(user.serialNumber);
   const code = ROLE_SERIAL_CODE[String(user.role || '').toUpperCase()] || 'C';
-  const year = new Date().getFullYear();
-  const key = `USR-${code}-${year}`;
-  const counter = await prisma.serialCounter.upsert({
-    where: { key },
-    create: { key, lastValue: 1 },
-    update: { lastValue: { increment: 1 } },
-  });
-  const serialNumber = `USR-${code}-${year}-${String(counter.lastValue).padStart(4, '0')}`;
+  const serialNumber = await generateBhdSerial(`USR-${code}`);
   await prisma.user.update({
     where: { id: user.id },
     data: { serialNumber },

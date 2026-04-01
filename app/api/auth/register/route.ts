@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { generateBhdSerial } from '@/lib/server/serialNumbers';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name too short'),
@@ -33,14 +34,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const year = new Date().getFullYear();
-    const key = `USR-C-${year}`;
-    const counter = await prisma.serialCounter.upsert({
-      where: { key },
-      create: { key, lastValue: 1 },
-      update: { lastValue: { increment: 1 } },
-    });
-    const serialNumber = `USR-C-${year}-${String(counter.lastValue).padStart(4, '0')}`;
+    const serialNumber = await generateBhdSerial('USR-C');
 
     const hashed = await hash(password, 10);
     await prisma.user.create({
