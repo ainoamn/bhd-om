@@ -697,3 +697,20 @@
 
 - **ملاحظات للجلسة القادمة:**
   - لتسجيل أرقام قياس حقيقية: `npm run build` ثم `npm run start`، ثم في طرف جديد `npm run test:e2e:perf` مع `E2E_ADMIN_EMAIL` و`E2E_ADMIN_PASSWORD` في البيئة.
+
+---
+
+### جلسة 2026-04-01 — متابعة إقفال الأداء (قياس runtime سريع + ضبط نهائي للباقات)
+
+- **ما تم:**
+  - متابعة نهائية: ضبط كاش `plans`, `admin/plans`, `subscriptions/me` بسياسات قصيرة من `httpCacheHeaders`.
+  - تشغيل قياس runtime فعلي على خادم production محلي (`next start`) لروابط عامة قابلة للقياس بدون حساب.
+  - نتائج عينة (5 طلبات لكل مسار):
+    - `/ar/subscriptions`: avg `227.6ms` (min `85ms`, max `510ms`)
+    - `/ar/login`: avg `56.4ms` (min `43ms`, max `72ms`)
+    - `/api/plans`: avg `340.4ms` (min `224ms`, max `533ms`)
+  - التحقق من الهيدر:
+    - `/api/plans` يرجع: `Cache-Control: public, max-age=60, stale-while-revalidate=300`.
+
+- **ملاحظة تشغيلية:**
+  - قياس الصفحات الثقيلة داخل الإدارة (address-book/bookings/contracts/properties) يحتاج بيانات دخول E2E (`E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`) لتشغيل `test:e2e:perf` وإخراج أرقام كاملة.
