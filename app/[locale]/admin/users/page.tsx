@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -242,7 +242,7 @@ export default function UsersAdminPage() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [addedUserCreds, setAddedUserCreds] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/users');
       if (res.status === 401 || res.status === 403) {
@@ -266,33 +266,16 @@ export default function UsersAdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [locale]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch('/api/admin/users');
-        if (!cancelled) setRequireAdmin(res.status === 401);
-        if (!res.ok) return;
-        const data = await res.json();
-        const usersList = Array.isArray(data) ? data : [];
-        if (!cancelled) setUsers(usersList);
-        if (!cancelled && usersList.length > 0) {
-          const { added } = syncContactsFromUsers(usersList);
-          if (added > 0) {
-            setSyncMsg(locale === 'ar' ? `تمت إضافة ${added} مستخدم تلقائياً لدفتر العناوين` : `${added} user(s) auto-added to address book`);
-            setTimeout(() => setSyncMsg(null), 3000);
-          }
-        }
-      } catch {
-        if (!cancelled) setUsers([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await loadUsers();
+      if (cancelled) return;
     })();
     return () => { cancelled = true; };
-  }, [locale]);
+  }, [locale, loadUsers]);
 
   const refreshUsers = async () => {
     try {
