@@ -30,6 +30,11 @@ function getSubVal(row: Record<string, unknown>, col: string | undefined): unkno
 
 export async function GET(req: NextRequest) {
   try {
+    const limitRaw = Number(req.nextUrl.searchParams.get('limit') || '0');
+    const offsetRaw = Number(req.nextUrl.searchParams.get('offset') || '0');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
     const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN']);
@@ -199,9 +204,17 @@ export async function GET(req: NextRequest) {
       plan: plansMap[s.planId] ?? { nameAr: '—', nameEn: '—', priceMonthly: 0, sortOrder: 0 },
       refundProcessedAt: refundsMap[s.userId] ?? null,
     }));
+    const totalCount = enriched.length;
+    const paged = limit > 0 ? enriched.slice(offset, offset + limit) : enriched;
 
-    return NextResponse.json({ list: enriched }, {
-      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    return NextResponse.json({ list: paged }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        Pragma: 'no-cache',
+        'X-Total-Count': String(totalCount),
+        'X-Limit': String(limit || totalCount),
+        'X-Offset': String(offset),
+      },
     });
   } catch (e) {
     console.error('GET /api/subscriptions:', e);

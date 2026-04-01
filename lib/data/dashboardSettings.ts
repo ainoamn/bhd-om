@@ -1,6 +1,6 @@
 /**
  * إعدادات لوحات التحكم لكل نوع (عميل، مستأجر، مالك، مورد، ...)
- * تُخزّن في localStorage وتُزامَن مع الخادم حتى تنعكس على لوحة العميل في أي متصفح.
+ * مصدر القراءة الأساسي: الخادم. التخزين المحلي للكتابة/الأحداث فقط.
  */
 
 import type { RoleKey, DashboardSectionKey, RoleDashboardConfig, DashboardType } from '@/lib/config/dashboardRoles';
@@ -35,20 +35,6 @@ export async function loadDashboardSettingsFromServer(): Promise<void> {
   }
 }
 
-function loadFromStorage(): DashboardSettingsStore {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as DashboardSettingsStore;
-      return parsed;
-    }
-  } catch {
-    // ignore
-  }
-  return {};
-}
-
 function saveToStorage(data: DashboardSettingsStore): void {
   if (typeof window === 'undefined') return;
   try {
@@ -67,14 +53,15 @@ function saveToStorage(data: DashboardSettingsStore): void {
   }
 }
 
-let store: DashboardSettingsStore = loadFromStorage();
+let store: DashboardSettingsStore = {};
 let didAutoHydrateFromServer = false;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY && e.newValue) {
-      store = JSON.parse(e.newValue) as DashboardSettingsStore;
-      window.dispatchEvent(new CustomEvent(DASHBOARD_SETTINGS_EVENT));
+      // لا نعتمد القيم المحلية كمصدر حقيقة؛ نعيد الجلب من الخادم.
+      didAutoHydrateFromServer = false;
+      void loadDashboardSettingsFromServer();
     }
   });
 }

@@ -1,6 +1,6 @@
 /**
  * إعدادات الموقع - تفعيل/تعطيل الصفحات
- * يُخزّن في localStorage للتحديث الفوري وللتزامن بين التبويبات
+ * مصدر القراءة الأساسي: الخادم. التخزين المحلي للكتابة/الأحداث فقط.
  */
 
 const STORAGE_KEY = 'bhd-pages-visibility';
@@ -30,20 +30,6 @@ const defaultVisibility: PagesVisibility = {
   contact: true,
   subscriptions: true,
 };
-
-function loadFromStorage(): PagesVisibility {
-  if (typeof window === 'undefined') return { ...defaultVisibility };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as PagesVisibility;
-      return { ...defaultVisibility, ...parsed };
-    }
-  } catch {
-    // ignore
-  }
-  return { ...defaultVisibility };
-}
 
 async function hydrateFromServer(): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -81,13 +67,14 @@ function saveToStorage(data: PagesVisibility): void {
   }
 }
 
-let pagesVisibility: PagesVisibility = loadFromStorage();
+let pagesVisibility: PagesVisibility = { ...defaultVisibility };
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY && e.newValue) {
-      pagesVisibility = { ...defaultVisibility, ...JSON.parse(e.newValue) };
-      window.dispatchEvent(new CustomEvent(EVENT_NAME));
+      // لا نعتمد القيم المحلية كمصدر حقيقة؛ نعيد الجلب من الخادم.
+      didHydrateFromServer = false;
+      void hydrateFromServer();
     }
   });
 }

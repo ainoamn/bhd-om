@@ -9,6 +9,16 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — دفعة إضافية: server-first reads + pagination للاشتراكات
+
+- **ما تم:** تقليل اعتماد القراءة من `localStorage` في إعدادات الواجهة:
+  - `lib/data/siteSettings.ts`
+  - `lib/data/dashboardSettings.ts`
+- **التغيير:** القراءة أصبحت تعتمد الخادم كمصدر أساسي، مع إبقاء التخزين المحلي للكتابة/الإشعارات فقط (بدون fallback محلي كمرجع حقيقة).
+- **ما تم:** إضافة pagination (`limit/offset`) وعدادات headers في `GET /api/subscriptions`:
+  - `X-Total-Count`, `X-Limit`, `X-Offset`
+- **التحقق:** `npm run -s typecheck --if-present` نجح.
+
 ### جلسة 2026-03-30 — توحيد repository layer لإعدادات AppSetting
 
 - **ما تم:** توحيد جميع مسارات `app/api/settings/*` لتستخدم `lib/server/repositories/appSettingsRepo.ts` بدل تكرار `prisma.appSetting` + `JSON.parse/stringify`.

@@ -10,6 +10,14 @@
 
 ## ما تم تنفيذه (منجز)
 
+### 24) تعزيز server-first في إعدادات الواجهة + Pagination للاشتراكات
+- في `siteSettings` و `dashboardSettings` تم تقليل/إلغاء fallback المحلي كمصدر قراءة، واعتماد الخادم كمصدر الحقيقة مع إبقاء localStorage فقط للكتابة والأحداث بين التبويبات.
+- إضافة pagination إلى `GET /api/subscriptions` عبر `limit/offset` مع headers:
+  - `X-Total-Count`
+  - `X-Limit`
+  - `X-Offset`
+- الأثر: تقليل احتمالية ظهور إعدادات محلية قديمة، وتحسين جاهزية قوائم الاشتراكات الكبيرة.
+
 ### 23) توحيد repository layer لإعدادات `AppSetting`
 - تم اعتماد `lib/server/repositories/appSettingsRepo.ts` كطبقة موحدة لقراءة/كتابة إعدادات JSON في `AppSetting`.
 - تم تطبيق ذلك على كل مسارات `app/api/settings/*` بحيث أصبحت كل عمليات `GET/POST` تمر عبر repository بدل تكرار منطق Prisma/JSON.
