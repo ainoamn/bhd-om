@@ -498,7 +498,7 @@ function getStored(): Contact[] {
         hydrateContactsInProgress = false;
       });
   }
-  const migrated = contactsStore.map((c: Record<string, unknown>) => migrateContact({ ...c }));
+  const migrated = contactsStore.map((c) => migrateContact({ ...(c as unknown as Record<string, unknown>) }));
   const needsSerial = migrated.some((c: Contact) => !c.serialNumber?.trim());
   if (needsSerial) {
     const withSerials = ensureSerialNumbers(migrated);
