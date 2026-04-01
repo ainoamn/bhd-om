@@ -13,6 +13,16 @@ import { useTranslations } from 'next-intl';
 import { FcGoogle } from 'react-icons/fc';
 import { HiOutlineMail, HiOutlineUserAdd } from 'react-icons/hi';
 
+function defaultAdminPathByRole(locale: string, role?: string) {
+  const normalized = String(role || '').toUpperCase();
+  if (normalized === 'ACCOUNTANT') return `/${locale}/admin/accounting`;
+  if (normalized === 'PROPERTY_MANAGER') return `/${locale}/admin/properties`;
+  if (normalized === 'SALES_AGENT') return `/${locale}/admin/bookings`;
+  if (normalized === 'OWNER' || normalized === 'LANDLORD') return `/${locale}/admin/my-properties`;
+  if (normalized === 'CLIENT') return `/${locale}/admin/my-bookings`;
+  return `/${locale}/admin`;
+}
+
 // أيقونة Microsoft SVG (لا تعتمد على react-icons)
 const MicrosoftIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 23 23" fill="currentColor">
@@ -191,26 +201,34 @@ function LoginFormInner() {
   const onSubmit = async (data: LoginFormData) => {
     setFormError(null);
     setIsSubmittingForm(true);
-    let callbackUrl = searchParams.get('callbackUrl') ?? `/${locale}/admin`;
+    let callbackUrl = searchParams.get('callbackUrl') ?? '';
     if (typeof window !== 'undefined' && callbackUrl.startsWith(window.location.origin)) {
       try {
         const u = new URL(callbackUrl);
         callbackUrl = u.pathname + u.search;
       } catch {
-        callbackUrl = `/${locale}/admin`;
+        callbackUrl = '';
       }
     }
-    if (!callbackUrl.startsWith('/')) callbackUrl = `/${locale}/admin`;
+    if (callbackUrl && !callbackUrl.startsWith('/')) callbackUrl = '';
 
     try {
-      // redirect: true حتى يضع NextAuth الكوكي ويحوّل بنفسه (يضمن ظهور الجلسة في /ar/admin)
-      await signIn('credentials', {
+      // نُعطل تحويل NextAuth التلقائي لتجنب حلقات redirect على بعض البيئات.
+      const result = await signIn('credentials', {
         email: data.emailOrUsername.trim(),
         password: data.password,
-        callbackUrl,
-        redirect: true,
+        redirect: false,
       });
-      // عند redirect: true لا نصل هنا عند النجاح؛ عند الفشل يحوّل NextAuth إلى صفحة الخطأ
+      if (result?.error) {
+        setFormError(locale === 'ar' ? 'البريد أو كلمة المرور غير صحيحة.' : 'Invalid email or password.');
+        return;
+      }
+      const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+      const sessionData = sessionRes.ok ? await sessionRes.json() : null;
+      const role = sessionData?.user?.role as string | undefined;
+      const target = callbackUrl || defaultAdminPathByRole(locale, role);
+      router.replace(target);
+      router.refresh();
     } catch {
       setFormError(t('errorGeneric'));
     } finally {
