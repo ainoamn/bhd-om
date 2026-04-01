@@ -28,6 +28,12 @@ function toContractFromBooking(booking: Record<string, unknown>) {
 
 export async function GET(req: NextRequest) {
   try {
+    const url = new URL(req.url);
+    const limitParam = Number(url.searchParams.get('limit') || 0);
+    const offsetParam = Number(url.searchParams.get('offset') || 0);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 0;
+    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
 
@@ -37,7 +43,14 @@ export async function GET(req: NextRequest) {
       .filter(Boolean)
       .map((b) => toContractFromBooking(b as Record<string, unknown>))
       .filter(Boolean);
-    return NextResponse.json(list);
+    const paged = limit > 0 ? list.slice(offset, offset + limit) : list;
+    return NextResponse.json(paged, {
+      headers: {
+        'X-Total-Count': String(list.length),
+        'X-Limit': String(limit || list.length),
+        'X-Offset': String(offset),
+      },
+    });
   } catch (e) {
     console.error('GET /api/contracts', e);
     return NextResponse.json({ error: 'Failed to fetch contracts' }, { status: 500 });

@@ -96,6 +96,13 @@
 - **ما تم:** تحديث `bookings.ts` لإضافة Hydration + Sync + bulk sync لمرة واحدة لطلبات الإلغاء.
 - **التحقق:** `npx tsc --noEmit` نجح.
 
+### جلسة 2026-03-30 — دفعة نهائية مهمة: pagination + repository + e2e baseline
+
+- **ما تم:** إضافة `limit/offset` + headers عدّاد في APIs: `bookings`, `contracts`, `admin/users`.
+- **ما تم:** إضافة `appSettingsRepo` كبداية توحيد repository layer وتطبيقه على عدد من مسارات settings.
+- **ما تم:** إدخال Playwright وإضافة اختبار E2E أساسي للسيناريوهات الحرجة (`critical-flows.spec.ts`).
+- **التحقق:** `npx tsc --noEmit` نجح.
+
 ### جلسة 2026-03-30 — تعزيز DB-first للحسابات والقيود اليومية
 
 - **ما تم:** توسيع `app/api/accounting/accounts/route.ts` بإضافة `POST` (بحماية صلاحية `ACCOUNT_EDIT`) لدعم إنشاء/تحديث حسابات دليل الحسابات من الواجهة.

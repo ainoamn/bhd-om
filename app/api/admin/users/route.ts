@@ -10,6 +10,10 @@ export async function GET(req: NextRequest) {
     const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
     const url = new URL(req.url);
     const filterRole = url.searchParams.get('role');
+    const limitParam = Number(url.searchParams.get('limit') || 0);
+    const offsetParam = Number(url.searchParams.get('offset') || 0);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 0;
+    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
 
     if (filterRole === 'OWNER') {
       if (!isAdmin && role !== 'COMPANY' && role !== 'ORG_MANAGER') {
@@ -18,9 +22,17 @@ export async function GET(req: NextRequest) {
       const users = await prisma.user.findMany({
         where: { role: 'OWNER' },
         orderBy: { name: 'asc' },
+        ...(limit > 0 ? { skip: offset, take: limit } : {}),
         select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true },
       });
-      return NextResponse.json(users);
+      const total = await prisma.user.count({ where: { role: 'OWNER' } });
+      return NextResponse.json(users, {
+        headers: {
+          'X-Total-Count': String(total),
+          'X-Limit': String(limit || total),
+          'X-Offset': String(offset),
+        },
+      });
     }
 
     if (!isAdmin) {
@@ -29,6 +41,7 @@ export async function GET(req: NextRequest) {
 
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
+      ...(limit > 0 ? { skip: offset, take: limit } : {}),
       select: {
         id: true,
         serialNumber: true,
@@ -67,7 +80,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(list);
+    const total = await prisma.user.count();
+    return NextResponse.json(list, {
+      headers: {
+        'X-Total-Count': String(total),
+        'X-Limit': String(limit || total),
+        'X-Offset': String(offset),
+      },
+    });
   } catch (e) {
     console.error('Users list error:', e);
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });

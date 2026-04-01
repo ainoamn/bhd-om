@@ -172,6 +172,32 @@
   - Hydration من الخادم عند أول قراءة.
   - Sync عند الحفظ.
   - Bulk sync انتقالي لمرة واحدة للبيانات المحلية القديمة.
+
+### 34) Pagination عملي للمسارات الإدارية الكبيرة
+- إضافة دعم `limit/offset` مع headers (`X-Total-Count`, `X-Limit`, `X-Offset`) في:
+  - `GET /api/bookings`
+  - `GET /api/contracts`
+  - `GET /api/admin/users`
+- الهدف: تجهيز القوائم الكبيرة للإدارة لنمط صفحات/تحميل جزئي بدل تحميل كامل دائم.
+
+### 35) تحسين بنيوي: Repository موحد لإعدادات AppSetting
+- إضافة:
+  - `lib/server/repositories/appSettingsRepo.ts`
+    - `getJsonSetting`
+    - `upsertJsonSetting`
+- بدء استخدامه في routes:
+  - `app/api/settings/property-overrides/route.ts`
+  - `app/api/settings/booking-terms/route.ts`
+  - `app/api/settings/company-data/route.ts`
+
+### 36) تأسيس E2E للسيناريوهات الحرجة
+- إضافة إطار Playwright:
+  - dev dependency: `@playwright/test`
+  - `playwright.config.ts`
+  - script: `npm run test:e2e`
+- إضافة اختبار حرِج:
+  - `tests/e2e/critical-flows.spec.ts`
+  - يغطي reset/logout وعدم ظهور stale data (مشروط بمتغيرات بيئة E2E).
 - السلوك الجديد:
   - Hydration تلقائي عند أول قراءة.
   - مزامنة مباشرة لأي تعديل محلي إلى قاعدة البيانات عبر API.

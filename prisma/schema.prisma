@@ -314,6 +314,7 @@ model BookingStorage {
   updatedAt DateTime @updatedAt
 
   @@index([createdAt])
+  @@index([updatedAt])
 }
 
 /// ملفات مرفوعة من صفحة شروط العقد (مستندات توثيق) — تُخزّن في DB ليعمل الرفع على Vercel بدون Blob
@@ -337,6 +338,7 @@ model AddressBookContact {
   updatedAt     DateTime @updatedAt
 
   @@index([createdAt])
+  @@index([updatedAt])
   @@index([contactId])
   @@index([linkedUserId])
 }
@@ -521,6 +523,8 @@ model AppSetting {
   key       String   @unique // مثلاً: dashboard_settings
   value     String   // JSON
   updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
 }
 
 // ========== الشركات والموظفين ==========

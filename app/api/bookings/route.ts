@@ -12,6 +12,12 @@ import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } fro
 
 export async function GET(req: NextRequest) {
   try {
+    const url = new URL(req.url);
+    const limitParam = Number(url.searchParams.get('limit') || 0);
+    const offsetParam = Number(url.searchParams.get('offset') || 0);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 0;
+    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
     const token = auth.token as { sub?: string; role?: string; organizationId?: string | null };
@@ -82,7 +88,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json(bookings);
+    const paged = limit > 0 ? bookings.slice(offset, offset + limit) : bookings;
+    return NextResponse.json(paged, {
+      headers: {
+        'X-Total-Count': String(bookings.length),
+        'X-Limit': String(limit || bookings.length),
+        'X-Offset': String(offset),
+      },
+    });
   } catch (e) {
     console.error('Bookings GET error:', e);
     return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 });
