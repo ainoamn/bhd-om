@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — توحيد repository layer لإعدادات AppSetting
+
+- **ما تم:** توحيد جميع مسارات `app/api/settings/*` لتستخدم `lib/server/repositories/appSettingsRepo.ts` بدل تكرار `prisma.appSetting` + `JSON.parse/stringify`.
+- **ما تم:** تحديث مسارات الاشتراكات التي تخزن بيانات `subscription_refunds` داخل `AppSetting` لتستخدم نفس الـ repository:
+  - `app/api/subscriptions/route.ts`
+  - `app/api/subscriptions/refund-done/route.ts`
+- **الأثر:** تقليل منطق DB/JSON المكرر، وتثبيت نمط Server-first للإعدادات تمهيداً لتوسعة repository layer لاحقاً (مثل validation, audit, caching).
+
 ### جلسة 2026-03-30 — دفعة شاملة DB-first لمخازن محلية إضافية
 
 - **ما تم:** إضافة APIs جديدة:

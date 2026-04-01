@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getDocumentByIdFromDb } from '@/lib/accounting/data/dbService';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
+import { getJsonSetting, upsertJsonSetting } from '@/lib/server/repositories/appSettingsRepo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -113,15 +114,7 @@ export async function GET(req: NextRequest) {
     }
 
     const REFUNDS_KEY = 'subscription_refunds';
-    let refundsMap: Record<string, string> = {};
-    try {
-      const setting = await prisma.appSetting.findUnique({ where: { key: REFUNDS_KEY } });
-      if (setting?.value) {
-        refundsMap = JSON.parse(setting.value) as Record<string, string>;
-      }
-    } catch {
-      // ignore
-    }
+    const refundsMap = await getJsonSetting<Record<string, string>>(REFUNDS_KEY, {});
 
     const now = new Date();
     for (const s of list) {
@@ -256,13 +249,7 @@ export async function POST(req: NextRequest) {
       const currentPaid = (currentPlan.priceMonthly ?? 0) > 0;
       if (currentPaid) {
         const REFUNDS_KEY = 'subscription_refunds';
-        let refunds: Record<string, string> = {};
-        try {
-          const setting = await prisma.appSetting.findUnique({ where: { key: REFUNDS_KEY } });
-          if (setting?.value) refunds = JSON.parse(setting.value) as Record<string, string>;
-        } catch {
-          // ignore
-        }
+        const refunds = await getJsonSetting<Record<string, string>>(REFUNDS_KEY, {});
         if (!refunds[userId]) {
           return NextResponse.json(
             {
@@ -337,14 +324,9 @@ export async function POST(req: NextRequest) {
     if (currentPlanId && currentPlan && requestedPlan && requestedPlan.sortOrder < currentPlan.sortOrder) {
       const REFUNDS_KEY = 'subscription_refunds';
       try {
-        const setting = await prisma.appSetting.findUnique({ where: { key: REFUNDS_KEY } });
-        let refunds: Record<string, string> = setting?.value ? (JSON.parse(setting.value) as Record<string, string>) : {};
+        const refunds = await getJsonSetting<Record<string, string>>(REFUNDS_KEY, {});
         delete refunds[userId];
-        await prisma.appSetting.upsert({
-          where: { key: REFUNDS_KEY },
-          create: { key: REFUNDS_KEY, value: JSON.stringify(refunds) },
-          update: { value: JSON.stringify(refunds) },
-        });
+        await upsertJsonSetting(REFUNDS_KEY, refunds);
       } catch {
         // ignore
       }

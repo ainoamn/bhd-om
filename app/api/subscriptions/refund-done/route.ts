@@ -3,7 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { prisma } from '@/lib/prisma';
+import { getJsonSetting, upsertJsonSetting } from '@/lib/server/repositories/appSettingsRepo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,14 +27,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 });
     }
 
-    const setting = await prisma.appSetting.findUnique({ where: { key: REFUNDS_KEY } });
-    const refunds: Record<string, string> = setting?.value ? (JSON.parse(setting.value) as Record<string, string>) : {};
+    const refunds = await getJsonSetting<Record<string, string>>(REFUNDS_KEY, {});
     refunds[userId] = new Date().toISOString();
-    await prisma.appSetting.upsert({
-      where: { key: REFUNDS_KEY },
-      create: { key: REFUNDS_KEY, value: JSON.stringify(refunds) },
-      update: { value: JSON.stringify(refunds) },
-    });
+    await upsertJsonSetting(REFUNDS_KEY, refunds);
 
     return NextResponse.json({ ok: true, message: 'تم تسجيل استرداد المبلغ. يمكنك الآن تعيين الباقة الأقل للمستخدم.' });
   } catch (e) {

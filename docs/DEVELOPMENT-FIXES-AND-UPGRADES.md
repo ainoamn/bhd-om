@@ -10,6 +10,11 @@
 
 ## ما تم تنفيذه (منجز)
 
+### 23) توحيد repository layer لإعدادات `AppSetting`
+- تم اعتماد `lib/server/repositories/appSettingsRepo.ts` كطبقة موحدة لقراءة/كتابة إعدادات JSON في `AppSetting`.
+- تم تطبيق ذلك على كل مسارات `app/api/settings/*` بحيث أصبحت كل عمليات `GET/POST` تمر عبر repository بدل تكرار منطق Prisma/JSON.
+- تم أيضاً توحيد تخزين/قراءة `subscription_refunds` (ضمن مسارات الاشتراكات) عبر نفس الـ repository.
+
 ### 15) بدء ترحيل العقود إلى قاعدة البيانات (DB-backed contracts API)
 - إضافة مسارات API جديدة للعقود:
   - `GET/POST /api/contracts`

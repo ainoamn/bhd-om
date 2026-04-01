@@ -3,15 +3,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { prisma } from '@/lib/prisma';
+import { getJsonSetting, upsertJsonSetting } from '@/lib/server/repositories/appSettingsRepo';
 
 const KEY = 'dashboard_settings';
 
 export async function GET() {
   try {
-    const row = await prisma.appSetting.findUnique({ where: { key: KEY } });
-    const value = row?.value ? (JSON.parse(row.value) as Record<string, string[]>) : {};
-    return NextResponse.json(value);
+    return NextResponse.json(await getJsonSetting<Record<string, string[]>>(KEY, {}));
   } catch (e) {
     console.error('Dashboard settings get error:', e);
     return NextResponse.json({}, { status: 500 });
@@ -25,12 +23,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const body = await req.json().catch(() => ({}));
-    const value = typeof body === 'object' && body !== null ? JSON.stringify(body) : '{}';
-    await prisma.appSetting.upsert({
-      where: { key: KEY },
-      create: { key: KEY, value },
-      update: { value },
-    });
+    await upsertJsonSetting(KEY, typeof body === 'object' && body !== null ? body : {});
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('Dashboard settings save error:', e);
