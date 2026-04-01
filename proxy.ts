@@ -2,7 +2,7 @@ import createMiddleware from 'next-intl/middleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { routing } from './i18n/routing';
-import { canAccessRoute } from '@/lib/auth/permissions';
+import { canAccessRoute, getDefaultRouteForRole } from '@/lib/auth/permissions';
 
 const intlMiddleware = createMiddleware(routing);
 const authSecret =
@@ -62,7 +62,12 @@ export default async function proxy(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const locale = localeFromPath(pathname);
-    return NextResponse.redirect(new URL(`/${locale}/admin`, req.url));
+    const target = getDefaultRouteForRole(token.role);
+    const targetPath = `/${locale}${target}`;
+    if (pathname === targetPath) {
+      return NextResponse.redirect(new URL(`/${locale}/login`, req.url));
+    }
+    return NextResponse.redirect(new URL(targetPath, req.url));
   }
 
   return intlMiddleware(req);

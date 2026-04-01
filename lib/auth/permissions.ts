@@ -25,3 +25,28 @@ export function canAccessRoute(rawRole: unknown, pathname: string): boolean {
   const allowed = ROUTE_PERMISSIONS[role] || [];
   return allowed.some((prefix) => prefix === '*' || cleanPath === prefix || cleanPath.startsWith(prefix));
 }
+
+export function getDefaultRouteForRole(rawRole: unknown): string {
+  const role = normalizeRole(rawRole);
+  switch (role) {
+    case 'SUPER_ADMIN':
+    case 'ADMIN':
+    case 'COMPANY':
+    case 'ORG_MANAGER':
+    case 'SUBSCRIPTION_ADMIN':
+      return '/admin';
+    case 'ACCOUNTANT':
+      return '/admin/accounting';
+    case 'PROPERTY_MANAGER':
+      return '/admin/properties';
+    case 'SALES_AGENT':
+      return '/admin/bookings';
+    case 'OWNER':
+    case 'LANDLORD':
+      return '/admin/my-properties';
+    case 'CLIENT':
+      return '/admin/my-bookings';
+    default:
+      return '/admin';
+  }
+}

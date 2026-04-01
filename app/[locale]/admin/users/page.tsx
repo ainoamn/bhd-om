@@ -245,7 +245,11 @@ export default function UsersAdminPage() {
   const loadUsers = async () => {
     try {
       const res = await fetch('/api/admin/users');
-      if (res.status === 401) setRequireAdmin(true);
+      if (res.status === 401 || res.status === 403) {
+        setRequireAdmin(true);
+        setUsers([]);
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       const usersList = Array.isArray(data) ? data : [];
