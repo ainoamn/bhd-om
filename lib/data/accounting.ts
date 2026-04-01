@@ -183,7 +183,7 @@ async function hydrateAccountsFromServer(): Promise<void> {
   if (didHydrateAccountsFromServer || hydratingAccountsFromServer) return;
   hydratingAccountsFromServer = true;
   try {
-    const res = await fetch(ACCOUNTS_API_URL, { cache: 'no-store', credentials: 'include' });
+    const res = await fetch(`${ACCOUNTS_API_URL}?limit=1000&offset=0`, { cache: 'no-store', credentials: 'include' });
     if (!res.ok) return;
     const serverRows = (await res.json()) as ChartAccount[];
     if (!Array.isArray(serverRows)) return;
@@ -202,7 +202,7 @@ async function hydrateJournalFromServer(): Promise<void> {
   if (didHydrateJournalFromServer || hydratingJournalFromServer) return;
   hydratingJournalFromServer = true;
   try {
-    const res = await fetch(JOURNAL_API_URL, { cache: 'no-store', credentials: 'include' });
+    const res = await fetch(`${JOURNAL_API_URL}?limit=1000&offset=0`, { cache: 'no-store', credentials: 'include' });
     if (!res.ok) return;
     const serverRows = (await res.json()) as JournalEntry[];
     if (!Array.isArray(serverRows)) return;
@@ -240,7 +240,7 @@ async function hydrateDocumentsFromServer(): Promise<void> {
   if (didHydrateDocumentsFromServer || hydratingDocumentsFromServer) return;
   hydratingDocumentsFromServer = true;
   try {
-    const res = await fetch(DOCUMENTS_API_URL, { cache: 'no-store', credentials: 'include' });
+    const res = await fetch(`${DOCUMENTS_API_URL}?limit=1000&offset=0`, { cache: 'no-store', credentials: 'include' });
     if (!res.ok) return;
     const serverDocs = (await res.json()) as AccountingDocument[];
     if (!Array.isArray(serverDocs)) return;

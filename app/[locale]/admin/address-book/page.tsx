@@ -222,7 +222,7 @@ export default function AdminAddressBookPage() {
 
   useEffect(() => {
     let alive = true;
-    fetch('/api/accounting/documents', { cache: 'no-store', credentials: 'include' })
+    fetch('/api/accounting/documents?limit=1000&offset=0', { cache: 'no-store', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: AccountingDocument[]) => {
         if (!alive) return;
@@ -300,7 +300,7 @@ export default function AdminAddressBookPage() {
       let listFromApi: Contact[] = [];
       let firstApiOk = false;
       try {
-        const res = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
+        const res = await fetch('/api/address-book?limit=1000&offset=0', { credentials: 'include', cache: 'no-store' });
         firstApiOk = res.ok;
         if (res.ok) {
           const data = await res.json();
@@ -336,7 +336,7 @@ export default function AdminAddressBookPage() {
       let toPersist = merged;
       let serverIdSet = new Set(listFromApi.map((c) => c.id));
       try {
-        const resAfter = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
+        const resAfter = await fetch('/api/address-book?limit=1000&offset=0', { credentials: 'include', cache: 'no-store' });
         if (resAfter.ok) {
           const dataAfter = await resAfter.json();
           if (Array.isArray(dataAfter)) {

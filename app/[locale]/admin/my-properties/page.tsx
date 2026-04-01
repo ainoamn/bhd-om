@@ -26,7 +26,7 @@ export default function MyPropertiesPage() {
       return;
     }
     let alive = true;
-    fetch('/api/admin/properties', { credentials: 'include', cache: 'no-store' })
+    fetch('/api/admin/properties?limit=500&offset=0', { credentials: 'include', cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { list?: Array<{ serialNumber?: string }> } | null) => {
         if (!alive) return;

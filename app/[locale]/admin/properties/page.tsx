@@ -107,7 +107,7 @@ export default function PropertiesAdminPage() {
 
   useEffect(() => {
     if (!session?.user) return;
-    fetch('/api/admin/properties')
+    fetch('/api/admin/properties?limit=500&offset=0')
       .then((r) => r.json())
       .then((data) => (Array.isArray(data?.list) ? setDbProperties(data.list) : setDbProperties([])))
       .catch(() => setDbProperties([]));

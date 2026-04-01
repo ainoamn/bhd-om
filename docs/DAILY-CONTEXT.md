@@ -9,6 +9,17 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — تشغيل المتبقي التشغيلي (E2E + Migration check + Pagination wiring)
+
+- **E2E:** تم تثبيت متصفح Playwright (`npx playwright install chromium`) ثم تشغيل `npm run test:e2e`:
+  - النتيجة: الاختبارات تعمل وتنفّذ، لكنها `skipped` بسبب عدم توفر متغيرات اعتماد E2E في البيئة الحالية.
+- **Migration Production check:** تشغيل `npx prisma migrate deploy` أعاد `P3005` (قاعدة البيانات الحالية غير فارغة وتحتاج baseline قبل اعتماد migrate deploy).
+- **Pagination UI consumption:** ربط استهلاك الواجهات لمسارات pagination الجديدة بإرسال `limit/offset` صراحة في:
+  - `admin/properties`, `admin/my-properties`, `admin/my-contracts`
+  - `admin/address-book` (address-book + accounting-documents fetch)
+  - `lib/data/accounting.ts` (accounts/journal/documents hydration fetches)
+- **التحقق:** `npm run -s typecheck --if-present` نجح.
+
 ### جلسة 2026-03-30 — دفعة نهائية إغلاق المتبقي (server-first + pagination + e2e + indexes)
 
 - **إغلاق fallback محلي (قراءة):**
