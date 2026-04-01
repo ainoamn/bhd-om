@@ -27,12 +27,20 @@ function getSessionCookie(request: NextRequest): { name: string; value: string }
   return null;
 }
 
+function tokenUserId(token: Awaited<ReturnType<typeof getToken>>): string | null {
+  if (!token) return null;
+  const t = token as { sub?: string; id?: string };
+  const id = String(t.sub || t.id || '').trim();
+  return id || null;
+}
+
 export async function getAuthSubFromRequest(req: NextRequest): Promise<string | null> {
   let token = await getToken({
     req,
     secret: NEXTAUTH_SECRET,
   });
-  if (token?.sub) return token.sub as string;
+  const fromToken = tokenUserId(token);
+  if (fromToken) return fromToken;
 
   const fromRequest = getSessionCookie(req);
   if (fromRequest) {
@@ -40,7 +48,8 @@ export async function getAuthSubFromRequest(req: NextRequest): Promise<string | 
       headers: new Headers({ cookie: `${fromRequest.name}=${fromRequest.value}` }),
     } as NextRequest;
     token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
-    if (token?.sub) return token.sub as string;
+    const id = tokenUserId(token);
+    if (id) return id;
   }
 
   const cookieStore = await cookies();
@@ -50,7 +59,8 @@ export async function getAuthSubFromRequest(req: NextRequest): Promise<string | 
       const cookieHeader = `${sessionCookie.name}=${sessionCookie.value}`;
       const reqWithCookie = { headers: new Headers({ cookie: cookieHeader }) } as NextRequest;
       token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
-      if (token?.sub) return token.sub as string;
+      const id = tokenUserId(token);
+      if (id) return id;
     }
   }
 

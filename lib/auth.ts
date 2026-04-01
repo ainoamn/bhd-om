@@ -151,6 +151,7 @@ export const authOptions: NextAuthOptions = {
       const mutable = token as JWT;
       if (user) {
         mutable.id = user.id;
+        mutable.sub = user.id;
         mutable.role = (user as { role?: string }).role;
         mutable.dashboardType = (user as { dashboardType?: string }).dashboardType;
         mutable.phone = (user as { phone?: string }).phone;

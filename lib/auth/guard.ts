@@ -17,10 +17,13 @@ export async function requireAuth(req: NextRequest): Promise<GuardContext | Next
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  // NextAuth قد يضع معرف المستخدم في `id` مباشرة بعد Credentials دون تعبئة `sub` فوراً
+  const t = token as { sub?: string; id?: string };
+  const userId = String(t.sub || t.id || '').trim();
   return {
     token,
     role: normalizeRole(token.role),
-    userId: String(token.sub || ''),
+    userId,
   };
 }
 
