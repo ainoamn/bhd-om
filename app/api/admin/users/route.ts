@@ -2,6 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
 
+const ROLE_SERIAL_CODE: Record<string, string> = {
+  ADMIN: 'A',
+  SUPER_ADMIN: 'A',
+  CLIENT: 'C',
+  OWNER: 'L',
+  LANDLORD: 'L',
+  COMPANY: 'P',
+  ORG_MANAGER: 'M',
+  ACCOUNTANT: 'N',
+  PROPERTY_MANAGER: 'R',
+  SALES_AGENT: 'S',
+};
+
+function isValidSerialNumber(value: string | null | undefined): boolean {
+  const serial = String(value || '').trim().toUpperCase();
+  return /^USR-[A-Z]-\d{4}-\d{4,5}$/.test(serial);
+}
+
+async function ensureUserSerialNumber(user: { id: string; role: string; serialNumber: string | null | undefined }) {
+  if (isValidSerialNumber(user.serialNumber)) return String(user.serialNumber);
+  const code = ROLE_SERIAL_CODE[String(user.role || '').toUpperCase()] || 'C';
+  const year = new Date().getFullYear();
+  const key = `USR-${code}-${year}`;
+  const counter = await prisma.serialCounter.upsert({
+    where: { key },
+    create: { key, lastValue: 1 },
+    update: { lastValue: { increment: 1 } },
+  });
+  const serialNumber = `USR-${code}-${year}-${String(counter.lastValue).padStart(4, '0')}`;
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { serialNumber },
+  });
+  return serialNumber;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth(req);
@@ -70,12 +106,13 @@ export async function GET(req: NextRequest) {
           },
         });
       }
+      const ensuredSerial = await ensureUserSerialNumber({ id: me.id, role: me.role, serialNumber: me.serialNumber });
       const sub = me.subscriptions?.[0];
       return NextResponse.json(
         [
           {
             id: me.id,
-            serialNumber: me.serialNumber,
+            serialNumber: ensuredSerial,
             name: me.name,
             email: me.email,
             phone: me.phone,
@@ -130,11 +167,12 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    let list = users.map((u) => {
+    let list = await Promise.all(users.map(async (u) => {
+      const ensuredSerial = await ensureUserSerialNumber({ id: u.id, role: u.role, serialNumber: u.serialNumber });
       const sub = u.subscriptions?.[0];
       return {
         id: u.id,
-        serialNumber: u.serialNumber,
+        serialNumber: ensuredSerial,
         name: u.name,
         email: u.email,
         phone: u.phone,
@@ -143,7 +181,7 @@ export async function GET(req: NextRequest) {
         plan: sub?.plan ? { id: sub.plan.id, code: sub.plan.code, nameAr: sub.plan.nameAr, nameEn: sub.plan.nameEn, priceMonthly: sub.plan.priceMonthly, currency: sub.plan.currency } : null,
         subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
       };
-    });
+    }));
 
     // حماية عملية: إذا رجعت القائمة فارغة رغم وجود جلسة صحيحة، أظهر المستخدم الحالي على الأقل.
     if (list.length === 0 && authUserId) {
@@ -172,11 +210,12 @@ export async function GET(req: NextRequest) {
         },
       });
       if (me) {
+        const ensuredSerial = await ensureUserSerialNumber({ id: me.id, role: me.role, serialNumber: me.serialNumber });
         const sub = me.subscriptions?.[0];
         list = [
           {
             id: me.id,
-            serialNumber: me.serialNumber,
+            serialNumber: ensuredSerial,
             name: me.name,
             email: me.email,
             phone: me.phone,
