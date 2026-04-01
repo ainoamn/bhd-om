@@ -31,6 +31,7 @@ const STORAGE_KEY = 'bhd_company_data';
 const API_URL = '/api/settings/company-data';
 let didHydrateFromServer = false;
 let hydratingFromServer = false;
+let companyStore: CompanyData | null = null;
 
 const DEFAULT: CompanyData = {
   logoUrl: '/logo-bhd.png',
@@ -61,6 +62,7 @@ function getStored(): CompanyData {
       .then((payload) => {
         if (!payload || typeof payload !== 'object') return;
         const next = { ...DEFAULT, ...(payload as Partial<CompanyData>) };
+        companyStore = next;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         didHydrateFromServer = true;
       })
@@ -69,20 +71,14 @@ function getStored(): CompanyData {
         hydratingFromServer = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<CompanyData>;
-      return { ...DEFAULT, ...parsed };
-    }
-  } catch {}
-  return { ...DEFAULT };
+  return companyStore ? { ...companyStore } : { ...DEFAULT };
 }
 
 function saveStored(data: CompanyData): void {
   if (typeof window === 'undefined') return;
   try {
     const next = { ...data, updatedAt: new Date().toISOString() };
+    companyStore = next;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
     window.dispatchEvent(new CustomEvent('bhd_company_data_updated'));
@@ -93,6 +89,15 @@ function saveStored(data: CompanyData): void {
       body: JSON.stringify(next),
     }).catch(() => {});
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void getStored();
+    }
+  });
 }
 
 /** الحصول على بيانات الشركة */

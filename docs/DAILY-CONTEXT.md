@@ -9,6 +9,18 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — دفعة إضافية: إغلاق fallback محلي في طبقات إعدادات متبقية
+
+- **ما تم:** تحويل القراءة إلى `server-first` في ملفات إعدادات إضافية داخل `lib/data`:
+  - `bankAccounts.ts`
+  - `companyData.ts`
+  - `ads.ts`
+  - `contactCategoryPermissions.ts`
+  - `printOptions.ts`
+  - `documentTemplates.ts`
+- **التغيير:** عدم استخدام `localStorage` كمرجع قراءة أساسي؛ الاعتماد على مخزن ذاكرة + Hydration من API، مع إبقاء `localStorage` للكتابة/الإشعارات بين التبويبات.
+- **التحقق:** `npm run -s typecheck --if-present` نجح.
+
 ### جلسة 2026-03-30 — دفعة إضافية: server-first reads + pagination للاشتراكات
 
 - **ما تم:** تقليل اعتماد القراءة من `localStorage` في إعدادات الواجهة:

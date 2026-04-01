@@ -50,6 +50,7 @@ const STORAGE_KEY = 'bhd_bank_accounts';
 const API_URL = '/api/settings/bank-accounts';
 let didHydrateFromServer = false;
 let hydratingFromServer = false;
+let bankStore: BankAccount[] = [];
 
 async function hydrateFromServer(): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -60,6 +61,7 @@ async function hydrateFromServer(): Promise<void> {
     if (!res.ok) return;
     const list = (await res.json()) as BankAccount[];
     if (!Array.isArray(list)) return;
+    bankStore = list;
     saveStored(list, false);
     didHydrateFromServer = true;
   } catch {
@@ -82,21 +84,26 @@ function syncToServer(accounts: BankAccount[]): void {
 function getStored(): BankAccount[] {
   if (typeof window === 'undefined') return [];
   void hydrateFromServer();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return bankStore;
 }
 
 function saveStored(accounts: BankAccount[], sync = true): void {
   if (typeof window === 'undefined') return;
   try {
+    bankStore = accounts;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
     if (sync) syncToServer(accounts);
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void hydrateFromServer();
+    }
+  });
 }
 
 function generateId(): string {

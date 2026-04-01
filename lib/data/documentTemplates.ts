@@ -134,38 +134,31 @@ const DEFAULT_TEMPLATES: Record<TemplateType, DocumentTemplateSettings[]> = {
   ],
 };
 
+let templatesStore: Record<TemplateType, DocumentTemplateSettings[]> = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+
 function getStored(): Record<TemplateType, DocumentTemplateSettings[]> {
   if (typeof window === 'undefined') return DEFAULT_TEMPLATES;
   void hydrateFromServer();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    const result: Record<TemplateType, DocumentTemplateSettings[]> = {} as Record<TemplateType, DocumentTemplateSettings[]>;
-    for (const type of Object.keys(DEFAULT_TEMPLATES) as TemplateType[]) {
-      const stored = parsed[type];
-      if (Array.isArray(stored) && stored.length > 0) {
-        const defaults = DEFAULT_TEMPLATES[type];
-        const merged = stored.map((t) => ({ variant: 'classic' as const, headerLayout: 'left' as const, bilingual: false, logoSize: 80, ...defaults[0], ...t }));
-        const existingIds = new Set(merged.map((m) => m.id));
-        const toAdd = defaults.filter((d) => !existingIds.has(d.id));
-        result[type] = [...merged, ...toAdd];
-      } else {
-        result[type] = DEFAULT_TEMPLATES[type];
-      }
-    }
-    return result;
-  } catch {
-    return DEFAULT_TEMPLATES;
-  }
+  return templatesStore;
 }
 
 function saveStored(data: Record<TemplateType, DocumentTemplateSettings[]>, sync = true): void {
   if (typeof window === 'undefined') return;
   try {
+    templatesStore = data;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
     if (sync) syncToServer(data);
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void hydrateFromServer();
+    }
+  });
 }
 
 /** الحصول على قوالب نوع معين */

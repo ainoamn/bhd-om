@@ -63,25 +63,6 @@ const defaultAds: Ad[] = [
   },
 ];
 
-function loadFromStorage(): Ad[] {
-  if (typeof window === 'undefined') return JSON.parse(JSON.stringify(defaultAds));
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Ad[];
-      return parsed.map((a) => ({
-        ...defaultAds[0],
-        ...a,
-        position: (a.position ?? 'below_header') as AdPosition,
-        floatingPosition: (a.floatingPosition ?? 'right') as FloatingPosition,
-      }));
-    }
-  } catch {
-    // ignore
-  }
-  return JSON.parse(JSON.stringify(defaultAds));
-}
-
 async function hydrateFromServer(): Promise<void> {
   if (typeof window === 'undefined') return;
   if (didHydrateFromServer || hydratingFromServer) return;
@@ -118,13 +99,13 @@ function saveToStorage(): void {
   }
 }
 
-let adsStore: Ad[] = loadFromStorage();
+let adsStore: Ad[] = JSON.parse(JSON.stringify(defaultAds));
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY && e.newValue) {
-      adsStore = JSON.parse(e.newValue);
-      window.dispatchEvent(new CustomEvent(EVENT_NAME));
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void hydrateFromServer();
     }
   });
 }

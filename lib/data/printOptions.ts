@@ -19,6 +19,7 @@ const STORAGE_KEY = 'bhd_print_options';
 const API_URL = '/api/settings/print-options';
 let didHydrateFromServer = false;
 let hydratingFromServer = false;
+let printOptionsStore = { ...DEFAULT_PRINT_OPTIONS };
 
 async function hydrateFromServer(): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -30,6 +31,7 @@ async function hydrateFromServer(): Promise<void> {
     const data = (await res.json()) as Partial<typeof DEFAULT_PRINT_OPTIONS>;
     if (!data || typeof data !== 'object') return;
     const next = { ...DEFAULT_PRINT_OPTIONS, ...data };
+    printOptionsStore = next;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     didHydrateFromServer = true;
   } catch {
@@ -52,13 +54,7 @@ function syncToServer(data: typeof DEFAULT_PRINT_OPTIONS): void {
 export function getStoredPrintOptions(): typeof DEFAULT_PRINT_OPTIONS {
   if (typeof window === 'undefined') return DEFAULT_PRINT_OPTIONS;
   void hydrateFromServer();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return { ...DEFAULT_PRINT_OPTIONS, ...parsed };
-  } catch {
-    return DEFAULT_PRINT_OPTIONS;
-  }
+  return printOptionsStore;
 }
 
 export function savePrintOptions(opts: Partial<typeof DEFAULT_PRINT_OPTIONS>): void {
@@ -66,8 +62,18 @@ export function savePrintOptions(opts: Partial<typeof DEFAULT_PRINT_OPTIONS>): v
   try {
     const current = getStoredPrintOptions();
     const next = { ...current, ...opts };
+    printOptionsStore = next;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
     syncToServer(next);
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void hydrateFromServer();
+    }
+  });
 }

@@ -10,6 +10,17 @@
 
 ## ما تم تنفيذه (منجز)
 
+### 25) إغلاق fallback المحلي في طبقات إعدادات إضافية
+- تم تحويل القراءة في ملفات إعدادات إضافية من local fallback إلى نمط `server-first`:
+  - `bankAccounts`
+  - `companyData`
+  - `ads`
+  - `contactCategoryPermissions`
+  - `printOptions`
+  - `documentTemplates`
+- السلوك الحالي: Hydration من API + مخزن ذاكرة محلي أثناء الجلسة، مع بقاء `localStorage` كطبقة كتابة/إشعارات فقط.
+- الأثر: تقليل احتمالية عرض قيم متصفح قديمة عند اختلاف الأجهزة أو بعد reset.
+
 ### 24) تعزيز server-first في إعدادات الواجهة + Pagination للاشتراكات
 - في `siteSettings` و `dashboardSettings` تم تقليل/إلغاء fallback المحلي كمصدر قراءة، واعتماد الخادم كمصدر الحقيقة مع إبقاء localStorage فقط للكتابة والأحداث بين التبويبات.
 - إضافة pagination إلى `GET /api/subscriptions` عبر `limit/offset` مع headers:

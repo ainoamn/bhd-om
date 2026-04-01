@@ -32,20 +32,6 @@ export type ContactCategoryOrCompany = ContactCategory | 'COMPANY';
 
 export type PermissionsStore = Partial<Record<PermissionRole, ContactCategoryOrCompany[]>>;
 
-function loadFromStorage(): PermissionsStore {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as PermissionsStore;
-      return parsed;
-    }
-  } catch {
-    // ignore
-  }
-  return {};
-}
-
 async function hydrateFromServer(): Promise<void> {
   if (typeof window === 'undefined') return;
   if (didHydrateFromServer || hydratingFromServer) return;
@@ -82,13 +68,13 @@ function saveToStorage(data: PermissionsStore): void {
   }
 }
 
-let store: PermissionsStore = loadFromStorage();
+let store: PermissionsStore = {};
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY && e.newValue) {
-      store = JSON.parse(e.newValue) as PermissionsStore;
-      window.dispatchEvent(new CustomEvent(PERMISSIONS_EVENT));
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void hydrateFromServer();
     }
   });
 }
