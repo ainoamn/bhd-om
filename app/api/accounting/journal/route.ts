@@ -5,11 +5,7 @@ import {
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
-
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=20, stale-while-revalidate=90',
-  Vary: 'Cookie, Authorization',
-};
+import { CACHE_ACCOUNTING_JOURNAL_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export async function GET(request: NextRequest) {
   const role = await getAccountingRoleFromRequest(request);
@@ -29,7 +25,8 @@ export async function GET(request: NextRequest) {
     const paged = limit > 0 ? entries.slice(offset, offset + limit) : entries;
     return NextResponse.json(paged, {
       headers: {
-        ...READ_CACHE_HEADERS,
+        'Cache-Control': CACHE_ACCOUNTING_JOURNAL_GET,
+        Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

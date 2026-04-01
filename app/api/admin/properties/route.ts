@@ -5,12 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDataScope, propertyScopeWhere, hasAdminPermission } from '@/lib/auth/adminPermissions';
 import { requireAuth } from '@/lib/auth/guard';
+import { CACHE_ADMIN_PROPERTIES_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export const runtime = 'nodejs';
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
-  Vary: 'Cookie, Authorization',
-};
 
 export async function GET(req: NextRequest) {
   try {
@@ -84,7 +81,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ list }, {
       headers: {
-        ...READ_CACHE_HEADERS,
+        'Cache-Control': CACHE_ADMIN_PROPERTIES_GET,
+        Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

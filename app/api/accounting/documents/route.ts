@@ -7,11 +7,7 @@ import {
   getAccountsFromDb,
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
-
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
-  Vary: 'Cookie, Authorization',
-};
+import { CACHE_ACCOUNTING_DOCUMENTS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 async function postDocumentToDb(doc: any) {
   const accounts = await getAccountsFromDb();
@@ -113,7 +109,8 @@ export async function GET(request: NextRequest) {
     const paged = limit > 0 ? docs.slice(offset, offset + limit) : docs;
     return NextResponse.json(paged, {
       headers: {
-        ...READ_CACHE_HEADERS,
+        'Cache-Control': CACHE_ACCOUNTING_DOCUMENTS_GET,
+        Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

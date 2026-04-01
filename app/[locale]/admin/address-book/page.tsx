@@ -204,31 +204,20 @@ export default function AdminAddressBookPage() {
 
   useEffect(() => {
     let alive = true;
-    fetch('/api/bookings', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: PropertyBooking[]) => {
+    Promise.all([
+      fetch('/api/bookings', { credentials: 'include' }).then((r) => (r.ok ? r.json() : [])),
+      fetch('/api/accounting/documents?limit=1000&offset=0', { credentials: 'include' }).then((r) =>
+        r.ok ? r.json() : []
+      ),
+    ])
+      .then(([bookingsList, docsList]) => {
         if (!alive) return;
-        setServerBookings(Array.isArray(list) ? list : []);
+        setServerBookings(Array.isArray(bookingsList) ? (bookingsList as PropertyBooking[]) : []);
+        setServerDocuments(Array.isArray(docsList) ? (docsList as AccountingDocument[]) : []);
       })
       .catch(() => {
         if (!alive) return;
         setServerBookings([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/accounting/documents?limit=1000&offset=0', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: AccountingDocument[]) => {
-        if (!alive) return;
-        setServerDocuments(Array.isArray(list) ? list : []);
-      })
-      .catch(() => {
-        if (!alive) return;
         setServerDocuments([]);
       });
     return () => {

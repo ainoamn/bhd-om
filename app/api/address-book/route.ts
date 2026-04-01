@@ -15,11 +15,7 @@ import {
   deleteOtherPersonalRowsSamePhone,
   getDuplicateDropContactIdsFromDbRows,
 } from '@/lib/server/addressBookDedupe';
-
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=20, stale-while-revalidate=90',
-  Vary: 'Cookie, Authorization',
-};
+import { CACHE_ADDRESS_BOOK_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export async function GET(req: NextRequest) {
   try {
@@ -94,7 +90,8 @@ export async function GET(req: NextRequest) {
     const paged = limit > 0 ? contacts.slice(offset, offset + limit) : contacts;
     return NextResponse.json(paged, {
       headers: {
-        ...READ_CACHE_HEADERS,
+        'Cache-Control': CACHE_ADDRESS_BOOK_GET,
+        Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

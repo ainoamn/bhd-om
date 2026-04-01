@@ -674,3 +674,26 @@
 - **ملاحظات للجلسة القادمة:**
   - تنفيذ قياس قبل/بعد عبر المتصفح (Network panel) على صفحات: address-book, bookings, contracts, properties.
   - ضبط `max-age` لكل endpoint حسب نمط تغيّر البيانات الفعلي.
+
+---
+
+### جلسة 2026-04-01 — تنفيذ خطة المراقبة والقياس وضبط الكاش وتثبيت الأداء
+
+- **ما تم:**
+  - التحقق: المستودع على `f9b01ab` ثم تطبيق **stabilization**: توحيد قيم `Cache-Control` في `lib/server/httpCacheHeaders.ts` وربطها بجميع مسارات القراءة المعنية.
+  - ضبط `max-age` / `stale-while-revalidate` حسب نوع البيانات (حجوزات أقصر، عقارات أطول، دليل حسابات الأطول، اشتراكات أدمن بحذر).
+  - موازاة جلب الحجوزات ومستندات المحاسبة في `address-book` دفعة واحدة (`Promise.all`) لتقليل التسلسل الشبكي.
+  - إضافة `tests/e2e/perf-navigation.spec.ts` وأمر `npm run test:e2e:perf` لطباعة زمن التحميل وعدد طلبات `/api/*` (يتطلب تشغيل الخادم + متغيرات `E2E_ADMIN_*`).
+  - `npm run build` ناجح؛ `playwright test` للـ perf + critical: **skipped** محلياً بدون بيانات E2E (سلوك متوقع).
+
+- **الملفات المُعدّلة/الجديدة:**
+  - `lib/server/httpCacheHeaders.ts` (جديد)
+  - `app/api/bookings/route.ts`, `app/api/contracts/route.ts`, `app/api/address-book/route.ts`, `app/api/admin/properties/route.ts`, `app/api/user/linked-contact/route.ts`
+  - `app/api/accounting/documents/route.ts`, `app/api/accounting/journal/route.ts`, `app/api/accounting/accounts/route.ts`
+  - `app/api/me/accounting-documents/route.ts`, `app/api/subscriptions/route.ts`
+  - `app/[locale]/admin/address-book/page.tsx`
+  - `tests/e2e/perf-navigation.spec.ts`, `package.json`
+  - `docs/DEVELOPMENT-FIXES-AND-UPGRADES.md`, `docs/DAILY-CONTEXT.md`
+
+- **ملاحظات للجلسة القادمة:**
+  - لتسجيل أرقام قياس حقيقية: `npm run build` ثم `npm run start`، ثم في طرف جديد `npm run test:e2e:perf` مع `E2E_ADMIN_EMAIL` و`E2E_ADMIN_PASSWORD` في البيئة.

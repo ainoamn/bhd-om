@@ -9,11 +9,7 @@ import { getDataScope } from '@/lib/auth/adminPermissions';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
 import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
-
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
-  Vary: 'Cookie, Authorization',
-};
+import { CACHE_BOOKINGS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export async function GET(req: NextRequest) {
   try {
@@ -96,7 +92,8 @@ export async function GET(req: NextRequest) {
     const paged = limit > 0 ? bookings.slice(offset, offset + limit) : bookings;
     return NextResponse.json(paged, {
       headers: {
-        ...READ_CACHE_HEADERS,
+        'Cache-Control': CACHE_BOOKINGS_GET,
+        Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(bookings.length),
         'X-Limit': String(limit || bookings.length),
         'X-Offset': String(offset),

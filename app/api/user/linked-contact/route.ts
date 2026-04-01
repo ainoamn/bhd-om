@@ -10,11 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
 import { deleteOtherAddressBookRowsForUser, deleteOtherPersonalRowsSamePhone } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
-
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
-  Vary: 'Cookie, Authorization',
-};
+import { CACHE_LINKED_CONTACT_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 function normalizeDigitsPhone(raw: string): string {
   let digits = raw.replace(/\D/g, '');
@@ -41,14 +37,18 @@ export async function GET(req: NextRequest) {
 
     const row = await findAddressBookRowByUserId(sub);
     if (!row) {
-      return NextResponse.json(null, { headers: READ_CACHE_HEADERS });
+      return NextResponse.json(null, {
+        headers: { 'Cache-Control': CACHE_LINKED_CONTACT_GET, Vary: HTTP_CACHE_VARY_AUTH },
+      });
     }
 
     const data = { ...((row.data as Record<string, unknown>) || {}) };
     data.serialNumber = user.serialNumber;
     data.userId = sub;
     data.linkedUserId = row.linkedUserId ?? sub;
-    return NextResponse.json(data, { headers: READ_CACHE_HEADERS });
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': CACHE_LINKED_CONTACT_GET, Vary: HTTP_CACHE_VARY_AUTH },
+    });
   } catch (e) {
     console.error('linked-contact GET error:', e);
     return NextResponse.json({ error: 'Failed to load contact' }, { status: 500 });

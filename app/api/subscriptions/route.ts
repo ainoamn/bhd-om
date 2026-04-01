@@ -8,14 +8,11 @@ import { prisma } from '@/lib/prisma';
 import { getDocumentByIdFromDb } from '@/lib/accounting/data/dbService';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { getJsonSetting, upsertJsonSetting } from '@/lib/server/repositories/appSettingsRepo';
+import { CACHE_ADMIN_SUBSCRIPTIONS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=10, stale-while-revalidate=30',
-  Vary: 'Cookie, Authorization',
-};
 
 const SUB_COL_MAP: Record<string, string[]> = {
   id: ['id'],
@@ -51,7 +48,7 @@ export async function GET(req: NextRequest) {
     const subTableName = tableSub?.[0]?.table_name;
     if (!subTableName) {
       return NextResponse.json({ list: [] }, {
-        headers: READ_CACHE_HEADERS,
+        headers: { 'Cache-Control': CACHE_ADMIN_SUBSCRIPTIONS_GET, Vary: HTTP_CACHE_VARY_AUTH },
       });
     }
 
@@ -71,7 +68,7 @@ export async function GET(req: NextRequest) {
     }
     if (selectCols.length < 4) {
       return NextResponse.json({ list: [] }, {
-        headers: READ_CACHE_HEADERS,
+        headers: { 'Cache-Control': CACHE_ADMIN_SUBSCRIPTIONS_GET, Vary: HTTP_CACHE_VARY_AUTH },
       });
     }
 
@@ -213,7 +210,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ list: paged }, {
       headers: {
-        ...READ_CACHE_HEADERS,
+        'Cache-Control': CACHE_ADMIN_SUBSCRIPTIONS_GET,
+        Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

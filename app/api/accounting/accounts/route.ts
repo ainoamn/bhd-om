@@ -3,11 +3,7 @@ import { getAccountsFromDb } from '@/lib/accounting/data/dbService';
 import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 import { prisma } from '@/lib/prisma';
-
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
-  Vary: 'Cookie, Authorization',
-};
+import { CACHE_ACCOUNTING_ACCOUNTS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export async function GET(request: NextRequest) {
   const role = await getAccountingRoleFromRequest(request);
@@ -26,7 +22,8 @@ export async function GET(request: NextRequest) {
     const paged = limit > 0 ? accounts.slice(offset, offset + limit) : accounts;
     return NextResponse.json(paged, {
       headers: {
-        ...READ_CACHE_HEADERS,
+        'Cache-Control': CACHE_ACCOUNTING_ACCOUNTS_GET,
+        Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
         'X-Offset': String(offset),

@@ -415,3 +415,8 @@
 - التحقق الفني بعد الإغلاق:
   - `ReadLints` بدون أخطاء
   - `npm run build` ناجح بالكامل
+
+### Stabilization — قيم كاش دقيقة + موازاة جلب دفتر العناوين + قياس E2E
+- **مصدر موحّد لـ Cache-Control:** `lib/server/httpCacheHeaders.ts` (حجوزات أقصر، عقارات أطول، دليل حسابات الأطول).
+- **دفتر العناوين:** جلب `/api/bookings` و`/api/accounting/documents` بالتوازي عبر `Promise.all` في `app/[locale]/admin/address-book/page.tsx`.
+- **قياس Playwright:** `tests/e2e/perf-navigation.spec.ts` وأمر `npm run test:e2e:perf` — يطبع زمن التحميل وعدد طلبات `/api/*` عند تعيين `E2E_ADMIN_EMAIL` و`E2E_ADMIN_PASSWORD` والتشغيل ضد خادم يعمل (مثلاً `npm run start` على المنفذ 3000).

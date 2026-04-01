@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { getDocumentsFromDb } from '@/lib/accounting/data/dbService';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
+import { CACHE_ME_ACCOUNTING_DOCS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-const READ_CACHE_HEADERS = {
-  'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
-  Vary: 'Cookie, Authorization',
-};
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,14 +33,14 @@ export async function GET(req: NextRequest) {
     const contactId = row?.contactId || null;
     if (!contactId) {
       return NextResponse.json([], {
-        headers: READ_CACHE_HEADERS,
+        headers: { 'Cache-Control': CACHE_ME_ACCOUNTING_DOCS_GET, Vary: HTTP_CACHE_VARY_AUTH },
       });
     }
 
     const docs = await getDocumentsFromDb({ type: allowedType });
     const mine = docs.filter((d) => String((d as { contactId?: string | null }).contactId || '') === contactId);
     return NextResponse.json(mine, {
-      headers: READ_CACHE_HEADERS,
+      headers: { 'Cache-Control': CACHE_ME_ACCOUNTING_DOCS_GET, Vary: HTTP_CACHE_VARY_AUTH },
     });
   } catch (e) {
     console.error('GET /api/me/accounting-documents:', e);
