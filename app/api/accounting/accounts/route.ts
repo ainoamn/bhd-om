@@ -11,9 +11,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized: login required' }, { status: 401 });
   }
   try {
+    const { searchParams } = new URL(request.url);
+    const limitRaw = Number(searchParams.get('limit') || '0');
+    const offsetRaw = Number(searchParams.get('offset') || '0');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
     const accounts = await getAccountsFromDb();
-    return NextResponse.json(accounts, {
-      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    const totalCount = accounts.length;
+    const paged = limit > 0 ? accounts.slice(offset, offset + limit) : accounts;
+    return NextResponse.json(paged, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        Pragma: 'no-cache',
+        'X-Total-Count': String(totalCount),
+        'X-Limit': String(limit || totalCount),
+        'X-Offset': String(offset),
+      },
     });
   } catch (err) {
     console.error('Accounting accounts GET:', err);

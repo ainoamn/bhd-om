@@ -22,6 +22,7 @@ let didHydrateFromServer = false;
 let hydratingFromServer = false;
 let didBulkSyncToServer = false;
 let bulkSyncInProgress = false;
+let contractChecksStore: { contractId: string; checks: ContractCheckEntry[] }[] = [];
 
 function getStored(): { contractId: string; checks: ContractCheckEntry[] }[] {
   if (typeof window === 'undefined') return [];
@@ -31,6 +32,7 @@ function getStored(): { contractId: string; checks: ContractCheckEntry[] }[] {
       .then((r) => (r.ok ? r.json() : null))
       .then((payload) => {
         if (!Array.isArray(payload)) return;
+        contractChecksStore = payload as { contractId: string; checks: ContractCheckEntry[] }[];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         didHydrateFromServer = true;
       })
@@ -39,17 +41,13 @@ function getStored(): { contractId: string; checks: ContractCheckEntry[] }[] {
         hydratingFromServer = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return contractChecksStore;
 }
 
 function save(list: { contractId: string; checks: ContractCheckEntry[] }[]) {
   if (typeof window === 'undefined') return;
   try {
+    contractChecksStore = list;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     fetch(API_URL, {
       method: 'POST',
@@ -58,6 +56,15 @@ function save(list: { contractId: string; checks: ContractCheckEntry[] }[]) {
       body: JSON.stringify(list),
     }).catch(() => {});
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void getStored();
+    }
+  });
 }
 
 function syncAllToServerOnce(): void {

@@ -279,6 +279,7 @@ let didBulkSyncContracts = false;
 let bulkSyncContractsInProgress = false;
 let didHydrateContractsFromServer = false;
 let hydrateContractsInProgress = false;
+let contractsStore: RentalContract[] = [];
 
 function syncContractToServer(contract: RentalContract): void {
   if (typeof window === 'undefined') return;
@@ -293,17 +294,13 @@ function syncContractToServer(contract: RentalContract): void {
 
 function getStored(): RentalContract[] {
   if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return contractsStore;
 }
 
 function save(list: RentalContract[]) {
   if (typeof window === 'undefined') return;
   try {
+    contractsStore = list;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   } catch {}
 }

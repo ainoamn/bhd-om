@@ -10,6 +10,33 @@
 
 ## ما تم تنفيذه (منجز)
 
+### 37) إغلاق fallback المحلي في الطبقات المتبقية + إكمال pagination
+- إغلاق fallback القراءة من `localStorage` في:
+  - `lib/data/bookingTerms.ts`
+  - `lib/data/propertyLandlords.ts`
+  - `lib/data/bookingDocuments.ts`
+  - `lib/data/bookingChecks.ts`
+  - `lib/data/contractChecks.ts`
+  - `lib/data/bookings.ts`
+  - `lib/data/contracts.ts`
+  - `lib/data/addressBook.ts`
+  - `lib/data/accounting.ts` (Fiscal settings read path)
+- مراجعة شاشة الإدارة الكبيرة:
+  - `app/[locale]/admin/address-book/page.tsx` تم منع fallback العرض إلى المحلي عند فشل API (إفراغ القائمة بدل عرض بيانات محلية قديمة).
+- توسيع pagination بإضافة `limit/offset` + headers (`X-Total-Count`, `X-Limit`, `X-Offset`) في:
+  - `GET /api/admin/properties`
+  - `GET /api/address-book`
+  - `GET /api/accounting/documents`
+  - `GET /api/accounting/journal`
+  - `GET /api/accounting/accounts`
+- توسيع E2E:
+  - تحديث `tests/e2e/critical-flows.spec.ts` باختبار مسارات الأدوار (Admin/Accountant/Owner/Client) عند توفر متغيرات البيئة.
+- مراجعة فهارس DB:
+  - إضافة فهارس في `prisma/schema.prisma`:
+    - `Property @@index([isArchived, createdAt])`
+    - `Subscription @@index([endAt])`
+    - `SubscriptionChangeRequest @@index([subscriptionId, status])`
+
 ### 25) إغلاق fallback المحلي في طبقات إعدادات إضافية
 - تم تحويل القراءة في ملفات إعدادات إضافية من local fallback إلى نمط `server-first`:
   - `bankAccounts`

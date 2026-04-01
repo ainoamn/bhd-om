@@ -159,6 +159,7 @@ let didHydrateDocumentsFromServer = false;
 let hydratingDocumentsFromServer = false;
 let didHydrateFiscalFromServer = false;
 let hydratingFiscalFromServer = false;
+let fiscalSettingsStore: FiscalSettings = { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 };
 
 function mergeByLatest<T extends { id: string; updatedAt?: string; createdAt?: string }>(localRows: T[], serverRows: T[]): T[] {
   const map = new Map<string, T>();
@@ -270,6 +271,7 @@ async function hydrateFiscalFromServer(): Promise<void> {
       currency: p.currency ?? 'OMR',
       vatRate: p.vatRate ?? 0,
     };
+    fiscalSettingsStore = next;
     localStorage.setItem(FISCAL_KEY, JSON.stringify(next));
     didHydrateFiscalFromServer = true;
     try {
@@ -467,17 +469,14 @@ export interface FiscalSettings {
 export function getFiscalSettings(): FiscalSettings {
   if (typeof window === 'undefined') return { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 };
   void hydrateFiscalFromServer();
-  try {
-    const raw = localStorage.getItem(FISCAL_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 };
+  return fiscalSettingsStore;
 }
 
 export function saveFiscalSettings(settings: Partial<FiscalSettings>): FiscalSettings {
   const current = getFiscalSettings();
   const next = { ...current, ...settings };
   if (typeof window !== 'undefined') {
+    fiscalSettingsStore = next;
     localStorage.setItem(FISCAL_KEY, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent('storage', { key: FISCAL_KEY }));
     fetch(FISCAL_API_URL, {

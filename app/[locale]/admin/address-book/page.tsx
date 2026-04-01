@@ -307,7 +307,13 @@ export default function AdminAddressBookPage() {
           if (Array.isArray(data)) listFromApi = data as Contact[];
         }
       } catch {
-        // الخادم غير متاح — نعتمد التخزين المحلي فقط
+        // ignore
+      }
+      if (!firstApiOk) {
+        if (!cancelled) {
+          setContacts([]);
+        }
+        return;
       }
       const localContacts = getAllContacts(true);
       const merged = mergeAddressBookApiWithLocal(listFromApi, localContacts);
@@ -325,9 +331,7 @@ export default function AdminAddressBookPage() {
           continue;
         }
         const pushToServer = !apiC || contactRevisionMs(c) > contactRevisionMs(apiC);
-        if (pushToServer) {
-          await syncContactToAddressBookApi(c);
-        }
+        if (pushToServer) await syncContactToAddressBookApi(c);
       }
       let toPersist = merged;
       let serverIdSet = new Set(listFromApi.map((c) => c.id));

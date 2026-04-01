@@ -105,6 +105,7 @@ const STORAGE_KEY = 'bhd_booking_terms';
 const API_URL = '/api/settings/booking-terms';
 let didHydrateFromServer = false;
 let hydratingFromServer = false;
+let bookingTermsStore: Record<string, PropertyBookingTerms> = {};
 
 function getStoredTerms(): Record<string, PropertyBookingTerms> {
   if (typeof window === 'undefined') return {};
@@ -114,6 +115,7 @@ function getStoredTerms(): Record<string, PropertyBookingTerms> {
       .then((r) => (r.ok ? r.json() : null))
       .then((payload) => {
         if (!payload || typeof payload !== 'object') return;
+        bookingTermsStore = payload as Record<string, PropertyBookingTerms>;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         didHydrateFromServer = true;
       })
@@ -122,17 +124,13 @@ function getStoredTerms(): Record<string, PropertyBookingTerms> {
         hydratingFromServer = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return bookingTermsStore;
 }
 
 function saveTerms(terms: Record<string, PropertyBookingTerms>): void {
   if (typeof window === 'undefined') return;
   try {
+    bookingTermsStore = terms;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(terms));
     fetch(API_URL, {
       method: 'POST',
@@ -141,6 +139,15 @@ function saveTerms(terms: Record<string, PropertyBookingTerms>): void {
       body: JSON.stringify(terms),
     }).catch(() => {});
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void getStoredTerms();
+    }
+  });
 }
 
 const DEFAULT_TERMS_AR = '• مبلغ الحجز (العربون) لا يقل عن إيجار شهر واحد، أو حسب الشروط التي تحددها إدارة العقار.\n• يجب على المستأجر دفع مبلغ الحجز قبل إتمام عملية الحجز.\n• بعد استيفاء المتطلبات والدفع، يستلم مدير العقار طلب الحجز ويتم التأكيد للعميل بأن الحجز تم بنجاح.\n• يرجى التحقق من الشروط الإضافية مع إدارة العقار.';

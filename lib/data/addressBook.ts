@@ -446,6 +446,7 @@ let didBulkSyncContacts = false;
 let bulkSyncContactsInProgress = false;
 let didHydrateContactsFromServer = false;
 let hydrateContactsInProgress = false;
+let contactsStore: Contact[] = [];
 
 function migrateContact(raw: Record<string, unknown>): Contact {
   let firstName = raw.firstName as string | undefined;
@@ -486,9 +487,9 @@ function getStored(): Contact[] {
       .then((r) => (r.ok ? r.json() : []))
       .then((apiList: Contact[]) => {
         if (!Array.isArray(apiList) || apiList.length === 0) return;
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const localList = raw ? (JSON.parse(raw) as Contact[]) : [];
+        const localList = contactsStore;
         const merged = mergeAddressBookApiWithLocal(apiList, localList);
+        contactsStore = merged;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
         didHydrateContactsFromServer = true;
       })
@@ -497,25 +498,20 @@ function getStored(): Contact[] {
         hydrateContactsInProgress = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    const migrated = list.map((c: Record<string, unknown>) => migrateContact({ ...c }));
-    const needsSerial = migrated.some((c: Contact) => !c.serialNumber?.trim());
-    if (needsSerial) {
-      const withSerials = ensureSerialNumbers(migrated);
-      save(withSerials);
-      return withSerials;
-    }
-    return migrated;
-  } catch {
-    return [];
+  const migrated = contactsStore.map((c: Record<string, unknown>) => migrateContact({ ...c }));
+  const needsSerial = migrated.some((c: Contact) => !c.serialNumber?.trim());
+  if (needsSerial) {
+    const withSerials = ensureSerialNumbers(migrated);
+    save(withSerials);
+    return withSerials;
   }
+  return migrated;
 }
 
 function save(list: Contact[]) {
   if (typeof window === 'undefined') return;
   try {
+    contactsStore = list;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   } catch {}
 }

@@ -40,7 +40,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden', list: [] }, { status: 403 });
     }
 
+    const limitRaw = Number(req.nextUrl.searchParams.get('limit') || '0');
+    const offsetRaw = Number(req.nextUrl.searchParams.get('offset') || '0');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+
     const where = scope.isAdmin ? {} : propertyScopeWhere(scope);
+    const totalCount = await prisma.property.count({
+      where: { ...where, isArchived: false },
+    });
     const properties = await prisma.property.findMany({
       where: { ...where, isArchived: false },
       include: {
@@ -49,6 +57,7 @@ export async function GET(req: NextRequest) {
         owner: { select: { id: true, name: true, email: true, serialNumber: true } },
       },
       orderBy: { createdAt: 'desc' },
+      ...(limit > 0 ? { skip: offset, take: limit } : {}),
     });
 
     const list = properties.map((p) => ({
@@ -69,7 +78,13 @@ export async function GET(req: NextRequest) {
       owner: p.owner ? { id: p.owner.id, name: p.owner.name, email: p.owner.email, serialNumber: p.owner.serialNumber } : null,
     }));
 
-    return NextResponse.json({ list });
+    return NextResponse.json({ list }, {
+      headers: {
+        'X-Total-Count': String(totalCount),
+        'X-Limit': String(limit || totalCount),
+        'X-Offset': String(offset),
+      },
+    });
   } catch (e) {
     console.error('GET /api/admin/properties:', e);
     return NextResponse.json({ error: 'Server error', list: [] }, { status: 500 });

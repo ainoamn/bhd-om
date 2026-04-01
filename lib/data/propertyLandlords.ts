@@ -9,6 +9,7 @@ const STORAGE_KEY = 'bhd_property_landlords';
 const API_URL = '/api/settings/property-landlords';
 let didHydrateFromServer = false;
 let hydratingFromServer = false;
+let landlordStore: Record<string, string> = {};
 
 function getStored(): Record<string, string> {
   if (typeof window === 'undefined') return {};
@@ -18,6 +19,7 @@ function getStored(): Record<string, string> {
       .then((r) => (r.ok ? r.json() : null))
       .then((payload) => {
         if (!payload || typeof payload !== 'object') return;
+        landlordStore = payload as Record<string, string>;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         didHydrateFromServer = true;
       })
@@ -26,17 +28,13 @@ function getStored(): Record<string, string> {
         hydratingFromServer = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return landlordStore;
 }
 
 function save(data: Record<string, string>) {
   if (typeof window === 'undefined') return;
   try {
+    landlordStore = data;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     fetch(API_URL, {
       method: 'POST',
@@ -45,6 +43,15 @@ function save(data: Record<string, string>) {
       body: JSON.stringify(data),
     }).catch(() => {});
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void getStored();
+    }
+  });
 }
 
 /** هل العقار مرتبط بمالك؟ */

@@ -246,6 +246,7 @@ model Property {
   @@index([organizationId])
   @@index([ownerId])
   @@index([isArchived])
+  @@index([isArchived, createdAt])
 }
 
 model PropertyBooking {
@@ -581,6 +582,7 @@ model Subscription {
   @@index([userId])
   @@index([planId])
   @@index([status])
+  @@index([endAt])
 }
 
 // سجل الباقات السابقة للمشترك (تواريخ وبيانات كل فترة)
@@ -618,4 +620,5 @@ model SubscriptionChangeRequest {
 
   @@index([userId])
   @@index([status])
+  @@index([subscriptionId, status])
 }

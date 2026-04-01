@@ -61,6 +61,7 @@ let didHydrateFromServer = false;
 let hydratingFromServer = false;
 let didBulkSyncToServer = false;
 let bulkSyncInProgress = false;
+let documentsStore: BookingDocument[] = [];
 
 function getStored(): BookingDocument[] {
   if (typeof window === 'undefined') return [];
@@ -70,6 +71,7 @@ function getStored(): BookingDocument[] {
       .then((r) => (r.ok ? r.json() : null))
       .then((payload) => {
         if (!Array.isArray(payload)) return;
+        documentsStore = payload as BookingDocument[];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         didHydrateFromServer = true;
       })
@@ -78,17 +80,13 @@ function getStored(): BookingDocument[] {
         hydratingFromServer = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return documentsStore;
 }
 
 function save(list: BookingDocument[]) {
   if (typeof window === 'undefined') return;
   try {
+    documentsStore = list;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     fetch(API_URL, {
       method: 'POST',
@@ -97,6 +95,15 @@ function save(list: BookingDocument[]) {
       body: JSON.stringify(list),
     }).catch(() => {});
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void getStored();
+    }
+  });
 }
 
 function syncAllToServerOnce(): void {

@@ -15,9 +15,21 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fromDate = searchParams.get('fromDate') || undefined;
     const toDate = searchParams.get('toDate') || undefined;
+    const limitRaw = Number(searchParams.get('limit') || '0');
+    const offsetRaw = Number(searchParams.get('offset') || '0');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
     const entries = await getJournalEntriesFromDb({ fromDate, toDate });
-    return NextResponse.json(entries, {
-      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' },
+    const totalCount = entries.length;
+    const paged = limit > 0 ? entries.slice(offset, offset + limit) : entries;
+    return NextResponse.json(paged, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        Pragma: 'no-cache',
+        'X-Total-Count': String(totalCount),
+        'X-Limit': String(limit || totalCount),
+        'X-Offset': String(offset),
+      },
     });
   } catch (err) {
     console.error('Accounting journal GET:', err);

@@ -18,6 +18,11 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
+    const limitRaw = Number(req.nextUrl.searchParams.get('limit') || '0');
+    const offsetRaw = Number(req.nextUrl.searchParams.get('offset') || '0');
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
+    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+
     const sub = await getAuthSubFromRequest(req);
     if (!sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,7 +85,15 @@ export async function GET(req: NextRequest) {
       })
       .filter((c): c is Record<string, unknown> => c != null);
 
-    return NextResponse.json(contacts);
+    const totalCount = contacts.length;
+    const paged = limit > 0 ? contacts.slice(offset, offset + limit) : contacts;
+    return NextResponse.json(paged, {
+      headers: {
+        'X-Total-Count': String(totalCount),
+        'X-Limit': String(limit || totalCount),
+        'X-Offset': String(offset),
+      },
+    });
   } catch (e) {
     console.error('Address book GET error:', e);
     return NextResponse.json({ error: 'Failed to fetch address book' }, { status: 500 });

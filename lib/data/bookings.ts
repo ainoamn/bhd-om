@@ -107,6 +107,8 @@ let didHydrateCancellationFromServer = false;
 let hydrateCancellationInProgress = false;
 let didBulkSyncCancellation = false;
 let bulkSyncCancellationInProgress = false;
+let bookingsStore: PropertyBooking[] = [];
+let cancellationRequestsStore: BookingCancellationRequest[] = [];
 
 function syncBookingToServer(booking: PropertyBooking): void {
   if (typeof window === 'undefined') return;
@@ -142,6 +144,7 @@ function hydrateBookingsFromServerOnce(): void {
     .then((r) => (r.ok ? r.json() : []))
     .then((list: PropertyBooking[]) => {
       if (!Array.isArray(list) || list.length === 0) return;
+      bookingsStore = list;
       mergeBookingsFromServer(list);
       didHydrateBookingsFromServer = true;
     })
@@ -153,17 +156,13 @@ function hydrateBookingsFromServerOnce(): void {
 
 function getStoredBookings(): PropertyBooking[] {
   if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return bookingsStore;
 }
 
 function saveBookings(bookings: PropertyBooking[]): void {
   if (typeof window === 'undefined') return;
   try {
+    bookingsStore = bookings;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
   } catch {}
 }
@@ -616,6 +615,7 @@ function getStoredCancellationRequests(): BookingCancellationRequest[] {
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: BookingCancellationRequest[]) => {
         if (!Array.isArray(rows)) return;
+        cancellationRequestsStore = rows;
         localStorage.setItem(CANCELLATION_REQUESTS_KEY, JSON.stringify(rows));
         didHydrateCancellationFromServer = true;
       })
@@ -624,17 +624,13 @@ function getStoredCancellationRequests(): BookingCancellationRequest[] {
         hydrateCancellationInProgress = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(CANCELLATION_REQUESTS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return cancellationRequestsStore;
 }
 
 function saveCancellationRequests(list: BookingCancellationRequest[]) {
   if (typeof window === 'undefined') return;
   try {
+    cancellationRequestsStore = list;
     localStorage.setItem(CANCELLATION_REQUESTS_KEY, JSON.stringify(list));
     fetch(CANCELLATION_API_URL, {
       method: 'POST',

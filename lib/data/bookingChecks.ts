@@ -54,6 +54,7 @@ let didHydrateFromServer = false;
 let hydratingFromServer = false;
 let didBulkSyncToServer = false;
 let bulkSyncInProgress = false;
+let checksStore: { bookingId: string; checks: BookingCheckEntry[] }[] = [];
 
 function getStored(): { bookingId: string; checks: BookingCheckEntry[] }[] {
   if (typeof window === 'undefined') return [];
@@ -63,6 +64,7 @@ function getStored(): { bookingId: string; checks: BookingCheckEntry[] }[] {
       .then((r) => (r.ok ? r.json() : null))
       .then((payload) => {
         if (!Array.isArray(payload)) return;
+        checksStore = payload as { bookingId: string; checks: BookingCheckEntry[] }[];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         didHydrateFromServer = true;
       })
@@ -71,17 +73,13 @@ function getStored(): { bookingId: string; checks: BookingCheckEntry[] }[] {
         hydratingFromServer = false;
       });
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return checksStore;
 }
 
 function save(list: { bookingId: string; checks: BookingCheckEntry[] }[]) {
   if (typeof window === 'undefined') return;
   try {
+    checksStore = list;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     fetch(API_URL, {
       method: 'POST',
@@ -90,6 +88,15 @@ function save(list: { bookingId: string; checks: BookingCheckEntry[] }[]) {
       body: JSON.stringify(list),
     }).catch(() => {});
   } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      didHydrateFromServer = false;
+      void getStored();
+    }
+  });
 }
 
 function syncAllToServerOnce(): void {

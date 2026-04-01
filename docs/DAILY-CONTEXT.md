@@ -9,6 +9,33 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — دفعة نهائية إغلاق المتبقي (server-first + pagination + e2e + indexes)
+
+- **إغلاق fallback محلي (قراءة):**
+  - `lib/data/bookingTerms.ts`
+  - `lib/data/propertyLandlords.ts`
+  - `lib/data/bookingDocuments.ts`
+  - `lib/data/bookingChecks.ts`
+  - `lib/data/contractChecks.ts`
+  - `lib/data/bookings.ts`
+  - `lib/data/contracts.ts`
+  - `lib/data/addressBook.ts`
+  - `lib/data/accounting.ts` (Fiscal read path)
+- **مراجعة شاشات الإدارة الكبيرة:**
+  - `app/[locale]/admin/address-book/page.tsx` تم منع fallback العرض المحلي عند فشل API (لمنع ظهور بيانات قديمة).
+- **Pagination إضافي للقوائم الكبيرة:**
+  - `GET /api/admin/properties`
+  - `GET /api/address-book`
+  - `GET /api/accounting/documents`
+  - `GET /api/accounting/journal`
+  - `GET /api/accounting/accounts`
+- **E2E:** توسيع `tests/e2e/critical-flows.spec.ts` ليشمل اختبار مسارات الأدوار (حسب توفر متغيرات بيئة E2E).
+- **DB Index Review:** إضافة فهارس:
+  - `Property(isArchived, createdAt)`
+  - `Subscription(endAt)`
+  - `SubscriptionChangeRequest(subscriptionId, status)`
+- **التحقق:** `npm run -s typecheck --if-present` نجح.
+
 ### جلسة 2026-03-30 — دفعة إضافية: إغلاق fallback محلي في طبقات إعدادات متبقية
 
 - **ما تم:** تحويل القراءة إلى `server-first` في ملفات إعدادات إضافية داخل `lib/data`:
