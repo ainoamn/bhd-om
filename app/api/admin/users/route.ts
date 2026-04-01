@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const role = auth.role || '';
     const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+    const authUserId = auth.userId || '';
     const url = new URL(req.url);
     const filterRole = url.searchParams.get('role');
     const limitParam = Number(url.searchParams.get('limit') || 0);
@@ -36,7 +37,71 @@ export async function GET(req: NextRequest) {
     }
 
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const me = await prisma.user.findUnique({
+        where: { id: authUserId },
+        select: {
+          id: true,
+          serialNumber: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          createdAt: true,
+          subscriptions: {
+            take: 1,
+            orderBy: { updatedAt: 'desc' },
+            where: { status: 'active' },
+            select: {
+              id: true,
+              planId: true,
+              status: true,
+              endAt: true,
+              plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
+            },
+          },
+        },
+      });
+      if (!me) {
+        return NextResponse.json([], {
+          headers: {
+            'X-Total-Count': '0',
+            'X-Limit': '0',
+            'X-Offset': '0',
+          },
+        });
+      }
+      const sub = me.subscriptions?.[0];
+      return NextResponse.json(
+        [
+          {
+            id: me.id,
+            serialNumber: me.serialNumber,
+            name: me.name,
+            email: me.email,
+            phone: me.phone,
+            role: me.role,
+            createdAt: me.createdAt,
+            plan: sub?.plan
+              ? {
+                  id: sub.plan.id,
+                  code: sub.plan.code,
+                  nameAr: sub.plan.nameAr,
+                  nameEn: sub.plan.nameEn,
+                  priceMonthly: sub.plan.priceMonthly,
+                  currency: sub.plan.currency,
+                }
+              : null,
+            subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
+          },
+        ],
+        {
+          headers: {
+            'X-Total-Count': '1',
+            'X-Limit': '1',
+            'X-Offset': '0',
+          },
+        }
+      );
     }
 
     const users = await prisma.user.findMany({
@@ -65,7 +130,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const list = users.map((u) => {
+    let list = users.map((u) => {
       const sub = u.subscriptions?.[0];
       return {
         id: u.id,
@@ -79,6 +144,59 @@ export async function GET(req: NextRequest) {
         subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
       };
     });
+
+    // حماية عملية: إذا رجعت القائمة فارغة رغم وجود جلسة صحيحة، أظهر المستخدم الحالي على الأقل.
+    if (list.length === 0 && authUserId) {
+      const me = await prisma.user.findUnique({
+        where: { id: authUserId },
+        select: {
+          id: true,
+          serialNumber: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          createdAt: true,
+          subscriptions: {
+            take: 1,
+            orderBy: { updatedAt: 'desc' },
+            where: { status: 'active' },
+            select: {
+              id: true,
+              planId: true,
+              status: true,
+              endAt: true,
+              plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
+            },
+          },
+        },
+      });
+      if (me) {
+        const sub = me.subscriptions?.[0];
+        list = [
+          {
+            id: me.id,
+            serialNumber: me.serialNumber,
+            name: me.name,
+            email: me.email,
+            phone: me.phone,
+            role: me.role,
+            createdAt: me.createdAt,
+            plan: sub?.plan
+              ? {
+                  id: sub.plan.id,
+                  code: sub.plan.code,
+                  nameAr: sub.plan.nameAr,
+                  nameEn: sub.plan.nameEn,
+                  priceMonthly: sub.plan.priceMonthly,
+                  currency: sub.plan.currency,
+                }
+              : null,
+            subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
+          },
+        ];
+      }
+    }
 
     const total = await prisma.user.count();
     return NextResponse.json(list, {
