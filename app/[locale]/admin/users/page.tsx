@@ -252,7 +252,29 @@ export default function UsersAdminPage() {
       }
       if (!res.ok) return;
       const data = await res.json();
-      const usersList = Array.isArray(data) ? data : [];
+      let usersList = Array.isArray(data) ? data : [];
+      if (usersList.length === 0) {
+        const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+        const sessionData = sessionRes.ok ? await sessionRes.json() : null;
+        const me = sessionData?.user as
+          | { id?: string; serialNumber?: string; name?: string; email?: string; phone?: string; role?: string }
+          | undefined;
+        if (me?.id) {
+          usersList = [
+            {
+              id: me.id,
+              serialNumber: me.serialNumber || me.email || me.id,
+              name: me.name || '—',
+              email: me.email || '',
+              phone: me.phone || null,
+              role: me.role || 'CLIENT',
+              createdAt: new Date().toISOString(),
+              plan: null,
+              subscriptionEndAt: null,
+            },
+          ];
+        }
+      }
       setUsers(usersList);
       if (usersList.length > 0) {
         const { added } = syncContactsFromUsers(usersList);
