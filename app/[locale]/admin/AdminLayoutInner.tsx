@@ -120,7 +120,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     let alive = true;
     const timeout = window.setTimeout(() => {
       if (alive) setSessionFetchSettled(true);
-    }, 60000);
+    }, 5000);
     void getSession().then((s) => {
       if (!alive) return;
       window.clearTimeout(timeout);
@@ -136,6 +136,9 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   /** استقرار الجلسة فوراً عندما يوفّر useSession المستخدم — لا ننتظر getSession() وحدها (يقلل وميض القائمة/الدور) */
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
+      setSessionFetchSettled(true);
+    }
+    if (status === 'unauthenticated') {
       setSessionFetchSettled(true);
     }
   }, [status, session]);

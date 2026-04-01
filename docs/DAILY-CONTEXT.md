@@ -9,6 +9,29 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-03-30 — دفعة أداء مباشرة (سرعة التحميل والتنقل)
+
+- **Address Book (أكبر تأثير):**
+  - تقليل حجم الجلب من `1000` إلى `200` في `address-book` API calls.
+  - استبدال مزامنة عنصر-بعنصر (`await` داخل loop) بمزامنة bulk عبر API جديد:
+    - `POST /api/address-book/bulk`
+  - إضافة حالة تحميل تدريجية (skeleton) أثناء التحميل الأول.
+- **My Bookings polling:**
+  - إزالة polling الثابت كل 5 ثوانٍ.
+  - اعتماد refresh عند `focus` و`visibilitychange` + polling خفيف كل 60 ثانية كشبكة أمان.
+- **Properties page heavy compute:**
+  - تقليل الحسابات المتكررة لكل صف عبر `activeBookingKeySet` memoized بدل فحص حجوزات لكل عقار أثناء الرندر.
+  - إضافة skeleton لقسم بيانات DB حتى اكتمال الجلب.
+- **Session flow (AdminLayoutInner):**
+  - تقليل timeout تسوية الجلسة من 60s إلى 5s.
+  - تسوية الحالة أسرع عند `unauthenticated`.
+- **Loading pages إضافية (progressive UX):**
+  - `app/[locale]/admin/address-book/loading.tsx`
+  - `app/[locale]/admin/bookings/loading.tsx`
+  - `app/[locale]/admin/contracts/loading.tsx`
+  - `app/[locale]/admin/properties/loading.tsx`
+- **التحقق:** `npm run build` نجح بعد التعديلات.
+
 ### جلسة 2026-03-30 — تشغيل المتبقي التشغيلي (E2E + Migration check + Pagination wiring)
 
 - **E2E:** تم تثبيت متصفح Playwright (`npx playwright install chromium`) ثم تشغيل `npm run test:e2e`:

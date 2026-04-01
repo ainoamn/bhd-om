@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -8,7 +8,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 
 import { properties, updateProperty, updatePropertyUnit, getPropertyOverrides, getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, type PropertyBusinessStatus, type Property } from '@/lib/data/properties';
 import PropertyBarcode from '@/components/admin/PropertyBarcode';
-import { getBookingsByProperty, mergeBookingsFromServer } from '@/lib/data/bookings';
+import { getAllBookings, mergeBookingsFromServer } from '@/lib/data/bookings';
 
 type PropertyWithStatus = (typeof properties)[number] & { businessStatus?: PropertyBusinessStatus; isPublished?: boolean; propertySubTypeAr?: string };
 
@@ -71,6 +71,7 @@ export default function PropertiesAdminPage() {
   const [overrides, setOverrides] = useState<Record<string, { businessStatus?: PropertyBusinessStatus; isPublished?: boolean; units?: Record<string, { businessStatus?: PropertyBusinessStatus; isPublished?: boolean }> }>>({});
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [dbProperties, setDbProperties] = useState<DbPropertyItem[]>([]);
+  const [isLoadingDbProperties, setIsLoadingDbProperties] = useState(true);
   const [ownerUsers, setOwnerUsers] = useState<Array<{ id: string; name: string; serialNumber: string }>>([]);
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
   const canManageProperties = isAdmin || (session?.user as { role?: string })?.role === 'COMPANY' || (session?.user as { role?: string })?.role === 'ORG_MANAGER';
@@ -107,10 +108,12 @@ export default function PropertiesAdminPage() {
 
   useEffect(() => {
     if (!session?.user) return;
+    setIsLoadingDbProperties(true);
     fetch('/api/admin/properties?limit=500&offset=0')
       .then((r) => r.json())
       .then((data) => (Array.isArray(data?.list) ? setDbProperties(data.list) : setDbProperties([])))
-      .catch(() => setDbProperties([]));
+      .catch(() => setDbProperties([]))
+      .finally(() => setIsLoadingDbProperties(false));
   }, [session?.user]);
 
   useEffect(() => {
@@ -121,15 +124,19 @@ export default function PropertiesAdminPage() {
       .catch(() => setOwnerUsers([]));
   }, [canManageProperties]);
 
+  const activeBookingKeySet = useMemo(() => {
+    const keys = new Set<string>();
+    for (const b of getAllBookings()) {
+      if (b.type !== 'BOOKING' || b.status === 'CANCELLED') continue;
+      const key = `${b.propertyId}::${b.unitKey || '__main__'}`;
+      keys.add(key);
+    }
+    return keys;
+  }, [overrides]);
+
   /** هل للعقار/الوحدة حجز نشط (محجوز/مؤجر) - التعديل يكون من صفحة الحجوزات فقط */
   const hasActiveBooking = (propertyId: number, unitKey?: string) => {
-    const bookings = getBookingsByProperty(propertyId);
-    return bookings.some(
-      (b) =>
-        b.type === 'BOOKING' &&
-        b.status !== 'CANCELLED' &&
-        (unitKey !== undefined ? b.unitKey === unitKey : !b.unitKey)
-    );
+    return activeBookingKeySet.has(`${propertyId}::${unitKey || '__main__'}`);
   };
 
   const getBusinessStatus = (p: PropertyWithStatus, unitKey?: string): PropertyBusinessStatus => {
@@ -243,7 +250,12 @@ export default function PropertiesAdminPage() {
         </div>
       </div>
 
-      {dbProperties.length > 0 && (
+      {isLoadingDbProperties ? (
+        <div className="admin-card p-4 space-y-3 mb-6">
+          <div className="h-10 rounded bg-gray-100 animate-pulse" />
+          <div className="h-10 rounded bg-gray-100 animate-pulse" />
+        </div>
+      ) : dbProperties.length > 0 && (
         <div className="admin-card overflow-hidden mb-6">
           <h2 className="text-lg font-bold text-neutral-800 mb-3">عقارات من قاعدة البيانات (مع تابع لـ ومالك)</h2>
           <div className="overflow-x-auto">

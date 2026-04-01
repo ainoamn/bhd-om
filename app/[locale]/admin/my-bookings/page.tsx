@@ -316,11 +316,20 @@ export default function MyBookingsPage() {
       window.setTimeout(() => void run(attempt + 1), delay);
     };
     void run(0);
+    const onFocus = () => void run(0);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void run(0);
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    // polling خفيف جداً كشبكة أمان فقط.
     const iv = window.setInterval(() => {
-      void run(0);
-    }, 5000);
+      if (document.visibilityState === 'visible') void run(0);
+    }, 60000);
     return () => {
       alive = false;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(iv);
     };
   }, [status]);

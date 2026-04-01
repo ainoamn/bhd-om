@@ -35,8 +35,6 @@ import {
   contactAddressHasUsableContent,
   mergeAddressBookApiWithLocal,
   rewriteLocalAddressBookDeduped,
-  contactRevisionMs,
-  syncContactToAddressBookApi,
   findDuplicateContactFields,
   findContactsByCivilIdOrName,
   findContactsBySerialPrefix,
@@ -201,6 +199,7 @@ export default function AdminAddressBookPage() {
   const [repDropdownOpen, setRepDropdownOpen] = useState<number | null>(null);
   const repDropdownRef = useRef<HTMLDivElement | null>(null);
   const [serverSyncKey, setServerSyncKey] = useState(0);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
@@ -297,10 +296,11 @@ export default function AdminAddressBookPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setIsLoadingContacts(true);
       let listFromApi: Contact[] = [];
       let firstApiOk = false;
       try {
-        const res = await fetch('/api/address-book?limit=1000&offset=0', { credentials: 'include', cache: 'no-store' });
+        const res = await fetch('/api/address-book?limit=200&offset=0', { credentials: 'include', cache: 'no-store' });
         firstApiOk = res.ok;
         if (res.ok) {
           const data = await res.json();
@@ -312,31 +312,32 @@ export default function AdminAddressBookPage() {
       if (!firstApiOk) {
         if (!cancelled) {
           setContacts([]);
+          setIsLoadingContacts(false);
         }
         return;
       }
       const localContacts = getAllContacts(true);
       const merged = mergeAddressBookApiWithLocal(listFromApi, localContacts);
       const apiById = new Map(listFromApi.map((c) => [c.id, c]));
-      for (const c of merged) {
-        if (cancelled) break;
+      const toSync = merged.filter((c) => {
         const apiC = apiById.get(c.id);
         const uid = (c as Contact).userId?.trim();
-        if (firstApiOk) {
-          /** الخادم متاح: لا نرفع عند التحميل صفاً موجوداً في API (مصدر الحقيقة الخادم — يمنع طمس «حسابي») */
-          if (apiC) continue;
-          /** صف محلي بـ userId لكنه غير في API = شبح بعد حذف التكرار — لا نعيد إنشائه على الخادم */
-          if (uid) continue;
-          await syncContactToAddressBookApi(c);
-          continue;
-        }
-        const pushToServer = !apiC || contactRevisionMs(c) > contactRevisionMs(apiC);
-        if (pushToServer) await syncContactToAddressBookApi(c);
+        if (apiC) return false;
+        if (uid) return false;
+        return true;
+      });
+      if (toSync.length > 0) {
+        await fetch('/api/address-book/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(toSync),
+        }).catch(() => {});
       }
       let toPersist = merged;
       let serverIdSet = new Set(listFromApi.map((c) => c.id));
       try {
-        const resAfter = await fetch('/api/address-book?limit=1000&offset=0', { credentials: 'include', cache: 'no-store' });
+        const resAfter = await fetch('/api/address-book?limit=200&offset=0', { credentials: 'include', cache: 'no-store' });
         if (resAfter.ok) {
           const dataAfter = await resAfter.json();
           if (Array.isArray(dataAfter)) {
@@ -371,6 +372,7 @@ export default function AdminAddressBookPage() {
       } catch {
         setContacts(getAllContacts(showArchived));
       }
+      setIsLoadingContacts(false);
     })();
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_address_book' || e.key === 'bhd_property_bookings' || e.key === 'bhd_contact_category_permissions') {
@@ -1468,7 +1470,13 @@ export default function AdminAddressBookPage() {
           </div>
         </div>
 
-        {filteredContacts.length === 0 ? (
+        {isLoadingContacts ? (
+          <div className="p-6 space-y-3">
+            <div className="h-10 rounded bg-gray-100 animate-pulse" />
+            <div className="h-10 rounded bg-gray-100 animate-pulse" />
+            <div className="h-10 rounded bg-gray-100 animate-pulse" />
+          </div>
+        ) : filteredContacts.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-4xl mx-auto mb-4">📇</div>
             <p className="text-gray-500 font-medium text-lg">{t('noContacts')}</p>
