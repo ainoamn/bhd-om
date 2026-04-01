@@ -242,6 +242,57 @@ export default function UsersAdminPage() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [addedUserCreds, setAddedUserCreds] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
 
+  const buildFallbackUsers = useCallback(async (): Promise<UserRow[]> => {
+    const rows: UserRow[] = [];
+    try {
+      const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+      const sessionData = sessionRes.ok ? await sessionRes.json() : null;
+      const me = sessionData?.user as
+        | { id?: string; serialNumber?: string; name?: string; email?: string; phone?: string; role?: string }
+        | undefined;
+      if (me?.id) {
+        rows.push({
+          id: me.id,
+          serialNumber: me.serialNumber || me.email || me.id,
+          name: me.name || '—',
+          email: me.email || '',
+          phone: me.phone || null,
+          role: me.role || 'CLIENT',
+          createdAt: new Date().toISOString(),
+          plan: null,
+          subscriptionEndAt: null,
+        });
+      }
+    } catch {}
+    try {
+      const bookingsRes = await fetch('/api/bookings?limit=50&offset=0', { credentials: 'include' });
+      const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
+      if (Array.isArray(bookings)) {
+        for (const b of bookings) {
+          const id = String(b?.clientId || b?.userId || '').trim();
+          const email = String(b?.clientEmail || b?.email || '').trim();
+          const name = String(b?.clientName || b?.name || '').trim();
+          const phone = String(b?.clientPhone || b?.phone || '').trim();
+          if (!id && !email && !name && !phone) continue;
+          const key = id || email || `${name}:${phone}`;
+          if (rows.some((u) => (u.id || u.email || '') === key || (!!email && u.email === email))) continue;
+          rows.push({
+            id: id || key,
+            serialNumber: String(b?.clientSerialNumber || b?.serialNumber || email || key),
+            name: name || '—',
+            email: email || '',
+            phone: phone || null,
+            role: 'CLIENT',
+            createdAt: new Date().toISOString(),
+            plan: null,
+            subscriptionEndAt: null,
+          });
+        }
+      }
+    } catch {}
+    return rows;
+  }, []);
+
   const loadUsers = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/users');
@@ -250,30 +301,15 @@ export default function UsersAdminPage() {
         setUsers([]);
         return;
       }
-      if (!res.ok) return;
+      if (!res.ok) {
+        const fallback = await buildFallbackUsers();
+        setUsers(fallback);
+        return;
+      }
       const data = await res.json();
       let usersList = Array.isArray(data) ? data : [];
       if (usersList.length === 0) {
-        const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
-        const sessionData = sessionRes.ok ? await sessionRes.json() : null;
-        const me = sessionData?.user as
-          | { id?: string; serialNumber?: string; name?: string; email?: string; phone?: string; role?: string }
-          | undefined;
-        if (me?.id) {
-          usersList = [
-            {
-              id: me.id,
-              serialNumber: me.serialNumber || me.email || me.id,
-              name: me.name || '—',
-              email: me.email || '',
-              phone: me.phone || null,
-              role: me.role || 'CLIENT',
-              createdAt: new Date().toISOString(),
-              plan: null,
-              subscriptionEndAt: null,
-            },
-          ];
-        }
+        usersList = await buildFallbackUsers();
       }
       setUsers(usersList);
       if (usersList.length > 0) {
@@ -284,11 +320,12 @@ export default function UsersAdminPage() {
         }
       }
     } catch {
-      setUsers([]);
+      const fallback = await buildFallbackUsers();
+      setUsers(fallback);
     } finally {
       setLoading(false);
     }
-  }, [locale]);
+  }, [locale, buildFallbackUsers]);
 
   useEffect(() => {
     let cancelled = false;
