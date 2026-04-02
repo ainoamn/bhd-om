@@ -357,6 +357,30 @@ export default function UsersAdminPage() {
     }
   };
 
+  const fixUserSerial = async (u: { id: string; email: string }) => {
+    try {
+      const res = await fetch('/api/admin/users/fix-serial', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ id: u.id, email: u.email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSyncMsg(locale === 'ar' ? (data?.error || 'فشل توليد الرقم') : (data?.error || 'Failed to generate serial'));
+        setTimeout(() => setSyncMsg(null), 3000);
+        return;
+      }
+      setSyncMsg(locale === 'ar' ? 'تم توليد الرقم المتسلسل' : 'Serial generated');
+      setTimeout(() => setSyncMsg(null), 2500);
+      refreshUsers();
+    } catch {
+      setSyncMsg(locale === 'ar' ? 'فشل توليد الرقم' : 'Failed');
+      setTimeout(() => setSyncMsg(null), 2500);
+    }
+  };
+
   const handleAddUserSuccess = (creds: { serialNumber: string; email: string; generatedPassword: string }) => {
     setAddedUserCreds(creds);
     setSyncMsg(locale === 'ar' ? 'تمت إضافة المستخدم ودفتر العناوين تلقائياً' : 'User added and auto-added to address book');
@@ -620,6 +644,15 @@ export default function UsersAdminPage() {
                       >
                         {safeUserSerialForDisplay(u.serialNumber)}
                       </Link>
+                      {safeUserSerialForDisplay(u.serialNumber) === '—' && u.email && u.email.includes('@') && (
+                        <button
+                          type="button"
+                          onClick={() => void fixUserSerial({ id: u.id, email: u.email })}
+                          className="mt-1 text-[11px] font-semibold text-amber-700 hover:underline"
+                        >
+                          {locale === 'ar' ? 'توليد رقم' : 'Generate'}
+                        </button>
+                      )}
                     </td>
                     <td className="px-3 py-2 font-semibold">
                       <div className="flex items-center gap-2">
