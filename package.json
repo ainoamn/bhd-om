@@ -14,6 +14,7 @@
     "build": "prisma generate && next build",
     "build:log": "powershell -ExecutionPolicy Bypass -File ./tools/build/run-build.ps1",
     "db:push": "prisma db push",
+    "db:migrate-serials-bhd": "npx tsx scripts/migrate-serials-to-bhd.ts",
     "db:reset-keep-properties": "npx tsx prisma/reset-keep-properties.ts",
     "start": "next start",
     "lint": "eslint .",
