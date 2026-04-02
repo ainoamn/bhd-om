@@ -23,7 +23,11 @@ export async function GET(req: NextRequest) {
     const filterRole = url.searchParams.get('role');
     const limitParam = Number(url.searchParams.get('limit') || 0);
     const offsetParam = Number(url.searchParams.get('offset') || 0);
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 0;
+    // حد افتراضي لتجنب timeouts عند وجود عدد كبير من المستخدمين
+    const limit =
+      Number.isFinite(limitParam) && limitParam > 0
+        ? Math.min(limitParam, 500)
+        : 200;
     const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
 
     if (filterRole === 'OWNER') {

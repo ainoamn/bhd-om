@@ -305,7 +305,7 @@ export default function UsersAdminPage() {
   const loadUsers = useCallback(async () => {
     try {
       setLoadError(null);
-      const res = await fetch('/api/admin/users', { cache: 'no-store', credentials: 'include' });
+      const res = await fetch('/api/admin/users?limit=200&offset=0', { cache: 'no-store', credentials: 'include' });
       if (res.status === 401 || res.status === 403) {
         setRequireAdmin(true);
         setUsers([]);
@@ -351,7 +351,7 @@ export default function UsersAdminPage() {
 
   const refreshUsers = async () => {
     try {
-      const res = await fetch('/api/admin/users', { cache: 'no-store', credentials: 'include' });
+      const res = await fetch('/api/admin/users?limit=200&offset=0', { cache: 'no-store', credentials: 'include' });
       if (!res.ok) return;
       const data = await res.json();
       const usersList = Array.isArray(data) ? data : [];
