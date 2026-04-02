@@ -13,7 +13,7 @@ import {
 } from '@/lib/data/addressBook';
 import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
-import { safeUserSerialForDisplay, shortenUserSerial } from '@/lib/utils/serialNumber';
+import { isValidUserSerialLike, safeUserSerialForDisplay, shortenUserSerial } from '@/lib/utils/serialNumber';
 import UserBarcode from '@/components/admin/UserBarcode';
 
 interface PlanInfo {
@@ -644,7 +644,7 @@ export default function UsersAdminPage() {
                       >
                         {safeUserSerialForDisplay(u.serialNumber)}
                       </Link>
-                      {safeUserSerialForDisplay(u.serialNumber) === '—' && u.email && u.email.includes('@') && (
+                      {!isValidUserSerialLike(u.serialNumber) && u.email && u.email.includes('@') && (
                         <button
                           type="button"
                           onClick={() => void fixUserSerial({ id: u.id, email: u.email })}

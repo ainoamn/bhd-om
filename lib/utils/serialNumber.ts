@@ -6,6 +6,16 @@ export function safeUserSerialForDisplay(serial: string | null | undefined): str
   return s;
 }
 
+/** هل الرقم صالح كمُعرّف مستخدم (BHD أو legacy USR) */
+export function isValidUserSerialLike(serial: string | null | undefined): boolean {
+  const s = String(serial ?? '').trim();
+  if (!s) return false;
+  if (s.includes('@')) return false;
+  if (/^BHD-\d{4}-USR-[A-Z]-\d{4,6}$/i.test(s)) return true;
+  if (/^USR-[A-Z]-\d{4}-\d+$/i.test(s)) return true;
+  return false;
+}
+
 /**
  * اختصار الرقم المتسلسل للمستخدم:
  * - BHD-2026-USR-C-0001 → C-0001
