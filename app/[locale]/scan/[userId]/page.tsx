@@ -197,8 +197,8 @@ export default function ScanUserPage() {
         : (ar ? 'برونزي' : 'Bronze');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f7f3ee] via-gray-50 to-white px-4 py-10" dir={dir}>
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#f7f3ee] via-gray-50 to-white px-2 sm:px-4 lg:px-6 py-6 sm:py-10" dir={dir}>
+      <div className="w-full">
         <div className="w-full rounded-3xl border border-gray-200/70 bg-white shadow-xl overflow-hidden">
           {/* Header */}
           <div className="relative overflow-hidden bg-[#8B6F47] text-white">
