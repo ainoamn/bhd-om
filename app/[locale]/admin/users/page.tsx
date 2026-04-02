@@ -295,7 +295,7 @@ export default function UsersAdminPage() {
 
   const loadUsers = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await fetch('/api/admin/users', { cache: 'no-store', credentials: 'include' });
       if (res.status === 401 || res.status === 403) {
         setRequireAdmin(true);
         setUsers([]);
@@ -338,7 +338,7 @@ export default function UsersAdminPage() {
 
   const refreshUsers = async () => {
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await fetch('/api/admin/users', { cache: 'no-store', credentials: 'include' });
       if (!res.ok) return;
       const data = await res.json();
       const usersList = Array.isArray(data) ? data : [];
@@ -600,13 +600,13 @@ export default function UsersAdminPage() {
               <tbody>
                 {filteredUsers.map((u) => (
                   <tr key={u.id} className="border-t border-gray-100 hover:bg-gray-50/50">
-                    <td className="px-3 py-2 font-mono text-xs font-medium">
+                    <td className="px-3 py-2 font-mono text-xs font-medium max-w-[min(100%,14rem)]">
                       <Link
                         href={`/${locale}/admin/users/${u.id}`}
-                        className="text-[#8B6F47] hover:text-[#6B5535] hover:underline cursor-pointer transition-colors"
-                        title={u.serialNumber || undefined}
+                        className="text-[#8B6F47] hover:text-[#6B5535] hover:underline cursor-pointer transition-colors block break-all"
+                        title={u.serialNumber ? `${shortenUserSerial(u.serialNumber)} · ${u.serialNumber}` : undefined}
                       >
-                        {shortenUserSerial(u.serialNumber)}
+                        {u.serialNumber || '—'}
                       </Link>
                     </td>
                     <td className="px-3 py-2 font-semibold">

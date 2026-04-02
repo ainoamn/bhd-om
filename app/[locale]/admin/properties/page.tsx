@@ -109,7 +109,7 @@ export default function PropertiesAdminPage() {
   useEffect(() => {
     if (!session?.user) return;
     setIsLoadingDbProperties(true);
-    fetch('/api/admin/properties?limit=500&offset=0')
+    fetch('/api/admin/properties?limit=500&offset=0', { cache: 'no-store', credentials: 'include' })
       .then((r) => r.json())
       .then((data) => (Array.isArray(data?.list) ? setDbProperties(data.list) : setDbProperties([])))
       .catch(() => setDbProperties([]))

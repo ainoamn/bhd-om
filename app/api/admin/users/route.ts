@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
 import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
 
+const CACHE_ADMIN_USERS_LIST = 'private, no-store';
+
 const ROLE_SERIAL_CODE: Record<string, string> = {
   ADMIN: 'A',
   SUPER_ADMIN: 'A',
@@ -45,15 +47,23 @@ export async function GET(req: NextRequest) {
       if (!isAdmin && role !== 'COMPANY' && role !== 'ORG_MANAGER') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-      const users = await prisma.user.findMany({
+      const owners = await prisma.user.findMany({
         where: { role: 'OWNER' },
         orderBy: { name: 'asc' },
         ...(limit > 0 ? { skip: offset, take: limit } : {}),
         select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true },
       });
       const total = await prisma.user.count({ where: { role: 'OWNER' } });
+      const users = await Promise.all(
+        owners.map(async (u) => ({
+          ...u,
+          serialNumber: await ensureUserSerialNumber({ id: u.id, role: u.role, serialNumber: u.serialNumber }),
+        }))
+      );
       return NextResponse.json(users, {
         headers: {
+          'Cache-Control': CACHE_ADMIN_USERS_LIST,
+          Vary: 'Cookie, Authorization',
           'X-Total-Count': String(total),
           'X-Limit': String(limit || total),
           'X-Offset': String(offset),
@@ -89,6 +99,7 @@ export async function GET(req: NextRequest) {
       if (!me) {
         return NextResponse.json([], {
           headers: {
+            'Cache-Control': CACHE_ADMIN_USERS_LIST,
             'X-Total-Count': '0',
             'X-Limit': '0',
             'X-Offset': '0',
@@ -122,6 +133,7 @@ export async function GET(req: NextRequest) {
         ],
         {
           headers: {
+            'Cache-Control': CACHE_ADMIN_USERS_LIST,
             'X-Total-Count': '1',
             'X-Limit': '1',
             'X-Offset': '0',
@@ -229,6 +241,8 @@ export async function GET(req: NextRequest) {
     const total = await prisma.user.count();
     return NextResponse.json(list, {
       headers: {
+        'Cache-Control': CACHE_ADMIN_USERS_LIST,
+        Vary: 'Cookie, Authorization',
         'X-Total-Count': String(total),
         'X-Limit': String(limit || total),
         'X-Offset': String(offset),

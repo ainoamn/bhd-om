@@ -80,6 +80,8 @@ export interface PropertyBooking {
   cancellationNote?: string;
   /** تاريخ إتمام عملية الإلغاء من المحاسب */
   cancellationCompletedAt?: string;
+  /** رقم الحجز BHD (من الخادم) */
+  bookingSerial?: string;
   createdAt: string;
 }
 

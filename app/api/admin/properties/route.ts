@@ -5,9 +5,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDataScope, propertyScopeWhere, hasAdminPermission } from '@/lib/auth/adminPermissions';
 import { requireAuth } from '@/lib/auth/guard';
-import { CACHE_ADMIN_PROPERTIES_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { ensurePropertySerialNumber } from '@/lib/server/ensureEntitySerials';
 
 export const runtime = 'nodejs';
+
+/** قائمة عقارات الإدارة: بيانات حساسة للتسلسل — لا كاش لتجنب أرقام قديمة بعد الترحيل */
+const CACHE_ADMIN_PROPERTIES_LIST = 'private, no-store';
 
 export async function GET(req: NextRequest) {
   try {
@@ -61,9 +65,16 @@ export async function GET(req: NextRequest) {
       ...(limit > 0 ? { skip: offset, take: limit } : {}),
     });
 
-    const list = properties.map((p) => ({
+    const list = await Promise.all(
+      properties.map(async (p) => {
+        const serialNumber = await ensurePropertySerialNumber({
+          id: p.id,
+          type: p.type,
+          serialNumber: p.serialNumber,
+        });
+        return {
       id: p.id,
-      serialNumber: p.serialNumber,
+      serialNumber,
       titleAr: p.titleAr,
       titleEn: p.titleEn,
       type: p.type,
@@ -77,11 +88,13 @@ export async function GET(req: NextRequest) {
       belongsToUser: p.createdBy ? { id: p.createdBy.id, name: p.createdBy.name, email: p.createdBy.email, serialNumber: p.createdBy.serialNumber } : null,
       belongsToOrg: p.organization ? { id: p.organization.id, nameAr: p.organization.nameAr, nameEn: p.organization.nameEn } : null,
       owner: p.owner ? { id: p.owner.id, name: p.owner.name, email: p.owner.email, serialNumber: p.owner.serialNumber } : null,
-    }));
+    };
+      })
+    );
 
     return NextResponse.json({ list }, {
       headers: {
-        'Cache-Control': CACHE_ADMIN_PROPERTIES_GET,
+        'Cache-Control': CACHE_ADMIN_PROPERTIES_LIST,
         Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),

@@ -132,7 +132,7 @@ export default function AdminBookingsPage() {
   const loadData = async () => {
     if (typeof window !== 'undefined') syncPaidBookingsToAccounting(); // مزامنة تلقائية مع المحاسبة
     try {
-      const res = await fetch('/api/bookings', { credentials: 'include' });
+      const res = await fetch('/api/bookings', { credentials: 'include', cache: 'no-store' });
       const serverBookings = res.ok ? await res.json() : [];
       if (Array.isArray(serverBookings)) {
         setBookings(serverBookings);
@@ -454,6 +454,7 @@ export default function AdminBookingsPage() {
               <table className="w-full text-right min-w-[700px]">
                 <thead>
                   <tr className="bg-gray-50/80">
+                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'رقم الحجز' : 'Booking #'}</th>
                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'العقار' : 'Property'}</th>
                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'التاريخ' : 'Date'}</th>
                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{ar ? 'العميل' : 'Client'}</th>
@@ -471,6 +472,11 @@ export default function AdminBookingsPage() {
                     const propSerial = (prop as { serialNumber?: string })?.serialNumber || '';
                     return (
                       <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-mono text-xs text-[#8B6F47] font-semibold" title={b.bookingSerial || b.id}>
+                            {b.bookingSerial || '—'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4">
                           <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="text-[#8B6F47] hover:underline font-medium">
                             {prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}
@@ -720,6 +726,9 @@ export default function AdminBookingsPage() {
                 const propSerial = (prop as { serialNumber?: string })?.serialNumber || '';
                 return (
                   <div key={b.id} className="p-5 space-y-4">
+                    {b.bookingSerial && (
+                      <p className="text-xs font-mono font-semibold text-[#8B6F47]">{ar ? 'رقم الحجز:' : 'Booking:'} {b.bookingSerial}</p>
+                    )}
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-bold text-gray-900">{getBookingDisplayName(b, locale)}</p>

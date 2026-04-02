@@ -9,7 +9,10 @@ import { getDataScope } from '@/lib/auth/adminPermissions';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
 import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
-import { CACHE_BOOKINGS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
+
+const CACHE_BOOKINGS_LIST = 'private, no-store';
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,16 +47,36 @@ export async function GET(req: NextRequest) {
     const rows = await prisma.bookingStorage.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    let bookings = rows.map((r) => {
+    let bookings: { propertyId?: number | string; email?: string; phone?: string; bookingSerial?: string; [k: string]: unknown }[] = [];
+    for (const r of rows) {
       try {
-        const parsed = JSON.parse(r.data) as { propertyId?: number | string; email?: string; phone?: string; id?: string; [k: string]: unknown };
-        // بعض السجلات القديمة/غير المكتملة قد لا تحتوي `id` داخل JSON؛ نستخدم `bookingId` من الـ DB كبديل
+        const parsed = JSON.parse(r.data) as {
+          propertyId?: number | string;
+          email?: string;
+          phone?: string;
+          id?: string;
+          bookingSerial?: string;
+          [k: string]: unknown;
+        };
         if (!parsed.id && r.bookingId) (parsed as { id?: string }).id = r.bookingId;
-        return parsed;
+        const year = r.createdAt.getFullYear();
+        const needSerial =
+          !parsed.bookingSerial || !isValidBhdSerial(String(parsed.bookingSerial));
+        if (needSerial) {
+          const bookingSerial = await generateBhdSerial('BKG', { year });
+          const next = { ...parsed, bookingSerial };
+          await prisma.bookingStorage.update({
+            where: { bookingId: r.bookingId },
+            data: { data: JSON.stringify(next), updatedAt: new Date() },
+          });
+          bookings.push(next);
+        } else {
+          bookings.push(parsed);
+        }
       } catch {
-        return null;
+        /* تخطي سجل تالف */
       }
-    }).filter(Boolean) as { propertyId?: number | string; email?: string; phone?: string; [k: string]: unknown }[];
+    }
 
     if (scope.userId && !scope.isAdmin) {
       const user = await prisma.user.findUnique({
@@ -92,7 +115,7 @@ export async function GET(req: NextRequest) {
     const paged = limit > 0 ? bookings.slice(offset, offset + limit) : bookings;
     return NextResponse.json(paged, {
       headers: {
-        'Cache-Control': CACHE_BOOKINGS_GET,
+        'Cache-Control': CACHE_BOOKINGS_LIST,
         Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(bookings.length),
         'X-Limit': String(limit || bookings.length),
@@ -112,40 +135,50 @@ export async function POST(req: NextRequest) {
     const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN', 'COMPANY', 'ORG_MANAGER', 'CLIENT', 'OWNER', 'LANDLORD']);
     if (forbidden) return forbidden;
 
-    const body = await req.json();
+    const body = (await req.json()) as Record<string, unknown>;
     const id = typeof body?.id === 'string' ? body.id : null;
     if (!id) {
       return NextResponse.json({ error: 'Missing booking id' }, { status: 400 });
     }
-    const data = JSON.stringify(body);
+    const year = new Date().getFullYear();
+    const needSerial =
+      !body.bookingSerial || !isValidBhdSerial(String(body.bookingSerial));
+    const payload: Record<string, unknown> = needSerial
+      ? { ...body, bookingSerial: await generateBhdSerial('BKG', { year }) }
+      : body;
+    const data = JSON.stringify(payload);
     await prisma.bookingStorage.upsert({
       where: { bookingId: id },
       create: { bookingId: id, data },
       update: { data, updatedAt: new Date() },
     });
 
-    if (body.paymentConfirmed && body.priceAtBooking > 0 && body.type === 'BOOKING') {
+    if (payload.paymentConfirmed && Number(payload.priceAtBooking) > 0 && payload.type === 'BOOKING') {
       try {
         await createBookingReceiptInDb({
-          id: body.id,
-          propertyId: Number(body.propertyId),
-          unitKey: body.unitKey,
-          propertyTitleAr: body.propertyTitleAr,
-          propertyTitleEn: body.propertyTitleEn,
-          name: body.name || '',
-          priceAtBooking: Number(body.priceAtBooking),
-          paymentDate: body.paymentDate,
-          paymentMethod: body.paymentMethod,
-          paymentReferenceNo: body.paymentReferenceNo,
-          contactId: body.contactId,
-          bankAccountId: body.bankAccountId,
+          id: String(payload.id),
+          propertyId: Number(payload.propertyId),
+          unitKey: typeof payload.unitKey === 'string' ? payload.unitKey : undefined,
+          propertyTitleAr: typeof payload.propertyTitleAr === 'string' ? payload.propertyTitleAr : undefined,
+          propertyTitleEn: typeof payload.propertyTitleEn === 'string' ? payload.propertyTitleEn : undefined,
+          name: typeof payload.name === 'string' ? payload.name : '',
+          priceAtBooking: Number(payload.priceAtBooking),
+          paymentDate: typeof payload.paymentDate === 'string' ? payload.paymentDate : undefined,
+          paymentMethod: typeof payload.paymentMethod === 'string' ? payload.paymentMethod : undefined,
+          paymentReferenceNo: typeof payload.paymentReferenceNo === 'string' ? payload.paymentReferenceNo : undefined,
+          contactId: typeof payload.contactId === 'string' ? payload.contactId : null,
+          bankAccountId: typeof payload.bankAccountId === 'string' ? payload.bankAccountId : null,
         });
       } catch (accErr) {
         console.error('Booking receipt (accounting) error:', accErr);
       }
     }
 
-    return NextResponse.json({ ok: true, id });
+    return NextResponse.json({
+      ok: true,
+      id,
+      bookingSerial: typeof payload.bookingSerial === 'string' ? payload.bookingSerial : undefined,
+    });
   } catch (e) {
     console.error('Bookings POST error:', e);
     return NextResponse.json({ error: 'Failed to save booking' }, { status: 500 });
