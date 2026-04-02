@@ -311,6 +311,17 @@ export default function UsersAdminPage() {
         setUsers([]);
         return;
       }
+      // إذا كانت نسخة الإنتاج لا تحتوي API route (404)، نرجع لمسار احتياطي بدل إظهار 0 مستخدم.
+      if (res.status === 404) {
+        const fallback = await buildFallbackUsers();
+        setLoadError(
+          locale === 'ar'
+            ? 'واجهة API لقائمة المستخدمين غير متاحة على هذه النسخة (404). تم عرض قائمة احتياطية.'
+            : 'Users list API is not available on this deployment (404). Showing a fallback list.'
+        );
+        setUsers(fallback);
+        return;
+      }
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         let data: any = {};
