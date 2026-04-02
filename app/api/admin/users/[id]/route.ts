@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { syncLinkedAddressBookFromUserUpdate } from '@/lib/server/syncUserToAddressBook';
+import { isValidBhdSerial } from '@/lib/server/serialNumbers';
 
 export async function GET(
   req: NextRequest,
@@ -19,32 +20,51 @@ export async function GET(
     }
 
     const { id } = await params;
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        serialNumber: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-        subscriptions: {
-          take: 1,
-          orderBy: { updatedAt: 'desc' },
-          where: { status: 'active' },
-          select: {
-            id: true,
-            planId: true,
-            status: true,
-            startAt: true,
-            endAt: true,
-            plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
-          },
+    const select = {
+      id: true,
+      serialNumber: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      createdAt: true,
+      updatedAt: true,
+      subscriptions: {
+        take: 1,
+        orderBy: { updatedAt: 'desc' },
+        where: { status: 'active' },
+        select: {
+          id: true,
+          planId: true,
+          status: true,
+          startAt: true,
+          endAt: true,
+          plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
         },
       },
+    } as const;
+
+    const trimmed = String(id ?? '').trim();
+    let user = await prisma.user.findUnique({
+      where: { id: trimmed },
+      select,
     });
+
+    // دعم روابط قديمة/احتياطية: إذا كان param بريد أو serial (بدل id الحقيقي)
+    if (!user) {
+      const lower = trimmed.toLowerCase();
+      if (lower.includes('@')) {
+        user = await prisma.user.findUnique({
+          where: { email: lower },
+          select,
+        });
+      } else if (isValidBhdSerial(trimmed)) {
+        user = await prisma.user.findUnique({
+          where: { serialNumber: trimmed },
+          select,
+        });
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
