@@ -247,6 +247,14 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error('Users list error:', e);
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    const err = e as { message?: string; code?: string };
+    return NextResponse.json(
+      {
+        error: 'Failed to fetch users',
+        message: typeof err?.message === 'string' ? err.message : undefined,
+        code: typeof err?.code === 'string' ? err.code : undefined,
+      },
+      { status: 500 }
+    );
   }
 }
