@@ -368,16 +368,31 @@ export default function UsersAdminPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setSyncMsg(locale === 'ar' ? (data?.error || 'فشل توليد الرقم') : (data?.error || 'Failed to generate serial'));
+        const msg =
+          locale === 'ar'
+            ? (data?.error || 'فشل توليد الرقم')
+            : (data?.error || 'Failed to generate serial');
+        setSyncMsg(msg);
         setTimeout(() => setSyncMsg(null), 3000);
+        try {
+          alert(msg);
+        } catch {}
         return;
+      }
+      const nextSerial = typeof data?.serialNumber === 'string' ? data.serialNumber : '';
+      if (nextSerial) {
+        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, serialNumber: nextSerial } : x)));
       }
       setSyncMsg(locale === 'ar' ? 'تم توليد الرقم المتسلسل' : 'Serial generated');
       setTimeout(() => setSyncMsg(null), 2500);
+      // نعمل refresh كتحقق نهائي فقط
       refreshUsers();
     } catch {
       setSyncMsg(locale === 'ar' ? 'فشل توليد الرقم' : 'Failed');
       setTimeout(() => setSyncMsg(null), 2500);
+      try {
+        alert(locale === 'ar' ? 'فشل توليد الرقم' : 'Failed');
+      } catch {}
     }
   };
 

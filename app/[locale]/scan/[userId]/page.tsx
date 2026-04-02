@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { shortenUserSerial } from '@/lib/utils/serialNumber';
 
 interface ScanUser {
   id: string;
@@ -83,6 +84,7 @@ export default function ScanUserPage() {
   };
   /** ملخص بصيغة دفتر العناوين: الاسم | الهاتف | الرقم المتسلسل */
   const displaySummary = [user.name, user.phone, user.serialNumber].filter(Boolean).join(' | ') || '—';
+  const shortSerial = shortenUserSerial(user.serialNumber);
   const roleLabel = roleLabels[user.role] || { ar: user.role, en: user.role };
   const dashLabel = user.dashboardType && dashboardLabels[user.dashboardType]
     ? dashboardLabels[user.dashboardType]
@@ -107,7 +109,9 @@ export default function ScanUserPage() {
               {ar ? 'بطاقة المستخدم — بيانات كاملة كما في دفتر العناوين' : 'User Card — Full Details (as in Address Book)'}
             </p>
             <h1 className="text-xl font-bold mt-1">{user.name}</h1>
-            <p className="font-mono text-sm opacity-90 mt-1">{user.serialNumber}</p>
+            <p className="font-mono text-sm opacity-90 mt-1">
+              {shortSerial !== '—' ? `${shortSerial} · ${user.serialNumber}` : user.serialNumber}
+            </p>
             <p className="text-sm opacity-85 mt-2 border-t border-white/20 pt-2">{displaySummary}</p>
           </div>
           {/* البيانات الأساسية — كما في دفتر العناوين */}
@@ -120,7 +124,9 @@ export default function ScanUserPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">
                   {ar ? 'الرقم المتسلسل / اسم الدخول' : 'Serial / Username'}
                 </p>
-                <p className="font-mono text-[#8B6F47] font-medium">{user.serialNumber}</p>
+                <p className="font-mono text-[#8B6F47] font-medium">
+                  {shortSerial !== '—' ? `${shortSerial} · ${user.serialNumber}` : user.serialNumber}
+                </p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">

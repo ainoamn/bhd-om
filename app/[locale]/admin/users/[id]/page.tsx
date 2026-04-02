@@ -391,7 +391,7 @@ export default function UserDetailPage() {
             <span>{user.name}</span>
           </div>
         }
-        subtitle={shortenUserSerial(user.serialNumber)}
+        subtitle={`${shortenUserSerial(user.serialNumber)}${user.serialNumber ? ` · ${user.serialNumber}` : ''}`}
         actions={
           <div className="flex items-center gap-2">
             <LoginAsUserButton
@@ -421,6 +421,11 @@ export default function UserDetailPage() {
               <p className="font-mono text-[#8B6F47] font-medium" title={user.serialNumber || undefined}>
                 {shortenUserSerial(user.serialNumber)}
               </p>
+              {user.serialNumber && (
+                <p className="text-[11px] font-mono text-gray-500 mt-1 break-all" dir="ltr">
+                  {user.serialNumber}
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{t('name')}</p>
