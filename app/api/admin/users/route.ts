@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
 import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
+import { safeUserSerialForDisplay } from '@/lib/utils/serialNumber';
 
 const CACHE_ADMIN_USERS_LIST = 'private, no-store';
 
@@ -19,7 +20,8 @@ const ROLE_SERIAL_CODE: Record<string, string> = {
 };
 
 async function ensureUserSerialNumber(user: { id: string; role: string; serialNumber: string | null | undefined }) {
-  if (isValidBhdSerial(user.serialNumber)) return String(user.serialNumber);
+  const raw = String(user.serialNumber ?? '').trim();
+  if (isValidBhdSerial(raw)) return raw;
   const code = ROLE_SERIAL_CODE[String(user.role || '').toUpperCase()] || 'C';
   const serialNumber = await generateBhdSerial(`USR-${code}`);
   await prisma.user.update({
@@ -27,6 +29,22 @@ async function ensureUserSerialNumber(user: { id: string; role: string; serialNu
     data: { serialNumber },
   });
   return serialNumber;
+}
+
+/** لا يُسقط طلب القائمة إذا فشل توليد الرقم لمستخدم واحد (يُرجَع عرضاً آمناً) */
+async function ensureUserSerialNumberOrSanitize(user: {
+  id: string;
+  role: string;
+  serialNumber: string | null | undefined;
+}): Promise<string> {
+  try {
+    return await ensureUserSerialNumber(user);
+  } catch (e) {
+    console.error('ensureUserSerialNumber', user.id, e);
+    return safeUserSerialForDisplay(user.serialNumber) !== '—'
+      ? String(user.serialNumber ?? '').trim()
+      : '—';
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -57,7 +75,7 @@ export async function GET(req: NextRequest) {
       const users = await Promise.all(
         owners.map(async (u) => ({
           ...u,
-          serialNumber: await ensureUserSerialNumber({ id: u.id, role: u.role, serialNumber: u.serialNumber }),
+          serialNumber: await ensureUserSerialNumberOrSanitize({ id: u.id, role: u.role, serialNumber: u.serialNumber }),
         }))
       );
       return NextResponse.json(users, {
@@ -106,7 +124,7 @@ export async function GET(req: NextRequest) {
           },
         });
       }
-      const ensuredSerial = await ensureUserSerialNumber({ id: me.id, role: me.role, serialNumber: me.serialNumber });
+      const ensuredSerial = await ensureUserSerialNumberOrSanitize({ id: me.id, role: me.role, serialNumber: me.serialNumber });
       const sub = me.subscriptions?.[0];
       return NextResponse.json(
         [
@@ -169,7 +187,7 @@ export async function GET(req: NextRequest) {
     });
 
     let list = await Promise.all(users.map(async (u) => {
-      const ensuredSerial = await ensureUserSerialNumber({ id: u.id, role: u.role, serialNumber: u.serialNumber });
+      const ensuredSerial = await ensureUserSerialNumberOrSanitize({ id: u.id, role: u.role, serialNumber: u.serialNumber });
       const sub = u.subscriptions?.[0];
       return {
         id: u.id,
@@ -211,7 +229,7 @@ export async function GET(req: NextRequest) {
         },
       });
       if (me) {
-        const ensuredSerial = await ensureUserSerialNumber({ id: me.id, role: me.role, serialNumber: me.serialNumber });
+        const ensuredSerial = await ensureUserSerialNumberOrSanitize({ id: me.id, role: me.role, serialNumber: me.serialNumber });
         const sub = me.subscriptions?.[0];
         list = [
           {

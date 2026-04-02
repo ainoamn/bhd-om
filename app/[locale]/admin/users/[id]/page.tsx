@@ -391,7 +391,7 @@ export default function UserDetailPage() {
             <span>{user.name}</span>
           </div>
         }
-        subtitle={shortenUserSerial(user.serialNumber) !== '—' ? shortenUserSerial(user.serialNumber) : user.serialNumber}
+        subtitle={shortenUserSerial(user.serialNumber)}
         actions={
           <div className="flex items-center gap-2">
             <LoginAsUserButton

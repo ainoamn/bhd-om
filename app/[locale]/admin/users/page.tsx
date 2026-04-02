@@ -13,7 +13,7 @@ import {
 } from '@/lib/data/addressBook';
 import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
-import { shortenUserSerial } from '@/lib/utils/serialNumber';
+import { safeUserSerialForDisplay, shortenUserSerial } from '@/lib/utils/serialNumber';
 import UserBarcode from '@/components/admin/UserBarcode';
 
 interface PlanInfo {
@@ -253,7 +253,10 @@ export default function UsersAdminPage() {
       if (me?.id) {
         rows.push({
           id: me.id,
-          serialNumber: me.serialNumber || me.email || me.id,
+          serialNumber: (() => {
+            const sn = me.serialNumber?.trim();
+            return sn && !sn.includes('@') ? sn : '—';
+          })(),
           name: me.name || '—',
           email: me.email || '',
           phone: me.phone || null,
@@ -278,7 +281,12 @@ export default function UsersAdminPage() {
           if (rows.some((u) => (u.id || u.email || '') === key || (!!email && u.email === email))) continue;
           rows.push({
             id: id || key,
-            serialNumber: String(b?.clientSerialNumber || b?.serialNumber || email || key),
+            serialNumber: (() => {
+              const fromBooking = b?.clientSerialNumber ?? b?.serialNumber;
+              const s = fromBooking != null && fromBooking !== '' ? String(fromBooking).trim() : '';
+              if (s && !s.includes('@')) return s;
+              return '—';
+            })(),
             name: name || '—',
             email: email || '',
             phone: phone || null,
@@ -604,9 +612,13 @@ export default function UsersAdminPage() {
                       <Link
                         href={`/${locale}/admin/users/${u.id}`}
                         className="text-[#8B6F47] hover:text-[#6B5535] hover:underline cursor-pointer transition-colors block break-all"
-                        title={u.serialNumber ? `${shortenUserSerial(u.serialNumber)} · ${u.serialNumber}` : undefined}
+                        title={
+                          safeUserSerialForDisplay(u.serialNumber) !== '—'
+                            ? `${shortenUserSerial(u.serialNumber)} · ${u.serialNumber}`
+                            : undefined
+                        }
                       >
-                        {u.serialNumber || '—'}
+                        {safeUserSerialForDisplay(u.serialNumber)}
                       </Link>
                     </td>
                     <td className="px-3 py-2 font-semibold">
