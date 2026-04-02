@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — ترحيل BHD من الموقع (لوحة الإدارة)
+
+- استخراج المنطق إلى `lib/server/migrateSerialsToBhd.ts` واستدعاؤه من السكربت ومن **`POST /api/admin/migrate-serials-bhd`** (ADMIN/SUPER_ADMIN، تأكيد `BHD-MIGRATE` للتنفيذ الفعلي، `maxDuration` 300s).
+- صفحة: **`/{locale}/admin/migrate-serials`** — معاينة جافة ثم تنفيذ بعد كتابة التأكيد.
+
 ### جلسة 2026-04-02 — ترحيل الأرقام (سكربت) + GitHub Actions
 
 - تشغيل `npm run db:migrate-serials-bhd` محلياً فشل: لا يوجد PostgreSQL على `127.0.0.1:5432` (أو `DATABASE_URL` لا يشير لقاعدة متاحة).
