@@ -19,6 +19,18 @@ import {
 
 const DRY = process.env.MIGRATE_SERIALS_DRY_RUN === '1' || process.env.MIGRATE_SERIALS_DRY_RUN === 'true';
 
+/** رموز تصنيف دفتر العناوين (متوافقة مع lib/data/addressBook) */
+const ADR_CATEGORY_CODE: Record<string, string> = {
+  CLIENT: 'C',
+  TENANT: 'T',
+  LANDLORD: 'L',
+  SUPPLIER: 'S',
+  PARTNER: 'P',
+  GOVERNMENT: 'G',
+  AUTHORIZED_REP: 'A',
+  OTHER: 'O',
+};
+
 const ROLE_SERIAL_CODE: Record<string, string> = {
   ADMIN: 'A',
   SUPER_ADMIN: 'A',
