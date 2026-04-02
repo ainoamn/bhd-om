@@ -13,6 +13,22 @@ interface ScanUser {
   role: string;
   dashboardType: string | null;
   createdAt: string;
+  subscription?: {
+    status: string;
+    startAt: string;
+    endAt: string;
+    plan: { code: string; nameAr: string; nameEn: string } | null;
+  } | null;
+  stats?: {
+    ownedProperties: number;
+    bookings: number;
+    viewings: number;
+  } | null;
+  rating?: {
+    level: string;
+    score: number;
+    stars: number;
+  } | null;
 }
 
 export default function ScanUserPage() {
@@ -155,10 +171,35 @@ export default function ScanUserPage() {
       })
     : '—';
 
+  const initials = String(user.name || 'U')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.slice(0, 1))
+    .join('')
+    .toUpperCase();
+
+  const subStart = user.subscription?.startAt
+    ? new Date(user.subscription.startAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')
+    : '—';
+  const subEnd = user.subscription?.endAt
+    ? new Date(user.subscription.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')
+    : '—';
+  const planName = user.subscription?.plan
+    ? (ar ? user.subscription.plan.nameAr : user.subscription.plan.nameEn)
+    : (ar ? 'بدون باقة' : 'No plan');
+  const ratingStars = Math.max(0, Math.min(5, Number(user.rating?.stars ?? 0)));
+  const ratingLabel =
+    user.rating?.level === 'GOLD'
+      ? (ar ? 'ذهبي' : 'Gold')
+      : user.rating?.level === 'SILVER'
+        ? (ar ? 'فضي' : 'Silver')
+        : (ar ? 'برونزي' : 'Bronze');
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f7f3ee] via-gray-50 to-white px-4 py-10" dir={dir}>
       <div className="max-w-2xl mx-auto">
-        <div className="rounded-3xl border border-gray-200/70 bg-white shadow-xl overflow-hidden">
+        <div className="w-full rounded-3xl border border-gray-200/70 bg-white shadow-xl overflow-hidden">
           {/* Header */}
           <div className="relative overflow-hidden bg-[#8B6F47] text-white">
             <div className="absolute inset-0 opacity-20">
@@ -169,7 +210,15 @@ export default function ScanUserPage() {
               <p className="text-xs font-semibold opacity-90 uppercase tracking-wide">
                 {ar ? 'بطاقة المستخدم' : 'User card'}
               </p>
-              <h1 className="text-2xl font-extrabold mt-2 leading-snug">{user.name}</h1>
+              <div className="mt-2 flex items-center gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center font-extrabold text-lg">
+                  {initials}
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-extrabold leading-snug truncate">{user.name}</h1>
+                  <p className="text-xs opacity-90 mt-1">{ar ? 'رمز المستخدم' : 'User token'}</p>
+                </div>
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
                   {ar ? roleLabel.ar : roleLabel.en}
@@ -219,6 +268,64 @@ export default function ScanUserPage() {
 
           {/* Body */}
           <div className="p-6 space-y-5">
+            {/* Subscription + rating */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase">{ar ? 'الاشتراك' : 'Subscription'}</p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-600">{ar ? 'الباقة' : 'Plan'}</span>
+                    <span className="font-semibold text-gray-900 truncate">{planName}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-600">{ar ? 'بداية' : 'Start'}</span>
+                    <span className="font-mono text-gray-900" dir="ltr">{subStart}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-600">{ar ? 'نهاية' : 'End'}</span>
+                    <span className="font-mono text-gray-900" dir="ltr">{subEnd}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase">{ar ? 'التقييم (قريباً)' : 'Rating (soon)'}</p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{ratingLabel}</p>
+                    <p className="text-xs text-gray-500">{ar ? 'نظام تقييم العملاء قيد الإعداد' : 'Customer ratings system in progress'}</p>
+                  </div>
+                  <div className="font-mono text-sm text-[#8B6F47]" dir="ltr">
+                    {'★'.repeat(ratingStars)}{'☆'.repeat(5 - ratingStars)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-bold text-gray-500 uppercase">{ar ? 'ملخص النشاط' : 'Activity summary'}</p>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-gray-50 border border-gray-200 p-4">
+                  <p className="text-xs font-semibold text-gray-500">{ar ? 'عقارات (ملك)' : 'Owned properties'}</p>
+                  <p className="mt-2 text-2xl font-extrabold text-gray-900">{user.stats?.ownedProperties ?? 0}</p>
+                </div>
+                <div className="rounded-2xl bg-gray-50 border border-gray-200 p-4">
+                  <p className="text-xs font-semibold text-gray-500">{ar ? 'حجوزات' : 'Bookings'}</p>
+                  <p className="mt-2 text-2xl font-extrabold text-gray-900">{user.stats?.bookings ?? 0}</p>
+                </div>
+                <div className="rounded-2xl bg-gray-50 border border-gray-200 p-4">
+                  <p className="text-xs font-semibold text-gray-500">{ar ? 'معاينات' : 'Viewings'}</p>
+                  <p className="mt-2 text-2xl font-extrabold text-gray-900">{user.stats?.viewings ?? 0}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                {ar
+                  ? 'هذه أرقام إرشادية مبنية على بيانات قاعدة البيانات الحالية.'
+                  : 'These are indicative counts based on current database records.'}
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="rounded-2xl border border-gray-200 bg-white p-4">
                 <p className="text-xs font-bold text-gray-500 uppercase">{ar ? 'معلومات الاتصال' : 'Contact'}</p>
