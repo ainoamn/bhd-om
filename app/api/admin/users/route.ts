@@ -61,19 +61,37 @@ async function ensureUserSerialNumber(user: {
   const typeCode = `USR-${code}`;
   const year = user.createdAt?.getFullYear?.() ?? new Date().getFullYear();
 
-  // قبل التوليد: نمزج seed للعداد من الأرقام الموجودة لتجنب تعارض unique.
+  // قبل التوليد: seed للعداد من الأرقام الموجودة لتجنب تعارض unique.
   try {
     await seedUsrSerialCounterFromExistingUsers(typeCode, year);
   } catch (e) {
     console.warn('seedUsrSerialCounterFromExistingUsers failed', { typeCode, year, e });
   }
 
-  const serialNumber = await generateBhdSerial(typeCode, { year });
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { serialNumber },
-  });
-  return serialNumber;
+  // Retry عند تعارض @unique (P2002) لأن counters قد تكون أقل من الواقع على الإنتاج.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const serialNumber = await generateBhdSerial(typeCode, { year });
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { serialNumber },
+      });
+      return serialNumber;
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      // Prisma unique constraint violation
+      if (code === 'P2002') {
+        try {
+          await seedUsrSerialCounterFromExistingUsers(typeCode, year);
+        } catch {}
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  // لو استمر التعارض، اتركه للـ sanitize بدل سقوط الطلب
+  throw new Error(`Failed to assign serialNumber for user ${user.id}`);
 }
 
 /** لا يُسقط طلب القائمة إذا فشل توليد الرقم لمستخدم واحد (يُرجَع عرضاً آمناً) */
