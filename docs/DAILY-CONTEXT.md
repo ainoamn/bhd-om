@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — ترحيل الأرقام (سكربت) + GitHub Actions
+
+- تشغيل `npm run db:migrate-serials-bhd` محلياً فشل: لا يوجد PostgreSQL على `127.0.0.1:5432` (أو `DATABASE_URL` لا يشير لقاعدة متاحة).
+- أُضيف workflow يدوي: `.github/workflows/migrate-serials-bhd.yml` — يشغّل نفس السكربت بعد ضبط Secret `DATABASE_URL` في المستودع وتشغيل **Actions → Migrate serials to BHD → Run workflow**.
+
 ### جلسة 2026-04-02 — لوحة الإدارة: أرقام BHD (مستخدمون، عقارات، حجوزات، مشاريع)
 
 - **المستخدمون:** مسار `GET /api/admin/users?role=OWNER` كان يُرجع `serialNumber` من DB دون `ensureUserSerialNumber` — أصلحنا بدمج التأكيد/التوليد لكل صف. عرض الرقم الكامل BHD في الجدول، وجلب القائمة بـ `cache: 'no-store'`.

@@ -1,0 +1,34 @@
+# تشغيل يدوي: ترحيل الأرقام إلى BHD على قاعدة البيانات المرتبطة بـ DATABASE_URL
+# يتطلب إضافة Secret باسم DATABASE_URL في المستودع (إعدادات → Secrets)
+name: Migrate serials to BHD
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-serials-bhd
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Run migrate-serials-to-bhd
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NODE_ENV: production
+        run: npm run db:migrate-serials-bhd
