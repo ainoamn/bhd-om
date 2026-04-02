@@ -135,23 +135,30 @@ export async function GET(req: NextRequest) {
         phone: true,
         role: true,
         createdAt: true,
-        subscriptions: {
-          take: 1,
+      },
+    });
+
+    // جلب الاشتراكات النشطة دفعة واحدة لتقليل تكلفة الاستعلام
+    const userIds = users.map((u) => u.id);
+    const subs = userIds.length
+      ? await prisma.subscription.findMany({
+          where: { userId: { in: userIds }, status: 'active' },
           orderBy: { updatedAt: 'desc' },
-          where: { status: 'active' },
           select: {
-            id: true,
-            planId: true,
+            userId: true,
             status: true,
             endAt: true,
             plan: { select: { id: true, code: true, nameAr: true, nameEn: true, priceMonthly: true, currency: true } },
           },
-        },
-      },
-    });
+        })
+      : [];
+    const subByUser = new Map<string, (typeof subs)[number]>();
+    for (const s of subs) {
+      if (!subByUser.has(s.userId)) subByUser.set(s.userId, s);
+    }
 
     let list = users.map((u) => {
-      const sub = u.subscriptions?.[0];
+      const sub = subByUser.get(u.id);
       return {
         id: u.id,
         serialNumber: sanitizeSerialForList(u.serialNumber),
@@ -160,7 +167,16 @@ export async function GET(req: NextRequest) {
         phone: u.phone,
         role: u.role,
         createdAt: u.createdAt,
-        plan: sub?.plan ? { id: sub.plan.id, code: sub.plan.code, nameAr: sub.plan.nameAr, nameEn: sub.plan.nameEn, priceMonthly: sub.plan.priceMonthly, currency: sub.plan.currency } : null,
+        plan: sub?.plan
+          ? {
+              id: sub.plan.id,
+              code: sub.plan.code,
+              nameAr: sub.plan.nameAr,
+              nameEn: sub.plan.nameEn,
+              priceMonthly: sub.plan.priceMonthly,
+              currency: sub.plan.currency,
+            }
+          : null,
         subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
       };
     });
