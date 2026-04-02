@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
-import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
+import { buildSerialCounterKey, generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
 import { safeUserSerialForDisplay } from '@/lib/utils/serialNumber';
 
 const CACHE_ADMIN_USERS_LIST = 'private, no-store';
@@ -19,11 +19,56 @@ const ROLE_SERIAL_CODE: Record<string, string> = {
   SALES_AGENT: 'S',
 };
 
-async function ensureUserSerialNumber(user: { id: string; role: string; serialNumber: string | null | undefined }) {
+async function seedUsrSerialCounterFromExistingUsers(typeCode: string, year: number) {
+  // مثال: typeCode = USR-C و year = 2026
+  // prefix = BHD-2026-USR-C-
+  const prefix = `BHD-${year}-${typeCode}-`;
+  const existing = await prisma.user.findMany({
+    where: {
+      serialNumber: { startsWith: prefix },
+    },
+    select: { serialNumber: true },
+  });
+
+  let maxSeq = 0;
+  for (const u of existing) {
+    const sn = String(u.serialNumber ?? '');
+    if (!sn.startsWith(prefix)) continue;
+    const last = sn.split('-').pop();
+    const seq = last ? Number.parseInt(last, 10) : NaN;
+    if (Number.isFinite(seq)) maxSeq = Math.max(maxSeq, seq);
+  }
+
+  if (maxSeq <= 0) return;
+  const key = buildSerialCounterKey(typeCode, year);
+  await prisma.serialCounter.upsert({
+    where: { key },
+    create: { key, lastValue: maxSeq },
+    update: { lastValue: maxSeq },
+  });
+}
+
+async function ensureUserSerialNumber(user: {
+  id: string;
+  role: string;
+  serialNumber: string | null | undefined;
+  createdAt?: Date;
+}) {
   const raw = String(user.serialNumber ?? '').trim();
   if (isValidBhdSerial(raw)) return raw;
+
   const code = ROLE_SERIAL_CODE[String(user.role || '').toUpperCase()] || 'C';
-  const serialNumber = await generateBhdSerial(`USR-${code}`);
+  const typeCode = `USR-${code}`;
+  const year = user.createdAt?.getFullYear?.() ?? new Date().getFullYear();
+
+  // قبل التوليد: نمزج seed للعداد من الأرقام الموجودة لتجنب تعارض unique.
+  try {
+    await seedUsrSerialCounterFromExistingUsers(typeCode, year);
+  } catch (e) {
+    console.warn('seedUsrSerialCounterFromExistingUsers failed', { typeCode, year, e });
+  }
+
+  const serialNumber = await generateBhdSerial(typeCode, { year });
   await prisma.user.update({
     where: { id: user.id },
     data: { serialNumber },
@@ -36,6 +81,7 @@ async function ensureUserSerialNumberOrSanitize(user: {
   id: string;
   role: string;
   serialNumber: string | null | undefined;
+  createdAt?: Date;
 }): Promise<string> {
   try {
     return await ensureUserSerialNumber(user);
@@ -69,13 +115,18 @@ export async function GET(req: NextRequest) {
         where: { role: 'OWNER' },
         orderBy: { name: 'asc' },
         ...(limit > 0 ? { skip: offset, take: limit } : {}),
-        select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true },
+        select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true, createdAt: true },
       });
       const total = await prisma.user.count({ where: { role: 'OWNER' } });
       const users = await Promise.all(
         owners.map(async (u) => ({
           ...u,
-          serialNumber: await ensureUserSerialNumberOrSanitize({ id: u.id, role: u.role, serialNumber: u.serialNumber }),
+          serialNumber: await ensureUserSerialNumberOrSanitize({
+            id: u.id,
+            role: u.role,
+            serialNumber: u.serialNumber,
+            createdAt: u.createdAt,
+          }),
         }))
       );
       return NextResponse.json(users, {
@@ -124,7 +175,12 @@ export async function GET(req: NextRequest) {
           },
         });
       }
-      const ensuredSerial = await ensureUserSerialNumberOrSanitize({ id: me.id, role: me.role, serialNumber: me.serialNumber });
+      const ensuredSerial = await ensureUserSerialNumberOrSanitize({
+        id: me.id,
+        role: me.role,
+        serialNumber: me.serialNumber,
+        createdAt: me.createdAt,
+      });
       const sub = me.subscriptions?.[0];
       return NextResponse.json(
         [
@@ -187,7 +243,12 @@ export async function GET(req: NextRequest) {
     });
 
     let list = await Promise.all(users.map(async (u) => {
-      const ensuredSerial = await ensureUserSerialNumberOrSanitize({ id: u.id, role: u.role, serialNumber: u.serialNumber });
+      const ensuredSerial = await ensureUserSerialNumberOrSanitize({
+        id: u.id,
+        role: u.role,
+        serialNumber: u.serialNumber,
+        createdAt: u.createdAt,
+      });
       const sub = u.subscriptions?.[0];
       return {
         id: u.id,
@@ -229,7 +290,12 @@ export async function GET(req: NextRequest) {
         },
       });
       if (me) {
-        const ensuredSerial = await ensureUserSerialNumberOrSanitize({ id: me.id, role: me.role, serialNumber: me.serialNumber });
+        const ensuredSerial = await ensureUserSerialNumberOrSanitize({
+          id: me.id,
+          role: me.role,
+          serialNumber: me.serialNumber,
+          createdAt: me.createdAt,
+        });
         const sub = me.subscriptions?.[0];
         list = [
           {
