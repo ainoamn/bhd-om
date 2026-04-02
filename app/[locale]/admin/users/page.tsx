@@ -312,11 +312,15 @@ export default function UsersAdminPage() {
         return;
       }
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const msg =
+        const text = await res.text().catch(() => '');
+        let data: any = {};
+        try { data = text ? JSON.parse(text) : {}; } catch {}
+        const base =
           locale === 'ar'
             ? (data?.error || 'تعذر تحميل قائمة المستخدمين')
             : (data?.error || 'Failed to load users list');
+        const details = text && !data?.error ? text.slice(0, 300) : '';
+        const msg = `${base}\nHTTP ${res.status}${details ? `\n${details}` : ''}`;
         setLoadError(msg);
         setUsers([]);
         return;
