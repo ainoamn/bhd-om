@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — مستخدمون: عدم عرض البريد كرقم متسلسل
+
+- **السبب:** مسار احتياطي `buildFallbackUsers` كان يضع البريد في `serialNumber`؛ وعند وجود بريد مخزّن بالخطأ في DB قد يظهر في الواجهة.
+- **الإصلاح:** `safeUserSerialForDisplay` و`shortenUserSerial` يتجاهلان النص الذي يحتوي `@`؛ تصحيح fallback الجلسة والحجوزات؛ `ensureUserSerialNumberOrSanitize` في `GET /api/admin/users` حتى لا يسقط الطلب عند فشل مستخدم واحد؛ إصلاح subtitle في `admin/users/[id]`.
+
 ### جلسة 2026-04-02 — ترحيل BHD من الموقع (لوحة الإدارة)
 
 - استخراج المنطق إلى `lib/server/migrateSerialsToBhd.ts` واستدعاؤه من السكربت ومن **`POST /api/admin/migrate-serials-bhd`** (ADMIN/SUPER_ADMIN، تأكيد `BHD-MIGRATE` للتنفيذ الفعلي، `maxDuration` 300s).
