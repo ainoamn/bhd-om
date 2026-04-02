@@ -231,6 +231,7 @@ export default function UsersAdminPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [requireAdmin, setRequireAdmin] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [contacts, setContacts] = useState<{ email: string; userId?: string }[]>([]);
@@ -303,6 +304,7 @@ export default function UsersAdminPage() {
 
   const loadUsers = useCallback(async () => {
     try {
+      setLoadError(null);
       const res = await fetch('/api/admin/users', { cache: 'no-store', credentials: 'include' });
       if (res.status === 401 || res.status === 403) {
         setRequireAdmin(true);
@@ -310,15 +312,18 @@ export default function UsersAdminPage() {
         return;
       }
       if (!res.ok) {
-        const fallback = await buildFallbackUsers();
-        setUsers(fallback);
+        const data = await res.json().catch(() => ({}));
+        const msg =
+          locale === 'ar'
+            ? (data?.error || 'تعذر تحميل قائمة المستخدمين')
+            : (data?.error || 'Failed to load users list');
+        setLoadError(msg);
+        setUsers([]);
         return;
       }
       const data = await res.json();
       let usersList = Array.isArray(data) ? data : [];
-      if (usersList.length === 0) {
-        usersList = await buildFallbackUsers();
-      }
+      // لا نلجأ لمسار احتياطي هنا حتى لا تظهر بيانات/أرقام غير متسقة في لوحة الإدارة
       setUsers(usersList);
       if (usersList.length > 0) {
         const { added } = syncContactsFromUsers(usersList);
@@ -328,8 +333,8 @@ export default function UsersAdminPage() {
         }
       }
     } catch {
-      const fallback = await buildFallbackUsers();
-      setUsers(fallback);
+      setLoadError(locale === 'ar' ? 'تعذر الاتصال بالخادم' : 'Network error');
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -545,6 +550,21 @@ export default function UsersAdminPage() {
       {syncMsg && (
         <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-medium">
           {syncMsg}
+        </div>
+      )}
+      {loadError && (
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-900 font-medium whitespace-pre-wrap">
+          {loadError}
+          <button
+            type="button"
+            className="mr-2 underline font-semibold"
+            onClick={() => {
+              setLoading(true);
+              void loadUsers();
+            }}
+          >
+            {locale === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+          </button>
         </div>
       )}
       <AdminPageHeader
