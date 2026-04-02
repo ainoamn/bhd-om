@@ -1,114 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
-import { buildSerialCounterKey, generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
-import { safeUserSerialForDisplay } from '@/lib/utils/serialNumber';
+// ملاحظة: لا نقوم بتوليد/تحديث الأرقام داخل قائمة المستخدمين (لتجنب timeouts).
 
 const CACHE_ADMIN_USERS_LIST = 'private, no-store';
 
-const ROLE_SERIAL_CODE: Record<string, string> = {
-  ADMIN: 'A',
-  SUPER_ADMIN: 'A',
-  CLIENT: 'C',
-  OWNER: 'L',
-  LANDLORD: 'L',
-  COMPANY: 'P',
-  ORG_MANAGER: 'M',
-  ACCOUNTANT: 'N',
-  PROPERTY_MANAGER: 'R',
-  SALES_AGENT: 'S',
-};
-
-async function seedUsrSerialCounterFromExistingUsers(typeCode: string, year: number) {
-  // مثال: typeCode = USR-C و year = 2026
-  // prefix = BHD-2026-USR-C-
-  const prefix = `BHD-${year}-${typeCode}-`;
-  const existing = await prisma.user.findMany({
-    where: {
-      serialNumber: { startsWith: prefix },
-    },
-    select: { serialNumber: true },
-  });
-
-  let maxSeq = 0;
-  for (const u of existing) {
-    const sn = String(u.serialNumber ?? '');
-    if (!sn.startsWith(prefix)) continue;
-    const last = sn.split('-').pop();
-    const seq = last ? Number.parseInt(last, 10) : NaN;
-    if (Number.isFinite(seq)) maxSeq = Math.max(maxSeq, seq);
-  }
-
-  if (maxSeq <= 0) return;
-  const key = buildSerialCounterKey(typeCode, year);
-  await prisma.serialCounter.upsert({
-    where: { key },
-    create: { key, lastValue: maxSeq },
-    update: { lastValue: maxSeq },
-  });
-}
-
-async function ensureUserSerialNumber(user: {
-  id: string;
-  role: string;
-  serialNumber: string | null | undefined;
-  createdAt?: Date;
-}) {
-  const raw = String(user.serialNumber ?? '').trim();
-  if (isValidBhdSerial(raw)) return raw;
-
-  const code = ROLE_SERIAL_CODE[String(user.role || '').toUpperCase()] || 'C';
-  const typeCode = `USR-${code}`;
-  const year = user.createdAt?.getFullYear?.() ?? new Date().getFullYear();
-
-  // قبل التوليد: seed للعداد من الأرقام الموجودة لتجنب تعارض unique.
-  try {
-    await seedUsrSerialCounterFromExistingUsers(typeCode, year);
-  } catch (e) {
-    console.warn('seedUsrSerialCounterFromExistingUsers failed', { typeCode, year, e });
-  }
-
-  // Retry عند تعارض @unique (P2002) لأن counters قد تكون أقل من الواقع على الإنتاج.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const serialNumber = await generateBhdSerial(typeCode, { year });
-    try {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { serialNumber },
-      });
-      return serialNumber;
-    } catch (e) {
-      const code = (e as { code?: string })?.code;
-      // Prisma unique constraint violation
-      if (code === 'P2002') {
-        try {
-          await seedUsrSerialCounterFromExistingUsers(typeCode, year);
-        } catch {}
-        continue;
-      }
-      throw e;
-    }
-  }
-
-  // لو استمر التعارض، اتركه للـ sanitize بدل سقوط الطلب
-  throw new Error(`Failed to assign serialNumber for user ${user.id}`);
-}
-
-/** لا يُسقط طلب القائمة إذا فشل توليد الرقم لمستخدم واحد (يُرجَع عرضاً آمناً) */
-async function ensureUserSerialNumberOrSanitize(user: {
-  id: string;
-  role: string;
-  serialNumber: string | null | undefined;
-  createdAt?: Date;
-}): Promise<string> {
-  try {
-    return await ensureUserSerialNumber(user);
-  } catch (e) {
-    console.error('ensureUserSerialNumber', user.id, e);
-    return safeUserSerialForDisplay(user.serialNumber) !== '—'
-      ? String(user.serialNumber ?? '').trim()
-      : '—';
-  }
+function sanitizeSerialForList(serialNumber: string | null | undefined): string {
+  const s = String(serialNumber ?? '').trim();
+  // بعض البيانات القديمة كانت تضع email داخل serialNumber — لا نعرضه كرقم
+  if (!s || s.includes('@')) return '—';
+  return s;
 }
 
 export async function GET(req: NextRequest) {
@@ -136,17 +37,7 @@ export async function GET(req: NextRequest) {
         select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true, createdAt: true },
       });
       const total = await prisma.user.count({ where: { role: 'OWNER' } });
-      const users = await Promise.all(
-        owners.map(async (u) => ({
-          ...u,
-          serialNumber: await ensureUserSerialNumberOrSanitize({
-            id: u.id,
-            role: u.role,
-            serialNumber: u.serialNumber,
-            createdAt: u.createdAt,
-          }),
-        }))
-      );
+      const users = owners.map((u) => ({ ...u, serialNumber: sanitizeSerialForList(u.serialNumber) }));
       return NextResponse.json(users, {
         headers: {
           'Cache-Control': CACHE_ADMIN_USERS_LIST,
@@ -193,12 +84,7 @@ export async function GET(req: NextRequest) {
           },
         });
       }
-      const ensuredSerial = await ensureUserSerialNumberOrSanitize({
-        id: me.id,
-        role: me.role,
-        serialNumber: me.serialNumber,
-        createdAt: me.createdAt,
-      });
+      const ensuredSerial = sanitizeSerialForList(me.serialNumber);
       const sub = me.subscriptions?.[0];
       return NextResponse.json(
         [
@@ -260,17 +146,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    let list = await Promise.all(users.map(async (u) => {
-      const ensuredSerial = await ensureUserSerialNumberOrSanitize({
-        id: u.id,
-        role: u.role,
-        serialNumber: u.serialNumber,
-        createdAt: u.createdAt,
-      });
+    let list = users.map((u) => {
       const sub = u.subscriptions?.[0];
       return {
         id: u.id,
-        serialNumber: ensuredSerial,
+        serialNumber: sanitizeSerialForList(u.serialNumber),
         name: u.name,
         email: u.email,
         phone: u.phone,
@@ -279,7 +159,7 @@ export async function GET(req: NextRequest) {
         plan: sub?.plan ? { id: sub.plan.id, code: sub.plan.code, nameAr: sub.plan.nameAr, nameEn: sub.plan.nameEn, priceMonthly: sub.plan.priceMonthly, currency: sub.plan.currency } : null,
         subscriptionEndAt: sub?.endAt?.toISOString?.() ?? null,
       };
-    }));
+    });
 
     // حماية عملية: إذا رجعت القائمة فارغة رغم وجود جلسة صحيحة، أظهر المستخدم الحالي على الأقل.
     if (list.length === 0 && authUserId) {
@@ -308,12 +188,7 @@ export async function GET(req: NextRequest) {
         },
       });
       if (me) {
-        const ensuredSerial = await ensureUserSerialNumberOrSanitize({
-          id: me.id,
-          role: me.role,
-          serialNumber: me.serialNumber,
-          createdAt: me.createdAt,
-        });
+        const ensuredSerial = sanitizeSerialForList(me.serialNumber);
         const sub = me.subscriptions?.[0];
         list = [
           {
