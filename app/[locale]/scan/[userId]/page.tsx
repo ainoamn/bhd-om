@@ -20,10 +20,12 @@ export default function ScanUserPage() {
   const userId = params?.userId as string;
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
+  const dir = ar ? 'rtl' : 'ltr';
 
   const [user, setUser] = useState<ScanUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -31,7 +33,7 @@ export default function ScanUserPage() {
       setError(ar ? 'معرف غير صالح' : 'Invalid ID');
       return;
     }
-    fetch(`/api/scan/${userId}`)
+    fetch(`/api/scan/${userId}`, { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error('Not found');
         return res.json();
@@ -49,22 +51,75 @@ export default function ScanUserPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+      <div className="min-h-screen bg-gradient-to-b from-[#f7f3ee] via-gray-50 to-white px-4 py-10" dir={dir}>
+        <div className="max-w-xl mx-auto">
+          <div className="rounded-3xl border border-gray-200/70 bg-white shadow-xl overflow-hidden">
+            <div className="px-6 py-6 bg-[#8B6F47]">
+              <div className="h-4 w-40 bg-white/25 rounded animate-pulse" />
+              <div className="h-7 w-64 bg-white/25 rounded mt-3 animate-pulse" />
+              <div className="h-4 w-56 bg-white/25 rounded mt-3 animate-pulse" />
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="h-20 bg-gray-100 rounded-2xl animate-pulse" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="h-16 bg-gray-100 rounded-2xl animate-pulse" />
+                <div className="h-16 bg-gray-100 rounded-2xl animate-pulse" />
+              </div>
+              <div className="h-20 bg-gray-100 rounded-2xl animate-pulse" />
+            </div>
+          </div>
+          <p className="text-center text-sm text-gray-500 mt-4">{ar ? 'جاري التحميل…' : 'Loading…'}</p>
+        </div>
       </div>
     );
   }
 
   if (error || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center max-w-sm">
-          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-2xl mx-auto mb-4">⚠</div>
-          <p className="text-gray-800 font-semibold">{error}</p>
+      <div className="min-h-screen bg-gradient-to-b from-[#f7f3ee] via-gray-50 to-white px-4 py-10" dir={dir}>
+        <div className="max-w-xl mx-auto">
+          <div className="rounded-3xl border border-gray-200/70 bg-white shadow-xl overflow-hidden">
+            <div className="px-6 py-6 bg-[#8B6F47] text-white">
+              <p className="text-xs font-semibold opacity-90 uppercase tracking-wide">
+                {ar ? 'بطاقة المستخدم' : 'User card'}
+              </p>
+              <h1 className="text-xl font-bold mt-2">{ar ? 'تعذر عرض البيانات' : 'Unable to display'}</h1>
+            </div>
+            <div className="p-6">
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-900 font-semibold">
+                {error}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a
+                  href={`/${locale}`}
+                  className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800"
+                >
+                  {ar ? 'الرئيسية' : 'Home'}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-semibold bg-[#8B6F47] hover:bg-[#6B5535] text-white"
+                >
+                  {ar ? 'إعادة المحاولة' : 'Retry'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
+
+  const copy = async (key: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 1200);
+    } catch {
+      // ignore
+    }
+  };
 
   const roleLabels: Record<string, { ar: string; en: string }> = {
     ADMIN: { ar: 'مدير', en: 'Admin' },
@@ -85,6 +140,7 @@ export default function ScanUserPage() {
   /** ملخص بصيغة دفتر العناوين: الاسم | الهاتف | الرقم المتسلسل */
   const displaySummary = [user.name, user.phone, user.serialNumber].filter(Boolean).join(' | ') || '—';
   const shortSerial = shortenUserSerial(user.serialNumber);
+  const fullSerial = user.serialNumber;
   const roleLabel = roleLabels[user.role] || { ar: user.role, en: user.role };
   const dashLabel = user.dashboardType && dashboardLabels[user.dashboardType]
     ? dashboardLabels[user.dashboardType]
@@ -100,97 +156,153 @@ export default function ScanUserPage() {
     : '—';
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-lg mx-auto">
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
-          {/* رأس البطاقة مثل دفتر العناوين */}
-          <div className="bg-[#8B6F47] px-6 py-5 text-white">
-            <p className="text-xs font-semibold opacity-90 uppercase tracking-wide">
-              {ar ? 'بطاقة المستخدم — بيانات كاملة كما في دفتر العناوين' : 'User Card — Full Details (as in Address Book)'}
-            </p>
-            <h1 className="text-xl font-bold mt-1">{user.name}</h1>
-            <p className="font-mono text-sm opacity-90 mt-1">
-              {shortSerial !== '—' ? `${shortSerial} · ${user.serialNumber}` : user.serialNumber}
-            </p>
-            <p className="text-sm opacity-85 mt-2 border-t border-white/20 pt-2">{displaySummary}</p>
-          </div>
-          {/* البيانات الأساسية — كما في دفتر العناوين */}
-          <div className="p-6 border-b border-gray-100 bg-gray-50/30">
-            <h2 className="text-sm font-bold text-[#8B6F47] mb-4 uppercase tracking-wide">
-              {ar ? 'البيانات الأساسية' : 'Basic Information'}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">
-                  {ar ? 'الرقم المتسلسل / اسم الدخول' : 'Serial / Username'}
-                </p>
-                <p className="font-mono text-[#8B6F47] font-medium">
-                  {shortSerial !== '—' ? `${shortSerial} · ${user.serialNumber}` : user.serialNumber}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">
-                  {ar ? 'الدور' : 'Role'}
-                </p>
-                <p className="font-medium">{ar ? roleLabel.ar : roleLabel.en}</p>
-              </div>
-              {dashLabel && (
-                <div className="sm:col-span-2">
-                  <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">
-                    {ar ? 'تصنيف لوحة التحكم' : 'Dashboard Type'}
-                  </p>
-                  <p className="font-medium">{ar ? dashLabel.ar : dashLabel.en}</p>
-                </div>
-              )}
+    <div className="min-h-screen bg-gradient-to-b from-[#f7f3ee] via-gray-50 to-white px-4 py-10" dir={dir}>
+      <div className="max-w-2xl mx-auto">
+        <div className="rounded-3xl border border-gray-200/70 bg-white shadow-xl overflow-hidden">
+          {/* Header */}
+          <div className="relative overflow-hidden bg-[#8B6F47] text-white">
+            <div className="absolute inset-0 opacity-20">
+              <div className="absolute -top-16 -left-16 h-64 w-64 rounded-full bg-white/30 blur-3xl" />
+              <div className="absolute -bottom-20 -right-20 h-72 w-72 rounded-full bg-white/20 blur-3xl" />
             </div>
-          </div>
-          {/* معلومات الاتصال */}
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-[#8B6F47] mb-4 uppercase tracking-wide">
-              {ar ? 'معلومات الاتصال' : 'Contact Information'}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">
-                  {ar ? 'الهاتف' : 'Phone'}
-                </p>
-                {user.phone ? (
-                  <a href={`tel:${user.phone}`} className="text-[#8B6F47] font-medium hover:underline">
-                    {user.phone}
-                  </a>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">
-                  {ar ? 'البريد الإلكتروني' : 'Email'}
-                </p>
-                {user.email ? (
-                  <a href={`mailto:${user.email}`} className="text-[#8B6F47] font-medium hover:underline break-all">
-                    {user.email}
-                  </a>
-                ) : (
-                  <span className="text-gray-400">
-                    {ar ? 'دخول بالرقم المتسلسل فقط' : 'Login by serial number only'}
+            <div className="relative px-6 py-7">
+              <p className="text-xs font-semibold opacity-90 uppercase tracking-wide">
+                {ar ? 'بطاقة المستخدم' : 'User card'}
+              </p>
+              <h1 className="text-2xl font-extrabold mt-2 leading-snug">{user.name}</h1>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
+                  {ar ? roleLabel.ar : roleLabel.en}
+                </span>
+                {dashLabel && (
+                  <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
+                    {ar ? dashLabel.ar : dashLabel.en}
                   </span>
                 )}
               </div>
+              <div className="mt-4 rounded-2xl bg-white/10 border border-white/15 px-4 py-3">
+                <p className="text-[11px] font-semibold opacity-90">{ar ? 'الرقم المتسلسل' : 'Serial'}</p>
+                <p className="font-mono text-sm mt-1 break-all" dir="ltr">
+                  {shortSerial !== '—' ? `${shortSerial} · ${fullSerial}` : fullSerial}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copy('serial', fullSerial)}
+                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/20 border border-white/20 text-xs font-semibold"
+                  >
+                    {copiedKey === 'serial' ? (ar ? 'تم النسخ' : 'Copied') : (ar ? 'نسخ الرقم' : 'Copy serial')}
+                  </button>
+                  {user.phone && (
+                    <a
+                      href={`tel:${user.phone}`}
+                      className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/20 border border-white/20 text-xs font-semibold"
+                    >
+                      {ar ? 'اتصال' : 'Call'}
+                    </a>
+                  )}
+                  {user.phone && (
+                    <a
+                      href={`https://wa.me/${user.phone.replace(/\\D/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/20 border border-white/20 text-xs font-semibold"
+                    >
+                      {ar ? 'واتساب' : 'WhatsApp'}
+                    </a>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm opacity-90 mt-4">{displaySummary}</p>
             </div>
           </div>
-          {/* سجل النظام */}
-          <div className="p-6">
-            <h2 className="text-sm font-bold text-[#8B6F47] mb-4 uppercase tracking-wide">
-              {ar ? 'سجل النظام' : 'System Record'}
-            </h2>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-0.5">
-                {ar ? 'تاريخ الإنشاء' : 'Created'}
+
+          {/* Body */}
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase">{ar ? 'معلومات الاتصال' : 'Contact'}</p>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500">{ar ? 'الهاتف' : 'Phone'}</p>
+                    {user.phone ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm text-gray-900" dir="ltr">
+                          {user.phone}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void copy('phone', user.phone!)}
+                          className="text-xs font-semibold text-[#8B6F47] hover:underline"
+                        >
+                          {copiedKey === 'phone' ? (ar ? 'تم النسخ' : 'Copied') : (ar ? 'نسخ' : 'Copy')}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500">{ar ? 'البريد' : 'Email'}</p>
+                    {user.email ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <a className="text-sm text-[#8B6F47] font-semibold hover:underline break-all" href={`mailto:${user.email}`}>
+                          {user.email}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => void copy('email', user.email!)}
+                          className="text-xs font-semibold text-[#8B6F47] hover:underline"
+                        >
+                          {copiedKey === 'email' ? (ar ? 'تم النسخ' : 'Copied') : (ar ? 'نسخ' : 'Copy')}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">{ar ? 'دخول بالرقم فقط' : 'Serial-only login'}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase">{ar ? 'سجل النظام' : 'System'}</p>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500">{ar ? 'تاريخ الإنشاء' : 'Created'}</p>
+                    <p className="mt-1 text-sm text-gray-900">{createdAt}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500">{ar ? 'المعرف' : 'ID'}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs text-gray-700 break-all" dir="ltr">
+                        {user.id}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void copy('id', user.id)}
+                        className="text-xs font-semibold text-[#8B6F47] hover:underline"
+                      >
+                        {copiedKey === 'id' ? (ar ? 'تم النسخ' : 'Copied') : (ar ? 'نسخ' : 'Copy')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <p className="text-xs font-bold text-gray-500 uppercase">{ar ? 'ملاحظة' : 'Note'}</p>
+              <p className="mt-2 text-sm text-gray-700 leading-relaxed">
+                {ar
+                  ? 'هذه البطاقة مخصصة للعرض السريع عند مسح الباركود وتعمل على جميع الأجهزة.'
+                  : 'This card is designed for quick viewing after scanning a QR code and works on all devices.'}
               </p>
-              <p className="text-gray-700 text-sm">{createdAt}</p>
             </div>
           </div>
         </div>
+        <p className="text-center text-xs text-gray-400 mt-4">
+          {ar ? 'بن حمود للتطوير' : 'BIN HAMOOD DEVELOPMENT SPC'}
+        </p>
       </div>
     </div>
   );
