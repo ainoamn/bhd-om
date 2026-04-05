@@ -150,6 +150,7 @@ export async function PATCH(
         email: updated.email,
         phone: updated.phone,
         serialNumber: updated.serialNumber,
+        role: updated.role,
       });
     } catch (syncErr) {
       console.error('syncLinkedAddressBookFromUserUpdate:', syncErr);

@@ -150,10 +150,23 @@ export default function UserDetailPage() {
   const [linkedProfile, setLinkedProfile] = useState<Contact | null>(null);
 
   useEffect(() => {
-    const h = () => setAddressBookBump((x) => x + 1);
+    const h = () => {
+      setAddressBookBump((x) => x + 1);
+      void (async () => {
+        try {
+          const res = await fetch(`/api/admin/users/${id}`, { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            setUser(data);
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
+    };
     window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, h);
     return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, h);
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     const uid = user?.id;

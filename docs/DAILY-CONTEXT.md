@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — مزامنة موحّدة: User ↔ دفتر العناوين من كل مسارات التعديل
+
+- **المطلوب:** تسجيل جديد يظهر في دفتر العناوين؛ تعديل الاسم/البريد/الهاتف من «حسابي» أو دفتر العناوين أو صفحة المستخدم ينعكس في الجميع.
+- **ما نُفِّذ:** كان حفظ `/api/address-book` يحدّث JSON فقط دون جدول `User` — أُضيفت `assertUserSyncFromContactAllowed` + `syncUserTableFromAddressBookContact` في `syncUserToAddressBook.ts` وتُستدعى من POST دفتر العناوين والـ bulk بعد الـ upsert؛ تحديث المستخدم من الإدارة يمرّر `role` إلى `syncLinkedAddressBookFromUserUpdate` لضبط `category` (LANDLORD/CLIENT) في الجهة المرتبطة؛ `GET /api/address-book` بـ `no-store`؛ صفحة `admin/users/[id]` تعيد جلب المستخدم عند `ADDRESS_BOOK_UPDATED_EVENT`؛ `GET admin/.../linked-contact` يضمن `id` + `no-store`.
+
 ### جلسة 2026-04-02 — حسابي (linked-contact): عدم فقدان البيانات بعد الحفظ وF5
 
 - **السبب:** كاش قصير على `GET /api/user/linked-contact` + غياب صف دفتر العناوين لبعض المستخدمين → استجابة قديمة أو `null` → النموذج يعود فارغاً أو لا يتطابق مع العرض في المستخدم/دفتر العناوين.

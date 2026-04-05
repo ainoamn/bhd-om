@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
+import {
+  assertUserSyncFromContactAllowed,
+  syncUserTableFromAddressBookContact,
+} from '@/lib/server/syncUserToAddressBook';
 
 type BulkContact = { id?: string; userId?: string | null } & Record<string, unknown>;
 
@@ -20,6 +24,19 @@ export async function POST(req: NextRequest) {
       .filter((r) => r.id.length > 0);
     if (clean.length === 0) return NextResponse.json({ ok: true, upserted: 0 });
 
+    for (const row of clean) {
+      const uid =
+        typeof row.userId === 'string' && row.userId.trim().length > 0 ? row.userId.trim() : '';
+      if (!uid) continue;
+      const allowed = await assertUserSyncFromContactAllowed(uid, row as Record<string, unknown>);
+      if (!allowed.ok) {
+        return NextResponse.json(
+          { error: allowed.message, code: allowed.code },
+          { status: allowed.status }
+        );
+      }
+    }
+
     await prisma.$transaction(
       clean.map((row) => {
         const linkedUserId =
@@ -31,6 +48,17 @@ export async function POST(req: NextRequest) {
         });
       })
     );
+
+    for (const row of clean) {
+      const uid =
+        typeof row.userId === 'string' && row.userId.trim().length > 0 ? row.userId.trim() : '';
+      if (!uid) continue;
+      try {
+        await syncUserTableFromAddressBookContact(uid, row as Record<string, unknown>);
+      } catch (e) {
+        console.error('bulk syncUserTableFromAddressBookContact:', e);
+      }
+    }
 
     return NextResponse.json({ ok: true, upserted: clean.length });
   } catch (e) {

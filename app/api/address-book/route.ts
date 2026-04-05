@@ -15,7 +15,14 @@ import {
   deleteOtherPersonalRowsSamePhone,
   getDuplicateDropContactIdsFromDbRows,
 } from '@/lib/server/addressBookDedupe';
-import { CACHE_ADDRESS_BOOK_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import {
+  assertUserSyncFromContactAllowed,
+  syncUserTableFromAddressBookContact,
+} from '@/lib/server/syncUserToAddressBook';
+
+/** قراءة دفتر العناوين للواجهة — بدون كاش متصفح حتى تنعكس التعديلات فوراً بين المستخدم والجهات */
+const CACHE_ADDRESS_BOOK_GET_NO_STORE = 'private, no-store, must-revalidate';
 
 export async function GET(req: NextRequest) {
   try {
@@ -94,7 +101,7 @@ export async function GET(req: NextRequest) {
     const paged = limit > 0 ? contacts.slice(offset, offset + limit) : contacts;
     return NextResponse.json(paged, {
       headers: {
-        'Cache-Control': CACHE_ADDRESS_BOOK_GET,
+        'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE,
         Vary: HTTP_CACHE_VARY_AUTH,
         'X-Total-Count': String(totalCount),
         'X-Limit': String(limit || totalCount),
@@ -148,6 +155,16 @@ export async function POST(req: NextRequest) {
       await deleteOtherAddressBookRowsForUser(contactId, bodyUserId);
     }
 
+    if (bodyUserId) {
+      const allowed = await assertUserSyncFromContactAllowed(bodyUserId, raw);
+      if (!allowed.ok) {
+        return NextResponse.json(
+          { error: allowed.message, code: allowed.code },
+          { status: allowed.status }
+        );
+      }
+    }
+
     const ident = await assertAddressBookIdentityUnique(raw, contactId);
     if (!ident.ok) {
       return NextResponse.json({ error: ident.message, code: ident.code }, { status: 409 });
@@ -169,6 +186,14 @@ export async function POST(req: NextRequest) {
 
     if (raw.phone) {
       await deleteOtherPersonalRowsSamePhone(contactId, raw.phone);
+    }
+
+    if (linkedUserId) {
+      try {
+        await syncUserTableFromAddressBookContact(linkedUserId, raw);
+      } catch (e) {
+        console.error('syncUserTableFromAddressBookContact:', e);
+      }
     }
 
     return NextResponse.json(raw);
