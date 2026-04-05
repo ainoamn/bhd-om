@@ -8,7 +8,8 @@ import { verifyImpersonateToken } from '@/lib/impersonate';
   // OAuth - يُفعّل عند إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في .env
 import { prisma } from '@/lib/prisma';
 
-const TOKEN_DB_REVALIDATE_SECONDS = 30;
+/** إعادة التحقق من وجود المستخدم في DB — أطول = أقل استعلامات وتأخير أقل على /api/auth/session */
+const TOKEN_DB_REVALIDATE_SECONDS = 180;
 
 function markTokenExpired(token: JWT): JWT {
   const past = Math.floor(Date.now() / 1000) - 10;

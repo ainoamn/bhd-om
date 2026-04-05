@@ -53,8 +53,9 @@ export default function AuthProviderWrapper({ children }: AuthProviderWrapperPro
   return (
     <SessionProvider
       session={mockSession ?? undefined}
-      refetchInterval={isImpersonating ? 0 : undefined}
-      refetchOnWindowFocus={!isImpersonating}
+      /** متوافق مع `components/Providers.tsx`: لا إعادة جلب عند كل تركيز (كان يسبب 2–8ث مع jwt+DB) */
+      refetchInterval={isImpersonating ? 0 : 60 * 5}
+      refetchOnWindowFocus={false}
     >
       <AuthSessionLocalIsolation />
       {children}

@@ -118,9 +118,11 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
 
   useEffect(() => {
     let alive = true;
+    /** أقصى انتظار قبل عرض المحتوى — كان 5ث ويُحسَس كـ «الموقع بطيء» */
+    const maxWaitMs = 2000;
     const timeout = window.setTimeout(() => {
       if (alive) setSessionFetchSettled(true);
-    }, 5000);
+    }, maxWaitMs);
     void getSession().then((s) => {
       if (!alive) return;
       window.clearTimeout(timeout);
