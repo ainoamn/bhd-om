@@ -9,16 +9,13 @@ import Icon from '@/components/icons/Icon';
 import UserBarcode from '@/components/admin/UserBarcode';
 import { shortenUserSerial } from '@/lib/utils/serialNumber';
 import {
-  createContact,
   mergeServerContactIntoLocalStorage,
   isAuthorizedRepresentative,
   getLinkedCompanyName,
   getLinkedRepPosition,
-  syncContactToAddressBookApi,
   type Contact,
 } from '@/lib/data/addressBook';
 import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
-import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import LoginAsUserButton from '@/components/admin/LoginAsUserButton';
 
@@ -289,35 +286,22 @@ export default function UserDetailPage() {
     if (!user || isInAddressBook) return;
     setAddingToAddressBook(true);
     try {
-      const nameParts = (user.name || '').trim().split(/\s+/);
-      const firstName = nameParts[0] || user.name || '';
-      const familyName = nameParts.length > 1 ? nameParts.slice(-1)[0] : '';
-      const secondName = nameParts.length > 3 ? nameParts[1] : undefined;
-      const thirdName = nameParts.length > 4 ? nameParts[2] : undefined;
-      const fullPhone = (user.phone || '').replace(/\D/g, '');
-      const { code } = parsePhoneToCountryAndNumber(user.phone || '968');
-      const phone = fullPhone.length >= 8
-        ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
-        : `968${String(Date.now()).slice(-7)}`;
-
-      const created = createContact(
-        {
-          contactType: 'PERSONAL',
-          firstName,
-          secondName,
-          thirdName,
-          familyName: familyName || firstName,
-          nationality: 'عماني',
-          gender: 'MALE',
-          email: user.email?.includes('@nologin.bhd') ? undefined : user.email,
-          phone,
-          category: user.role === 'OWNER' ? 'LANDLORD' : 'CLIENT',
-          address: { fullAddress: '—', fullAddressEn: '—' },
-          userId: user.id,
-        } as Parameters<typeof createContact>[0],
-        { userSerialNumber: user.serialNumber }
-      );
-      await syncContactToAddressBookApi(created);
+      const res = await fetch(`/api/admin/users/${user.id}/ensure-address-book`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string; id?: string } | null;
+      if (!res.ok) {
+        const msg = typeof data?.error === 'string' ? data.error : '';
+        setSyncMsg(msg || (ar ? 'فشل الإضافة' : 'Failed'));
+        setTimeout(() => setSyncMsg(null), 3500);
+        return;
+      }
+      if (data && typeof data === 'object' && typeof data.id === 'string' && data.id.trim()) {
+        mergeServerContactIntoLocalStorage(data as Contact);
+        setLinkedProfile(data as Contact);
+      }
+      setAddressBookBump((x) => x + 1);
       emitAddressBookUpdated();
       setSyncMsg(ar ? 'تمت الإضافة لدفتر العناوين' : 'Added to address book');
       setTimeout(() => setSyncMsg(null), 2500);

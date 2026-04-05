@@ -70,6 +70,13 @@ import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import { filterContactsByRolePermissions } from '@/lib/data/contactCategoryPermissions';
 import { ROLE_TO_DASHBOARD_TYPE } from '@/lib/config/dashboardRoles';
+
+/** فقط CLIENT/OWNER يُصفّيان حسب التصنيف؛ المدير وباقي الأدوار يرون القائمة كاملة */
+function dashboardTypeForAddressBookFilter(role: string | undefined) {
+  if (role === 'CLIENT') return ROLE_TO_DASHBOARD_TYPE.CLIENT;
+  if (role === 'OWNER') return ROLE_TO_DASHBOARD_TYPE.OWNER;
+  return undefined;
+}
 import UserBarcode from '@/components/admin/UserBarcode';
 import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 
@@ -277,7 +284,7 @@ export default function AdminAddressBookPage() {
 
   const loadData = () => {
     const all = getAllContacts(showArchived);
-    const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+    const dashboardType = dashboardTypeForAddressBookFilter(userRole);
     const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
     setContacts(filtered);
   };
@@ -309,8 +316,7 @@ export default function AdminAddressBookPage() {
         if (!cancelled) {
           try {
             const all = getAllContacts(showArchived);
-            const dashboardType =
-              userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+            const dashboardType = dashboardTypeForAddressBookFilter(userRole);
             const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
             setContacts(filtered);
           } catch {
@@ -364,7 +370,7 @@ export default function AdminAddressBookPage() {
         const result = syncBookingContactsToAddressBook();
         rewriteLocalAddressBookDeduped();
         const all = getAllContacts(showArchived);
-        const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+        const dashboardType = dashboardTypeForAddressBookFilter(userRole);
         const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
         setContacts(filtered);
         if (result.added > 0 || result.updated > 0) setSyncResult(result);
@@ -377,7 +383,7 @@ export default function AdminAddressBookPage() {
       if (e.key === 'bhd_address_book' || e.key === 'bhd_property_bookings' || e.key === 'bhd_contact_category_permissions') {
         try { syncBookingContactsToAddressBook(); } catch {}
         const all = getAllContacts(showArchived);
-        const dashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+        const dashboardType = dashboardTypeForAddressBookFilter(userRole);
         const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
         setContacts(filtered);
       }
@@ -593,7 +599,7 @@ export default function AdminAddressBookPage() {
   };
 
   const searched = searchContacts(search, showArchived);
-  const addressBookDashboardType = userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+  const addressBookDashboardType = dashboardTypeForAddressBookFilter(userRole);
   const roleFiltered = addressBookDashboardType ? filterContactsByRolePermissions(searched, addressBookDashboardType) : searched;
   const filteredContacts = roleFiltered.filter((c) => {
     if (filterCategory !== 'ALL' && c.category !== filterCategory) return false;
