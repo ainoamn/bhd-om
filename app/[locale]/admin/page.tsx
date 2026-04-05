@@ -90,6 +90,18 @@ export default function AdminDashboardPage() {
       .catch(() => setSubscriptionList([]));
   }, [userRole]);
 
+  /** قبل معرفة الدور لا نعرض لوحة الأدمن الكاملة (تجنّب وميض بيانات حساسة لعميل/مالك) */
+  if (status === 'loading' && !userRole) {
+    return (
+      <div className="admin-page-content flex items-center justify-center min-h-[50vh]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+        <div className="flex flex-col items-center gap-3 text-neutral-600">
+          <div className="h-10 w-10 rounded-full border-2 border-[#8B6F47] border-t-transparent animate-spin" aria-hidden />
+          <p className="text-sm font-medium">{locale === 'ar' ? 'جاري التحميل…' : 'Loading…'}</p>
+        </div>
+      </div>
+    );
+  }
+
   const pendingBookings = bookings.filter((b) => b.status === 'PENDING');
   const docsNeedingApprovalBookings = bookings.filter((b) => b.status === 'CONFIRMED' && hasDocumentsNeedingConfirmation(b.id));
   const recentBookings = [...bookings]
