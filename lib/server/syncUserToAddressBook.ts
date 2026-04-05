@@ -3,6 +3,7 @@
  * + مزامنة User ← دفتر العناوين عند حفظ جهة مربوطة بحساب
  */
 
+import { Prisma } from '@prisma/client';
 import type { UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
@@ -14,7 +15,56 @@ function normalizeDigitsPhone(raw: string): string {
   return digits;
 }
 
-/** صف دفتر العناوين بحد أدنى من الأعمدة — يعمل حتى قبل تطبيق هجرة linkedUserId على قاعدة الإنتاج */
+function isLinkedUserIdColumnMissingError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    msg.includes('does not exist') ||
+    msg.includes('not available') ||
+    msg.includes('Unknown column')
+  );
+}
+
+type AddressBookRowShape = {
+  id: string;
+  contactId: string;
+  data: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  linkedUserId?: string | null;
+};
+
+/** PostgreSQL: استعلام موجّه — يتفادى findMany على الجدول كاملاً */
+async function findAddressBookRowByUserIdSql(userId: string): Promise<AddressBookRowShape | null> {
+  const uid = String(userId || '').trim();
+  if (!uid) return null;
+  try {
+    const rows = await prisma.$queryRaw<AddressBookRowShape[]>(Prisma.sql`
+      SELECT id, "contactId", data, "createdAt", "updatedAt", "linkedUserId"
+      FROM "AddressBookContact"
+      WHERE "linkedUserId" = ${uid}
+      LIMIT 1
+    `);
+    if (rows.length > 0) return rows[0]!;
+  } catch (e) {
+    if (!isLinkedUserIdColumnMissingError(e)) {
+      console.warn('findAddressBookRowByUserId: SQL linkedUserId', e);
+    }
+  }
+  try {
+    const rows = await prisma.$queryRaw<AddressBookRowShape[]>(Prisma.sql`
+      SELECT id, "contactId", data, "createdAt", "updatedAt", "linkedUserId"
+      FROM "AddressBookContact"
+      WHERE (data->>'userId') = ${uid}
+      LIMIT 1
+    `);
+    if (rows.length > 0) return rows[0]!;
+  } catch (e) {
+    console.warn('findAddressBookRowByUserId: SQL data userId', e);
+  }
+  return null;
+}
+
+/** آخر مسار: مسح كامل الجدول في الذاكرة — مكلف */
 async function findAddressBookRowByUserIdFallback(userId: string) {
   const rows = await prisma.addressBookContact.findMany({
     select: { id: true, contactId: true, data: true, createdAt: true, updatedAt: true },
@@ -25,47 +75,48 @@ async function findAddressBookRowByUserIdFallback(userId: string) {
   );
 }
 
-function isLinkedUserIdColumnMissingError(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e);
-  return (
-    msg.includes('does not exist') ||
-    msg.includes('not available') ||
-    msg.includes('Unknown column')
-  );
-}
-
 export async function findAddressBookRowByUserId(userId: string) {
   try {
-    const byCol = await prisma.addressBookContact.findFirst({
-      where: { linkedUserId: userId },
-    });
-    if (byCol) return byCol;
-  } catch (e) {
-    /* عمود غير موجود / خطأ عابر — لا نُسقط الطلب؛ نتابع بـ JSON ثم المسح */
-    if (!isLinkedUserIdColumnMissingError(e)) {
-      console.warn('findAddressBookRowByUserId: linkedUserId query failed, falling back', e);
+    const uid = String(userId || '').trim();
+    if (!uid) return null;
+
+    try {
+      const byCol = await prisma.addressBookContact.findFirst({
+        where: { linkedUserId: uid },
+      });
+      if (byCol) return byCol;
+    } catch (e) {
+      if (!isLinkedUserIdColumnMissingError(e)) {
+        console.warn('findAddressBookRowByUserId: linkedUserId query failed, falling back', e);
+      }
     }
-  }
 
-  try {
-    const byJson = await prisma.addressBookContact.findFirst({
-      where: {
-        data: { path: ['userId'], equals: userId },
-      },
-      select: {
-        id: true,
-        contactId: true,
-        data: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-    if (byJson) return byJson;
-  } catch {
-    /* فلتر JSON أو عمود data — آخر مسار */
-  }
+    try {
+      const byJson = await prisma.addressBookContact.findFirst({
+        where: {
+          data: { path: ['userId'], equals: uid },
+        },
+        select: {
+          id: true,
+          contactId: true,
+          data: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      if (byJson) return byJson;
+    } catch {
+      /* فلتر JSON */
+    }
 
-  return findAddressBookRowByUserIdFallback(userId);
+    const bySql = await findAddressBookRowByUserIdSql(uid);
+    if (bySql) return bySql;
+
+    return findAddressBookRowByUserIdFallback(uid);
+  } catch (e) {
+    console.error('findAddressBookRowByUserId:', e);
+    return null;
+  }
 }
 
 /** دمج اسم المستخدم وهاتفه وبريده ورقمه المتسلسل في JSON جهة الاتصال المرتبطة */

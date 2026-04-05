@@ -40,6 +40,7 @@ export async function POST(
       role: dbUser.role,
     });
 
+    /** إعادة جلب الصف — لا نرمي: findAddressBookRowByUserId يتضمن SQL خام + يحمي من الأعطال */
     let row = await findAddressBookRowByUserId(userId);
     if (!row) {
       try {
@@ -69,7 +70,12 @@ export async function POST(
     if (typeof data.id !== 'string' || !String(data.id).trim()) {
       data.id = cid;
     }
-    applyUserIdentityToContactJson(data, dbUser);
+    try {
+      applyUserIdentityToContactJson(data, dbUser);
+    } catch (applyErr) {
+      console.error('ensure-address-book: applyUserIdentityToContactJson', applyErr);
+      return NextResponse.json({ error: 'Invalid contact payload after ensure' }, { status: 500 });
+    }
     return NextResponse.json(data, { headers: { 'Cache-Control': NO_STORE } });
   } catch (e) {
     console.error('ensure-address-book POST error:', e);

@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — إصلاح «Failed to ensure address book» ودفتر العناوين الفارغ (إنتاج)
+
+- **السبب المحتمل:** `findAddressBookRowByUserId` كان ينتهي بـ `findMany` على **كل** صفوف الجدول — على الإنتاج قد يتعطل أو يُرجع خطأ فيُفهم أن الصف غير موجود بعد نجاح `ensure`؛ أو فشل Prisma JSON filter؛ أو `contactId` مكرر نادراً؛ أو حقول `undefined` في JSON.
+- **الإصلاح:** استعلام SQL موجّه (`linkedUserId` ثم `data->>'userId'`) قبل المسح الكامل؛ `findAddressBookRowByUserId` لا يرمي (يُسجّل ويُرجع null)؛ `contactId` = `CNT-${randomUUID()}`؛ `sanitizeJsonForPrisma` قبل كل create/update؛ حماية `applyUserIdentityToContactJson` في مسار ensure.
+
 ### جلسة 2026-04-02 — ضمان دفتر العناوين: عدم فشل «إضافة لدفتر العناوين» بسبب حذف التكرار
 
 - **السبب المحتمل:** `deleteOtherAddressBookRowsForUser` (SQL خام) قد يرمي خطأ في بيئة معيّنة فيُسقط كامل `ensureAddressBookContactForUser` → 500 «Failed to ensure address book» رغم نجاح إنشاء/تحديث الصف؛ أو فشل استعلام `linkedUserId` بعد P2002.

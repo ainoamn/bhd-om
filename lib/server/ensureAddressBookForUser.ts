@@ -2,6 +2,7 @@
  * عند إنشاء مستخدم جديد (تسجيل أو إضافة من الإدارة): ضمان وجود صف في دفتر العناوين مربوط بالحساب.
  */
 
+import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { deleteOtherAddressBookRowsForUser } from '@/lib/server/addressBookDedupe';
@@ -24,8 +25,16 @@ function normalizeDigitsPhone(raw: string | null | undefined): string {
   return digits;
 }
 
+function sanitizeJsonForPrisma(input: Record<string, unknown>): Record<string, unknown> {
+  try {
+    return JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
+  } catch {
+    return input;
+  }
+}
+
 function namePartsFromFullName(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
   return {
     firstName: parts[0] || '—',
     secondName: parts.length > 3 ? parts[1] : undefined,
@@ -78,12 +87,13 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         data.category = category;
         data.contactType = (data.contactType as string) || 'PERSONAL';
         data.updatedAt = now;
+        const dataSafe = sanitizeJsonForPrisma(data);
         try {
           await prisma.addressBookContact.update({
             where: { contactId: cid },
             data: {
               linkedUserId: userId,
-              data: data as object,
+              data: dataSafe as object,
               updatedAt: new Date(),
             },
           });
@@ -92,7 +102,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
           if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
           await prisma.addressBookContact.update({
             where: { contactId: cid },
-            data: { data: data as object, updatedAt: new Date() },
+            data: { data: dataSafe as object, updatedAt: new Date() },
           });
         }
         await safeDeleteOtherAddressBookRowsForUser(cid, userId);
@@ -114,12 +124,13 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       data.phone = phoneDigits;
       data.category = category;
       data.updatedAt = now;
+      const dataExistingSafe = sanitizeJsonForPrisma(data);
       try {
         await prisma.addressBookContact.update({
           where: { contactId: existing.contactId },
           data: {
             linkedUserId: userId,
-            data: data as object,
+            data: dataExistingSafe as object,
             updatedAt: new Date(),
           },
         });
@@ -128,7 +139,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
         await prisma.addressBookContact.update({
           where: { contactId: existing.contactId },
-          data: { data: data as object, updatedAt: new Date() },
+          data: { data: dataExistingSafe as object, updatedAt: new Date() },
         });
       }
       await safeDeleteOtherAddressBookRowsForUser(existing.contactId, userId);
@@ -153,12 +164,13 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         data.phone = phoneDigits;
         data.category = category;
         data.updatedAt = now;
+        const dataByLinkSafe = sanitizeJsonForPrisma(data);
         try {
           await prisma.addressBookContact.update({
             where: { contactId: byLink.contactId },
             data: {
               linkedUserId: userId,
-              data: data as object,
+              data: dataByLinkSafe as object,
               updatedAt: new Date(),
             },
           });
@@ -167,7 +179,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
           if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
           await prisma.addressBookContact.update({
             where: { contactId: byLink.contactId },
-            data: { data: data as object, updatedAt: new Date() },
+            data: { data: dataByLinkSafe as object, updatedAt: new Date() },
           });
         }
         await safeDeleteOtherAddressBookRowsForUser(byLink.contactId, userId);
@@ -178,7 +190,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
     }
 
-    const contactId = `CNT-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    const contactId = `CNT-${randomUUID()}`;
     const data: Record<string, unknown> = {
       id: contactId,
       contactType: 'PERSONAL',
@@ -197,13 +209,14 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       createdAt: now,
       updatedAt: now,
     };
+    const dataCreateSafe = sanitizeJsonForPrisma(data);
 
     try {
       await prisma.addressBookContact.create({
         data: {
           contactId,
           linkedUserId: userId,
-          data: data as object,
+          data: dataCreateSafe as object,
         },
       });
     } catch (e) {
@@ -236,12 +249,13 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
           merged.phone = phoneDigits;
           merged.category = category;
           merged.updatedAt = now;
+          const mergedSafe = sanitizeJsonForPrisma(merged);
           try {
             await prisma.addressBookContact.update({
               where: { contactId: row.contactId },
               data: {
                 linkedUserId: userId,
-                data: merged as object,
+                data: mergedSafe as object,
                 updatedAt: new Date(),
               },
             });
@@ -250,7 +264,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
             if (!im.includes('does not exist') && !im.includes('not available')) throw inner;
             await prisma.addressBookContact.update({
               where: { contactId: row.contactId },
-              data: { data: merged as object, updatedAt: new Date() },
+              data: { data: mergedSafe as object, updatedAt: new Date() },
             });
           }
           await safeDeleteOtherAddressBookRowsForUser(row.contactId, userId);
@@ -262,7 +276,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       await prisma.addressBookContact.create({
         data: {
           contactId,
-          data: data as object,
+          data: dataCreateSafe as object,
         },
       });
     }
