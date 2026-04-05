@@ -5,6 +5,85 @@
 
 ---
 
+## 0. هيكل المشروع (Next.js App Router) ومصدر التنقل
+
+### 0.1 شجرة المجلدات المعنية بالصفحات
+
+كل الصفحات المعروضة للمستخدم تقع تحت **`app/[locale]/`** (العربية/الإنجليزية عبر `i18n`). الجذر `app/page.tsx` يوجّه للوكيل الافتراضي.
+
+```
+app/
+├── page.tsx                          # إعادة توجيه للوكيل
+├── [locale]/
+│   ├── layout.tsx                    # خطوط، مزودو السياق، intl
+│   ├── page.tsx                      # الرئيسية
+│   ├── login/ | register/ | forgot-password/
+│   ├── about/ | contact/ | services/ | subscriptions/
+│   ├── properties/
+│   │   ├── page.tsx
+│   │   └── [id]/
+│   │       ├── page.tsx
+│   │       ├── book/ | viewing/ | receipt/ | upload-documents/ | contract-terms/
+│   ├── projects/ | projects/[id]/
+│   ├── scan/[userId]/ | scan/property/[id]/
+│   ├── impersonate/ | auth/impersonate/
+│   ├── sign/[token]/
+│   ├── test/                         # اختبار (إن وُجد)
+│   └── admin/
+│       ├── page.tsx                  # لوحة التحكم الرئيسية
+│       ├── accounting/ (+ accounts, journal, reports تحت نفس المسار بتبويبات)
+│       ├── address-book/ | bank-details/ | company-data/ | document-templates/ | site/
+│       ├── analytics/ | reports/ | security/ | services/ | contact/ | submissions/
+│       ├── backup/ | data/ | drafts/ | migrate-serials/
+│       ├── bookings/ | contracts/ | contracts/[id]/ | contract-review/
+│       ├── dashboard-settings/ | contact-category-permissions/
+│       ├── maintenance/ | notifications/
+│       ├── my-account/ | my-bookings/ | my-contracts/ | my-properties/ | my-invoices/ | my-receipts/
+│       ├── properties/ | properties/new/ | properties/[id]/ | properties/[id]/bookings/ | …/terms/ | …/extra-data/
+│       ├── projects/ | projects/new/
+│       ├── subscriptions/ | users/ | users/[id]/
+│       └── serial-history/
+├── api/                              # مسارات API (لا تمر عبر [locale])
+```
+
+**طبقات مشتركة:** `components/` (واجهات)، `lib/` (منطق، إعدادات)، `prisma/` (مخطط وقاعدة)، `messages/` (ترجمة `next-intl`).
+
+### 0.2 من أين تُبنى قائمة لوحة التحكم؟
+
+| المصدر | الدور |
+|--------|--------|
+| **`lib/config/adminNav.ts`** | قائمة مسطّحة + مجموعات (لوحة، محاسبة، عقارات، مشاريع) — `getAdminNavGroupsConfig()` |
+| **`lib/config/dashboardRoles.ts`** | أي أقسام تظهر لعميل / مالك / أدمن (`DashboardSectionKey`) |
+| **`app/[locale]/admin/AdminLayoutInner.tsx`** | الشريط الجانبي، الجلسة، `RoleBasedSidebar` حسب الدور |
+| **`components/admin/RoleBasedSidebar.tsx`** | عرض المجموعات حسب الصلاحيات |
+
+**قاعدة:** مسار جديد تحت `/admin` يجب تسجيله في `adminNav.ts` (و`dashboardRoles` عند الحاجة) حتى يظهر في القائمة وفي «إعدادات لوحات التحكم».
+
+### 0.3 مخطط تدفق الصفحات (عام ↔ لوحة ↔ API)
+
+```mermaid
+flowchart LR
+  subgraph Public["واجهة عامة"]
+    P1["/[locale]/properties/[id]"]
+    P2["/[locale]/properties/[id]/book"]
+  end
+  subgraph Admin["لوحة /[locale]/admin"]
+    A1["/admin"]
+    A2["/admin/bookings"]
+    A3["/admin/address-book"]
+  end
+  subgraph API["app/api"]
+    R1["/api/bookings"]
+    R2["/api/address-book"]
+  end
+  P2 --> R1
+  A2 --> R1
+  A3 --> R2
+  Admin --> API
+```
+
+---
+
 ## 1. خريطة الصفحات والروابط (Site Map)
 
 ### الواجهة العامة (بدون تسجيل)
@@ -23,6 +102,14 @@
 | `/[locale]/subscriptions` | الباقات والاشتراكات (عامة) | اختيار باقة، قد يوجّه للدفع أو للتسجيل |
 | `/[locale]/login` | تسجيل الدخول | بعد النجاح → `/admin` |
 | `/[locale]/register` | التسجيل | — |
+| `/[locale]/forgot-password` | استعادة كلمة المرور | — |
+| `/[locale]/properties/[id]/receipt` | إيصال/عرض بعد دفع | حسب تدفق الحجز |
+| `/[locale]/properties/[id]/upload-documents` | رفع مستندات | مرتبط بالحجز/العقد |
+| `/[locale]/properties/[id]/contract-terms` | شروط العقد | — |
+| `/[locale]/scan/[userId]` | مسح باركود مستخدم | — |
+| `/[locale]/scan/property/[id]` | مسح باركود عقار | — |
+| `/[locale]/impersonate` · `/[locale]/auth/impersonate` | فتح حساب مستخدم (أدمن) | جلسة منتحلة |
+| `/[locale]/sign/[token]` | توقيع/رابط موقّع | — |
 
 ### لوحة التحكم (بعد تسجيل الدخول) — `/admin`
 
@@ -47,7 +134,18 @@
 | `/[locale]/admin/properties/[id]/bookings` | حجوزات عقار معيّن | طلب مستندات، اعتماد، إنشاء عقد |
 | `/[locale]/admin/contracts` | إدارة العقود | — |
 | `/[locale]/admin/subscriptions` | إدارة الاشتراكات (أدمن) | المستخدمون والخطط؛ تنزيل الباقة يتطلب استرداد المبلغ في المحاسبة أولاً |
-| `/[locale]/admin/users` | إدارة المستخدمين | — |
+| `/[locale]/admin/users` | إدارة المستخدمين | صف مستخدم: `/admin/users/[id]` — دفتر العناوين، فتح حساب، ضمان سجل |
+| `/[locale]/admin/users/[id]` | تفاصيل مستخدم (أدمن) | ربط بدفتر العناوين، تعديل، إعادة تعيين كلمة المرور |
+| `/[locale]/admin/properties/[id]` | تفاصيل عقار (إدارة) | حجوزات العقار، بيانات إضافية |
+| `/[locale]/admin/properties/[id]/extra-data` | بيانات إضافية للعقار | — |
+| `/[locale]/admin/properties/[id]/bookings` | حجوزات عقار | شروط/مراحل حسب المسار الفرعي |
+| `/[locale]/admin/contracts/[id]` | تفاصيل عقد | — |
+| `/[locale]/admin/contract-review` | مراجعة عقود | — |
+| `/[locale]/admin/drafts` | المسودات | `draftStorage` |
+| `/[locale]/admin/migrate-serials` | ترحيل أرقام تسلسلية | أدمن |
+| `/[locale]/admin/my-invoices` · `my-receipts` | فواتيري / إيصالاتي | عميل |
+| `/[locale]/admin/contact-category-permissions` | صلاحيات تصنيفات جهات الاتصال | أدمن |
+| `/[locale]/admin/serial-history` | سجل الأرقام التسلسلية | — |
 | `/[locale]/admin/data` | **إدارة البيانات والنسخ الاحتياطي (الخادم)** | تصفير DB مع الإبقاء على العقارات (`ADMIN_DATA_RESET_PIN`)؛ نسخة JSON كاملة؛ استعادة؛ منفصل: تصفير تشغيلي لـ localStorage. التفصيل: `docs/اقرأني-الدليل-التقني-الشامل.md` |
 | `/[locale]/admin/backup` | نسخ احتياطي (واجهة قديمة/محلية إن وُجدت) | يُفضّل استخدام `/admin/data` للخادم |
 | `/[locale]/subscriptions` | الباقات (للعميل/مالك) | نفس الصفحة العامة لكن من داخل اللوحة |
@@ -177,4 +275,4 @@
 
 ---
 
-**آخر تحديث**: مارس 2026
+**آخر تحديث**: 2026-04-02 — إضافة قسم 0 (هيكل App Router، مصدر التنقل، مخطط mermaid) وتوسيع جدول الواجهة العامة ومسارات admin الفرعية.

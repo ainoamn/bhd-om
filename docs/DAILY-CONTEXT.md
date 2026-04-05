@@ -9,6 +9,10 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — توثيق: هيكل المشروع وارتباط الصفحات
+
+- **الملفات:** `docs/SITE-SCENARIOS-AND-LINKS.md` — قسم 0 (شجرة `app/[locale]`، مصدر التنقل `adminNav`/`dashboardRoles`، مخطط mermaid)؛ توسيع الجداول (مسارات فرعية، مستخدم، عقار، عقد، مسودات، إلخ). `docs/اقرأني-الدليل-التقني-الشامل.md` — قسم 2.1 جدول المجلدات وربط القائمة.
+
 ### جلسة 2026-04-02 — P2022 عمود linkedUserId غير موجود: ensure + upsert SQL خام
 
 - **السبب:** الإنتاج لم يُنفَّذ عليه migration لعمود `linkedUserId`؛ `prisma.addressBookContact.create({ linkedUserId })` يرمي P2022 / «column (not available) does not exist»؛ المسار القديم كان يعيد `create` بدون العمود دون التقاط فشل ذلك بـ `upsertAddressBookContactFallback`.
