@@ -43,6 +43,20 @@ const roleLabels: Record<string, string> = {
   OWNER: 'roleOwner',
 };
 
+function formatUserListDate(iso: string | undefined, locale: string): string {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-OM' : 'en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(d);
+  } catch {
+    return iso.slice(0, 16);
+  }
+}
+
 function AddUserModal({
   locale,
   t,
@@ -457,6 +471,7 @@ export default function UsersAdminPage() {
     total: users.length,
     admins: users.filter((u) => u.role === 'ADMIN').length,
     clients: users.filter((u) => u.role === 'CLIENT').length,
+    owners: users.filter((u) => u.role === 'OWNER').length,
   };
 
   const isInAddressBook = (user: { email: string; id: string }) =>
@@ -606,7 +621,7 @@ export default function UsersAdminPage() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="admin-card p-4">
           <p className="text-xs font-semibold text-gray-500 uppercase">{t('total')}</p>
           <p className="text-xl font-bold text-gray-900 mt-0.5">{stats.total}</p>
@@ -618,6 +633,10 @@ export default function UsersAdminPage() {
         <div className="admin-card p-4 border-emerald-200">
           <p className="text-xs font-semibold text-emerald-700 uppercase">{t('clients')}</p>
           <p className="text-xl font-bold text-emerald-700 mt-0.5">{stats.clients}</p>
+        </div>
+        <div className="admin-card p-4 border-amber-200">
+          <p className="text-xs font-semibold text-amber-800 uppercase">{t('owners')}</p>
+          <p className="text-xl font-bold text-amber-900 mt-0.5">{stats.owners}</p>
         </div>
       </div>
 
@@ -665,27 +684,41 @@ export default function UsersAdminPage() {
             <p className="text-gray-400 text-sm mt-1">{t('noUsersHint')}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto w-full min-w-0">
-            <table className="admin-table min-w-[900px] text-sm w-full">
-              <thead>
-                <tr>
-                  <th className="w-28 px-3 py-2 text-xs">{t('username')}</th>
-                  <th className="w-36 px-3 py-2 text-xs">{t('name')}</th>
-                  <th className="w-40 px-3 py-2 text-xs max-w-[160px]">{t('email')}</th>
-                  <th className="w-28 px-3 py-2 text-xs">{t('phone')}</th>
-                  <th className="w-24 px-3 py-2 text-xs">{t('role')}</th>
-                  <th className="w-32 px-3 py-2 text-xs">{locale === 'ar' ? 'الباقة' : 'Plan'}</th>
-                  <th className="w-24 px-3 py-2 text-xs">{t('status')}</th>
-                  <th className="w-48 px-3 py-2 text-xs">{t('actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((u) => (
-                  <tr key={u.id} className="border-t border-gray-100 hover:bg-gray-50/50">
-                    <td className="px-3 py-2 font-mono text-xs font-medium max-w-[min(100%,14rem)]">
+          <div className="w-full min-w-0 divide-y divide-gray-100">
+            {filteredUsers.map((u) => (
+              <article
+                key={u.id}
+                className="px-4 py-4 sm:px-5 sm:py-4 hover:bg-stone-50/70 transition-colors"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3 gap-y-2">
+                  <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
+                    <UserBarcode userId={u.id} locale={locale} size={32} className="shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
                       <Link
                         href={`/${locale}/admin/users/${u.id}`}
-                        className="text-[#8B6F47] hover:text-[#6B5535] hover:underline cursor-pointer transition-colors block break-all"
+                        prefetch
+                        className="text-base font-bold text-gray-900 hover:text-[#8B6F47] hover:underline break-words"
+                      >
+                        {u.name || '—'}
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <span className={`admin-badge ${u.role === 'ADMIN' ? 'admin-badge-warning' : 'admin-badge-info'}`}>
+                      {t(roleLabels[u.role] || 'roleClient')}
+                    </span>
+                    <span className="admin-badge admin-badge-success">{t('statusActive')}</span>
+                  </div>
+                </div>
+
+                <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('username')}</dt>
+                    <dd className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 break-all font-mono text-xs text-gray-800">
+                      <Link
+                        href={`/${locale}/admin/users/${u.id}`}
+                        prefetch
+                        className="text-[#8B6F47] hover:underline"
                         title={
                           safeUserSerialForDisplay(u.serialNumber) !== '—'
                             ? `${shortenUserSerial(u.serialNumber)} · ${u.serialNumber}`
@@ -698,109 +731,105 @@ export default function UsersAdminPage() {
                         <button
                           type="button"
                           onClick={() => void fixUserSerial({ id: u.id, email: u.email })}
-                          className="mt-1 text-[11px] font-semibold text-amber-700 hover:underline"
+                          className="font-sans text-[11px] font-semibold text-amber-700 hover:underline"
                         >
                           {locale === 'ar' ? 'توليد رقم' : 'Generate'}
                         </button>
                       )}
-                    </td>
-                    <td className="px-3 py-2 font-semibold">
-                      <div className="flex items-center gap-2">
-                        <UserBarcode userId={u.id} locale={locale} size={28} className="shrink-0" />
-                        <Link
-                          href={`/${locale}/admin/users/${u.id}`}
-                          className="text-gray-900 hover:text-[#8B6F47] hover:underline cursor-pointer transition-colors"
-                        >
-                          {u.name || '—'}
-                        </Link>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
+                    </dd>
+                  </div>
+                  <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('email')}</dt>
+                    <dd className="mt-0.5 break-all text-gray-800">
                       {u.email && !u.email.includes('@nologin.bhd') ? (
-                        <Link
-                          href={`/${locale}/admin/users/${u.id}`}
-                          className="text-[#8B6F47] hover:text-[#6B5535] hover:underline truncate block text-xs cursor-pointer transition-colors"
-                        >
+                        <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="text-[#8B6F47] hover:underline">
                           {u.email}
                         </Link>
                       ) : (
-                        <span className="text-gray-400 text-xs">{locale === 'ar' ? 'دخول بالرقم فقط' : 'Login by ID only'}</span>
+                        <span className="text-gray-400">{locale === 'ar' ? 'دخول بالرقم فقط' : 'Login by ID only'}</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2">
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('phone')}</dt>
+                    <dd className="mt-0.5 break-all text-gray-800">
                       {u.phone ? (
-                        <Link
-                          href={`/${locale}/admin/users/${u.id}`}
-                          className="text-[#8B6F47] hover:text-[#6B5535] hover:underline text-xs cursor-pointer transition-colors"
-                        >
+                        <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="text-[#8B6F47] hover:underline">
                           {u.phone}
                         </Link>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`admin-badge ${u.role === 'ADMIN' ? 'admin-badge-warning' : 'admin-badge-info'}`}>
-                        {t(roleLabels[u.role] || 'roleClient')}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('registeredAt')}</dt>
+                    <dd className="mt-0.5 text-gray-800">{formatUserListDate(u.createdAt, locale)}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('plan')}</dt>
+                    <dd className="mt-0.5 break-words text-gray-800">
                       {u.plan ? (
-                        <Link
-                          href={`/${locale}/admin/subscriptions`}
-                          className="text-[#8B6F47] hover:text-[#6B5535] hover:underline text-xs font-medium"
-                        >
+                        <Link href={`/${locale}/admin/subscriptions`} prefetch className="text-[#8B6F47] hover:underline font-medium">
                           {locale === 'ar' ? u.plan.nameAr : u.plan.nameEn}
                         </Link>
                       ) : (
-                        <span className="text-gray-400 text-xs">{locale === 'ar' ? '— لا باقة —' : '— No plan —'}</span>
+                        <span className="text-gray-400">{locale === 'ar' ? '— لا باقة —' : '— No plan —'}</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="admin-badge admin-badge-success">{t('statusActive')}</span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setEditUser(u)}
-                          className="p-1.5 rounded hover:bg-gray-100 text-[#8B6F47] text-xs font-medium"
-                          title={locale === 'ar' ? 'تعديل' : 'Edit'}
-                        >
-                          {locale === 'ar' ? 'تعديل' : 'Edit'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleResetPassword(u)}
-                          disabled={!!resetPasswordUser}
-                          className="p-1.5 rounded hover:bg-gray-100 text-amber-600 text-xs font-medium disabled:opacity-50"
-                          title={locale === 'ar' ? 'إعادة تعيين كلمة المرور' : 'Reset password'}
-                        >
-                          {resetPasswordUser?.id === u.id ? (locale === 'ar' ? 'جاري...' : '...') : (locale === 'ar' ? 'كلمة مرور' : 'Password')}
-                        </button>
-                        {!isInAddressBook(u) ? (
-                          <button
-                            type="button"
-                            onClick={() => handleAddToAddressBook(u)}
-                            disabled={!!addingId}
-                            className="p-1.5 rounded hover:bg-gray-100 text-[#8B6F47] text-xs font-medium disabled:opacity-50"
-                          >
-                            {addingId === u.id ? (locale === 'ar' ? 'جاري...' : 'Adding...') : (locale === 'ar' ? 'دفتر العناوين' : 'Address Book')}
-                          </button>
-                        ) : (
-                          <Link
-                            href={`/${locale}/admin/address-book`}
-                            className="p-1.5 rounded hover:bg-gray-100 text-emerald-600 text-xs font-medium"
-                          >
-                            {locale === 'ar' ? 'في الدفتر' : 'In Book'}
-                          </Link>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('subscriptionEnds')}</dt>
+                    <dd className="mt-0.5 text-gray-800">
+                      {u.subscriptionEndAt ? formatUserListDate(u.subscriptionEndAt, locale) : '—'}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditUser(u)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#8B6F47] hover:bg-gray-50"
+                  >
+                    {locale === 'ar' ? 'تعديل' : 'Edit'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleResetPassword(u)}
+                    disabled={!!resetPasswordUser}
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    {resetPasswordUser?.id === u.id ? (locale === 'ar' ? 'جاري...' : '...') : (locale === 'ar' ? 'كلمة مرور' : 'Password')}
+                  </button>
+                  {!isInAddressBook(u) ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAddToAddressBook(u)}
+                      disabled={!!addingId}
+                      className="rounded-lg border border-[#8B6F47]/30 bg-[#8B6F47]/5 px-3 py-1.5 text-xs font-semibold text-[#6B5535] hover:bg-[#8B6F47]/10 disabled:opacity-50"
+                    >
+                      {addingId === u.id ? (locale === 'ar' ? 'جاري...' : 'Adding...') : (locale === 'ar' ? 'إضافة للدفتر' : 'Add to book')}
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/${locale}/admin/address-book`}
+                      prefetch
+                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                    >
+                      {locale === 'ar' ? 'في الدفتر' : 'In book'}
+                    </Link>
+                  )}
+                  <Link
+                    href={`/${locale}/admin/users/${u.id}`}
+                    prefetch
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    {locale === 'ar' ? 'تفاصيل' : 'Details'}
+                  </Link>
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </div>
