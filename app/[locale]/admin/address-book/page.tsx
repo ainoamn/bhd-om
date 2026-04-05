@@ -162,7 +162,7 @@ export default function AdminAddressBookPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const locale = (params?.locale as string) || 'ar';
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const t = useTranslations('addressBook');
   const tUsers = useTranslations('usersAdmin');
   const userRole = (session?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
@@ -283,13 +283,20 @@ export default function AdminAddressBookPage() {
   };
 
   useEffect(() => {
+    if (sessionStatus === 'loading') return;
+    if (sessionStatus === 'unauthenticated') {
+      setContacts([]);
+      setIsLoadingContacts(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setIsLoadingContacts(true);
       let listFromApi: Contact[] = [];
       let firstApiOk = false;
       try {
-        const res = await fetch('/api/address-book?limit=200&offset=0', { credentials: 'include' });
+        /** limit=0 (أو بدون limit) يعيد كل الصفوف من الخادم — limit=200 كان يقطع القائمة ويُظهر بيانات ناقصة */
+        const res = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
         firstApiOk = res.ok;
         if (res.ok) {
           const data = await res.json();
@@ -300,7 +307,15 @@ export default function AdminAddressBookPage() {
       }
       if (!firstApiOk) {
         if (!cancelled) {
-          setContacts([]);
+          try {
+            const all = getAllContacts(showArchived);
+            const dashboardType =
+              userRole && ROLE_TO_DASHBOARD_TYPE[userRole as keyof typeof ROLE_TO_DASHBOARD_TYPE];
+            const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
+            setContacts(filtered);
+          } catch {
+            setContacts([]);
+          }
           setIsLoadingContacts(false);
         }
         return;
@@ -308,11 +323,15 @@ export default function AdminAddressBookPage() {
       const localContacts = getAllContacts(true);
       const merged = mergeAddressBookApiWithLocal(listFromApi, localContacts);
       const apiById = new Map(listFromApi.map((c) => [c.id, c]));
+      const apiUserIds = new Set(
+        listFromApi.map((c) => (c as Contact).userId?.trim()).filter((x): x is string => !!x)
+      );
+      /** ارفع للخادم أي جهة محلية غير موجودة بـ id؛ إن وُجد مستخدم على الخادم لنفس userId لا نكرّر الرفع */
       const toSync = merged.filter((c) => {
         const apiC = apiById.get(c.id);
-        const uid = (c as Contact).userId?.trim();
         if (apiC) return false;
-        if (uid) return false;
+        const uid = (c as Contact).userId?.trim();
+        if (uid && apiUserIds.has(uid)) return false;
         return true;
       });
       if (toSync.length > 0) {
@@ -324,25 +343,16 @@ export default function AdminAddressBookPage() {
         }).catch(() => {});
       }
       let toPersist = merged;
-      let serverIdSet = new Set(listFromApi.map((c) => c.id));
       try {
-        const resAfter = await fetch('/api/address-book?limit=200&offset=0', { credentials: 'include' });
+        const resAfter = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
         if (resAfter.ok) {
           const dataAfter = await resAfter.json();
           if (Array.isArray(dataAfter)) {
             toPersist = mergeAddressBookApiWithLocal(dataAfter as Contact[], merged);
-            serverIdSet = new Set(dataAfter.map((x) => x.id));
           }
         }
       } catch {
         /* بعد فشل الجلب نحتفظ بـ merged */
-      }
-      if (firstApiOk && serverIdSet.size > 0) {
-        toPersist = toPersist.filter((c) => {
-          const uid = (c as Contact).userId?.trim();
-          if (uid && !serverIdSet.has(c.id)) return false;
-          return true;
-        });
       }
       try {
         localStorage.setItem('bhd_address_book', JSON.stringify(toPersist));
@@ -377,7 +387,7 @@ export default function AdminAddressBookPage() {
       cancelled = true;
       window.removeEventListener('storage', onStorage);
     };
-  }, [showArchived, userRole, serverSyncKey]);
+  }, [showArchived, userRole, serverSyncKey, sessionStatus]);
 
   useEffect(() => {
     const onUpdated = () => setServerSyncKey((k) => k + 1);
@@ -405,12 +415,18 @@ export default function AdminAddressBookPage() {
   const handleSyncFromUsers = async () => {
     setSyncingFromUsers(true);
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await fetch('/api/admin/users', { credentials: 'include', cache: 'no-store' });
       if (!res.ok) throw new Error('Failed');
       const users = await res.json() as Array<{ id: string; name: string; email: string; phone?: string | null }>;
       const existingEmails = new Set(getAllContacts(true).map((c) => (c.email || '').toLowerCase()));
+      const existingUserIds = new Set(
+        getAllContacts(true)
+          .map((c) => c.userId?.trim())
+          .filter((x): x is string => !!x)
+      );
       let added = 0;
       for (const u of users) {
+        if (existingUserIds.has(u.id)) continue;
         const email = (u.email || '').toLowerCase();
         if (!email || existingEmails.has(email)) continue;
         const nameParts = (u.name || '').trim().split(/\s+/);
@@ -438,9 +454,11 @@ export default function AdminAddressBookPage() {
           userId: u.id,
         } as Parameters<typeof createContact>[0]);
         existingEmails.add(email);
+        existingUserIds.add(u.id);
         added++;
       }
       loadData();
+      emitAddressBookUpdated();
       setSyncFromUsersResult(added);
       setTimeout(() => setSyncFromUsersResult(null), 4000);
     } catch {
