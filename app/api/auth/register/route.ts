@@ -5,10 +5,18 @@ import { z } from 'zod';
 import { generateBhdSerial } from '@/lib/server/serialNumbers';
 import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
 
+function normalizeDigitsPhone(raw: string): string {
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.length === 8 && digits.startsWith('9')) return '968' + digits;
+  if (digits.length >= 8 && !digits.startsWith('968')) return '968' + digits.replace(/^0+/, '');
+  return digits;
+}
+
 const registerSchema = z.object({
   name: z.string().min(2, 'Name too short'),
   email: z.string().email('Invalid email'),
-  phone: z.string().optional(),
+  phone: z.string().min(8, 'Phone too short'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -24,6 +32,7 @@ export async function POST(req: Request) {
     }
     const { name, email, phone, password } = parsed.data;
     const emailLower = email.toLowerCase().trim();
+    const phoneNorm = normalizeDigitsPhone(phone);
 
     const existing = await prisma.user.findUnique({
       where: { email: emailLower },
@@ -35,6 +44,15 @@ export async function POST(req: Request) {
       );
     }
 
+    if (phoneNorm.replace(/\D/g, '').length >= 8) {
+      const phoneTaken = await prisma.user.findFirst({
+        where: { phone: phoneNorm },
+      });
+      if (phoneTaken) {
+        return NextResponse.json({ error: 'Phone already registered' }, { status: 409 });
+      }
+    }
+
     const serialNumber = await generateBhdSerial('USR-C');
 
     const hashed = await hash(password, 10);
@@ -44,7 +62,7 @@ export async function POST(req: Request) {
         email: emailLower,
         password: hashed,
         name: name.trim(),
-        phone: phone?.trim() || null,
+        phone: phoneNorm,
         role: 'CLIENT',
       },
     });

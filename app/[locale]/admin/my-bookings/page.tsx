@@ -6,7 +6,11 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
-import { getContactProfileIssuesForContractApproval, type Contact } from '@/lib/data/addressBook';
+import {
+  getContactProfileIssuesBasicAccount,
+  getContactProfileIssuesForContractApproval,
+  type Contact,
+} from '@/lib/data/addressBook';
 import { ADDRESS_BOOK_UPDATED_EVENT } from '@/lib/utils/addressBookEvents';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { type PropertyBooking } from '@/lib/data/bookings';
@@ -37,6 +41,7 @@ function describeProfileIssues(ar: boolean, issues: string[]): string {
     passportExpiry: { ar: 'انتهاء الجواز', en: 'Passport expiry' },
     passportExpiryInvalid: { ar: 'انتهاء الجواز (صالح 90+ يوماً)', en: 'Passport expiry (90+ days valid)' },
     companyNameAr: { ar: 'اسم الشركة', en: 'Company name' },
+    nameParts: { ar: 'الاسم الأول واسم العائلة', en: 'First and family name' },
     commercialRegistrationNumber: { ar: 'السجل التجاري', en: 'Commercial registration' },
     authorizedRepresentatives: { ar: 'مفوّض بالتوقيع', en: 'Authorized representative' },
   };
@@ -263,8 +268,14 @@ export default function MyBookingsPage() {
     (effectiveUser as { role?: string } | undefined)?.role ||
     (session?.user as { role?: string } | undefined)?.role;
   const [contactForProfile, setContactForProfile] = useState<Contact | null>(null);
-  const profileIssues = contactForProfile ? getContactProfileIssuesForContractApproval(contactForProfile) : ['noContactLinked'];
-  const profileComplete = profileIssues.length === 0;
+  const profileIssuesBasic = contactForProfile
+    ? getContactProfileIssuesBasicAccount(contactForProfile)
+    : ['noContactLinked'];
+  const profileIssuesContract = contactForProfile
+    ? getContactProfileIssuesForContractApproval(contactForProfile)
+    : ['noContactLinked'];
+  const profileCompleteBasic = profileIssuesBasic.length === 0;
+  const profileCompleteForContract = profileIssuesContract.length === 0;
 
   const loadLinkedContactForProfile = useCallback(() => {
     if (!user?.id) return;
@@ -286,7 +297,7 @@ export default function MyBookingsPage() {
     const onAddrUpdated = () => loadLinkedContactForProfile();
     window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddrUpdated);
     return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddrUpdated);
-  }, [user?.id, loadLinkedContactForProfile]);
+  }, [user?.id, loadLinkedContactForProfile, session?.user?.email, session?.user?.name]);
 
   const [dataVersion, setDataVersion] = useState(0);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
@@ -378,14 +389,16 @@ export default function MyBookingsPage() {
               : 'Bookings linked to your account'
         }
       />
-      {!profileComplete && (userRole === 'CLIENT' || userRole === 'OWNER') ? (
+      {!profileCompleteBasic && (userRole === 'CLIENT' || userRole === 'OWNER') ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 shadow-sm">
           <p className="font-semibold m-0 mb-1">
-            {locale === 'ar' ? 'اكتمل ملفك في «حسابي» قبل اعتماد أو توقيع العقد' : 'Complete your profile in My Account before approving or signing'}
+            {locale === 'ar'
+              ? 'أكمل بياناتك الأساسية في «حسابي» (الاسم، البريد، الهاتف)'
+              : 'Complete basic details in My Account (name, email, phone)'}
           </p>
           <p className="m-0 opacity-90 mb-2">
-            {locale === 'ar' ? 'ناقص أو يحتاج تحديث:' : 'Missing or needs update:'}{' '}
-            {describeProfileIssues(locale === 'ar', profileIssues)}
+            {locale === 'ar' ? 'ناقص:' : 'Missing:'}{' '}
+            {describeProfileIssues(locale === 'ar', profileIssuesBasic)}
           </p>
           <Link
             href={`/${locale}/admin/my-account`}
@@ -521,7 +534,7 @@ export default function MyBookingsPage() {
                               })()}
                             </Link>
                           )}
-                          {(showClientApprove || showOwnerApprove) && profileComplete && (
+                          {(showClientApprove || showOwnerApprove) && profileCompleteForContract && (
                             <Link
                               href={contractReviewUrl}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
@@ -551,7 +564,7 @@ export default function MyBookingsPage() {
                                       : 'Approve (Landlord)'}
                             </Link>
                           )}
-                          {(showClientApprove || showOwnerApprove) && !profileComplete && (
+                          {(showClientApprove || showOwnerApprove) && !profileCompleteForContract && (
                             <Link
                               href={`/${locale}/admin/my-account`}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-100 text-amber-950 border border-amber-300 hover:bg-amber-200 transition-colors"

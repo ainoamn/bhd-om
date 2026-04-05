@@ -245,17 +245,48 @@ export function getContactProfileIssuesForContractApproval(contact: Contact | nu
   return getPersonalProfileIssues(contact);
 }
 
+/**
+ * نفس الحقول الظاهرة في المستخدمين / دفتر العناوين: الاسم، البريد، هاتف صالح.
+ * لا يُستخدم لاعتماد العقد — لذلك لا يطلب رقم مدني أو عنواناً تفصيلياً.
+ */
+export function getContactProfileIssuesBasicAccount(contact: Contact | null | undefined): string[] {
+  if (!contact?.id) return ['noContactLinked'];
+  if (isCompanyContact(contact) && contact.companyData) {
+    const issues: string[] = [];
+    if (!contact.companyData.companyNameAr?.trim()) issues.push('companyNameAr');
+    if (!contact.phone?.trim()) issues.push('phone');
+    else {
+      const pv = validatePhoneWithCountryCode(contact.phone.replace(/\D/g, ''), '968');
+      if (!pv.valid) issues.push('phoneInvalid');
+    }
+    if (!contact.email?.trim()) issues.push('email');
+    return issues;
+  }
+  return getPersonalProfileIssuesBasic(contact);
+}
+
 export function isContactProfileCompleteForContractApproval(contact: Contact | null | undefined): boolean {
   return getContactProfileIssuesForContractApproval(contact).length === 0;
+}
+
+/** بيانات أساسية للحساب (بدون هوية كاملة للعقد) */
+function getPersonalProfileIssuesBasic(c: Contact): string[] {
+  const issues: string[] = [];
+  if (!c.firstName?.trim()) issues.push('firstName');
+  if (!c.familyName?.trim()) issues.push('familyName');
+  if (!c.phone?.trim()) issues.push('phone');
+  else {
+    const pv = validatePhoneWithCountryCode(c.phone.replace(/\D/g, ''), '968');
+    if (!pv.valid) issues.push('phoneInvalid');
+  }
+  if (!c.email?.trim()) issues.push('email');
+  return issues;
 }
 
 function getPersonalProfileIssues(c: Contact): string[] {
   const issues: string[] = [];
   if (!c.firstName?.trim()) issues.push('firstName');
-  if (!c.secondName?.trim()) issues.push('secondName');
   if (!c.familyName?.trim()) issues.push('familyName');
-  if (!c.nameEn?.trim()) issues.push('nameEn');
-  if (!c.workplace?.trim()) issues.push('workplace');
   if (!c.nationality?.trim()) issues.push('nationality');
   if (!c.phone?.trim()) issues.push('phone');
   else {

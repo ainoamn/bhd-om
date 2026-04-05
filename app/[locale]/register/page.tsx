@@ -16,7 +16,7 @@ const registerSchema = z
   .object({
     name: z.string().min(2, 'min2'),
     email: z.string().min(1, 'required').email('invalid'),
-    phone: z.string().optional(),
+    phone: z.string().min(1, 'required').refine((s) => s.replace(/\D/g, '').length >= 8, 'phoneShort'),
     password: z.string().min(6, 'min6'),
     confirmPassword: z.string(),
   })
@@ -64,7 +64,9 @@ export default function RegisterPage() {
       setFormError(
         json.error === 'Email already registered'
           ? (locale === 'ar' ? 'البريد الإلكتروني مسجّل بالفعل' : 'Email already registered')
-          : json.error ?? t('errorGeneric')
+          : json.error === 'Phone already registered'
+            ? (locale === 'ar' ? 'رقم الهاتف مسجّل بالفعل' : 'Phone already registered')
+            : json.error ?? t('errorGeneric')
       );
       return;
     }
@@ -72,6 +74,7 @@ export default function RegisterPage() {
   };
 
   const errMsg = (key: string) => {
+    if (key === 'phoneShort') return locale === 'ar' ? 'رقم هاتف صالح (8 أرقام على الأقل)' : 'Valid phone (at least 8 digits)';
     if (key === 'min2') return locale === 'ar' ? 'حرفان على الأقل' : 'At least 2 characters';
     if (key === 'required') return locale === 'ar' ? 'مطلوب' : 'Required';
     if (key === 'invalid') return locale === 'ar' ? 'بريد غير صالح' : 'Invalid email';

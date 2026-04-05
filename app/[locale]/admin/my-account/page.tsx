@@ -235,23 +235,15 @@ export default function MyAccountPage() {
     if (!form.email?.trim()) {
       miss.push(ar ? 'البريد الإلكتروني' : 'Email');
     }
-    if (!form.nationality?.trim()) {
-      miss.push(ar ? 'الجنسية' : 'Nationality');
-    }
-    if (!contactAddressHasUsableContent(form.address)) {
-      miss.push(ar ? 'العنوان (المحافظة، الولاية، المنطقة التفصيلية)' : 'Address (governorate, state, detailed area)');
-    }
     if (!form.firstName?.trim()) miss.push(ar ? 'الاسم الأول' : 'First name');
-    if (!form.secondName?.trim()) miss.push(ar ? 'الاسم الثاني' : 'Second name');
     if (!form.familyName?.trim()) miss.push(ar ? 'اسم العائلة' : 'Family name');
-    if (!form.nameEn?.trim()) miss.push(ar ? 'الاسم (إنجليزي)' : 'Name (English)');
-    if (!form.workplace?.trim()) miss.push(ar ? 'جهة العمل' : 'Workplace');
     if (miss.length > 0) {
       showMissingFieldsAlert(miss, ar);
       return;
     }
-    const nat = form.nationality.trim();
-    if (nat && isOmaniNationality(nat)) {
+    const nat = (form.nationality?.trim() || 'عماني');
+    /** هوية العقد: تُتحقق فقط إذا أدخل المستخدم حقلاً من حقول الهوية (لا يُجبر على إكمالها مع كل حفظ) */
+    if (isOmaniNationality(nat) && (form.civilId.trim() || form.civilIdExpiry.trim())) {
       const civilMiss: string[] = [];
       if (!form.civilId.trim()) civilMiss.push(ar ? 'الرقم المدني' : 'Civil ID');
       if (!form.civilIdExpiry.trim()) civilMiss.push(ar ? 'انتهاء الرقم المدني' : 'Civil ID expiry');
@@ -263,7 +255,7 @@ export default function MyAccountPage() {
         alert(ar ? 'انتهاء الرقم المدني يجب ألا يقل عن 30 يوماً من اليوم' : 'Civil ID expiry must be at least 30 days from today');
         return;
       }
-    } else if (nat && !isOmaniNationality(nat)) {
+    } else if (!isOmaniNationality(nat) && (form.passportNumber.trim() || form.passportExpiry.trim())) {
       const passMiss: string[] = [];
       if (!form.passportNumber.trim()) passMiss.push(ar ? 'رقم الجواز' : 'Passport number');
       if (!form.passportExpiry.trim()) passMiss.push(ar ? 'انتهاء الجواز' : 'Passport expiry');
@@ -282,25 +274,40 @@ export default function MyAccountPage() {
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean);
+      const nameEnSafe =
+        form.nameEn.trim() ||
+        [form.firstName.trim(), form.familyName.trim()].filter(Boolean).join(' ') ||
+        '—';
+      const workplaceSafe = form.workplace.trim() || '—';
+      const addr = contactAddressHasUsableContent(form.address)
+        ? form.address
+        : {
+            ...form.address,
+            governorate: form.address.governorate?.trim() || '—',
+            state: form.address.state?.trim() || '—',
+            area: form.address.area?.trim() || '—',
+            fullAddress: form.address.fullAddress?.trim() || '—',
+            fullAddressEn: form.address.fullAddressEn?.trim() || '—',
+          };
       const payload: Record<string, unknown> = {
         firstName: form.firstName.trim(),
-        secondName: form.secondName.trim(),
+        secondName: form.secondName.trim() || undefined,
         thirdName: form.thirdName.trim() || undefined,
         familyName: form.familyName.trim(),
-        nameEn: form.nameEn.trim(),
+        nameEn: nameEnSafe,
         email: form.email.trim() || undefined,
         phone: fullPhone,
         phoneSecondary: form.phoneSecondary.trim() || undefined,
-        nationality: form.nationality.trim() || 'عماني',
+        nationality: nat,
         gender: form.gender,
         civilId: form.civilId.trim() || undefined,
         civilIdExpiry: form.civilIdExpiry.trim() || undefined,
         passportNumber: form.passportNumber.trim() || undefined,
         passportExpiry: form.passportExpiry.trim() || undefined,
-        workplace: form.workplace.trim(),
+        workplace: workplaceSafe,
         workplaceEn: form.workplaceEn.trim() || undefined,
         position: form.position.trim() || undefined,
-        address: form.address,
+        address: addr,
         notes: form.notes.trim() || undefined,
         notesEn: form.notesEn.trim() || undefined,
         tags: tagList.length > 0 ? tagList : undefined,
