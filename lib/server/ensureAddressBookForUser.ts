@@ -2,6 +2,7 @@
  * عند إنشاء مستخدم جديد (تسجيل أو إضافة من الإدارة): ضمان وجود صف في دفتر العناوين مربوط بالحساب.
  */
 
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { deleteOtherAddressBookRowsForUser } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
@@ -125,6 +126,49 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       return;
     }
 
+    /** إذا وُجد صف بـ linkedUserId ولم يُعثر عليه findAddressBookRowByUserId (تعارض/هجرة جزئية) */
+    try {
+      const byLink = await prisma.addressBookContact.findUnique({
+        where: { linkedUserId: userId },
+      });
+      if (byLink) {
+        const data = { ...((byLink.data as Record<string, unknown>) || {}) };
+        data.id = byLink.contactId;
+        data.userId = userId;
+        data.serialNumber = serialNumber;
+        data.firstName = np.firstName;
+        data.secondName = np.secondName;
+        data.thirdName = np.thirdName;
+        data.familyName = np.familyName;
+        data.email = publicEmail;
+        data.phone = phoneDigits;
+        data.category = category;
+        data.updatedAt = now;
+        try {
+          await prisma.addressBookContact.update({
+            where: { contactId: byLink.contactId },
+            data: {
+              linkedUserId: userId,
+              data: data as object,
+              updatedAt: new Date(),
+            },
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
+          await prisma.addressBookContact.update({
+            where: { contactId: byLink.contactId },
+            data: { data: data as object, updatedAt: new Date() },
+          });
+        }
+        await deleteOtherAddressBookRowsForUser(byLink.contactId, userId);
+        return;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
+    }
+
     const contactId = `CNT-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
     const data: Record<string, unknown> = {
       id: contactId,
@@ -154,6 +198,45 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         },
       });
     } catch (e) {
+      /** صف آخر يملك نفس linkedUserId — نحدّثه بدل الإنشاء (لا نبتلع الخطأ) */
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const row = await prisma.addressBookContact.findFirst({
+          where: { linkedUserId: userId },
+        });
+        if (row) {
+          const merged = { ...((row.data as Record<string, unknown>) || {}) };
+          merged.id = row.contactId;
+          merged.userId = userId;
+          merged.serialNumber = serialNumber;
+          merged.firstName = np.firstName;
+          merged.secondName = np.secondName;
+          merged.thirdName = np.thirdName;
+          merged.familyName = np.familyName;
+          merged.email = publicEmail;
+          merged.phone = phoneDigits;
+          merged.category = category;
+          merged.updatedAt = now;
+          try {
+            await prisma.addressBookContact.update({
+              where: { contactId: row.contactId },
+              data: {
+                linkedUserId: userId,
+                data: merged as object,
+                updatedAt: new Date(),
+              },
+            });
+          } catch (inner) {
+            const im = inner instanceof Error ? inner.message : String(inner);
+            if (!im.includes('does not exist') && !im.includes('not available')) throw inner;
+            await prisma.addressBookContact.update({
+              where: { contactId: row.contactId },
+              data: { data: merged as object, updatedAt: new Date() },
+            });
+          }
+          await deleteOtherAddressBookRowsForUser(row.contactId, userId);
+          return;
+        }
+      }
       const msg = e instanceof Error ? e.message : String(e);
       if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
       await prisma.addressBookContact.create({
@@ -166,5 +249,6 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
     await deleteOtherAddressBookRowsForUser(contactId, userId);
   } catch (err) {
     console.error('ensureAddressBookContactForUser:', err);
+    throw err;
   }
 }

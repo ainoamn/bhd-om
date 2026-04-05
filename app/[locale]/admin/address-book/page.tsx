@@ -421,49 +421,15 @@ export default function AdminAddressBookPage() {
   const handleSyncFromUsers = async () => {
     setSyncingFromUsers(true);
     try {
-      const res = await fetch('/api/admin/users', { credentials: 'include', cache: 'no-store' });
+      const res = await fetch('/api/admin/address-book/bulk-ensure-from-users', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
       if (!res.ok) throw new Error('Failed');
-      const users = await res.json() as Array<{ id: string; name: string; email: string; phone?: string | null }>;
-      const existingEmails = new Set(getAllContacts(true).map((c) => (c.email || '').toLowerCase()));
-      const existingUserIds = new Set(
-        getAllContacts(true)
-          .map((c) => c.userId?.trim())
-          .filter((x): x is string => !!x)
-      );
-      let added = 0;
-      for (const u of users) {
-        if (existingUserIds.has(u.id)) continue;
-        const email = (u.email || '').toLowerCase();
-        if (!email || existingEmails.has(email)) continue;
-        const nameParts = (u.name || '').trim().split(/\s+/);
-        const firstName = nameParts[0] || u.name || '';
-        const familyName = nameParts.length > 1 ? nameParts.slice(-1)[0] : '';
-        const secondName = nameParts.length > 3 ? nameParts[1] : undefined;
-        const thirdName = nameParts.length > 4 ? nameParts[2] : undefined;
-        const fullPhone = (u.phone || '').replace(/\D/g, '');
-        const { code } = parsePhoneToCountryAndNumber(u.phone || '968');
-        const phone = fullPhone.length >= 8
-          ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
-          : `968${String(Date.now()).slice(-7)}`;
-        createContact({
-          contactType: 'PERSONAL',
-          firstName,
-          secondName,
-          thirdName,
-          familyName: familyName || firstName,
-          nationality: 'عماني',
-          gender: 'MALE',
-          email,
-          phone,
-          category: 'CLIENT',
-          address: { fullAddress: '—', fullAddressEn: '—' },
-          userId: u.id,
-        } as Parameters<typeof createContact>[0]);
-        existingEmails.add(email);
-        existingUserIds.add(u.id);
-        added++;
-      }
-      loadData();
+      const payload = (await res.json().catch(() => ({}))) as { ensured?: number; total?: number };
+      const added = typeof payload.ensured === 'number' ? payload.ensured : 0;
+      setServerSyncKey((k) => k + 1);
       emitAddressBookUpdated();
       setSyncFromUsersResult(added);
       setTimeout(() => setSyncFromUsersResult(null), 4000);

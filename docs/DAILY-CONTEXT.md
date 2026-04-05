@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — دفتر العناوين: إصلاح ensure + زر «تحديث من المستخدمين» من الخادم
+
+- **السبب:** `ensureAddressBookContactForUser` كان يبتلع الأخطاء؛ إنشاء صف جديد مع `linkedUserId` قد يفشل بـ `P2002` إذا وُجد صف مرتبط سابقاً — فيُرجع المسار «Could not create address book row» رغم وجود البيانات.
+- **الإصلاح:** معالجة `P2002` بتحديث الصف الموجود؛ بحث إضافي بـ `findUnique({ linkedUserId })` قبل الإنشاء؛ إعادة رمي الأخطاء غير المتوقعة؛ `findAddressBookRowByUserId` يطابق `userId` في JSON مع `trim`.
+- **المسار:** `POST /api/admin/address-book/bulk-ensure-from-users` يضمن الصفوف لكل المستخدمين في DB؛ زر «تحديث من المستخدمين» يستدعيه ثم `setServerSyncKey` لإعادة جلب `/api/address-book` بدل `createContact` المحلي فقط.
+- **الصلاحيات:** مسارات `ensure-address-book` و`linked-contact` للمدير عبر `requireAuth` مع `ADMIN` و`SUPER_ADMIN`.
+
 ### جلسة 2026-04-02 — دفتر العناوين: فلتر الدور للمدير + تنظيف صفحة المستخدم
 
 - **المشكلة:** تعيين `dashboardType` من `ROLE_TO_DASHBOARD_TYPE[role]` يعطي للمدير `ADMIN` فيُطبَّق `filterContactsByRolePermissions` كأن الدفتر ليس له صلاحية عرض — فيُفرَّغ الجدول حتى يضغط المستخدم «تحديث من المستخدمين» أو يتغيّر السياق.

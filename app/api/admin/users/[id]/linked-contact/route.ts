@@ -3,7 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { prisma } from '@/lib/prisma';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
@@ -16,13 +16,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const token = await getToken({
-      req,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-    if (!token || (token.role as string) !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN']);
+    if (forbidden) return forbidden;
 
     const { id: userId } = await params;
     const dbUser = await prisma.user.findUnique({
@@ -44,6 +41,15 @@ export async function GET(
         role: dbUser.role,
       });
       row = await findAddressBookRowByUserId(userId);
+    }
+    if (!row) {
+      try {
+        row = await prisma.addressBookContact.findUnique({
+          where: { linkedUserId: userId },
+        });
+      } catch {
+        /* عمود غير متاح */
+      }
     }
     if (!row) {
       return NextResponse.json(null, { headers: { 'Cache-Control': NO_STORE } });

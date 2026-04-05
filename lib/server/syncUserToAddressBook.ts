@@ -19,7 +19,19 @@ async function findAddressBookRowByUserIdFallback(userId: string) {
   const rows = await prisma.addressBookContact.findMany({
     select: { id: true, contactId: true, data: true, createdAt: true, updatedAt: true },
   });
-  return rows.find((r) => (r.data as { userId?: string }).userId === userId) ?? null;
+  const uid = String(userId || '').trim();
+  return (
+    rows.find((r) => String((r.data as { userId?: string }).userId || '').trim() === uid) ?? null
+  );
+}
+
+function isLinkedUserIdColumnMissingError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    msg.includes('does not exist') ||
+    msg.includes('not available') ||
+    msg.includes('Unknown column')
+  );
 }
 
 export async function findAddressBookRowByUserId(userId: string) {
@@ -28,8 +40,11 @@ export async function findAddressBookRowByUserId(userId: string) {
       where: { linkedUserId: userId },
     });
     if (byCol) return byCol;
-  } catch {
-    /* عمود linkedUserId غير موجود حتى تُنفَّذ prisma migrate deploy */
+  } catch (e) {
+    /* عمود غير موجود / خطأ عابر — لا نُسقط الطلب؛ نتابع بـ JSON ثم المسح */
+    if (!isLinkedUserIdColumnMissingError(e)) {
+      console.warn('findAddressBookRowByUserId: linkedUserId query failed, falling back', e);
+    }
   }
 
   try {
