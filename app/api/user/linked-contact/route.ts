@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     const data = { ...((row.data as Record<string, unknown>) || {}) };
     data.serialNumber = user.serialNumber;
     data.userId = sub;
-    data.linkedUserId = row.linkedUserId ?? sub;
+    data.linkedUserId = (row as { linkedUserId?: string | null }).linkedUserId ?? sub;
     return NextResponse.json(data, {
       headers: { 'Cache-Control': CACHE_LINKED_CONTACT_GET, Vary: HTTP_CACHE_VARY_AUTH },
     });
@@ -153,29 +153,54 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: ident.message, code: ident.code }, { status: 409 });
     }
 
-    await prisma.addressBookContact.updateMany({
-      where: { linkedUserId: sub, NOT: { contactId } },
-      data: { linkedUserId: null },
-    });
+    try {
+      await prisma.addressBookContact.updateMany({
+        where: { linkedUserId: sub, NOT: { contactId } },
+        data: { linkedUserId: null },
+      });
+    } catch {
+      /* عمود linkedUserId غير موجود في القاعدة حتى تُنفَّذ prisma migrate deploy */
+    }
 
     await prisma.user.update({
       where: { id: sub },
       data: { name: displayName, email: nextEmail, phone: nextPhone },
     });
 
-    await prisma.addressBookContact.upsert({
-      where: { contactId },
-      create: {
-        contactId,
-        linkedUserId: sub,
-        data: mergedSafe as object,
-      },
-      update: {
-        linkedUserId: sub,
-        data: mergedSafe as object,
-        updatedAt: new Date(),
-      },
-    });
+    try {
+      await prisma.addressBookContact.upsert({
+        where: { contactId },
+        create: {
+          contactId,
+          linkedUserId: sub,
+          data: mergedSafe as object,
+        },
+        update: {
+          linkedUserId: sub,
+          data: mergedSafe as object,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const isMissingLinkedColumn =
+        (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2022') ||
+        msg.includes('does not exist') ||
+        msg.includes('not available');
+      if (!isMissingLinkedColumn) throw e;
+      mergedSafe.userId = sub;
+      await prisma.addressBookContact.upsert({
+        where: { contactId },
+        create: {
+          contactId,
+          data: mergedSafe as object,
+        },
+        update: {
+          data: mergedSafe as object,
+          updatedAt: new Date(),
+        },
+      });
+    }
 
     await deleteOtherPersonalRowsSamePhone(contactId, mergedSafe.phone);
 

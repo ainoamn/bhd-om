@@ -24,13 +24,11 @@ export function getDuplicateDropContactIdsFromDbRows(
 }
 
 export async function deleteOtherAddressBookRowsForUser(keepContactId: string, userId: string): Promise<void> {
+  /** لا نستخدم "linkedUserId" في SQL حتى لا يفشل الحذف إذا لم تُطبَّق الهجرة بعد */
   await prisma.$executeRaw`
     DELETE FROM "AddressBookContact"
     WHERE "contactId" <> ${keepContactId}
-    AND (
-      "linkedUserId" = ${userId}
-      OR (data->>'userId') = ${userId}
-    )
+    AND (data->>'userId') = ${userId}
   `;
 }
 
