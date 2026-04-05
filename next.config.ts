@@ -4,6 +4,17 @@ import createNextIntlPlugin from 'next-intl/plugin';
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
 const nextConfig: NextConfig = {
+  // API routes live at /api/* (app/api). Some users/bookmarks use /ar/api/* or /en/api/* by mistake.
+  // Rewrite so those URLs hit the same Route Handlers (fixes 404 on /:locale/api/...).
+  async rewrites() {
+    return [
+      {
+        source: '/:locale(ar|en)/api/:path*',
+        destination: '/api/:path*',
+      },
+    ];
+  },
+
   // Performance optimizations
   compress: true,
   poweredByHeader: false,

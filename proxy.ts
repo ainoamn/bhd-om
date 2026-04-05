@@ -25,6 +25,14 @@ function localeFromPath(pathname: string): string {
 
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  // App Router APIs live at /api/* only. /ar/api/* or /en/api/* is not a file route → 404 unless rewritten.
+  const localeApi = pathname.match(/^\/(ar|en)\/api(\/.*)?$/);
+  if (localeApi) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/api${localeApi[2] ?? ''}`;
+    return NextResponse.rewrite(url);
+  }
+
   if (pathname.startsWith('/api/')) {
     const needsApiAuth = pathname.startsWith('/api/admin') || pathname.startsWith('/api/accounting');
     if (!needsApiAuth) return NextResponse.next();
