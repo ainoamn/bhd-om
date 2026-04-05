@@ -290,10 +290,12 @@ export default function UserDetailPage() {
         method: 'POST',
         credentials: 'include',
       });
-      const data = (await res.json().catch(() => null)) as { error?: string; id?: string } | null;
+      const data = (await res.json().catch(() => null)) as { error?: string; detail?: string; id?: string } | null;
       if (!res.ok) {
         const msg = typeof data?.error === 'string' ? data.error : '';
-        setSyncMsg(msg || (ar ? 'فشل الإضافة' : 'Failed'));
+        const detail = typeof data?.detail === 'string' && data.detail.trim() ? data.detail.trim() : '';
+        const base = msg || (ar ? 'فشل الإضافة' : 'Failed');
+        setSyncMsg(detail ? `${base} — ${detail}` : base);
         setTimeout(() => setSyncMsg(null), 3500);
         return;
       }

@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — ضمان دفتر العناوين: عدم فشل «إضافة لدفتر العناوين» بسبب حذف التكرار
+
+- **السبب المحتمل:** `deleteOtherAddressBookRowsForUser` (SQL خام) قد يرمي خطأ في بيئة معيّنة فيُسقط كامل `ensureAddressBookContactForUser` → 500 «Failed to ensure address book» رغم نجاح إنشاء/تحديث الصف؛ أو فشل استعلام `linkedUserId` بعد P2002.
+- **الإصلاح:** لفّ الحذف في `safeDeleteOtherAddressBookRowsForUser` (خطأ غير قاتل + تسجيل)؛ تعزيز مسار P2002 بالرجوع إلى `findAddressBookRowByUserId`؛ `applyUserIdentityToContactJson` يحمي `name` الفارغ؛ مسار `ensure-address-book` يعيد جلب الصف بـ `data.userId` JSON؛ إرجاع `detail` قصير عند 500 وعرضه في واجهة المستخدم.
+
 ### جلسة 2026-04-02 — توحيد عرض جهات الاتصال: دفتر العناوين ↔ المستخدم ↔ حسابي
 
 - **السبب:** `GET /api/address-book` كان يعرض JSON المخزَّن مع تحديث الرقم المتسلسل فقط، بينما `linked-contact` يطبّق `applyUserIdentityToContactJson` من جدول `User` — فظهر نقص/تداخل في الأسماء والهاتف والبريد بين الصفحات.

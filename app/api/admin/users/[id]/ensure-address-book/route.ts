@@ -50,6 +50,15 @@ export async function POST(
         /* عمود غير متاح */
       }
     }
+    if (!row) {
+      try {
+        row = await prisma.addressBookContact.findFirst({
+          where: { data: { path: ['userId'], equals: userId } },
+        });
+      } catch {
+        row = null;
+      }
+    }
 
     if (!row) {
       return NextResponse.json({ error: 'Could not create address book row' }, { status: 500 });
@@ -64,6 +73,7 @@ export async function POST(
     return NextResponse.json(data, { headers: { 'Cache-Control': NO_STORE } });
   } catch (e) {
     console.error('ensure-address-book POST error:', e);
-    return NextResponse.json({ error: 'Failed to ensure address book' }, { status: 500 });
+    const detail = (e instanceof Error ? e.message : String(e)).slice(0, 500);
+    return NextResponse.json({ error: 'Failed to ensure address book', detail }, { status: 500 });
   }
 }

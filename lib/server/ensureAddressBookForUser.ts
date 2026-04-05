@@ -7,6 +7,15 @@ import { prisma } from '@/lib/prisma';
 import { deleteOtherAddressBookRowsForUser } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 
+/** إزالة التكرار لا يجب أن تُسقط ضمان الصف — فشل SQL نادر (صلاحيات/لهجة DB) */
+async function safeDeleteOtherAddressBookRowsForUser(keepContactId: string, userId: string): Promise<void> {
+  try {
+    await deleteOtherAddressBookRowsForUser(keepContactId, userId);
+  } catch (e) {
+    console.error('safeDeleteOtherAddressBookRowsForUser:', keepContactId, userId, e);
+  }
+}
+
 function normalizeDigitsPhone(raw: string | null | undefined): string {
   let digits = (raw || '').replace(/\D/g, '');
   if (digits.startsWith('00')) digits = digits.slice(2);
@@ -86,7 +95,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
             data: { data: data as object, updatedAt: new Date() },
           });
         }
-        await deleteOtherAddressBookRowsForUser(cid, userId);
+        await safeDeleteOtherAddressBookRowsForUser(cid, userId);
         return;
       }
     }
@@ -122,7 +131,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
           data: { data: data as object, updatedAt: new Date() },
         });
       }
-      await deleteOtherAddressBookRowsForUser(existing.contactId, userId);
+      await safeDeleteOtherAddressBookRowsForUser(existing.contactId, userId);
       return;
     }
 
@@ -161,7 +170,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
             data: { data: data as object, updatedAt: new Date() },
           });
         }
-        await deleteOtherAddressBookRowsForUser(byLink.contactId, userId);
+        await safeDeleteOtherAddressBookRowsForUser(byLink.contactId, userId);
         return;
       }
     } catch (e) {
@@ -200,9 +209,20 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
     } catch (e) {
       /** صف آخر يملك نفس linkedUserId — نحدّثه بدل الإنشاء (لا نبتلع الخطأ) */
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        const row = await prisma.addressBookContact.findFirst({
-          where: { linkedUserId: userId },
-        });
+        let row:
+          | Awaited<ReturnType<typeof prisma.addressBookContact.findFirst>>
+          | Awaited<ReturnType<typeof findAddressBookRowByUserId>> = null;
+        try {
+          row = await prisma.addressBookContact.findFirst({
+            where: { linkedUserId: userId },
+          });
+        } catch (lookupErr) {
+          const lm = lookupErr instanceof Error ? lookupErr.message : String(lookupErr);
+          if (!lm.includes('does not exist') && !lm.includes('not available')) {
+            console.error('ensureAddressBookContactForUser P2002 linkedUserId lookup:', lookupErr);
+          }
+          row = await findAddressBookRowByUserId(userId);
+        }
         if (row) {
           const merged = { ...((row.data as Record<string, unknown>) || {}) };
           merged.id = row.contactId;
@@ -233,7 +253,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
               data: { data: merged as object, updatedAt: new Date() },
             });
           }
-          await deleteOtherAddressBookRowsForUser(row.contactId, userId);
+          await safeDeleteOtherAddressBookRowsForUser(row.contactId, userId);
           return;
         }
       }
@@ -246,7 +266,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         },
       });
     }
-    await deleteOtherAddressBookRowsForUser(contactId, userId);
+    await safeDeleteOtherAddressBookRowsForUser(contactId, userId);
   } catch (err) {
     console.error('ensureAddressBookContactForUser:', err);
     throw err;

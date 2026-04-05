@@ -16,7 +16,7 @@ export function applyUserIdentityToContactJson(
   if (user.phone) {
     data.phone = user.phone;
   }
-  const parts = user.name.trim().split(/\s+/).filter(Boolean);
+  const parts = (user.name || '').trim().split(/\s+/).filter(Boolean);
   if (parts.length > 0) {
     data.firstName = parts[0];
     data.familyName = parts.length > 1 ? parts[parts.length - 1]! : parts[0];
