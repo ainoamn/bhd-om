@@ -215,6 +215,10 @@ export interface Contact {
   updatedAt: string;
 }
 
+function normDisplayName(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
 /** الحصول على الاسم الكامل - للشركة يعرض اسم الشركة، للشخصي يعرض الاسم */
 export function getContactDisplayName(c: Contact | undefined | null, locale?: string): string {
   if (!c) return '—';
@@ -224,7 +228,13 @@ export function getContactDisplayName(c: Contact | undefined | null, locale?: st
   }
   if (locale === 'en' && c.nameEn?.trim()) return c.nameEn;
   const parts = [c.firstName, c.secondName, c.thirdName, c.familyName].filter(Boolean);
-  if (parts.length > 0) return parts.join(' ');
+  const joined = parts.join(' ').trim();
+  const fullName = (c.name || '').trim();
+  /** إذا وُجد الاسم الكامل المخزَّن ولا يطابق دمج الأجزاء (JSON قديم) نعرض الاسم الكامل */
+  if (fullName && joined && normDisplayName(fullName) !== normDisplayName(joined)) {
+    return fullName;
+  }
+  if (parts.length > 0) return joined;
   return c.name || c.nameEn || '—';
 }
 

@@ -2,9 +2,14 @@
  * يطبّق حقول الهوية من جدول User على كائن جهة الاتصال (JSON دفتر العناوين)
  * حتى تتطابق العرض مع صفحة المستخدمين وليس مع نسخة JSON قديمة.
  *
- * أجزاء الاسم (الأول/الثاني/الثالث/العائلة) تُؤخذ من JSON المحفوظ عند وجودها —
- * لا نعيد تقسيم `User.name` فوقها (كان يفسد الأسماء المركبة ويدمج الوسطى مع العائلة).
+ * - `User.name` مصدر الاسم الكامل المعروض؛ يُخزَّن في `data.name`.
+ * - إذا وُجدت أجزاء في JSON وتطابق دمجها `User.name` نحتفظ بها (أسماء مركبة محفوظة من «حسابي»).
+ * - إذا اختلف الدمج عن `User.name` (صف قديم/مكرر أو تعديل من لوحة أخرى) نعيد اشتقاق الأجزاء من الاسم الكامل.
  */
+
+function normSpaces(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
 
 function hasStoredNameParts(data: Record<string, unknown>): boolean {
   for (const k of ['firstName', 'secondName', 'thirdName', 'familyName'] as const) {
@@ -14,7 +19,14 @@ function hasStoredNameParts(data: Record<string, unknown>): boolean {
   return false;
 }
 
-/** Fallback قديم: لا يوجد إلا User.name — تقسيم بسيط (لا يُستدعى إذا وُجدت أجزاء في JSON) */
+function joinedPartsFromData(data: Record<string, unknown>): string {
+  const parts = ['firstName', 'secondName', 'thirdName', 'familyName']
+    .map((k) => (typeof data[k] === 'string' ? String(data[k]).trim() : ''))
+    .filter((x) => x.length > 0);
+  return normSpaces(parts.join(' '));
+}
+
+/** Fallback: لا يوجد إلا الاسم الكامل — تقسيم بسيط (عند عدم تطابق أجزاء JSON مع User.name) */
 function applyNamePartsFromUserFullName(data: Record<string, unknown>, fullName: string): void {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return;
@@ -45,8 +57,21 @@ export function applyUserIdentityToContactJson(
   if (user.phone) {
     data.phone = user.phone;
   }
-  if (hasStoredNameParts(data)) {
+
+  const un = normSpaces(user.name || '');
+  data.name = user.name;
+
+  if (!un) {
     return;
   }
-  applyNamePartsFromUserFullName(data, user.name || '');
+
+  const partsJoined = joinedPartsFromData(data);
+  if (hasStoredNameParts(data)) {
+    if (partsJoined && partsJoined === un) {
+      return;
+    }
+    applyNamePartsFromUserFullName(data, user.name);
+    return;
+  }
+  applyNamePartsFromUserFullName(data, user.name);
 }

@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — دفتر العناوين يعرض اسماً قديماً رغم «حسابي»
+
+- **السبب:** JSON احتفظ بأجزاء قديمة لا تطابق `User.name`؛ `getContactDisplayName` كان يعرض دمج الأجزاء قبل الحقل `name`؛ `PATCH` حسابي لم يُخزّن `name` في JSON لأن `mergedSafe` وُلِد قبل تعيينه؛ `findAddressBookRowByUserId` قد يعيد صفاً أقدم عند وجود أكثر من صف لنفس المستخدم.
+- **الإصلاح:** `applyUserIdentityToContactJson` يضبط `data.name` ويعيد اشتقاق الأجزاء عند اختلافها عن `User.name`؛ `getContactDisplayName` يفضّل `name` عند تعارضه مع دمج الأجزاء؛ `merged.name` قبل `toJsonSafeRecord`؛ اختيار أحدث صف بـ `orderBy updatedAt desc` وترتيب الـ fallback.
+
 ### جلسة 2026-04-02 — أجزاء الاسم: لا إعادة تقسيم User.name فوق JSON المحفوظ
 
 - **السبب:** `applyUserIdentityToContactJson` كان يفرّق `user.name` بالمسافات ويكتب فوق `firstName`…`familyName` بعد كل GET (حسابي / مستخدم / دفتر العناوين) رغم أن PATCH يحفظ الأجزاء صحيحة في JSON.

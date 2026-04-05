@@ -142,15 +142,16 @@ export async function PATCH(req: NextRequest) {
     };
     merged.updatedAt = new Date().toISOString();
 
-    const mergedSafe = toJsonSafeRecord(merged);
-
-    await deleteOtherAddressBookRowsForUser(contactId, sub);
-
     const first = String(merged.firstName || '').trim();
     const second = String(merged.secondName || '').trim();
     const third = String(merged.thirdName || '').trim();
     const family = String(merged.familyName || '').trim();
     const displayName = [first, second, third, family].filter(Boolean).join(' ') || user.name;
+    merged.name = displayName;
+
+    const mergedSafe = toJsonSafeRecord(merged);
+
+    await deleteOtherAddressBookRowsForUser(contactId, sub);
 
     const emailRaw = String(merged.email || '').trim().toLowerCase();
     let nextEmail = user.email;

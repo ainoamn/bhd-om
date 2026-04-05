@@ -42,6 +42,7 @@ async function findAddressBookRowByUserIdSql(userId: string): Promise<AddressBoo
       SELECT id, "contactId", data, "createdAt", "updatedAt", "linkedUserId"
       FROM "AddressBookContact"
       WHERE "linkedUserId" = ${uid}
+      ORDER BY "updatedAt" DESC
       LIMIT 1
     `);
     if (rows.length > 0) return rows[0]!;
@@ -55,6 +56,7 @@ async function findAddressBookRowByUserIdSql(userId: string): Promise<AddressBoo
       SELECT id, "contactId", data, "createdAt", "updatedAt", "linkedUserId"
       FROM "AddressBookContact"
       WHERE (data->>'userId') = ${uid}
+      ORDER BY "updatedAt" DESC
       LIMIT 1
     `);
     if (rows.length > 0) return rows[0]!;
@@ -70,9 +72,12 @@ async function findAddressBookRowByUserIdFallback(userId: string) {
     select: { id: true, contactId: true, data: true, createdAt: true, updatedAt: true },
   });
   const uid = String(userId || '').trim();
-  return (
-    rows.find((r) => String((r.data as { userId?: string }).userId || '').trim() === uid) ?? null
+  const matches = rows.filter(
+    (r) => String((r.data as { userId?: string }).userId || '').trim() === uid
   );
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  return matches[0]!;
 }
 
 export async function findAddressBookRowByUserId(userId: string) {
@@ -83,6 +88,7 @@ export async function findAddressBookRowByUserId(userId: string) {
     try {
       const byCol = await prisma.addressBookContact.findFirst({
         where: { linkedUserId: uid },
+        orderBy: { updatedAt: 'desc' },
       });
       if (byCol) return byCol;
     } catch (e) {
@@ -92,7 +98,7 @@ export async function findAddressBookRowByUserId(userId: string) {
     }
 
     try {
-      const byJson = await prisma.addressBookContact.findFirst({
+      const byJsonRows = await prisma.addressBookContact.findMany({
         where: {
           data: { path: ['userId'], equals: uid },
         },
@@ -103,8 +109,10 @@ export async function findAddressBookRowByUserId(userId: string) {
           createdAt: true,
           updatedAt: true,
         },
+        orderBy: { updatedAt: 'desc' },
+        take: 1,
       });
-      if (byJson) return byJson;
+      if (byJsonRows[0]) return byJsonRows[0];
     } catch {
       /* فلتر JSON */
     }
