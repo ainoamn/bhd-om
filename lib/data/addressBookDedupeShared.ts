@@ -62,7 +62,10 @@ function addUserIdDrops(rows: AddressBookDedupeRow[], drop: Set<string>): void {
       if (bL !== aL) return bL - aL;
       return revisionMs(b) - revisionMs(a);
     });
-    for (let i = 1; i < sorted.length; i++) drop.add(sorted[i]!.contactId);
+    for (let i = 1; i < sorted.length; i++) {
+      const cid = sorted[i]!.contactId;
+      if (typeof cid === 'string' && cid.trim() !== '') drop.add(cid);
+    }
   }
 }
 
@@ -90,7 +93,10 @@ function addPhoneDrops(rows: AddressBookDedupeRow[], drop: Set<string>): void {
   for (const arr of byPhone.values()) {
     if (arr.length <= 1) continue;
     const sorted = [...arr].sort(sortDuplicateGroup);
-    for (let i = 1; i < sorted.length; i++) drop.add(sorted[i]!.contactId);
+    for (let i = 1; i < sorted.length; i++) {
+      const cid = sorted[i]!.contactId;
+      if (typeof cid === 'string' && cid.trim() !== '') drop.add(cid);
+    }
   }
 }
 
@@ -109,7 +115,10 @@ function addCivilDrops(rows: AddressBookDedupeRow[], drop: Set<string>): void {
   for (const arr of byC.values()) {
     if (arr.length <= 1) continue;
     const sorted = [...arr].sort(sortDuplicateGroup);
-    for (let i = 1; i < sorted.length; i++) drop.add(sorted[i]!.contactId);
+    for (let i = 1; i < sorted.length; i++) {
+      const cid = sorted[i]!.contactId;
+      if (typeof cid === 'string' && cid.trim() !== '') drop.add(cid);
+    }
   }
 }
 
@@ -137,5 +146,9 @@ export function dedupeContactsList<T extends { id: string; updatedAt?: string; c
     };
   });
   const drop = getDuplicateDropContactIds(rows);
-  return contacts.filter((c) => !drop.has(c.id));
+  return contacts.filter((c) => {
+    const id = c.id;
+    if (typeof id !== 'string' || id.trim() === '') return true;
+    return !drop.has(id);
+  });
 }

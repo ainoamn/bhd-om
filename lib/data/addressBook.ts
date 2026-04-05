@@ -551,6 +551,10 @@ function save(list: Contact[]) {
 export function rewriteLocalAddressBookDeduped(): void {
   const list = getAllContacts(true);
   const d = dedupeContactsList(list);
+  if (list.length > 0 && d.length === 0) {
+    console.warn('[addressBook] dedupe would empty a non-empty list; keeping previous storage');
+    return;
+  }
   save(d);
 }
 
