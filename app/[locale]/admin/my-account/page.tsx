@@ -313,11 +313,12 @@ export default function MyAccountPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const code = data?.code as string | undefined;
+        const serverMsg = typeof data?.message === 'string' && data.message.trim() ? data.message.trim() : '';
         if (code === 'DUPLICATE_CIVIL_ID') alert(ar ? 'الرقم المدني مسجّل لجهة أخرى في النظام' : 'Civil ID already registered');
         else if (code === 'DUPLICATE_PASSPORT') alert(ar ? 'رقم الجواز مسجّل لجهة أخرى' : 'Passport already registered');
         else if (code === 'DUPLICATE_SERIAL') alert(ar ? 'الرقم المتسلسل مستخدم' : 'Serial number conflict');
         else if (code === 'DUPLICATE_EMAIL') alert(ar ? 'البريد مستخدم لحساب آخر' : 'Email already in use');
-        else alert((data?.error as string) || (ar ? 'فشل الحفظ' : 'Save failed'));
+        else alert(serverMsg || (data?.error as string) || (ar ? 'فشل الحفظ' : 'Save failed'));
         return;
       }
 

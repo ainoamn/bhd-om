@@ -5,12 +5,22 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { getAuthSubFromRequest } from '@/lib/auth/getAuthSubFromRequest';
 import { prisma } from '@/lib/prisma';
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
 import { deleteOtherAddressBookRowsForUser, deleteOtherPersonalRowsSamePhone } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 import { CACHE_LINKED_CONTACT_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+
+/** إزالة undefined بشكل عميق + ضمان قابلية تخزين الحقل Json في PostgreSQL */
+function toJsonSafeRecord(input: Record<string, unknown>): Record<string, unknown> {
+  try {
+    return JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
+  } catch {
+    return input;
+  }
+}
 
 function normalizeDigitsPhone(raw: string): string {
   let digits = raw.replace(/\D/g, '');
@@ -111,6 +121,8 @@ export async function PATCH(req: NextRequest) {
     };
     merged.updatedAt = new Date().toISOString();
 
+    const mergedSafe = toJsonSafeRecord(merged);
+
     await deleteOtherAddressBookRowsForUser(contactId, sub);
 
     const first = String(merged.firstName || '').trim();
@@ -136,7 +148,7 @@ export async function PATCH(req: NextRequest) {
       nextPhone = normalizeDigitsPhone(merged.phone);
     }
 
-    const ident = await assertAddressBookIdentityUnique(merged, contactId);
+    const ident = await assertAddressBookIdentityUnique(mergedSafe, contactId);
     if (!ident.ok) {
       return NextResponse.json({ error: ident.message, code: ident.code }, { status: 409 });
     }
@@ -156,22 +168,46 @@ export async function PATCH(req: NextRequest) {
       create: {
         contactId,
         linkedUserId: sub,
-        data: merged as object,
+        data: mergedSafe as object,
       },
       update: {
         linkedUserId: sub,
-        data: merged as object,
+        data: mergedSafe as object,
         updatedAt: new Date(),
       },
     });
 
-    await deleteOtherPersonalRowsSamePhone(contactId, merged.phone);
+    await deleteOtherPersonalRowsSamePhone(contactId, mergedSafe.phone);
 
-    merged.serialNumber = user.serialNumber;
-    merged.linkedUserId = sub;
-    return NextResponse.json(merged);
+    mergedSafe.serialNumber = user.serialNumber;
+    mergedSafe.linkedUserId = sub;
+    return NextResponse.json(mergedSafe);
   } catch (e) {
     console.error('linked-contact PATCH error:', e);
-    return NextResponse.json({ error: 'Failed to save contact' }, { status: 500 });
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      const meta = e.meta as { target?: string[] } | undefined;
+      const target = Array.isArray(meta?.target) ? meta.target.join(', ') : '';
+      let message = e.message;
+      if (e.code === 'P2002') {
+        message =
+          'تعارض فريد في قاعدة البيانات (ربما ربط جهة أخرى بنفس الحساب). حدّث الصفحة وحاول مرة أخرى، أو تواصل مع الدعم.';
+      }
+      return NextResponse.json(
+        {
+          error: 'Failed to save contact',
+          code: e.code,
+          message,
+          target: target || undefined,
+        },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json(
+      {
+        error: 'Failed to save contact',
+        message: e instanceof Error ? e.message : String(e),
+      },
+      { status: 500 }
+    );
   }
 }
