@@ -79,8 +79,15 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
 
   /** جلسة من getSession() — أحياناً تُستكمل بعد useSession وتُزيل حالة unauthenticated الخاطئة لفترة طويلة على الإنتاج */
   const [peekSession, setPeekSession] = useState<Session | null>(null);
-  /** لا نعرض شاشة الدخول حتى يكتمل جلب الجلسة مرة على الأقل (يتجنب ~20ث من شاشة الدخول ثم الدخول الفعلي) */
-  const [sessionFetchSettled, setSessionFetchSettled] = useState(false);
+  /** إن وُجد تلميح جلسة سابق في نفس التبويب لا نمنع تصيير الصفحات حتى يكتمل getSession (تقليل التأخير المرصوف) */
+  const [sessionFetchSettled, setSessionFetchSettled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return sessionStorage.getItem(SESSION_HINT_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   // مصدر واحد: عند وجود "فتح حساب" في localStorage نعتمدها فقط — لا نعرض أبداً بيانات الأدمن أو قائمة الأدمن
   const impersonationSession = getImpersonationSessionFromStorage();
@@ -353,17 +360,10 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const showLoginRequired =
     sessionFetchSettled && !currentSession && status === 'unauthenticated' && isAdminPath;
 
-  if (showSessionLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="flex flex-col items-center gap-4 text-neutral-600">
-          <div className="h-10 w-10 rounded-full border-2 border-[#8B6F47] border-t-transparent animate-spin" aria-hidden />
-          <p className="text-sm font-medium">{locale === 'ar' ? 'جاري التحميل…' : 'Loading…'}</p>
-        </div>
-      </div>
-    );
-  }
-
+  /**
+   * لا نُعيد شاشة ملء الشاشة بدون {children} — كانت تمنع تركيب الصفحة حتى تكتمل الجلسة،
+   * فيتأخر جلب البيانات من API حتى 2–8 ث (تسلسل انتظار). نُظهر شريطاً خفيفاً ونُصيّر المحتوى فوراً.
+   */
   if (showLoginRequired) {
     const loginUrl = `/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`;
     return (
@@ -614,6 +614,19 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       )}
 
       <main className="admin-main">
+        {showSessionLoading && (
+          <div
+            className="bg-amber-50/95 border-b border-amber-200/80 px-4 py-2 text-sm text-amber-900 flex items-center gap-2 shrink-0"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className="h-4 w-4 rounded-full border-2 border-amber-800 border-t-transparent animate-spin shrink-0"
+              aria-hidden
+            />
+            {locale === 'ar' ? 'جاري التحقق من الجلسة…' : 'Verifying session…'}
+          </div>
+        )}
         <DraftBanner />
         <header className="admin-mobile-header">
           <button

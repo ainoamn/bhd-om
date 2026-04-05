@@ -139,9 +139,7 @@ export default function MyAccountPage() {
   });
 
   useEffect(() => {
-    if (sessionStatus === 'loading') return;
     if (sessionStatus === 'unauthenticated') return;
-    if (!user?.id) return;
     let cancelled = false;
 
     const fillFormFromContact = (co: Contact) => {
@@ -192,7 +190,7 @@ export default function MyAccountPage() {
         /* fallback محلي */
       }
       if (cancelled) return;
-      const uid = user.id;
+      const uid = user?.id;
       if (!uid) return;
       const c = findContactByUserId(uid);
       setContact(c || { id: '', email: user.email ?? undefined, phone: user.phone ?? undefined });

@@ -290,7 +290,7 @@ export default function AdminAddressBookPage() {
   };
 
   useEffect(() => {
-    if (sessionStatus === 'loading') return;
+    /** أثناء loading نجلب بـ credentials — لا ننتظر useSession (يزيد التأخير مرصوفاً مع الـ layout) */
     if (sessionStatus === 'unauthenticated') {
       setContacts([]);
       setIsLoadingContacts(false);

@@ -163,7 +163,8 @@ export default function AdminSubscriptionsPage() {
   }, [users, userSearch, userFilterPlan]);
 
   const loadData = useCallback(async (retry = 0) => {
-    if (!isAdmin) return;
+    /** لا ننتظر isAdmin من useSession — أثناء loading يكون false فيتأخر الجلب؛ الخادم يفرض الصلاحيات */
+    if (sessionStatus === 'unauthenticated') return;
     const ts = Date.now();
     try {
       const [planRes, userRes, subRes] = await Promise.all([
@@ -237,11 +238,11 @@ export default function AdminSubscriptionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, ar]);
+  }, [sessionStatus, ar]);
 
   useEffect(() => {
-    if (isAdmin) loadData();
-  }, [isAdmin, loadData]);
+    if (sessionStatus !== 'unauthenticated') void loadData();
+  }, [sessionStatus, loadData]);
 
   const patchPlan = useCallback(async (plan: PlanRow, opts?: { permissions?: string[]; features?: string[] }): Promise<{ ok: boolean; error?: string }> => {
     if (!isDbPlan(plan.id)) return { ok: false, error: 'Plan id not from DB' };
