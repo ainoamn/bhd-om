@@ -37,6 +37,16 @@ interface UserRow {
   subscriptionEndAt?: string | null;
 }
 
+/** ينتظر إطاري رسم قبل تشغيل مزامنة ثقيلة على الخيط الرئيسي — حتى يظهر جدول الأسماء قبل أي عمل طويل */
+function scheduleAfterNextPaint(cb: () => void) {
+  if (typeof window === 'undefined') return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setTimeout(cb, 0);
+    });
+  });
+}
+
 const roleLabels: Record<string, string> = {
   ADMIN: 'roleAdmin',
   CLIENT: 'roleClient',
@@ -354,29 +364,23 @@ export default function UsersAdminPage() {
       let usersList = Array.isArray(data) ? data : [];
       // لا نلجأ لمسار احتياطي هنا حتى لا تظهر بيانات/أرقام غير متسقة في لوحة الإدارة
       setUsers(usersList);
-      /** مزامنة دفتر العناوين كانت تعمل متزامنة على الخيط الرئيسي وتؤخر setLoading وتظهر الأسماء بعد ثوانٍ */
+      /** مزامنة دفتر العناوين في الخلفية — بدون تنبيه عند التحميل (كان يظهر قبل الأسماء لأن العمل يحجب الرسم) */
       if (usersList.length > 0) {
         const list = usersList;
         const runSync = () => {
           try {
-            const { added } = syncContactsFromUsers(list);
-            if (added > 0) {
-              setSyncMsg(
-                locale === 'ar'
-                  ? `تمت إضافة ${added} مستخدم تلقائياً لدفتر العناوين`
-                  : `${added} user(s) auto-added to address book`
-              );
-              setTimeout(() => setSyncMsg(null), 3000);
-            }
+            syncContactsFromUsers(list);
           } catch {
             /* ignore */
           }
         };
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          window.requestIdleCallback(runSync, { timeout: 2500 });
-        } else {
-          setTimeout(runSync, 0);
-        }
+        scheduleAfterNextPaint(() => {
+          if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            window.requestIdleCallback(runSync, { timeout: 4000 });
+          } else {
+            setTimeout(runSync, 0);
+          }
+        });
       }
     } catch {
       setLoadError(locale === 'ar' ? 'تعذر الاتصال بالخادم' : 'Network error');
@@ -411,11 +415,13 @@ export default function UsersAdminPage() {
             /* ignore */
           }
         };
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          window.requestIdleCallback(runSync, { timeout: 2500 });
-        } else {
-          setTimeout(runSync, 0);
-        }
+        scheduleAfterNextPaint(() => {
+          if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            window.requestIdleCallback(runSync, { timeout: 4000 });
+          } else {
+            setTimeout(runSync, 0);
+          }
+        });
       }
     } catch {
       setUsers([]);
