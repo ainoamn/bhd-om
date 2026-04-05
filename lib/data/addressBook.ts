@@ -477,7 +477,38 @@ let didBulkSyncContacts = false;
 let bulkSyncContactsInProgress = false;
 let didHydrateContactsFromServer = false;
 let hydrateContactsInProgress = false;
+/** يُحمَّل مرة من localStorage قبل أي قراءة — وإلا تبقى الذاكرة [] وتُمسح القائمة عند rewrite بعد setItem مباشرة */
+let didLoadContactsFromStorageOnce = false;
 let contactsStore: Contact[] = [];
+
+function ensureContactsLoadedFromStorageOnce(): void {
+  if (typeof window === 'undefined') return;
+  if (didLoadContactsFromStorageOnce) return;
+  didLoadContactsFromStorageOnce = true;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Contact[];
+    if (Array.isArray(parsed)) contactsStore = parsed;
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * حفظ القائمة في الذاكرة و localStorage معاً (لا تستخدم setItem مباشرة من الصفحات — كان يُفقد contactsStore).
+ */
+export function persistAddressBookContactsLocally(list: Contact[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    contactsStore = list;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    didLoadContactsFromStorageOnce = true;
+    emitAddressBookUpdated();
+  } catch {
+    /* تخزين معطّل */
+  }
+}
 
 function migrateContact(raw: Record<string, unknown>): Contact {
   let firstName = raw.firstName as string | undefined;
@@ -512,12 +543,17 @@ function migrateContact(raw: Record<string, unknown>): Contact {
 
 function getStored(): Contact[] {
   if (typeof window === 'undefined') return [];
+  ensureContactsLoadedFromStorageOnce();
   if (!didHydrateContactsFromServer && !hydrateContactsInProgress) {
     hydrateContactsInProgress = true;
     fetch('/api/address-book', { cache: 'no-store', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((apiList: Contact[]) => {
-        if (!Array.isArray(apiList) || apiList.length === 0) return;
+        if (!Array.isArray(apiList)) return;
+        if (apiList.length === 0) {
+          didHydrateContactsFromServer = true;
+          return;
+        }
         const localList = contactsStore;
         const merged = mergeAddressBookApiWithLocal(apiList, localList);
         contactsStore = merged;
@@ -555,6 +591,22 @@ export function rewriteLocalAddressBookDeduped(): void {
     console.warn('[addressBook] dedupe would empty a non-empty list; keeping previous storage');
     return;
   }
+  if (list.length === 0 && d.length === 0 && typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? (JSON.parse(raw) as Contact[]) : [];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.warn('[addressBook] rewrite: memory empty but disk had rows; resyncing store from disk');
+        contactsStore = parsed;
+        const retry = getAllContacts(true);
+        const d2 = dedupeContactsList(retry);
+        save(d2);
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
   save(d);
 }
 
@@ -565,6 +617,8 @@ export function rewriteLocalAddressBookDeduped(): void {
 export function clearAddressBookLocalStorage(): void {
   if (typeof window === 'undefined') return;
   try {
+    contactsStore = [];
+    didLoadContactsFromStorageOnce = false;
     localStorage.removeItem(STORAGE_KEY);
     try {
       window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));

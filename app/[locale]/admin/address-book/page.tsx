@@ -34,6 +34,7 @@ import {
   validatePassportExpiry,
   contactAddressHasUsableContent,
   mergeAddressBookApiWithLocal,
+  persistAddressBookContactsLocally,
   rewriteLocalAddressBookDeduped,
   findDuplicateContactFields,
   findContactsByCivilIdOrName,
@@ -360,11 +361,7 @@ export default function AdminAddressBookPage() {
       } catch {
         /* بعد فشل الجلب نحتفظ بـ merged */
       }
-      try {
-        localStorage.setItem('bhd_address_book', JSON.stringify(toPersist));
-      } catch {
-        // تخزين محلي معطّل أو ممتلئ
-      }
+      persistAddressBookContactsLocally(toPersist);
       if (cancelled) return;
       try {
         const result = syncBookingContactsToAddressBook();

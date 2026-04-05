@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — دفتر العناوين: ذاكرة الوحدة النمطية لم تُحمَّل من localStorage
+
+- **السبب:** `contactsStore` كان يبدأ `[]` دون قراءة `bhd_address_book`؛ صفحة الإدارة كانت تستدعي `localStorage.setItem` بعد الدمج دون تحديث `contactsStore`، فـ `rewriteLocalAddressBookDeduped()` قرأ قائمة فارغة وحفظ `[]` فوق القرص.
+- **الإصلاح:** `ensureContactsLoadedFromStorageOnce()` في بداية `getStored()`؛ `persistAddressBookContactsLocally()` يحدّث الذاكرة والقرص معاً؛ استبدال `setItem` في صفحة دفتر العناوين؛ منع تكرار جلب الخادم عند `apiList.length === 0`؛ مسار احتياطي في `rewrite` إذا كانت الذاكرة فارغة والقرص فيه صفوف؛ `clearAddressBookLocalStorage` يصفّر الذاكرة ويعيد علم التحميل.
+
 ### جلسة 2026-04-02 — دفتر العناوين: إزالة التكرار لا تُفرغ القائمة
 
 - **السبب:** عند تكرار `userId` بين صفوف بلا `id` سليم، كان يُضاف `undefined` إلى مجموعة الحذف ويُزال كل صفوف `id` غير معرّف → بعد `rewriteLocalAddressBookDeduped()` يصبح `localStorage` فارغاً رغم نجاح دمج الـ API.
