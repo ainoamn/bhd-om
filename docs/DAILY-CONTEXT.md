@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — AdminLayoutInner: ESLint + أنواع (جلسة/لوحة)
+
+- **التحقق:** `npx tsc --noEmit` و`eslint` على `AdminLayoutInner.tsx` ناجحان.
+- **التعديل:** تعطيل موثّق لـ `react-hooks/set-state-in-effect` (مزامنة NextAuth مع حالة الواجهة)؛ نوع `WindowWithAdminDev` بدل `any`؛ ثابت `ALLOWED_PATHS_FOR_NON_ADMIN`؛ `contactDashboardType` بـ `DashboardType` مع تضييق `linkedCategory`.
+
 ### جلسة 2026-04-02 — صفحة المستخدمين: تنبيه «تمت الإضافة» قبل الأسماء عند التحديث
 
 - **السبب:** `requestIdleCallback` قد يُنفَّذ قبل أول رسم للجدول؛ `syncContactsFromUsers` يعمل كمهمة طويلة على الخيط الرئيسي فيُحجب الرسم حتى ينتهي، فيبدو التنبيه الأخضر قبل ظهور الأسماء.

@@ -1,5 +1,6 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect -- مزامنة جلسة NextAuth والتخزين المحلي مع حالة الواجهة (قائمة، تخطيط، تنقل) */
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -9,7 +10,7 @@ import { useSession, signOut, getSession } from 'next-auth/react';
 import type { Session } from 'next-auth';
 import Icon from '@/components/icons/Icon';
 import RoleBasedSidebar from '@/components/admin/RoleBasedSidebar';
-import { ALL_DASHBOARD_TYPES } from '@/lib/config/dashboardRoles';
+import { ALL_DASHBOARD_TYPES, type DashboardType } from '@/lib/config/dashboardRoles';
 import { getAdminNavGroupsConfig } from '@/lib/config/adminNav';
 import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -72,6 +73,40 @@ function sessionPayloadHasUser(session: unknown): boolean {
 
 const SESSION_HINT_KEY = 'bhd_admin_session_hint';
 
+type WindowWithAdminDev = Window & {
+  mockNextAuthSession?: Session;
+  isLoginAsUser?: boolean;
+  currentUser?: unknown;
+};
+
+/** مسارات مسموحة لغير الأدمن (بدون locale) — ثابت لتفادي إعادة إنشاء المصفوفة وتبعيات useEffect */
+const ALLOWED_PATHS_FOR_NON_ADMIN = [
+  '/admin',
+  '/admin/my-bookings',
+  '/admin/my-contracts',
+  '/admin/my-invoices',
+  '/admin/my-receipts',
+  '/admin/my-properties',
+  '/admin/notifications',
+  '/admin/my-account',
+  '/admin/address-book',
+  '/admin/bank-details',
+  '/admin/company-data',
+  '/admin/document-templates',
+  '/admin/site',
+  '/admin/accounting',
+  '/admin/properties',
+  '/admin/bookings',
+  '/admin/contracts',
+  '/admin/maintenance',
+  '/admin/data',
+  '/admin/projects',
+  '/admin/services',
+  '/admin/contact',
+  '/admin/submissions',
+  '/admin/backup',
+] as const;
+
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const params = useParams();
@@ -93,20 +128,21 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   const impersonationSession = getImpersonationSessionFromStorage();
   const isImpersonating = !!impersonationSession;
 
-  // آخر جلسة معروفة (للحالات غير الانتحال). لا نمسحها فوراً عند unauthenticated —
-  // NextAuth قد يعرض unauthenticated لحظياً أثناء إعادة الجلب (مثلاً بعد التركيز أو التحديث).
-  const lastKnownSessionRef = useRef<typeof session>(null);
+  // آخر جلسة معروفة (للحالات غير الانتحال) — state وليس ref أثناء الرسم (قواعد React 19 / eslint react-hooks/refs)
+  const [lastKnownSessionSnapshot, setLastKnownSessionSnapshot] = useState<Session | null>(null);
   /** في المتصفح يعيد setTimeout رقم المعرف؛ تجنب تعارض أنواع Node/DOM */
   const clearStaleSessionTimeoutRef = useRef<number | null>(null);
   const signingOutRef = useRef(false);
 
-  if (session?.user) {
-    lastKnownSessionRef.current = session;
-    if (typeof window !== 'undefined' && clearStaleSessionTimeoutRef.current) {
-      window.clearTimeout(clearStaleSessionTimeoutRef.current);
-      clearStaleSessionTimeoutRef.current = null;
+  useEffect(() => {
+    if (session?.user) {
+      setLastKnownSessionSnapshot(session);
+      if (typeof window !== 'undefined' && clearStaleSessionTimeoutRef.current) {
+        window.clearTimeout(clearStaleSessionTimeoutRef.current);
+        clearStaleSessionTimeoutRef.current = null;
+      }
     }
-  }
+  }, [session]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -156,13 +192,13 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     if (typeof window === 'undefined') return;
     if (status !== 'unauthenticated') return;
     if (signingOutRef.current) {
-      lastKnownSessionRef.current = null;
+      setLastKnownSessionSnapshot(null);
       return;
     }
     if (sessionPayloadHasUser(session)) return;
     if (clearStaleSessionTimeoutRef.current) window.clearTimeout(clearStaleSessionTimeoutRef.current);
     clearStaleSessionTimeoutRef.current = window.setTimeout(() => {
-      lastKnownSessionRef.current = null;
+      setLastKnownSessionSnapshot(null);
       clearStaleSessionTimeoutRef.current = null;
     }, 750) as number;
     return () => {
@@ -173,8 +209,9 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     };
   }, [status, session]);
 
-  const mockSession = typeof window !== 'undefined' ? (window as any)?.mockNextAuthSession : undefined;
-  const fallbackSession = mockSession || session || lastKnownSessionRef.current || peekSession;
+  const mockSession =
+    typeof window !== 'undefined' ? (window as WindowWithAdminDev).mockNextAuthSession : undefined;
+  const fallbackSession = mockSession || session || lastKnownSessionSnapshot || peekSession;
 
   // الجلسة الفعالة: إن كنا في وضع "فتح حساب" نعتمد localStorage فقط؛ وإلا الجلسة العادية
   const currentSession = isImpersonating ? impersonationSession : fallbackSession;
@@ -242,41 +279,19 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   }, [pathname]);
 
   const router = useRouter();
-  const allowedPathsForNonAdmin = [
-    '/admin',
-    '/admin/my-bookings',
-    '/admin/my-contracts',
-    '/admin/my-invoices',
-    '/admin/my-receipts',
-    '/admin/my-properties',
-    '/admin/notifications',
-    '/admin/my-account',
-    '/admin/address-book',
-    '/admin/bank-details',
-    '/admin/company-data',
-    '/admin/document-templates',
-    '/admin/site',
-    '/admin/accounting',
-    '/admin/properties',
-    '/admin/bookings',
-    '/admin/contracts',
-    '/admin/maintenance',
-    '/admin/data',
-    '/admin/projects',
-    '/admin/services',
-    '/admin/contact',
-    '/admin/submissions',
-    '/admin/backup',
-  ];
   useEffect(() => {
-    const isLoginAsUser = (window as any)?.isLoginAsUser;
-    const mockSession = (window as any)?.mockNextAuthSession;
-    const currentUser = (window as any)?.currentUser;
+    if (typeof window === 'undefined') return;
+    const w = window as WindowWithAdminDev;
+    const isLoginAsUser = w.isLoginAsUser;
+    const devMockSession = w.mockNextAuthSession;
+    const currentUser = w.currentUser;
 
-    if (isLoginAsUser && (mockSession || currentUser)) return;
+    if (isLoginAsUser && (devMockSession || currentUser)) return;
     if (status !== 'authenticated' || !isNonAdmin || !pathname) return;
     const base = (pathname || '').replace(/^\/[a-z]{2}/, '') || pathname;
-    const isAllowed = allowedPathsForNonAdmin.some((p) => base === p || base.startsWith(p + '/') || base.startsWith(p + '?'));
+    const isAllowed = ALLOWED_PATHS_FOR_NON_ADMIN.some(
+      (p) => base === p || base.startsWith(`${p}/`) || base.startsWith(`${p}?`),
+    );
     if (!isAllowed) {
       router.replace(`/${locale}/admin`);
     }
@@ -322,18 +337,21 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     for (const href of targets) router.prefetch(href);
   }, [router, locale]);
 
-  const contactDashboardType = useMemo(() => {
+  const contactDashboardType = useMemo((): DashboardType | undefined => {
     if (!currentSession?.user || effectiveRole === 'ADMIN') return undefined;
     const explicit = (currentSession.user as { dashboardType?: string | null }).dashboardType;
-    if (explicit && ALL_DASHBOARD_TYPES.includes(explicit as any)) return explicit as any;
-    return linkedCategory;
+    const asDashboard = (s: string): s is DashboardType =>
+      (ALL_DASHBOARD_TYPES as readonly string[]).includes(s);
+    if (explicit && asDashboard(explicit)) return explicit;
+    if (linkedCategory && asDashboard(linkedCategory)) return linkedCategory;
+    return undefined;
   }, [currentSession?.user, effectiveRole, linkedCategory]);
 
   const isAdminPath = pathname?.includes('/admin');
 
   const handleSignOut = () => {
     signingOutRef.current = true;
-    lastKnownSessionRef.current = null;
+    setLastKnownSessionSnapshot(null);
     setPeekSession(null);
     try {
       sessionStorage.removeItem(SESSION_HINT_KEY);
