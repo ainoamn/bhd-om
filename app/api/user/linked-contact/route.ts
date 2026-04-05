@@ -14,6 +14,7 @@ import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 import { upsertAddressBookContactFallback } from '@/lib/server/addressBookContactUpsert';
 import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
+import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityToContactJson';
 
 /** لا نخزّن استجابة «حسابي» في المتصفح — يُظهر بيانات قديمة بعد الحفظ */
 const NO_STORE_LINKED_CONTACT = 'private, no-store, must-revalidate';
@@ -74,8 +75,7 @@ export async function GET(req: NextRequest) {
     if (typeof data.id !== 'string' || !String(data.id).trim()) {
       data.id = cid;
     }
-    data.serialNumber = user.serialNumber;
-    data.userId = sub;
+    applyUserIdentityToContactJson(data, user);
     data.linkedUserId = (row as { linkedUserId?: string | null }).linkedUserId ?? sub;
     return NextResponse.json(data, {
       headers: { 'Cache-Control': NO_STORE_LINKED_CONTACT, Vary: HTTP_CACHE_VARY_AUTH },

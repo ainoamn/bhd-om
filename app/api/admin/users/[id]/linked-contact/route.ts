@@ -6,6 +6,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
+import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
+import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityToContactJson';
+
+const NO_STORE = 'private, no-store, must-revalidate';
 
 export async function GET(
   req: NextRequest,
@@ -23,15 +27,26 @@ export async function GET(
     const { id: userId } = await params;
     const dbUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, serialNumber: true },
+      select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true },
     });
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const row = await findAddressBookRowByUserId(userId);
+    let row = await findAddressBookRowByUserId(userId);
     if (!row) {
-      return NextResponse.json(null);
+      await ensureAddressBookContactForUser({
+        userId: dbUser.id,
+        serialNumber: dbUser.serialNumber,
+        name: dbUser.name,
+        email: dbUser.email,
+        phone: dbUser.phone,
+        role: dbUser.role,
+      });
+      row = await findAddressBookRowByUserId(userId);
+    }
+    if (!row) {
+      return NextResponse.json(null, { headers: { 'Cache-Control': NO_STORE } });
     }
 
     const data = { ...((row.data as Record<string, unknown>) || {}) };
@@ -39,10 +54,9 @@ export async function GET(
     if (typeof data.id !== 'string' || !String(data.id).trim()) {
       data.id = cid;
     }
-    data.serialNumber = dbUser.serialNumber;
-    data.userId = userId;
+    applyUserIdentityToContactJson(data, dbUser);
     return NextResponse.json(data, {
-      headers: { 'Cache-Control': 'private, no-store, must-revalidate' },
+      headers: { 'Cache-Control': NO_STORE },
     });
   } catch (e) {
     console.error('admin linked-contact GET error:', e);

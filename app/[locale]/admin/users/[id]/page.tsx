@@ -10,7 +10,6 @@ import UserBarcode from '@/components/admin/UserBarcode';
 import { shortenUserSerial } from '@/lib/utils/serialNumber';
 import {
   createContact,
-  getContactForUser,
   mergeServerContactIntoLocalStorage,
   isAuthorizedRepresentative,
   getLinkedCompanyName,
@@ -172,11 +171,11 @@ export default function UserDetailPage() {
     const uid = user?.id;
     if (!uid) return;
     let cancelled = false;
-    setLinkedProfile(null);
     (async () => {
       try {
         const res = await fetch(`/api/admin/users/${uid}/linked-contact`, {
           credentials: 'include',
+          cache: 'no-store',
         });
         if (cancelled) return;
         if (res.status === 401 || res.status === 404) {
@@ -202,15 +201,9 @@ export default function UserDetailPage() {
     };
   }, [user?.id, addressBookBump]);
 
-  const contactLocal: Contact | null = user
-    ? (() => {
-        const found = getContactForUser({ id: user.id, email: user.email, phone: user.phone });
-        return found && typeof found === 'object' && 'id' in found && (found as Contact).id ? (found as Contact) : null;
-      })()
-    : null;
-
+  /** مصدر واحد: الخادم فقط — لا نعرض بيانات localStorage هنا لتفادي اختلافها عن صف المستخدم */
   const contact: Contact | null =
-    linkedProfile && linkedProfile.id ? linkedProfile : contactLocal;
+    linkedProfile && linkedProfile.id ? linkedProfile : null;
   const isInAddressBook = !!contact;
   const isCompany = contact ? (contact.contactType === 'COMPANY' || !!contact.companyData) : false;
 

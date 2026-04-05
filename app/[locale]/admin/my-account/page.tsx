@@ -90,7 +90,7 @@ export default function MyAccountPage() {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const t = useTranslations('admin.nav');
   const tClient = useTranslations('admin.nav.clientNav');
   const tOwner = useTranslations('admin.nav.ownerNav');
@@ -139,6 +139,8 @@ export default function MyAccountPage() {
   });
 
   useEffect(() => {
+    if (sessionStatus === 'loading') return;
+    if (sessionStatus === 'unauthenticated') return;
     if (!user?.id) return;
     let cancelled = false;
 
@@ -213,7 +215,7 @@ export default function MyAccountPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.email, user?.phone, user?.name]);
+  }, [user?.id, user?.email, user?.phone, user?.name, sessionStatus]);
 
   useEffect(() => {
     fetch('/api/subscriptions/me', { credentials: 'include' })
