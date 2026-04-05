@@ -34,13 +34,15 @@ export async function GET(req: NextRequest) {
       if (!isAdmin && role !== 'COMPANY' && role !== 'ORG_MANAGER') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
-      const owners = await prisma.user.findMany({
-        where: { role: 'OWNER' },
-        orderBy: { name: 'asc' },
-        ...(limit > 0 ? { skip: offset, take: limit } : {}),
-        select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true, createdAt: true },
-      });
-      const total = await prisma.user.count({ where: { role: 'OWNER' } });
+      const [owners, total] = await Promise.all([
+        prisma.user.findMany({
+          where: { role: 'OWNER' },
+          orderBy: { name: 'asc' },
+          ...(limit > 0 ? { skip: offset, take: limit } : {}),
+          select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true, createdAt: true },
+        }),
+        prisma.user.count({ where: { role: 'OWNER' } }),
+      ]);
       const users = owners.map((u) => ({ ...u, serialNumber: sanitizeSerialForList(u.serialNumber) }));
       return NextResponse.json(users, {
         headers: {
@@ -124,19 +126,22 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const users = await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' },
-      ...(limit > 0 ? { skip: offset, take: limit } : {}),
-      select: {
-        id: true,
-        serialNumber: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        createdAt: true,
-      },
-    });
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: { createdAt: 'desc' },
+        ...(limit > 0 ? { skip: offset, take: limit } : {}),
+        select: {
+          id: true,
+          serialNumber: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          createdAt: true,
+        },
+      }),
+      prisma.user.count(),
+    ]);
 
     // جلب الاشتراكات النشطة دفعة واحدة لتقليل تكلفة الاستعلام
     const userIds = users.map((u) => u.id);
@@ -235,7 +240,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const total = await prisma.user.count();
     return NextResponse.json(list, {
       headers: {
         'Cache-Control': CACHE_ADMIN_USERS_LIST,

@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — أداء: صفحة المستخدمين والعقارات (تأخير ~3 ث)
+
+- **السبب (المستخدمون):** بعد `GET /api/admin/users` كان يُستدعى `syncContactsFromUsers` **متزامناً** على الخيط الرئيسي — حلقة على مئات المستخدمين مع `createContact` (localStorage + مزامنة) فتأخر `setLoading(false)` وظهور الأسماء.
+- **الإصلاح:** جدولة المزامنة عبر `requestIdleCallback` (مع `setTimeout` احتياطي)؛ `GET` يجري `findMany` و`count` بـ `Promise.all` لتقليل زمن الخادم.
+- **العقارات:** جلب `/api/admin/properties` يبدأ عند `sessionStatus !== 'unauthenticated'` دون انتظار `session.user`.
+
 ### جلسة 2026-04-02 — لوحة التحكم الرئيسية: لا وميض لوحة الأدمن قبل معرفة الدور
 
 - **التحقق:** `npx tsc --noEmit` و`npm run build` ناجحان.

@@ -354,11 +354,28 @@ export default function UsersAdminPage() {
       let usersList = Array.isArray(data) ? data : [];
       // لا نلجأ لمسار احتياطي هنا حتى لا تظهر بيانات/أرقام غير متسقة في لوحة الإدارة
       setUsers(usersList);
+      /** مزامنة دفتر العناوين كانت تعمل متزامنة على الخيط الرئيسي وتؤخر setLoading وتظهر الأسماء بعد ثوانٍ */
       if (usersList.length > 0) {
-        const { added } = syncContactsFromUsers(usersList);
-        if (added > 0) {
-          setSyncMsg(locale === 'ar' ? `تمت إضافة ${added} مستخدم تلقائياً لدفتر العناوين` : `${added} user(s) auto-added to address book`);
-          setTimeout(() => setSyncMsg(null), 3000);
+        const list = usersList;
+        const runSync = () => {
+          try {
+            const { added } = syncContactsFromUsers(list);
+            if (added > 0) {
+              setSyncMsg(
+                locale === 'ar'
+                  ? `تمت إضافة ${added} مستخدم تلقائياً لدفتر العناوين`
+                  : `${added} user(s) auto-added to address book`
+              );
+              setTimeout(() => setSyncMsg(null), 3000);
+            }
+          } catch {
+            /* ignore */
+          }
+        };
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          window.requestIdleCallback(runSync, { timeout: 2500 });
+        } else {
+          setTimeout(runSync, 0);
         }
       }
     } catch {
@@ -385,7 +402,21 @@ export default function UsersAdminPage() {
       const data = await res.json();
       const usersList = Array.isArray(data) ? data : [];
       setUsers(usersList);
-      if (usersList.length > 0) syncContactsFromUsers(usersList);
+      if (usersList.length > 0) {
+        const list = usersList;
+        const runSync = () => {
+          try {
+            syncContactsFromUsers(list);
+          } catch {
+            /* ignore */
+          }
+        };
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          window.requestIdleCallback(runSync, { timeout: 2500 });
+        } else {
+          setTimeout(runSync, 0);
+        }
+      }
     } catch {
       setUsers([]);
     }

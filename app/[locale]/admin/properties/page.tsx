@@ -64,7 +64,7 @@ type DbPropertyItem = {
 };
 
 export default function PropertiesAdminPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [filter, setFilter] = useState<'all' | 'rent' | 'sale' | 'investment'>('all');
   const [businessFilter, setBusinessFilter] = useState<'all' | PropertyBusinessStatus>('all');
   const [searchSerial, setSearchSerial] = useState('');
@@ -107,14 +107,19 @@ export default function PropertiesAdminPage() {
   }, []);
 
   useEffect(() => {
-    if (!session?.user) return;
+    if (sessionStatus === 'unauthenticated') {
+      setDbProperties([]);
+      setIsLoadingDbProperties(false);
+      return;
+    }
+    /** لا ننتظر session.user — الطلب يعتمد على الكوكي ويُنفَّذ بالتوازي مع اكتمال الجلسة */
     setIsLoadingDbProperties(true);
     fetch('/api/admin/properties?limit=500&offset=0', { cache: 'no-store', credentials: 'include' })
       .then((r) => r.json())
       .then((data) => (Array.isArray(data?.list) ? setDbProperties(data.list) : setDbProperties([])))
       .catch(() => setDbProperties([]))
       .finally(() => setIsLoadingDbProperties(false));
-  }, [session?.user]);
+  }, [sessionStatus]);
 
   useEffect(() => {
     if (!canManageProperties) return;
