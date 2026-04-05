@@ -61,6 +61,9 @@ export async function GET(
       data.id = cid;
     }
     applyUserIdentityToContactJson(data, dbUser);
+    const rowLinkedRaw = (row as { linkedUserId?: string | null }).linkedUserId;
+    const linkedUid = typeof rowLinkedRaw === 'string' ? rowLinkedRaw.trim() : '';
+    data.linkedUserId = linkedUid || dbUser.id;
     return NextResponse.json(data, {
       headers: { 'Cache-Control': NO_STORE },
     });

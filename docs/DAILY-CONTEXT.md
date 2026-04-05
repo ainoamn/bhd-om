@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — توحيد عرض جهات الاتصال: دفتر العناوين ↔ المستخدم ↔ حسابي
+
+- **السبب:** `GET /api/address-book` كان يعرض JSON المخزَّن مع تحديث الرقم المتسلسل فقط، بينما `linked-contact` يطبّق `applyUserIdentityToContactJson` من جدول `User` — فظهر نقص/تداخل في الأسماء والهاتف والبريد بين الصفحات.
+- **الإصلاح:** تطبيق نفس دمج الهوية على كل جهة مربوطة بحساب في `GET /api/address-book`؛ إرجاع `linkedUserId` من مسار المدير؛ تحسين `findContactByUserId` و`mergeServerContactIntoLocalStorage` ليشملا `linkedUserId`.
+
 ### جلسة 2026-04-02 — AdminLayoutInner: ESLint + أنواع (جلسة/لوحة)
 
 - **التحقق:** `npx tsc --noEmit` و`eslint` على `AdminLayoutInner.tsx` ناجحان.

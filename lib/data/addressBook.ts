@@ -733,9 +733,15 @@ export function findContactByEmail(email: string): Contact | undefined {
   return getStored().find((c) => (c.email || '').toLowerCase().trim() === e);
 }
 
-/** البحث عن جهة اتصال بمعرف المستخدم */
+/** البحث عن جهة اتصال بمعرف المستخدم (userId في JSON أو linkedUserId من الخادم) */
 export function findContactByUserId(userId: string): Contact | undefined {
-  return getStored().find((c) => (c as { userId?: string }).userId === userId);
+  const uid = userId.trim();
+  if (!uid) return undefined;
+  return getStored().find((c) => {
+    if ((c as { userId?: string }).userId === uid) return true;
+    const linked = typeof c.linkedUserId === 'string' ? c.linkedUserId.trim() : '';
+    return linked === uid;
+  });
 }
 
 /** تكرار الرقم المتسلسل (USR أو CNT) بين جهات دفتر العناوين المحلي */
@@ -748,16 +754,27 @@ export function findDuplicateSerialNumber(serial: string | undefined, excludeCon
   });
 }
 
-/** دمج جهة قادمة من الخادم في localStorage وإزالة التكرار لنفس userId */
+/** دمج جهة قادمة من الخادم في localStorage وإزالة التكرار لنفس userId أو linkedUserId */
 export function mergeServerContactIntoLocalStorage(contact: Contact): void {
   if (typeof window === 'undefined') return;
   const list = getStored();
   const uid = contact.userId?.trim();
+  const linked = typeof contact.linkedUserId === 'string' ? contact.linkedUserId.trim() : '';
   const next = list.filter((c) => {
-    if (uid && c.userId === uid && c.id !== contact.id) return false;
+    if (c.id === contact.id) return true;
+    if (uid && c.userId === uid) return false;
+    if (uid && typeof c.linkedUserId === 'string' && c.linkedUserId.trim() === uid) return false;
+    if (linked && (c.userId === linked || (typeof c.linkedUserId === 'string' && c.linkedUserId.trim() === linked)))
+      return false;
     return true;
   });
-  const idx = next.findIndex((c) => c.id === contact.id || (!!uid && c.userId === uid));
+  const idx = next.findIndex(
+    (c) =>
+      c.id === contact.id ||
+      (!!uid && c.userId === uid) ||
+      (!!uid && typeof c.linkedUserId === 'string' && c.linkedUserId.trim() === uid) ||
+      (!!linked && (c.userId === linked || (typeof c.linkedUserId === 'string' && c.linkedUserId.trim() === linked))),
+  );
   if (idx >= 0) {
     next[idx] = { ...next[idx], ...contact };
   } else {

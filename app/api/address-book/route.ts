@@ -20,6 +20,7 @@ import {
   assertUserSyncFromContactAllowed,
   syncUserTableFromAddressBookContact,
 } from '@/lib/server/syncUserToAddressBook';
+import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityToContactJson';
 
 /** قراءة دفتر العناوين للواجهة — بدون كاش متصفح حتى تنعكس التعديلات فوراً بين المستخدم والجهات */
 const CACHE_ADDRESS_BOOK_GET_NO_STORE = 'private, no-store, must-revalidate';
@@ -60,24 +61,23 @@ export async function GET(req: NextRequest) {
       orderBy: { updatedAt: 'desc' },
     });
 
-    const userIds = [
-      ...new Set(
-        keptRows
-          .map((r) => {
-            const uid = (r.data as Record<string, unknown>)?.userId;
-            return typeof uid === 'string' ? uid.trim() : '';
-          })
-          .filter(Boolean)
-      ),
-    ];
-    const users =
-      userIds.length > 0
+    /** أي صف مربوط بحساب — نطبّق هوية User الحالية كما في linked-contact حتى لا يظهر دفتر العناوين باسم/هاتف قديم */
+    const identityUserIds = new Set<string>();
+    for (const r of keptRows) {
+      const d = (r.data as Record<string, unknown>) || {};
+      const fromLinked = typeof r.linkedUserId === 'string' ? r.linkedUserId.trim() : '';
+      const fromJson = typeof d.userId === 'string' ? String(d.userId).trim() : '';
+      const uid = fromLinked || fromJson;
+      if (uid) identityUserIds.add(uid);
+    }
+    const identityUsers =
+      identityUserIds.size > 0
         ? await prisma.user.findMany({
-            where: { id: { in: userIds } },
-            select: { id: true, serialNumber: true },
+            where: { id: { in: [...identityUserIds] } },
+            select: { id: true, serialNumber: true, name: true, email: true, phone: true },
           })
         : [];
-    const serialByUser = new Map(users.map((u) => [u.id, u.serialNumber]));
+    const userById = new Map(identityUsers.map((u) => [u.id, u]));
 
     const contacts = keptRows
       .map((r) => {
@@ -87,9 +87,12 @@ export async function GET(req: NextRequest) {
           (c as { id: string }).id = cid;
         }
         if (!cid) return null;
-        const uid = typeof c.userId === 'string' ? c.userId.trim() : '';
-        if (uid && serialByUser.has(uid)) {
-          c.serialNumber = serialByUser.get(uid);
+        const fromLinked = typeof r.linkedUserId === 'string' ? r.linkedUserId.trim() : '';
+        const fromJson = typeof c.userId === 'string' ? String(c.userId).trim() : '';
+        const identityUid = fromLinked || fromJson;
+        const dbUser = identityUid ? userById.get(identityUid) : undefined;
+        if (dbUser) {
+          applyUserIdentityToContactJson(c, dbUser);
         }
         /** يُمرَّر للواجهة ليتوافق الدمج المحلي مع منطق Prisma (صف مرتبط بحساب) */
         c.linkedUserId = r.linkedUserId ?? null;
