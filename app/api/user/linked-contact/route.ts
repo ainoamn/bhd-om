@@ -239,9 +239,10 @@ export async function PATCH(req: NextRequest) {
 
     await deleteOtherPersonalRowsSamePhone(contactId, mergedSafe.phone);
 
+    /** لا نختار linkedUserId هنا — إن كان العمود غير مُنفَّذ في الإنتاج يفشل Prisma بـ P2022 / «column (not available)» */
     const savedRow = await prisma.addressBookContact.findUnique({
       where: { contactId },
-      select: { contactId: true, data: true, linkedUserId: true },
+      select: { contactId: true, data: true },
     });
     const freshUser = await prisma.user.findUnique({
       where: { id: sub },
@@ -255,7 +256,7 @@ export async function PATCH(req: NextRequest) {
       }
       payload.serialNumber = freshUser?.serialNumber ?? user.serialNumber;
       payload.userId = sub;
-      payload.linkedUserId = savedRow.linkedUserId ?? sub;
+      payload.linkedUserId = sub;
       return NextResponse.json(toJsonSafeRecord(payload), {
         headers: { 'Cache-Control': NO_STORE_LINKED_CONTACT, Vary: HTTP_CACHE_VARY_AUTH },
       });
