@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getContactProfileIssuesForContractApproval, type Contact } from '@/lib/data/addressBook';
+import { ADDRESS_BOOK_UPDATED_EVENT } from '@/lib/utils/addressBookEvents';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { type PropertyBooking } from '@/lib/data/bookings';
 import { inferBookingContractStage } from '@/lib/data/bookingContractStage';
@@ -265,24 +266,27 @@ export default function MyBookingsPage() {
   const profileIssues = contactForProfile ? getContactProfileIssuesForContractApproval(contactForProfile) : ['noContactLinked'];
   const profileComplete = profileIssues.length === 0;
 
-  useEffect(() => {
+  const loadLinkedContactForProfile = useCallback(() => {
     if (!user?.id) return;
-    let alive = true;
-    fetch('/api/user/linked-contact', { credentials: 'include' })
+    fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((row) => {
-        if (!alive) return;
-        if (row && typeof row === 'object' && typeof row.id === 'string') setContactForProfile(row as Contact);
-        else setContactForProfile(null);
+        if (row && typeof row === 'object' && typeof (row as { id?: string }).id === 'string' && String((row as { id: string }).id).trim()) {
+          setContactForProfile(row as Contact);
+        } else {
+          setContactForProfile(null);
+        }
       })
-      .catch(() => {
-        if (!alive) return;
-        setContactForProfile(null);
-      });
-    return () => {
-      alive = false;
-    };
+      .catch(() => setContactForProfile(null));
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    loadLinkedContactForProfile();
+    const onAddrUpdated = () => loadLinkedContactForProfile();
+    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddrUpdated);
+    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddrUpdated);
+  }, [user?.id, loadLinkedContactForProfile]);
 
   const [dataVersion, setDataVersion] = useState(0);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);

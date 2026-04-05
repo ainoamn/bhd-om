@@ -54,6 +54,11 @@ export async function GET(req: NextRequest) {
     }
 
     const data = { ...((row.data as Record<string, unknown>) || {}) };
+    /** يجب أن يكون id دائماً معرّف الجهة (CNT-…) — بدونها تفشل شاشات «حجوزاتي» ودفتر العناوين */
+    const cid = String(row.contactId || '').trim();
+    if (typeof data.id !== 'string' || !String(data.id).trim()) {
+      data.id = cid;
+    }
     data.serialNumber = user.serialNumber;
     data.userId = sub;
     data.linkedUserId = (row as { linkedUserId?: string | null }).linkedUserId ?? sub;

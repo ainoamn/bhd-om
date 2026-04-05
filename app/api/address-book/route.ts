@@ -75,7 +75,11 @@ export async function GET(req: NextRequest) {
     const contacts = keptRows
       .map((r) => {
         const c = { ...((r.data as Record<string, unknown>) ?? {}) };
-        if (!(c && typeof (c as { id?: string }).id === 'string')) return null;
+        const cid = String(r.contactId || '').trim();
+        if (typeof (c as { id?: string }).id !== 'string' || !String((c as { id?: string }).id).trim()) {
+          (c as { id: string }).id = cid;
+        }
+        if (!cid) return null;
         const uid = typeof c.userId === 'string' ? c.userId.trim() : '';
         if (uid && serialByUser.has(uid)) {
           c.serialNumber = serialByUser.get(uid);

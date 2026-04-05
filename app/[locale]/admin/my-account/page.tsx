@@ -172,7 +172,7 @@ export default function MyAccountPage() {
 
     (async () => {
       try {
-        const res = await fetch('/api/user/linked-contact', { credentials: 'include' });
+        const res = await fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' });
         if (cancelled || !res.ok) throw new Error('no-server-contact');
         const data = await res.json();
         if (data && typeof data === 'object' && data.id) {
