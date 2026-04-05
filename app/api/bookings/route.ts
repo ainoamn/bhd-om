@@ -11,6 +11,7 @@ import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/
 import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
 import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
+import { findConflictingActiveBooking } from '@/lib/server/bookingDuplicateCheck';
 
 const CACHE_BOOKINGS_LIST = 'private, no-store';
 
@@ -146,6 +147,19 @@ export async function POST(req: NextRequest) {
     const payload: Record<string, unknown> = needSerial
       ? { ...body, bookingSerial: await generateBhdSerial('BKG', { year }) }
       : body;
+    const allRows = await prisma.bookingStorage.findMany({ select: { bookingId: true, data: true } });
+    const conflict = findConflictingActiveBooking(payload as Record<string, unknown>, allRows);
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: 'DUPLICATE_ACTIVE_BOOKING',
+          conflictingBookingId: conflict.conflictingBookingId,
+          message: 'An active booking already exists for this property and user.',
+        },
+        { status: 409 }
+      );
+    }
+
     const data = JSON.stringify(payload);
     await prisma.bookingStorage.upsert({
       where: { bookingId: id },

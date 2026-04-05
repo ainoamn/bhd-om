@@ -82,6 +82,8 @@ export interface PropertyBooking {
   cancellationCompletedAt?: string;
   /** رقم الحجز BHD (من الخادم) */
   bookingSerial?: string;
+  /** معرّف المستخدم المسجّل عند الحجز — للتحقق من التكرار على الخادم */
+  userId?: string;
   createdAt: string;
 }
 
@@ -179,11 +181,14 @@ function normalizePhoneForCompare(phone: string): string {
   return digits.slice(-8); // آخر 8 أرقام للتحقق من التكرار
 }
 
-/** هل نفس المستخدم؟ (مقارنة بريد أو هاتف) */
+/** هل نفس المستخدم؟ (معرّف حساب أو بريد أو هاتف) */
 function isSameUser(
-  a: { email?: string; phone?: string },
-  b: { email?: string; phone?: string }
+  a: { email?: string; phone?: string; userId?: string },
+  b: { email?: string; phone?: string; userId?: string }
 ): boolean {
+  const uidA = (a.userId || '').trim();
+  const uidB = (b.userId || '').trim();
+  if (uidA && uidB && uidA === uidB) return true;
   const emailA = (a.email || '').trim().toLowerCase();
   const emailB = (b.email || '').trim().toLowerCase();
   if (emailA && emailB && emailA === emailB) return true;
@@ -212,11 +217,12 @@ export function canCreateBooking(
   propertyId: number,
   unitKey: string | undefined,
   email: string,
-  phone: string
+  phone: string,
+  userId?: string
 ): { allowed: boolean; reason?: 'ALREADY_BOOKED' | 'MAX_REACHED' } {
   const active = getActiveBookingsForUnit(propertyId, unitKey);
-  const user = { email: (email || '').trim(), phone: (phone || '').trim() };
-  if (user.email.length < 3 && normalizePhoneForCompare(user.phone).length < 8) {
+  const user = { email: (email || '').trim(), phone: (phone || '').trim(), userId: userId?.trim() };
+  if (user.email.length < 3 && normalizePhoneForCompare(user.phone).length < 8 && !user.userId) {
     return { allowed: true }; // لا نتحقق بدون بيانات كافية
   }
   for (const b of active) {
@@ -240,9 +246,10 @@ export function hasUserActiveBookingForProperty(
   propertyId: number,
   unitKey: string | undefined,
   email: string,
-  phone: string
+  phone: string,
+  userId?: string
 ): boolean {
-  return !!getUserActiveBookingForProperty(propertyId, unitKey, email, phone);
+  return !!getUserActiveBookingForProperty(propertyId, unitKey, email, phone, userId);
 }
 
 /** الحجز النشط للمستخدم لهذا العقار (إن وُجد) - لبناء رابط الشروط */
@@ -250,11 +257,12 @@ export function getUserActiveBookingForProperty(
   propertyId: number,
   unitKey: string | undefined,
   email: string,
-  phone: string
+  phone: string,
+  userId?: string
 ): PropertyBooking | null {
   const active = getActiveBookingsForUnit(propertyId, unitKey);
-  const user = { email: (email || '').trim(), phone: (phone || '').trim() };
-  if (user.email.length < 3 && normalizePhoneForCompare(user.phone).length < 8) return null;
+  const user = { email: (email || '').trim(), phone: (phone || '').trim(), userId: userId?.trim() };
+  if (user.email.length < 3 && normalizePhoneForCompare(user.phone).length < 8 && !user.userId) return null;
   return active.find((b) => isSameUser(b, user)) || null;
 }
 
@@ -369,14 +377,32 @@ export function syncPaidBookingsToAccounting(propertyId?: number): { created: nu
   return { created, skipped };
 }
 
-export function createBooking(data: Omit<PropertyBooking, 'id' | 'createdAt' | 'status'> & { paymentConfirmed?: boolean; priceAtBooking?: number; paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'CHEQUE'; paymentReferenceNo?: string; paymentDate?: string; bankAccountId?: string; civilId?: string; passportNumber?: string; contactType?: BookingContactType; companyData?: PropertyBooking['companyData']; cardLast4?: string; cardExpiry?: string; cardholderName?: string }): PropertyBooking {
-  const check = canCreateBooking(data.propertyId, data.unitKey, data.email, data.phone);
+type CreateBookingInput = Omit<PropertyBooking, 'id' | 'createdAt' | 'status'> & {
+  paymentConfirmed?: boolean;
+  priceAtBooking?: number;
+  paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'CHEQUE';
+  paymentReferenceNo?: string;
+  paymentDate?: string;
+  bankAccountId?: string;
+  civilId?: string;
+  passportNumber?: string;
+  contactType?: BookingContactType;
+  companyData?: PropertyBooking['companyData'];
+  cardLast4?: string;
+  cardExpiry?: string;
+  cardholderName?: string;
+  userId?: string;
+};
+
+/** يبني كائن الحجز ويربط دفتر العناوين — بدون حفظ محلي (للتحقق من الخادم أولاً) */
+export function prepareBookingForSave(data: CreateBookingInput): PropertyBooking {
+  const check = canCreateBooking(data.propertyId, data.unitKey, data.email, data.phone, data.userId);
   if (!check.allowed) {
     if (check.reason === 'ALREADY_BOOKED') {
-      throw new Error('ALREADY_BOOKED'); // هذا العقار محجوز لك بالفعل
+      throw new Error('ALREADY_BOOKED');
     }
     if (check.reason === 'MAX_REACHED') {
-      throw new Error('MAX_REACHED'); // تم الوصول للحد الأقصى من الحجوزات لهذا العقار
+      throw new Error('MAX_REACHED');
     }
   }
   const isCompany = data.contactType === 'COMPANY' && data.companyData?.companyNameAr && data.companyData.authorizedRepresentatives?.length;
@@ -409,8 +435,9 @@ export function createBooking(data: Omit<PropertyBooking, 'id' | 'createdAt' | '
       contactIdFromEnsure = contact?.id;
     }
   } catch {
-    // الحجز مُسجّل؛ فشل ربط/تحديث دفتر العناوين فقط (لا نوقف العملية)
+    // فشل ربط دفتر العناوين فقط
   }
+  const userId = typeof data.userId === 'string' && data.userId.trim() ? data.userId.trim() : undefined;
   const booking: PropertyBooking = {
     ...data,
     contactType: isCompany ? 'COMPANY' : (data.contactType || 'PERSONAL'),
@@ -432,16 +459,27 @@ export function createBooking(data: Omit<PropertyBooking, 'id' | 'createdAt' | '
     cardExpiry: data.cardExpiry?.trim() || undefined,
     cardholderName: data.cardholderName?.trim() || undefined,
     contactId: contactIdFromEnsure || (data as { contactId?: string }).contactId || undefined,
+    userId,
     createdAt: new Date().toISOString(),
   };
+  return booking;
+}
+
+/** حفظ الحجز محلياً ومزامنته مع الخادم وإيصال المحاسبة عند الدفع */
+export function persistBookingLocally(booking: PropertyBooking): void {
   const bookings = getStoredBookings();
   bookings.unshift(booking);
   saveBookings(bookings);
   syncBookingToServer(booking);
-  if (data.type === 'BOOKING' && data.paymentConfirmed) {
-    setPropertyReservedOnPayment(data.propertyId, data.unitKey);
+  if (booking.type === 'BOOKING' && booking.paymentConfirmed) {
+    setPropertyReservedOnPayment(booking.propertyId, booking.unitKey);
     createAccountingReceiptFromBooking(booking);
   }
+}
+
+export function createBooking(data: CreateBookingInput): PropertyBooking {
+  const booking = prepareBookingForSave(data);
+  persistBookingLocally(booking);
   return booking;
 }
 

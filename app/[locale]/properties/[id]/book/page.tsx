@@ -7,7 +7,17 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import PageHero from '@/components/shared/PageHero';
 import UnifiedPaymentForm from '@/components/shared/UnifiedPaymentForm';
-import { createBooking, getUserActiveBookingForProperty, type BookingContactType } from '@/lib/data/bookings';
+import {
+  prepareBookingForSave,
+  persistBookingLocally,
+  getUserActiveBookingForProperty,
+  type BookingContactType,
+} from '@/lib/data/bookings';
+import {
+  setBookingPaymentCooldown,
+  clearBookingPaymentCooldown,
+  getBookingPaymentCooldownRemainingMs,
+} from '@/lib/utils/bookingPaymentCooldown';
 import { getPropertyById, getPropertyDataOverrides, getPropertyOverrides } from '@/lib/data/properties';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
 import { isOmaniNationality, validatePhoneWithCountryCode, getContactById, getContactDisplayName, getContactForUser, updateContact, createContact, type Contact } from '@/lib/data/addressBook';
@@ -63,11 +73,13 @@ export default function PropertyBookPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [submitError, setSubmitError] = useState<'ALREADY_BOOKED' | 'MAX_REACHED' | 'OTHER' | null>(null);
+  const [submitError, setSubmitError] = useState<'ALREADY_BOOKED' | 'MAX_REACHED' | 'DUPLICATE_SERVER' | 'OTHER' | null>(null);
   const [mounted, setMounted] = useState(false);
   const [userHasExistingBooking, setUserHasExistingBooking] = useState<boolean | null>(null);
   const [existingBookingForLink, setExistingBookingForLink] = useState<{ id: string; email?: string } | null>(null);
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
+  const [payCooldownRemainingMs, setPayCooldownRemainingMs] = useState(0);
+  const submitLockRef = useRef(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -173,10 +185,27 @@ export default function PropertyBookPage() {
       setExistingBookingForLink(null);
       return;
     }
-    const existing = getUserActiveBookingForProperty(property.id, unitKey, email, phone);
+    const uid = (session?.user as { id?: string } | undefined)?.id;
+    const existing = getUserActiveBookingForProperty(property.id, unitKey, email, phone, uid);
     setUserHasExistingBooking(!!existing);
     setExistingBookingForLink(existing);
-  }, [formData.email, formData.phone, formData.phoneCountryCode, property?.id, unitKey]);
+  }, [formData.email, formData.phone, formData.phoneCountryCode, property?.id, unitKey, session?.user]);
+
+  /** تحديث عدّاد تهدئة الدفع (5 دقائق بعد فشل المزامنة) */
+  useEffect(() => {
+    if (!property) return;
+    const uid = (session?.user as { id?: string } | undefined)?.id;
+    const digits = (formData.phone || '').replace(/\D/g, '').replace(/^0+/, '');
+    const code = formData.phoneCountryCode || '968';
+    const phone = digits ? `+${digits.startsWith(code) ? digits : code + digits}` : '';
+    const tick = () => {
+      const ms = getBookingPaymentCooldownRemainingMs(property.id, unitKey, uid, formData.email?.trim() || '', phone);
+      setPayCooldownRemainingMs(ms);
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [property?.id, unitKey, formData.email, formData.phone, formData.phoneCountryCode, session?.user]);
 
   const ar = locale === 'ar';
 
@@ -231,10 +260,24 @@ export default function PropertyBookPage() {
     return digits.startsWith(countryCode) ? `+${digits}` : `+${countryCode}${digits}`;
   };
 
-  const canSubmit = !userHasExistingBooking && personalValid && companyValid && isCardValid && termsAccepted;
+  const canSubmit =
+    !userHasExistingBooking &&
+    personalValid &&
+    companyValid &&
+    isCardValid &&
+    termsAccepted &&
+    payCooldownRemainingMs === 0;
+
+  const formatCooldown = (ms: number) => {
+    const s = Math.ceil(ms / 1000);
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${String(sec).padStart(2, '0')}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current || payCooldownRemainingMs > 0) return;
     if (!property || !canSubmit) return;
     setPhoneError(null);
     setRepPhoneError(null);
@@ -250,10 +293,12 @@ export default function PropertyBookPage() {
         return;
       }
     }
+    submitLockRef.current = true;
     setIsSubmitting(true);
     setIsProcessingPayment(true);
     setSubmitStatus('idle');
     setSubmitError(null);
+    const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
     try {
       await new Promise((r) => setTimeout(r, 1500));
       setIsProcessingPayment(false);
@@ -261,7 +306,7 @@ export default function PropertyBookPage() {
       const repId = `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
       const repPhone = isCompany ? getFullPhone(companyForm.repPhoneCountryCode || '968', companyForm.repPhone) : '';
-      const booking = createBooking({
+      const booking = prepareBookingForSave({
         propertyId: property.id,
         unitKey,
         propertyTitleAr,
@@ -295,12 +340,46 @@ export default function PropertyBookPage() {
         cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
         cardExpiry: cardData.expiry,
         cardholderName: cardData.name.trim(),
+        userId: sessionUserId,
       });
+
+      let res: Response;
       try {
-        await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(booking) });
+        res = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(booking),
+        });
       } catch {
-        // الحجز محفوظ محلياً؛ المزامنة مع الخادم فشلت
+        setBookingPaymentCooldown(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone);
+        setPayCooldownRemainingMs(
+          getBookingPaymentCooldownRemainingMs(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone)
+        );
+        setSubmitStatus('error');
+        setSubmitError('OTHER');
+        return;
       }
+
+      if (res.status === 409) {
+        setSubmitStatus('error');
+        setSubmitError('DUPLICATE_SERVER');
+        return;
+      }
+
+      if (!res.ok) {
+        setBookingPaymentCooldown(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone);
+        setPayCooldownRemainingMs(
+          getBookingPaymentCooldownRemainingMs(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone)
+        );
+        setSubmitStatus('error');
+        setSubmitError('OTHER');
+        return;
+      }
+
+      clearBookingPaymentCooldown(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone);
+      persistBookingLocally(booking);
+
       setSubmitStatus('success');
       setCreatedBookingId(booking.id);
       setFormData({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', message: '' });
@@ -311,9 +390,12 @@ export default function PropertyBookPage() {
       setSubmitStatus('error');
       setIsProcessingPayment(false);
       const msg = err instanceof Error ? err.message : '';
-      setSubmitError(msg === 'ALREADY_BOOKED' ? 'ALREADY_BOOKED' : msg === 'MAX_REACHED' ? 'MAX_REACHED' : 'OTHER');
+      setSubmitError(
+        msg === 'ALREADY_BOOKED' ? 'ALREADY_BOOKED' : msg === 'MAX_REACHED' ? 'MAX_REACHED' : 'OTHER'
+      );
     } finally {
       setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   };
 
@@ -826,13 +908,22 @@ export default function PropertyBookPage() {
                   </h2>
                 </div>
                 <div className="p-6 md:p-8">
+                  {payCooldownRemainingMs > 0 && (
+                    <div className="mb-8 rounded-2xl bg-amber-500/20 border border-amber-400/30 p-4 text-amber-100">
+                      {ar
+                        ? `بعد فشل الدفع أو الاتصال بالخادم، يُمنع إعادة المحاولة لمدة 5 دقائق. المتبقي: ${formatCooldown(payCooldownRemainingMs)}.`
+                        : `After a failed payment or server sync, retry is blocked for 5 minutes. Remaining: ${formatCooldown(payCooldownRemainingMs)}.`}
+                    </div>
+                  )}
                   {submitStatus === 'error' && (
                     <div className="mb-8 rounded-2xl bg-red-500/20 border border-red-400/30 p-4 text-red-300">
                       {submitError === 'ALREADY_BOOKED'
                         ? (ar ? 'هذا العقار محجوز لك بالفعل. لا يمكن إنشاء حجز مكرر.' : 'This property is already booked by you. Duplicate booking not allowed.')
-                        : submitError === 'MAX_REACHED'
-                          ? (ar ? 'تم الوصول للحد الأقصى من الحجوزات لهذا العقار.' : 'Maximum bookings reached for this property.')
-                          : (ar ? 'حدث خطأ. يرجى المحاولة مرة أخرى.' : 'An error occurred. Please try again.')}
+                        : submitError === 'DUPLICATE_SERVER'
+                          ? (ar ? 'يوجد حجز نشط لهذا العقار لحسابك (الخادم). لا يُسمح بحجز مكرر.' : 'An active booking for this property already exists on the server. Duplicate booking is not allowed.')
+                          : submitError === 'MAX_REACHED'
+                            ? (ar ? 'تم الوصول للحد الأقصى من الحجوزات لهذا العقار.' : 'Maximum bookings reached for this property.')
+                            : (ar ? 'حدث خطأ. يرجى المحاولة مرة أخرى بعد انتهاء فترة الانتظار إن وُجدت.' : 'An error occurred. Please try again after any wait period shown.')}
                     </div>
                   )}
                   <form id="booking-form" onSubmit={handleSubmit} className="space-y-8">
@@ -1094,7 +1185,15 @@ export default function PropertyBookPage() {
                       onCardDataChange={setCardData}
                       formId="booking-form"
                       onCancel={() => router.push(`/${locale}/properties/${id}${unitKey ? `?unit=${unitKey}` : ''}`)}
-                      submitLabel={isProcessingPayment ? (ar ? 'جاري معالجة الدفع...' : 'Processing payment...') : isSubmitting ? (ar ? 'جاري الإرسال...' : 'Submitting...') : (ar ? 'دفع وطلب الحجز' : 'Pay & Submit Booking')}
+                      submitLabel={
+                        payCooldownRemainingMs > 0
+                          ? (ar ? `انتظر ${formatCooldown(payCooldownRemainingMs)}` : `Wait ${formatCooldown(payCooldownRemainingMs)}`)
+                          : isProcessingPayment
+                            ? (ar ? 'جاري معالجة الدفع...' : 'Processing payment...')
+                            : isSubmitting
+                              ? (ar ? 'جاري الإرسال...' : 'Submitting...')
+                              : (ar ? 'دفع وطلب الحجز' : 'Pay & Submit Booking')
+                      }
                       loading={isProcessingPayment}
                       disabled={!canSubmit || isSubmitting}
                       showTerms

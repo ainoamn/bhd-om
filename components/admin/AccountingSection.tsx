@@ -583,7 +583,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const banksTotal = bankAccounts
     .filter((b) => b.isActive)
     .reduce((s, b) => s + getBankAccountBalance(b.id, reportAsOf, entriesForReports).balance, 0);
-  const latestEntries = journalEntries.slice(0, 5);
+  /** لا نكرّر عرض قيد الإيصال في «أحدث القيود» — الإيصال يظهر في «أحدث المستندات» */
+  const latestEntries = journalEntries.filter((e) => e.documentType !== 'RECEIPT').slice(0, 5);
   const latestDocs = documents.slice(0, 5);
   const setRangeThisMonth = () => {
     const now = new Date();
