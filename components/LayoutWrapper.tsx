@@ -17,8 +17,10 @@ export default function LayoutWrapper({
   const pathname = usePathname();
   const isAdmin = pathname?.includes('/admin');
   const isAuthPage = pathname?.endsWith('/login') || pathname?.endsWith('/register') || pathname?.includes('/forgot-password');
+  /** مسح QR: واجهة مركّزة بدون هيدر/فوتر الموقع */
+  const isScanPage = pathname?.includes('/scan/');
 
-  if (isAdmin || isAuthPage) {
+  if (isAdmin || isAuthPage || isScanPage) {
     return <>{children}</>;
   }
 
