@@ -6,6 +6,7 @@ import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { checkLimit } from '@/lib/subscriptions/entitlements';
 import { logAudit } from '@/lib/audit';
 import { generateBhdSerial } from '@/lib/server/serialNumbers';
+import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
 
 function generateTempPassword(length = 10): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -90,6 +91,16 @@ export async function POST(req: NextRequest) {
       targetType: 'User',
       targetId: user.id,
       details: { serialNumber: user.serialNumber, source: 'create-from-contact' },
+    });
+
+    await ensureAddressBookContactForUser({
+      userId: user.id,
+      serialNumber: user.serialNumber,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      contactIdFromSource: contactId?.trim() || null,
     });
 
     return NextResponse.json({

@@ -3,6 +3,7 @@ import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { generateBhdSerial } from '@/lib/server/serialNumbers';
+import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name too short'),
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
     const serialNumber = await generateBhdSerial('USR-C');
 
     const hashed = await hash(password, 10);
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         serialNumber,
         email: emailLower,
@@ -46,6 +47,15 @@ export async function POST(req: Request) {
         phone: phone?.trim() || null,
         role: 'CLIENT',
       },
+    });
+
+    await ensureAddressBookContactForUser({
+      userId: user.id,
+      serialNumber: user.serialNumber,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
     });
 
     return NextResponse.json({ success: true });
