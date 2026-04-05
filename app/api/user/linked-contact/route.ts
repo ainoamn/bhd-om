@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma';
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
 import { deleteOtherAddressBookRowsForUser, deleteOtherPersonalRowsSamePhone } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
+import { upsertAddressBookContactFallback } from '@/lib/server/addressBookContactUpsert';
 import { CACHE_LINKED_CONTACT_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 
 /** إزالة undefined بشكل عميق + ضمان قابلية تخزين الحقل Json في PostgreSQL */
@@ -189,17 +190,31 @@ export async function PATCH(req: NextRequest) {
         msg.includes('not available');
       if (!isMissingLinkedColumn) throw e;
       mergedSafe.userId = sub;
-      await prisma.addressBookContact.upsert({
-        where: { contactId },
-        create: {
+      try {
+        await prisma.addressBookContact.upsert({
+          where: { contactId },
+          create: {
+            contactId,
+            data: mergedSafe as object,
+          },
+          update: {
+            data: mergedSafe as object,
+            updatedAt: new Date(),
+          },
+        });
+      } catch (e2) {
+        const msg2 = e2 instanceof Error ? e2.message : String(e2);
+        const isSchemaDrift =
+          (e2 instanceof Prisma.PrismaClientKnownRequestError && e2.code === 'P2022') ||
+          msg2.includes('does not exist') ||
+          msg2.includes('not available');
+        if (!isSchemaDrift) throw e2;
+        await upsertAddressBookContactFallback({
           contactId,
-          data: mergedSafe as object,
-        },
-        update: {
-          data: mergedSafe as object,
-          updatedAt: new Date(),
-        },
-      });
+          linkedUserId: sub,
+          data: mergedSafe,
+        });
+      }
     }
 
     await deleteOtherPersonalRowsSamePhone(contactId, mergedSafe.phone);
