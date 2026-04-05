@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — P2022 عمود linkedUserId غير موجود: ensure + upsert SQL خام
+
+- **السبب:** الإنتاج لم يُنفَّذ عليه migration لعمود `linkedUserId`؛ `prisma.addressBookContact.create({ linkedUserId })` يرمي P2022 / «column (not available) does not exist»؛ المسار القديم كان يعيد `create` بدون العمود دون التقاط فشل ذلك بـ `upsertAddressBookContactFallback`.
+- **الإصلاح:** `isPrismaSchemaDriftError` + `createAddressBookRowWithoutLinkedUserIdColumn` (إنشاء بدون العمود ثم `upsertAddressBookContactFallback` عند الفشل أو التفرد).
+
 ### جلسة 2026-04-02 — إصلاح «Failed to ensure address book» ودفتر العناوين الفارغ (إنتاج)
 
 - **السبب المحتمل:** `findAddressBookRowByUserId` كان ينتهي بـ `findMany` على **كل** صفوف الجدول — على الإنتاج قد يتعطل أو يُرجع خطأ فيُفهم أن الصف غير موجود بعد نجاح `ensure`؛ أو فشل Prisma JSON filter؛ أو `contactId` مكرر نادراً؛ أو حقول `undefined` في JSON.

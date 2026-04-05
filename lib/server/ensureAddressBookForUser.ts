@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { deleteOtherAddressBookRowsForUser } from '@/lib/server/addressBookDedupe';
+import { upsertAddressBookContactFallback } from '@/lib/server/addressBookContactUpsert';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 
 /** إزالة التكرار لا يجب أن تُسقط ضمان الصف — فشل SQL نادر (صلاحيات/لهجة DB) */
@@ -30,6 +31,36 @@ function sanitizeJsonForPrisma(input: Record<string, unknown>): Record<string, u
     return JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
   } catch {
     return input;
+  }
+}
+
+/** P2022 = عمود غير موجود في القاعدة؛ رسائل قديمة تستخدم (not available) */
+function isPrismaSchemaDriftError(e: unknown): boolean {
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2022') return true;
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    msg.includes('does not exist') ||
+    msg.includes('not available') ||
+    msg.includes('Unknown arg') ||
+    msg.includes('Unknown field')
+  );
+}
+
+/** إنشاء صف دون عمود linkedUserId ثم SQL خام إن لزم — للإنتاج قبل migrate */
+async function createAddressBookRowWithoutLinkedUserIdColumn(params: {
+  contactId: string;
+  userId: string;
+  data: Record<string, unknown>;
+}): Promise<void> {
+  const { contactId, userId, data } = params;
+  try {
+    await prisma.addressBookContact.create({
+      data: { contactId, data: data as object },
+    });
+  } catch (e2) {
+    const msg = e2 instanceof Error ? e2.message : String(e2);
+    if (!isPrismaSchemaDriftError(e2) && !msg.includes('Unique constraint')) throw e2;
+    await upsertAddressBookContactFallback({ contactId, linkedUserId: userId, data });
   }
 }
 
@@ -220,7 +251,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         },
       });
     } catch (e) {
-      /** صف آخر يملك نفس linkedUserId — نحدّثه بدل الإنشاء (لا نبتلع الخطأ) */
+      /** P2002 = تفرد (linkedUserId أو contactId) — نحدّث الصف الموجود */
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         let row:
           | Awaited<ReturnType<typeof prisma.addressBookContact.findFirst>>
@@ -271,14 +302,19 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
           return;
         }
       }
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!msg.includes('does not exist') && !msg.includes('not available')) throw e;
-      await prisma.addressBookContact.create({
-        data: {
+
+      /** P2022 = عمود غير موجود (غالباً linkedUserId قبل migrate) — إنشاء بدون العمود + SQL خام */
+      if (isPrismaSchemaDriftError(e)) {
+        await createAddressBookRowWithoutLinkedUserIdColumn({
           contactId,
-          data: dataCreateSafe as object,
-        },
-      });
+          userId,
+          data: dataCreateSafe,
+        });
+        await safeDeleteOtherAddressBookRowsForUser(contactId, userId);
+        return;
+      }
+
+      throw e;
     }
     await safeDeleteOtherAddressBookRowsForUser(contactId, userId);
   } catch (err) {
