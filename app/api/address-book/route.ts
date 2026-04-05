@@ -25,6 +25,7 @@ import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityTo
 /** قراءة دفتر العناوين للواجهة — بدون كاش متصفح حتى تنعكس التعديلات فوراً بين المستخدم والجهات */
 const CACHE_ADDRESS_BOOK_GET_NO_STORE = 'private, no-store, must-revalidate';
 
+/** GET: دمج تكرار في الذاكرة فقط — لا حذف من DB أثناء القراءة (كان يُفرغ القائمة أو يزيل السجل المرتبط بالمستخدم). */
 export async function GET(req: NextRequest) {
   try {
     const limitRaw = Number(req.nextUrl.searchParams.get('limit') || '0');
@@ -41,25 +42,12 @@ export async function GET(req: NextRequest) {
       orderBy: { updatedAt: 'desc' },
     });
     const drop = getDuplicateDropContactIdsFromDbRows(rows);
-    if (drop.size > 0) {
-      await prisma.addressBookContact.deleteMany({
-        where: { contactId: { in: [...drop] } },
-      });
-    }
     let keptRows = rows.filter((r) => !drop.has(r.contactId));
-
-    /** بعد الدمج النظري: حذف أي صف شخصي آخر بنفس هاتف صف مربوط بحساب (يفضّل صف «حسابي» / linkedUserId) */
-    const canonical = [...keptRows].sort(
-      (a, b) => (b.linkedUserId ? 1 : 0) - (a.linkedUserId ? 1 : 0)
-    );
-    for (const r of canonical) {
-      const d = (r.data as Record<string, unknown>) || {};
-      if (!r.linkedUserId && typeof d.userId !== 'string') continue;
-      await deleteOtherPersonalRowsSamePhone(r.contactId, d.phone);
+    /** إن كان منطق التكرار يُسقط كل الصفوف (خطأ بيانات/هجرة)، نعرض الكل حتى لا يظهر دفتر العناوين فارغاً */
+    if (keptRows.length === 0 && rows.length > 0) {
+      console.warn('address-book GET: dedupe drop would empty list; using all rows');
+      keptRows = rows;
     }
-    keptRows = await prisma.addressBookContact.findMany({
-      orderBy: { updatedAt: 'desc' },
-    });
 
     /** أي صف مربوط بحساب — نطبّق هوية User الحالية كما في linked-contact حتى لا يظهر دفتر العناوين باسم/هاتف قديم */
     const identityUserIds = new Set<string>();
