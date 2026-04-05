@@ -12,7 +12,11 @@ import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentit
 import { deleteOtherAddressBookRowsForUser, deleteOtherPersonalRowsSamePhone } from '@/lib/server/addressBookDedupe';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 import { upsertAddressBookContactFallback } from '@/lib/server/addressBookContactUpsert';
-import { CACHE_LINKED_CONTACT_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
+
+/** لا نخزّن استجابة «حسابي» في المتصفح — يُظهر بيانات قديمة بعد الحفظ */
+const NO_STORE_LINKED_CONTACT = 'private, no-store, must-revalidate';
 
 /** إزالة undefined بشكل عميق + ضمان قابلية تخزين الحقل Json في PostgreSQL */
 function toJsonSafeRecord(input: Record<string, unknown>): Record<string, unknown> {
@@ -40,16 +44,27 @@ export async function GET(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: sub },
-      select: { serialNumber: true },
+      select: { id: true, serialNumber: true, name: true, email: true, phone: true, role: true },
     });
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const row = await findAddressBookRowByUserId(sub);
+    let row = await findAddressBookRowByUserId(sub);
+    if (!row) {
+      await ensureAddressBookContactForUser({
+        userId: user.id,
+        serialNumber: user.serialNumber,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      });
+      row = await findAddressBookRowByUserId(sub);
+    }
     if (!row) {
       return NextResponse.json(null, {
-        headers: { 'Cache-Control': CACHE_LINKED_CONTACT_GET, Vary: HTTP_CACHE_VARY_AUTH },
+        headers: { 'Cache-Control': NO_STORE_LINKED_CONTACT, Vary: HTTP_CACHE_VARY_AUTH },
       });
     }
 
@@ -63,7 +78,7 @@ export async function GET(req: NextRequest) {
     data.userId = sub;
     data.linkedUserId = (row as { linkedUserId?: string | null }).linkedUserId ?? sub;
     return NextResponse.json(data, {
-      headers: { 'Cache-Control': CACHE_LINKED_CONTACT_GET, Vary: HTTP_CACHE_VARY_AUTH },
+      headers: { 'Cache-Control': NO_STORE_LINKED_CONTACT, Vary: HTTP_CACHE_VARY_AUTH },
     });
   } catch (e) {
     console.error('linked-contact GET error:', e);
@@ -224,9 +239,33 @@ export async function PATCH(req: NextRequest) {
 
     await deleteOtherPersonalRowsSamePhone(contactId, mergedSafe.phone);
 
-    mergedSafe.serialNumber = user.serialNumber;
+    const savedRow = await prisma.addressBookContact.findUnique({
+      where: { contactId },
+      select: { contactId: true, data: true, linkedUserId: true },
+    });
+    const freshUser = await prisma.user.findUnique({
+      where: { id: sub },
+      select: { serialNumber: true },
+    });
+    if (savedRow) {
+      const payload = { ...((savedRow.data as Record<string, unknown>) || {}) };
+      const cidOut = String(savedRow.contactId || '').trim();
+      if (typeof payload.id !== 'string' || !String(payload.id).trim()) {
+        payload.id = cidOut;
+      }
+      payload.serialNumber = freshUser?.serialNumber ?? user.serialNumber;
+      payload.userId = sub;
+      payload.linkedUserId = savedRow.linkedUserId ?? sub;
+      return NextResponse.json(toJsonSafeRecord(payload), {
+        headers: { 'Cache-Control': NO_STORE_LINKED_CONTACT, Vary: HTTP_CACHE_VARY_AUTH },
+      });
+    }
+
+    mergedSafe.serialNumber = freshUser?.serialNumber ?? user.serialNumber;
     mergedSafe.linkedUserId = sub;
-    return NextResponse.json(mergedSafe);
+    return NextResponse.json(mergedSafe, {
+      headers: { 'Cache-Control': NO_STORE_LINKED_CONTACT, Vary: HTTP_CACHE_VARY_AUTH },
+    });
   } catch (e) {
     console.error('linked-contact PATCH error:', e);
     if (e instanceof Prisma.PrismaClientKnownRequestError) {

@@ -157,9 +157,9 @@ export default function MyAccountPage() {
         nationality: co.nationality ?? '',
         gender: (co.gender as 'MALE' | 'FEMALE') ?? 'MALE',
         civilId: co.civilId ?? '',
-        civilIdExpiry: co.civilIdExpiry ?? '',
+        civilIdExpiry: normalizeDateForInput(co.civilIdExpiry) || (co.civilIdExpiry ?? ''),
         passportNumber: co.passportNumber ?? '',
-        passportExpiry: co.passportExpiry ?? '',
+        passportExpiry: normalizeDateForInput(co.passportExpiry) || (co.passportExpiry ?? ''),
         workplace: co.workplace ?? '',
         workplaceEn: co.workplaceEn ?? '',
         position: co.position ?? '',
@@ -175,7 +175,9 @@ export default function MyAccountPage() {
         const res = await fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' });
         if (cancelled || !res.ok) throw new Error('no-server-contact');
         const data = await res.json();
-        if (data && typeof data === 'object' && data.id) {
+        const row = data && typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
+        const idStr = typeof row?.id === 'string' ? row.id.trim() : '';
+        if (row && idStr) {
           const co = data as Contact;
           mergeServerContactIntoLocalStorage(co);
           if (!cancelled) {
