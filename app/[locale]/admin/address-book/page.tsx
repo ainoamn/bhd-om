@@ -34,7 +34,9 @@ import {
   validatePassportExpiry,
   contactAddressHasUsableContent,
   mergeAddressBookApiWithLocal,
+  mergeServerContactIntoLocalStorage,
   persistAddressBookContactsLocally,
+  contactRevisionMs,
   rewriteLocalAddressBookDeduped,
   findDuplicateContactFields,
   findContactsByCivilIdOrName,
@@ -362,6 +364,21 @@ export default function AdminAddressBookPage() {
         /* بعد فشل الجلب نحتفظ بـ merged */
       }
       persistAddressBookContactsLocally(toPersist);
+      /** نفس مسار صفحة المستخدم (linked-contact + mergeServerContactIntoLocalStorage): صف واحد لكل userId في التخزين المحلي */
+      const linkedFromApi = (toPersist as Contact[]).filter((c) => c.userId?.trim());
+      if (linkedFromApi.length > 0) {
+        const byUid = new Map<string, Contact>();
+        for (const c of linkedFromApi) {
+          const uid = c.userId!.trim();
+          const prev = byUid.get(uid);
+          if (!prev || contactRevisionMs(c) > contactRevisionMs(prev)) {
+            byUid.set(uid, c);
+          }
+        }
+        for (const c of byUid.values()) {
+          mergeServerContactIntoLocalStorage(c);
+        }
+      }
       if (cancelled) return;
       try {
         const result = syncBookingContactsToAddressBook();

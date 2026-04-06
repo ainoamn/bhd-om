@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — دفتر العناوين يتحدّث فقط بعد فتح تفاصيل المستخدم
+
+- **السبب:** صفحة المستخدم تستدعي `mergeServerContactIntoLocalStorage` بعد `GET linked-contact` فتزيل الصفوف المكررة لنفس `userId` في `localStorage`؛ صفحة دفتر العناوين كانت تعتمد على `mergeAddressBookApiWithLocal` + `persist` فقط دون هذا الدمج، فبقي صف قديم يغطى على البيانات حتى زيارة صفحة المستخدم.
+- **الإصلاح:** بعد `persistAddressBookContactsLocally(toPersist)`، لكل `userId` فريد نأخذ أحدث جهة (`contactRevisionMs`) ونستدعي `mergeServerContactIntoLocalStorage` كما في مسار المستخدم.
+
 ### جلسة 2026-04-02 — admin/address-book: بيانات لا تتحدّث مع التحديث
 
 - **السبب:** `persistAddressBookContactsLocally` كان يستدعي `emitAddressBookUpdated` فيعيد تشغيل `useEffect` (serverSyncKey) فيسبب جلباً متكرراً؛ جلب الخلفية في `getStored()` قد يكتمل بعد المزامنة ويدمج قائمة قديمة فوق القائمة الطازجة؛ عدم ضبط `didHydrateContactsFromServer` بعد الحفظ من الصفحة.
