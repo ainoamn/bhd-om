@@ -466,6 +466,17 @@ export default function AdminAddressBookPage() {
     return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onUpdated);
   }, []);
 
+  /** إعادة جلب من قاعدة البيانات عند العودة للتبويب — المتصفح لا يستقبل «دفعاً» من خادم آخر/جهاز آخر تلقائياً */
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setServerSyncKey((k) => k + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
   useEffect(() => {
     if (isEmbedAdd && mounted) {
       setEditingId(null);
