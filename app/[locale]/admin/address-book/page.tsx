@@ -227,6 +227,8 @@ export default function AdminAddressBookPage() {
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
   /** أول دخول لمسار دفتر العناوين في هذه الجلسة — لا نكرّر الجلب عند التحميل الأول */
   const skipNextPathnameRefetchRef = useRef(true);
+  /** بعد أول اكتمال جلب (نجاح أو فشل): لا نُظهر هيكل التحميل الكامل عند إعادة الجلب — يمنع اختفاء الأسماء لثانية */
+  const addressBookListLoadedOnceRef = useRef(false);
   useEffect(() => setMounted(true), []);
 
   /** إعادة جلب من الخادم عند العودة من «حسابي» أو صفحة أخرى (SPA) — CustomEvent لا يُستقبل إذا لم تكن الصفحة مُحمَّلة */
@@ -326,13 +328,16 @@ export default function AdminAddressBookPage() {
   useEffect(() => {
     /** أثناء loading نجلب بـ credentials — لا ننتظر useSession (يزيد التأخير مرصوفاً مع الـ layout) */
     if (sessionStatus === 'unauthenticated') {
+      addressBookListLoadedOnceRef.current = false;
       setContacts([]);
       setIsLoadingContacts(false);
       return;
     }
     let cancelled = false;
     (async () => {
-      setIsLoadingContacts(true);
+      if (!addressBookListLoadedOnceRef.current) {
+        setIsLoadingContacts(true);
+      }
       let listFromApi: Contact[] = [];
       let firstApiOk = false;
       try {
@@ -360,6 +365,7 @@ export default function AdminAddressBookPage() {
               setContacts([]);
             }
           }
+          addressBookListLoadedOnceRef.current = true;
           setIsLoadingContacts(false);
         }
         return;
@@ -436,6 +442,7 @@ export default function AdminAddressBookPage() {
           /* لا نستبدل الجدول بـ getAllContacts — المحلي يختلف بين المتصفحات */
         }
       }
+      addressBookListLoadedOnceRef.current = true;
       setIsLoadingContacts(false);
     })();
     const onStorage = (e: StorageEvent) => {
@@ -466,10 +473,16 @@ export default function AdminAddressBookPage() {
     return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onUpdated);
   }, []);
 
-  /** إعادة جلب من قاعدة البيانات عند العودة للتبويب — المتصفح لا يستقبل «دفعاً» من خادم آخر/جهاز آخر تلقائياً */
+  /** إعادة جلب عند العودة من تبويب آخر فقط — حدث visible عند أول تحميل للصفحة كان يُعيد الجلب ويُخفي الجدول */
+  const addressBookTabWasHiddenRef = useRef(false);
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'hidden') {
+        addressBookTabWasHiddenRef.current = true;
+        return;
+      }
+      if (document.visibilityState === 'visible' && addressBookTabWasHiddenRef.current) {
+        addressBookTabWasHiddenRef.current = false;
         setServerSyncKey((k) => k + 1);
       }
     };
