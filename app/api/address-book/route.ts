@@ -25,6 +25,22 @@ import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityTo
 /** قراءة دفتر العناوين للواجهة — بدون كاش متصفح حتى تنعكس التعديلات فوراً بين المستخدم والجهات */
 const CACHE_ADDRESS_BOOK_GET_NO_STORE = 'private, no-store, must-revalidate';
 
+export const dynamic = 'force-dynamic';
+
+function isLikelyDatabaseFailure(e: unknown): boolean {
+  const msg = e instanceof Error ? `${e.name} ${e.message}` : String(e);
+  return (
+    msg.includes('DATABASE_URL') ||
+    msg.includes('Prisma') ||
+    msg.includes('P1001') ||
+    msg.includes('P1017') ||
+    msg.includes("Can't reach database") ||
+    msg.includes('connection') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('ETIMEDOUT')
+  );
+}
+
 /** GET: دمج تكرار في الذاكرة فقط — لا حذف من DB أثناء القراءة (كان يُفرغ القائمة أو يزيل السجل المرتبط بالمستخدم). */
 export async function GET(req: NextRequest) {
   try {
@@ -106,6 +122,12 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error('Address book GET error:', e);
+    if (isLikelyDatabaseFailure(e)) {
+      return NextResponse.json(
+        { error: 'database_unavailable' },
+        { status: 503, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
+      );
+    }
     return NextResponse.json({ error: 'Failed to fetch address book' }, { status: 500 });
   }
 }

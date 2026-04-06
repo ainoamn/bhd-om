@@ -4,7 +4,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getToken } from 'next-auth/jwt';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -35,6 +35,25 @@ function tokenUserId(token: Awaited<ReturnType<typeof getToken>>): string | null
 }
 
 export async function getAuthSubFromRequest(req: NextRequest): Promise<string | null> {
+  /** في App Router أحياناً يقرأ JWT من `headers().get('cookie')` أوضح من كائن NextRequest وحده */
+  try {
+    const headerList = await headers();
+    const cookieHeader = headerList.get('cookie');
+    if (cookieHeader && cookieHeader.length > 0) {
+      const reqFromCookie = {
+        headers: new Headers({ cookie: cookieHeader }),
+      } as NextRequest;
+      const tokenFromHeader = await getToken({
+        req: reqFromCookie,
+        secret: NEXTAUTH_SECRET,
+      });
+      const fromHeader = tokenUserId(tokenFromHeader);
+      if (fromHeader) return fromHeader;
+    }
+  } catch {
+    /* خارج سياق الطلب (نادر) */
+  }
+
   let token = await getToken({
     req,
     secret: NEXTAUTH_SECRET,

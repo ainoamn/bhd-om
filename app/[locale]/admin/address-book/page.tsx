@@ -1233,26 +1233,35 @@ export default function AdminAddressBookPage() {
           className={
             contactsLoadError === 'unauthorized_local' ||
             contactsLoadError === 'fetch_failed_local' ||
+            contactsLoadError === 'fetch_failed_db_local' ||
             contactsLoadError === 'network_local'
               ? 'rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-amber-900 text-sm'
               : 'rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm'
           }
         >
-          {contactsLoadError === 'unauthorized_local' || contactsLoadError === 'unauthorized'
+          {contactsLoadError === 'fetch_failed_db_local' || contactsLoadError === 'fetch_failed_db'
             ? locale === 'ar'
-              ? contactsLoadError === 'unauthorized_local'
-                ? 'تعذر التحقق من الجلسة مع الخادم. يُعرض أدناه نسخة محلية قديمة — سجّل الدخول ثم حدّث الصفحة لمزامنة البيانات.'
-                : 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
-              : contactsLoadError === 'unauthorized_local'
-                ? 'Could not verify your session with the server. Showing a cached local copy. Sign in and refresh to sync.'
-                : 'Could not load the list from the server. Sign in and refresh the page.'
-            : contactsLoadError === 'fetch_failed_local' || contactsLoadError === 'network_local'
+              ? contactsLoadError === 'fetch_failed_db_local'
+                ? 'تعذر الاتصال بقاعدة البيانات على الخادم. يُعرض أدناه نسخة محلية قديمة. تحقق من أن DATABASE_URL مُعرَّف في بيئة التشغيل (مثل Vercel) وأن قاعدة البيانات تعمل، ثم حدّث الصفحة.'
+                : 'تعذر الاتصال بقاعدة البيانات. أضف أو صحّح DATABASE_URL في إعدادات النشر ثم أعد المحاولة.'
+              : contactsLoadError === 'fetch_failed_db_local'
+                ? 'The server database is unavailable. Showing a cached local copy. Set DATABASE_URL in your deployment environment and ensure the database is reachable, then refresh.'
+                : 'Could not connect to the database. Configure DATABASE_URL in the deployment environment and try again.'
+            : contactsLoadError === 'unauthorized_local' || contactsLoadError === 'unauthorized'
               ? locale === 'ar'
-                ? 'تعذر الاتصال بالخادم. يُعرض أدناه نسخة محلية — حدّث الصفحة أو تحقق من الشبكة.'
-                : 'Could not reach the server. Showing a local copy. Refresh or check your connection.'
-              : locale === 'ar'
-                ? 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
-                : 'Could not load the list from the server. Sign in and refresh the page.'}
+                ? contactsLoadError === 'unauthorized_local'
+                  ? 'تعذر التحقق من الجلسة مع الخادم. يُعرض أدناه نسخة محلية قديمة — سجّل الدخول ثم حدّث الصفحة لمزامنة البيانات.'
+                  : 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
+                : contactsLoadError === 'unauthorized_local'
+                  ? 'Could not verify your session with the server. Showing a cached local copy. Sign in and refresh to sync.'
+                  : 'Could not load the list from the server. Sign in and refresh the page.'
+              : contactsLoadError === 'fetch_failed_local' || contactsLoadError === 'network_local'
+                ? locale === 'ar'
+                  ? 'تعذر الاتصال بالخادم. يُعرض أدناه نسخة محلية — حدّث الصفحة أو تحقق من الشبكة.'
+                  : 'Could not reach the server. Showing a local copy. Refresh or check your connection.'
+                : locale === 'ar'
+                  ? 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
+                  : 'Could not load the list from the server. Sign in and refresh the page.'}
         </div>
       )}
       <AdminPageHeader

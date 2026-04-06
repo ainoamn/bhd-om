@@ -109,14 +109,28 @@ export function useAdminAddressBookContacts(opts: {
           await new Promise((r) => setTimeout(r, 700));
           res = await fetchOnce();
         }
+        /** إعادة محاولة واحدة عند أخطاء خادم/قاعدة مؤقتة (بردّ بارد، مهلة اتصال، إلخ) */
+        if (res.status === 502 || res.status === 503 || res.status === 504 || res.status === 500) {
+          await new Promise((r) => setTimeout(r, 650));
+          res = await fetchOnce();
+        }
 
         if (!res.ok) {
           if (myId !== requestIdRef.current) return;
+          let serverDbUnavailable = false;
+          try {
+            const errJson = (await res.clone().json()) as { error?: string };
+            if (errJson?.error === 'database_unavailable') serverDbUnavailable = true;
+          } catch {
+            /* ليست JSON */
+          }
           if (isAdminLike(userRole) || userRole === undefined) {
             const local = contactsFromLocalForDisplay(userRole, showArchived);
             setContacts(local);
             if (res.status === 401) {
               setError(local.length > 0 ? 'unauthorized_local' : 'unauthorized');
+            } else if (serverDbUnavailable) {
+              setError(local.length > 0 ? 'fetch_failed_db_local' : 'fetch_failed_db');
             } else {
               setError(local.length > 0 ? 'fetch_failed_local' : 'fetch_failed');
             }
@@ -129,7 +143,7 @@ export function useAdminAddressBookContacts(opts: {
             } catch {
               setContacts([]);
             }
-            setError('fetch_failed');
+            setError(serverDbUnavailable ? 'fetch_failed_db' : 'fetch_failed');
           }
           initialFetchCompletedRef.current = true;
           return;
