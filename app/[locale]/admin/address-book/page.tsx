@@ -80,6 +80,11 @@ function dashboardTypeForAddressBookFilter(role: string | undefined) {
   if (role === 'OWNER') return ROLE_TO_DASHBOARD_TYPE.OWNER;
   return undefined;
 }
+
+/** عرض المدير: مصدر الحقيقة هو الخادم فقط — لا دمج مع localStorage (يختلف بين التبويبات والمتصفحات). */
+function isAdminAddressBookViewer(role: string | undefined): boolean {
+  return role === 'ADMIN' || role === 'SUPER_ADMIN';
+}
 import UserBarcode from '@/components/admin/UserBarcode';
 import {
   ADDRESS_BOOK_UPDATED_EVENT,
@@ -180,7 +185,12 @@ export default function AdminAddressBookPage() {
   const { data: session, status: sessionStatus } = useSession();
   const t = useTranslations('addressBook');
   const tUsers = useTranslations('usersAdmin');
-  const userRole = (session?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
+  const userRole = (session?.user as { role?: string })?.role as
+    | 'ADMIN'
+    | 'SUPER_ADMIN'
+    | 'CLIENT'
+    | 'OWNER'
+    | undefined;
 
   const isEmbedAdd = searchParams.get('embed') === 'add';
   const embedCategory = searchParams.get('category') || '';
@@ -338,19 +348,23 @@ export default function AdminAddressBookPage() {
       }
       if (!firstApiOk) {
         if (!cancelled) {
-          try {
-            const all = getAllContacts(showArchived);
-            const dashboardType = dashboardTypeForAddressBookFilter(userRole);
-            const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
-            setContacts(filtered);
-          } catch {
+          if (isAdminAddressBookViewer(userRole)) {
             setContacts([]);
+          } else {
+            try {
+              const all = getAllContacts(showArchived);
+              const dashboardType = dashboardTypeForAddressBookFilter(userRole);
+              const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
+              setContacts(filtered);
+            } catch {
+              setContacts([]);
+            }
           }
           setIsLoadingContacts(false);
         }
         return;
       }
-      const localContacts = getAllContacts(true);
+      const localContacts = isAdminAddressBookViewer(userRole) ? [] : getAllContacts(true);
       const merged = mergeAddressBookApiWithLocal(listFromApi, localContacts);
       const apiById = new Map(listFromApi.map((c) => [c.id, c]));
       const apiUserIds = new Set(
@@ -378,7 +392,9 @@ export default function AdminAddressBookPage() {
         if (resAfter.ok) {
           const dataAfter = await resAfter.json();
           if (Array.isArray(dataAfter)) {
-            toPersist = mergeAddressBookApiWithLocal(dataAfter as Contact[], merged);
+            toPersist = isAdminAddressBookViewer(userRole)
+              ? mergeAddressBookApiWithLocal(dataAfter as Contact[], [])
+              : mergeAddressBookApiWithLocal(dataAfter as Contact[], merged);
           }
         }
       } catch {
@@ -393,28 +409,32 @@ export default function AdminAddressBookPage() {
         : baseForDisplay;
       if (!cancelled) setContacts(filteredFromServer);
 
-      /** نفس مسار صفحة المستخدم (linked-contact + mergeServerContactIntoLocalStorage): صف واحد لكل userId في التخزين المحلي */
-      const linkedFromApi = (toPersist as Contact[]).filter((c) => c.userId?.trim());
-      if (linkedFromApi.length > 0) {
-        const byUid = new Map<string, Contact>();
-        for (const c of linkedFromApi) {
-          const uid = c.userId!.trim();
-          const prev = byUid.get(uid);
-          if (!prev || contactRevisionMs(c) > contactRevisionMs(prev)) {
-            byUid.set(uid, c);
+      /** للمدير لا ندمج جهات محلية قديمة؛ للعميل/المالك نُحدّث التخزين المحلي كما سابقاً */
+      if (!isAdminAddressBookViewer(userRole)) {
+        const linkedFromApi = (toPersist as Contact[]).filter((c) => c.userId?.trim());
+        if (linkedFromApi.length > 0) {
+          const byUid = new Map<string, Contact>();
+          for (const c of linkedFromApi) {
+            const uid = c.userId!.trim();
+            const prev = byUid.get(uid);
+            if (!prev || contactRevisionMs(c) > contactRevisionMs(prev)) {
+              byUid.set(uid, c);
+            }
           }
-        }
-        for (const c of byUid.values()) {
-          mergeServerContactIntoLocalStorage(c);
+          for (const c of byUid.values()) {
+            mergeServerContactIntoLocalStorage(c);
+          }
         }
       }
       if (cancelled) return;
-      try {
-        const result = syncBookingContactsToAddressBook();
-        rewriteLocalAddressBookDeduped();
-        if (result.added > 0 || result.updated > 0) setSyncResult(result);
-      } catch {
-        /* لا نستبدل الجدول بـ getAllContacts — المحلي يختلف بين المتصفحات */
+      if (!isAdminAddressBookViewer(userRole)) {
+        try {
+          const result = syncBookingContactsToAddressBook();
+          rewriteLocalAddressBookDeduped();
+          if (result.added > 0 || result.updated > 0) setSyncResult(result);
+        } catch {
+          /* لا نستبدل الجدول بـ getAllContacts — المحلي يختلف بين المتصفحات */
+        }
       }
       setIsLoadingContacts(false);
     })();
@@ -426,7 +446,9 @@ export default function AdminAddressBookPage() {
         e.key === 'bhd_contact_category_permissions'
       ) {
         try {
-          syncBookingContactsToAddressBook();
+          if (!isAdminAddressBookViewer(userRole)) {
+            syncBookingContactsToAddressBook();
+          }
         } catch {}
         setServerSyncKey((k) => k + 1);
       }
@@ -1230,12 +1252,20 @@ export default function AdminAddressBookPage() {
     if (linked) return;
     archiveContact(id);
     setDeleteId(null);
-    setContacts(getAllContacts(showArchived));
+    if (isAdminAddressBookViewer(userRole)) {
+      refreshAddressBookFromServer();
+    } else {
+      setContacts(getAllContacts(showArchived));
+    }
   };
 
   const handleRestore = (id: string) => {
     restoreContact(id);
-    setContacts(getAllContacts(showArchived));
+    if (isAdminAddressBookViewer(userRole)) {
+      refreshAddressBookFromServer();
+    } else {
+      setContacts(getAllContacts(showArchived));
+    }
   };
 
   const handleDelete = () => {
@@ -1243,7 +1273,11 @@ export default function AdminAddressBookPage() {
       try {
       deleteContact(deleteId);
       setDeleteId(null);
-        setContacts(getAllContacts(showArchived));
+        if (isAdminAddressBookViewer(userRole)) {
+          refreshAddressBookFromServer();
+        } else {
+          setContacts(getAllContacts(showArchived));
+        }
       } catch (err) {
         if ((err as Error).message === 'CANNOT_DELETE_LINKED') {
           setDeleteId(null);

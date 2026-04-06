@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { clearOperationalClientDataForNewAuthUser } from '@/lib/data/backup';
 import { clearAddressBookLocalStorage } from '@/lib/data/addressBook';
@@ -39,6 +39,19 @@ function clearStaleImpersonationArtifacts(): void {
  */
 export default function AuthSessionLocalIsolation() {
   const { data: session, status } = useSession();
+  const prevAuthStatusRef = useRef<string | null>(null);
+
+  /** عند تسجيل الخروج فقط (وليس عند زيارة الموقع كزائر): مسح نسخة دفتر العناوين المحلية القديمة */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const prev = prevAuthStatusRef.current;
+    prevAuthStatusRef.current = status;
+    if (prev === 'authenticated' && status === 'unauthenticated') {
+      try {
+        clearAddressBookLocalStorage();
+      } catch {}
+    }
+  }, [status]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
