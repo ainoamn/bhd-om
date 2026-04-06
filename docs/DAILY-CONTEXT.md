@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — دفتر العناوين: الجدول كان يقرأ من localStorage وليس من الخادم
+
+- **السبب:** `setContacts` بعد جلب `GET /api/address-book` كان يُحدّث الحالة، لكن **`searchContacts()`** كان يستدعي **`getStored()`** دائماً دون استخدام `contacts` — فعمود الجدول عرض **localStorage** (يختلف بين ملفات Chrome والأجهزة).
+- **الإصلاح:** معامل اختياري `source` في `searchContacts`؛ صفحة `admin/address-book` تمرّر **`contacts`**؛ بعد الدمج مع الخادم تُحدَّث القائمة من **`toPersist`** دون استبدال العرض بـ `getAllContacts` بعد `syncBookingContactsToAddressBook`؛ أحداث `storage` وإعادة التحميل بعد الحفظ تستدعي **`refreshAddressBookFromServer`**؛ عمليات محلية (استيراد CSV، دمج تكرار، مزامنة من الحجوزات) تستخدم **`loadDataFromLocal`**.
+
 ### جلسة 2026-04-02 — دفتر العناوين يختلف بين متصفحين (بيانات كاملة vs ناقصة)
 
 - **السبب:** `getAllContacts` كان يستدعي `syncAllContactsToServerOnce()` فيرفع **كل** جهات `localStorage` عبر `POST /api/address-book` (يستبدل `data` في DB). متصفح بـ localStorage قديم يفسد بيانات الخادم؛ متصفح آخر يقرأ بعد ذلك نسخة تالفة أو يبقى محلياً مختلفاً.

@@ -285,12 +285,16 @@ export default function AdminAddressBookPage() {
     setRepSearchTarget(repIdx);
   };
 
-  const loadData = () => {
+  /** إعادة ملء الجدول من localStorage بعد عمليات محضّرة محلياً (استيراد CSV، دمج تكرار، مزامنة من الحجوزات). */
+  const loadDataFromLocal = () => {
     const all = getAllContacts(showArchived);
     const dashboardType = dashboardTypeForAddressBookFilter(userRole);
     const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
     setContacts(filtered);
   };
+
+  /** إعادة جلب القائمة من الخادم — مصدر الحقيقي بين المتصفحات والأجهزة */
+  const refreshAddressBookFromServer = () => setServerSyncKey((k) => k + 1);
 
   useEffect(() => {
     /** أثناء loading نجلب بـ credentials — لا ننتظر useSession (يزيد التأخير مرصوفاً مع الـ layout) */
@@ -364,6 +368,14 @@ export default function AdminAddressBookPage() {
         /* بعد فشل الجلب نحتفظ بـ merged */
       }
       persistAddressBookContactsLocally(toPersist);
+      /** الجدول يعرض من آخر دمج خادم — سابقاً searchContacts كان يقرأ من localStorage فقط فلا يعتمد على setContacts هنا */
+      const baseForDisplay = showArchived ? toPersist : toPersist.filter((c) => !c.archived);
+      const dashboardTypeForList = dashboardTypeForAddressBookFilter(userRole);
+      const filteredFromServer = dashboardTypeForList
+        ? filterContactsByRolePermissions(baseForDisplay, dashboardTypeForList)
+        : baseForDisplay;
+      if (!cancelled) setContacts(filteredFromServer);
+
       /** نفس مسار صفحة المستخدم (linked-contact + mergeServerContactIntoLocalStorage): صف واحد لكل userId في التخزين المحلي */
       const linkedFromApi = (toPersist as Contact[]).filter((c) => c.userId?.trim());
       if (linkedFromApi.length > 0) {
@@ -383,23 +395,18 @@ export default function AdminAddressBookPage() {
       try {
         const result = syncBookingContactsToAddressBook();
         rewriteLocalAddressBookDeduped();
-        const all = getAllContacts(showArchived);
-        const dashboardType = dashboardTypeForAddressBookFilter(userRole);
-        const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
-        setContacts(filtered);
         if (result.added > 0 || result.updated > 0) setSyncResult(result);
       } catch {
-        setContacts(getAllContacts(showArchived));
+        /* لا نستبدل الجدول بـ getAllContacts — المحلي يختلف بين المتصفحات */
       }
       setIsLoadingContacts(false);
     })();
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'bhd_address_book' || e.key === 'bhd_property_bookings' || e.key === 'bhd_contact_category_permissions') {
-        try { syncBookingContactsToAddressBook(); } catch {}
-        const all = getAllContacts(showArchived);
-        const dashboardType = dashboardTypeForAddressBookFilter(userRole);
-        const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
-        setContacts(filtered);
+        try {
+          syncBookingContactsToAddressBook();
+        } catch {}
+        setServerSyncKey((k) => k + 1);
       }
     };
     window.addEventListener('storage', onStorage);
@@ -427,7 +434,8 @@ export default function AdminAddressBookPage() {
 
   const handleSyncFromBookings = () => {
     const result = syncBookingContactsToAddressBook();
-    loadData();
+    rewriteLocalAddressBookDeduped();
+    loadDataFromLocal();
     setSyncResult(result);
     setTimeout(() => setSyncResult(null), 4000);
   };
@@ -555,7 +563,7 @@ export default function AdminAddressBookPage() {
           failed++;
         }
       }
-      loadData();
+      refreshAddressBookFromServer();
       setCreateAccountsResult({ created, linked, failed: failed > 0 ? failed : undefined });
       setTimeout(() => setCreateAccountsResult(null), 6000);
     } catch {
@@ -573,12 +581,12 @@ export default function AdminAddressBookPage() {
       const result = mergeDuplicateContacts(group.map((c) => c.id));
       if (result) merged += group.length - 1;
     }
-    loadData();
+    loadDataFromLocal();
     setMergeResult(merged);
     setTimeout(() => setMergeResult(null), 4000);
   };
 
-  const searched = searchContacts(search, showArchived);
+  const searched = searchContacts(search, showArchived, contacts);
   const addressBookDashboardType = dashboardTypeForAddressBookFilter(userRole);
   const roleFiltered = addressBookDashboardType ? filterContactsByRolePermissions(searched, addressBookDashboardType) : searched;
   const filteredContacts = roleFiltered.filter((c) => {
@@ -939,7 +947,7 @@ export default function AdminAddressBookPage() {
       }
       setShowModal(false);
       setFormErrors({});
-      loadData();
+      refreshAddressBookFromServer();
       emitAddressBookUpdated();
     } else {
         const createdContact = createContact(payload as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
@@ -1006,7 +1014,7 @@ export default function AdminAddressBookPage() {
         }
         setShowModal(false);
         setFormErrors({});
-        loadData();
+        refreshAddressBookFromServer();
         emitAddressBookUpdated();
         if (creds) setGeneratedCreds(creds);
     }
@@ -1310,7 +1318,7 @@ export default function AdminAddressBookPage() {
                     const text = r.result as string;
                     const n = importContactsFromCsv(text);
                     setImportResult(n);
-                    loadData();
+                    loadDataFromLocal();
                     setTimeout(() => setImportResult(null), 3000);
                   };
                   r.readAsText(f, 'UTF-8');

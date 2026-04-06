@@ -997,9 +997,10 @@ export function findContactsBySerialPrefix(prefix: string, excludeContactIds?: s
   });
 }
 
-/** بحث في الاسم، البريد، الهاتف، الشركة، الملاحظات، العلامات، الرقم المدني، الجواز، الرقم المتسلسل */
-export function searchContacts(query: string, includeArchived = false): Contact[] {
-  let list = getStored();
+/** بحث في الاسم، البريد، الهاتف، الشركة، الملاحظات، العلامات، الرقم المدني، الجواز، الرقم المتسلسل
+ * @param source إن وُجد يُستخدم بدل getStored() — لوحة admin/address-book تمرّر `contacts` من الخادم حتى لا يختلف الجدول بين المتصفحات */
+export function searchContacts(query: string, includeArchived = false, source?: Contact[]): Contact[] {
+  let list = source ?? getStored();
   if (!includeArchived) list = list.filter((c) => !c.archived);
   if (!query.trim()) return list;
   const q = query.trim().toLowerCase();
