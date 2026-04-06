@@ -3,7 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
-import { syncLinkedAddressBookFromUserUpdate } from '@/lib/server/syncUserToAddressBook';
+import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
 import { isValidBhdSerial } from '@/lib/server/serialNumbers';
 
 export async function GET(
@@ -145,15 +145,17 @@ export async function PATCH(
     });
 
     try {
-      await syncLinkedAddressBookFromUserUpdate(updated.id, {
+      /** نفس مسار GET linked-contact عند ضمان الصف: تحديث/إنشاء JSON دفتر العناوين فوراً دون زيارة صفحة المستخدم */
+      await ensureAddressBookContactForUser({
+        userId: updated.id,
+        serialNumber: updated.serialNumber,
         name: updated.name,
         email: updated.email,
         phone: updated.phone,
-        serialNumber: updated.serialNumber,
         role: updated.role,
       });
     } catch (syncErr) {
-      console.error('syncLinkedAddressBookFromUserUpdate:', syncErr);
+      console.error('ensureAddressBookContactForUser after PATCH user:', syncErr);
     }
 
     return NextResponse.json({

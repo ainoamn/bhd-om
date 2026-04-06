@@ -136,6 +136,7 @@ export async function syncLinkedAddressBookFromUserUpdate(
   if (!row) return;
 
   const d = { ...((row.data as Record<string, unknown>) || {}) };
+  d.name = fields.name;
   const nameParts = fields.name.trim().split(/\s+/).filter(Boolean);
   d.firstName = nameParts[0] || fields.name;
   d.familyName = nameParts.length > 1 ? nameParts[nameParts.length - 1]! : nameParts[0] || '';

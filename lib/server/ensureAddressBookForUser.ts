@@ -109,6 +109,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         data.id = cid;
         data.userId = userId;
         data.serialNumber = serialNumber;
+        data.name = name;
         data.firstName = np.firstName;
         data.secondName = np.secondName;
         data.thirdName = np.thirdName;
@@ -147,6 +148,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       data.id = existing.contactId;
       data.userId = userId;
       data.serialNumber = serialNumber;
+      data.name = name;
       data.firstName = np.firstName;
       data.secondName = np.secondName;
       data.thirdName = np.thirdName;
@@ -187,6 +189,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         data.id = byLink.contactId;
         data.userId = userId;
         data.serialNumber = serialNumber;
+        data.name = name;
         data.firstName = np.firstName;
         data.secondName = np.secondName;
         data.thirdName = np.thirdName;
@@ -228,6 +231,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       category,
       nationality: 'عماني',
       gender: 'MALE',
+      name,
       email: publicEmail,
       phone: phoneDigits,
       firstName: np.firstName,
@@ -272,6 +276,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
           merged.id = row.contactId;
           merged.userId = userId;
           merged.serialNumber = serialNumber;
+          merged.name = name;
           merged.firstName = np.firstName;
           merged.secondName = np.secondName;
           merged.thirdName = np.thirdName;

@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — تحديث المستخدم لا ينعكس في دفتر العناوين إلا بعد صفحة المستخدم / «في دفتر العناوين»
+
+- **السبب:** `PATCH /api/admin/users/[id]` كان يستدعي `syncLinkedAddressBookFromUserUpdate` فقط — إن لم يُعثر على صف (`findAddressBookRowByUserId` يعيد null) لا يُحدَّث شيء؛ ومسار `linked-contact` GET يستدعي `ensureAddressBookContactForUser` عند غياب الصف فيُنشئ/يحدّث السجل. كما أن JSON لم يخزّن `name` الصريح في بعض المسارات.
+- **الإصلاح:** بعد تحديث المستخدم نستدعي **`ensureAddressBookContactForUser`** (نفس منطق الضمان في linked-contact)؛ إضافة **`data.name`** في فروع `ensureAddressBookForUser`؛ **`d.name`** في `syncLinkedAddressBookFromUserUpdate` للاتساق.
+
 ### جلسة 2026-04-02 — دفتر العناوين: الجدول كان يقرأ من localStorage وليس من الخادم
 
 - **السبب:** `setContacts` بعد جلب `GET /api/address-book` كان يُحدّث الحالة، لكن **`searchContacts()`** كان يستدعي **`getStored()`** دائماً دون استخدام `contacts` — فعمود الجدول عرض **localStorage** (يختلف بين ملفات Chrome والأجهزة).
