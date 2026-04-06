@@ -1229,10 +1229,30 @@ export default function AdminAddressBookPage() {
         </div>
       )}
       {contactsLoadError && (
-        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
-          {locale === 'ar'
-            ? 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
-            : 'Could not load the list from the server. Sign in and refresh the page.'}
+        <div
+          className={
+            contactsLoadError === 'unauthorized_local' ||
+            contactsLoadError === 'fetch_failed_local' ||
+            contactsLoadError === 'network_local'
+              ? 'rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-amber-900 text-sm'
+              : 'rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm'
+          }
+        >
+          {contactsLoadError === 'unauthorized_local' || contactsLoadError === 'unauthorized'
+            ? locale === 'ar'
+              ? contactsLoadError === 'unauthorized_local'
+                ? 'تعذر التحقق من الجلسة مع الخادم. يُعرض أدناه نسخة محلية قديمة — سجّل الدخول ثم حدّث الصفحة لمزامنة البيانات.'
+                : 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
+              : contactsLoadError === 'unauthorized_local'
+                ? 'Could not verify your session with the server. Showing a cached local copy. Sign in and refresh to sync.'
+                : 'Could not load the list from the server. Sign in and refresh the page.'
+            : contactsLoadError === 'fetch_failed_local' || contactsLoadError === 'network_local'
+              ? locale === 'ar'
+                ? 'تعذر الاتصال بالخادم. يُعرض أدناه نسخة محلية — حدّث الصفحة أو تحقق من الشبكة.'
+                : 'Could not reach the server. Showing a local copy. Refresh or check your connection.'
+              : locale === 'ar'
+                ? 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
+                : 'Could not load the list from the server. Sign in and refresh the page.'}
         </div>
       )}
       <AdminPageHeader

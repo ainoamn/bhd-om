@@ -21,6 +21,21 @@ function isAdminLike(role: string | undefined): boolean {
   return role === 'ADMIN' || role === 'SUPER_ADMIN';
 }
 
+/** عرض جهات من التخزين المحلي عند تعذّر الخادم (للمدير أو عند غياب الدور بعد التحميل). */
+function contactsFromLocalForDisplay(
+  userRole: string | undefined,
+  showArchived: boolean
+): Contact[] {
+  try {
+    const all = getAllContacts(showArchived);
+    const dashboardType = dashboardTypeForAddressBookFilter(userRole);
+    const base = showArchived ? all : all.filter((c) => !c.archived);
+    return dashboardType ? filterContactsByRolePermissions(base, dashboardType) : base;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * جلب دفتر العناوين من الخادم فقط (طلب HTTP واحد لكل دورة).
  * للمدير: مصدر العرض = استجابة GET /api/address-book (مع هوية User من الخادم)، ثم تحديث التخزين المحلي للدوال المساعدة دون إطلاق حدث مزامنة.
@@ -98,8 +113,13 @@ export function useAdminAddressBookContacts(opts: {
         if (!res.ok) {
           if (myId !== requestIdRef.current) return;
           if (isAdminLike(userRole) || userRole === undefined) {
-            setContacts([]);
-            setError(res.status === 401 ? 'unauthorized' : 'fetch_failed');
+            const local = contactsFromLocalForDisplay(userRole, showArchived);
+            setContacts(local);
+            if (res.status === 401) {
+              setError(local.length > 0 ? 'unauthorized_local' : 'unauthorized');
+            } else {
+              setError(local.length > 0 ? 'fetch_failed_local' : 'fetch_failed');
+            }
           } else {
             try {
               const all = getAllContacts(showArchived);
@@ -141,9 +161,15 @@ export function useAdminAddressBookContacts(opts: {
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         if (myId !== requestIdRef.current) return;
-        setError('network');
-        if (!initialFetchCompletedRef.current) {
-          setContacts([]);
+        if (isAdminLike(userRole) || userRole === undefined) {
+          const local = contactsFromLocalForDisplay(userRole, showArchived);
+          setContacts(local);
+          setError(local.length > 0 ? 'network_local' : 'network');
+        } else {
+          setError('network');
+          if (!initialFetchCompletedRef.current) {
+            setContacts([]);
+          }
         }
         initialFetchCompletedRef.current = true;
       } finally {
