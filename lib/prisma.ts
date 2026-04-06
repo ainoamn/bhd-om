@@ -20,7 +20,8 @@ function createPrisma() {
     /** بردّ بارد على Vercel + Neon قد يتجاوز 10 ثوانٍ أحياناً */
     connectionTimeoutMillis: 25_000,
     idleTimeoutMillis: 60_000,
-    max: process.env.VERCEL ? 5 : 10,
+    /** تجمع 1 لكل دالة serverless — يقلّل استنفاد اتصالات Neon/Vercel Postgres */
+    max: process.env.VERCEL ? 1 : 10,
   });
   return new PrismaClient({ adapter });
 }

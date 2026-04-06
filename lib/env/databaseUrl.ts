@@ -46,10 +46,42 @@ export function appendSslModeRequireForRemoteHosts(urlStr: string): string {
   }
 }
 
+/**
+ * معاملات مناسبة لـ serverless (Vercel + Neon pooler): مهلة اتصال، ووضع pgbouncer لـ Neon عند الحاجة.
+ * @see https://neon.tech/docs/guides/prisma
+ */
+function applyServerlessPostgresParams(urlStr: string): string {
+  const trimmed = urlStr.trim();
+  if (!trimmed) return trimmed;
+  try {
+    const usePostgresScheme = trimmed.startsWith('postgres://');
+    const forParse = trimmed.replace(/^postgres:\/\//i, 'postgresql://');
+    const u = new URL(forParse);
+    const host = u.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      return trimmed;
+    }
+    if (!u.searchParams.has('connect_timeout')) {
+      u.searchParams.set('connect_timeout', '30');
+    }
+    /** فقط لعنوان Neon المجمّع (pooler) — لا نضيفها لرابط الاتصال المباشر */
+    if (host.includes('pooler') && host.includes('neon') && !u.searchParams.has('pgbouncer')) {
+      u.searchParams.set('pgbouncer', 'true');
+    }
+    let out = u.toString();
+    if (usePostgresScheme) {
+      out = out.replace(/^postgresql:\/\//i, 'postgres://');
+    }
+    return out;
+  } catch {
+    return trimmed;
+  }
+}
+
 /** للتطبيق (Next): في الإنتاج بدون أي رابط صالح يُرجع سلسلة فارغة ليُرفَض الإنشاء بوضوح */
 export function getDatabaseUrlForRuntime(): string {
   const found = firstPostgresUrl();
-  if (found) return appendSslModeRequireForRemoteHosts(found);
+  if (found) return applyServerlessPostgresParams(appendSslModeRequireForRemoteHosts(found));
   if (process.env.NODE_ENV === 'production') return '';
   return LOCAL_DEV_DEFAULT;
 }
@@ -57,6 +89,6 @@ export function getDatabaseUrlForRuntime(): string {
 /** لأداة Prisma CLI (migrate / db push): دائماً عنوان صالح للتطوير المحلي عند الغياب */
 export function getDatabaseUrlForPrismaCli(): string {
   const found = firstPostgresUrl();
-  if (found) return appendSslModeRequireForRemoteHosts(found);
+  if (found) return applyServerlessPostgresParams(appendSslModeRequireForRemoteHosts(found));
   return LOCAL_DEV_DEFAULT;
 }
