@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams, usePathname, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -33,10 +33,6 @@ import {
   validateCivilIdExpiry,
   validatePassportExpiry,
   contactAddressHasUsableContent,
-  mergeAddressBookApiWithLocal,
-  mergeServerContactIntoLocalStorage,
-  persistAddressBookContactsLocally,
-  contactRevisionMs,
   rewriteLocalAddressBookDeduped,
   findDuplicateContactFields,
   findContactsByCivilIdOrName,
@@ -73,6 +69,7 @@ import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import { filterContactsByRolePermissions } from '@/lib/data/contactCategoryPermissions';
 import { ROLE_TO_DASHBOARD_TYPE } from '@/lib/config/dashboardRoles';
+import { useAdminAddressBookContacts } from '@/lib/hooks/useAdminAddressBookContacts';
 
 /** فقط CLIENT/OWNER يُصفّيان حسب التصنيف؛ المدير وباقي الأدوار يرون القائمة كاملة */
 function dashboardTypeForAddressBookFilter(role: string | undefined) {
@@ -179,7 +176,6 @@ function normPhoneLast8(raw: string) {
 
 export default function AdminAddressBookPage() {
   const params = useParams();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const locale = (params?.locale as string) || 'ar';
   const { data: session, status: sessionStatus } = useSession();
@@ -195,7 +191,6 @@ export default function AdminAddressBookPage() {
   const isEmbedAdd = searchParams.get('embed') === 'add';
   const embedCategory = searchParams.get('category') || '';
 
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<ContactCategory | 'ALL'>('ALL');
   const [filterContactType, setFilterContactType] = useState<ContactType | 'ALL'>('ALL');
@@ -218,28 +213,23 @@ export default function AdminAddressBookPage() {
   const [creatingAccounts, setCreatingAccounts] = useState(false);
   const [mergeResult, setMergeResult] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const {
+    contacts,
+    setContacts,
+    loading: contactsLoading,
+    error: contactsLoadError,
+    refresh: refreshAddressBookFromServer,
+  } = useAdminAddressBookContacts({
+    sessionStatus,
+    userRole,
+    showArchived,
+  });
   const [generatedCreds, setGeneratedCreds] = useState<{ email?: string; tempPassword: string; serialNumber?: string } | null>(null);
   const [repLinkModal, setRepLinkModal] = useState<{ repIdx: number; matches: Contact[] } | null>(null);
   const [repSearchTarget, setRepSearchTarget] = useState<number | null>(null);
   const [repDropdownOpen, setRepDropdownOpen] = useState<number | null>(null);
   const repDropdownRef = useRef<HTMLDivElement | null>(null);
-  const [serverSyncKey, setServerSyncKey] = useState(0);
-  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
-  /** أول دخول لمسار دفتر العناوين في هذه الجلسة — لا نكرّر الجلب عند التحميل الأول */
-  const skipNextPathnameRefetchRef = useRef(true);
-  /** بعد أول اكتمال جلب (نجاح أو فشل): لا نُظهر هيكل التحميل الكامل عند إعادة الجلب — يمنع اختفاء الأسماء لثانية */
-  const addressBookListLoadedOnceRef = useRef(false);
   useEffect(() => setMounted(true), []);
-
-  /** إعادة جلب من الخادم عند العودة من «حسابي» أو صفحة أخرى (SPA) — CustomEvent لا يُستقبل إذا لم تكن الصفحة مُحمَّلة */
-  useEffect(() => {
-    if (!pathname?.includes('/admin/address-book')) return;
-    if (skipNextPathnameRefetchRef.current) {
-      skipNextPathnameRefetchRef.current = false;
-      return;
-    }
-    setServerSyncKey((k) => k + 1);
-  }, [pathname]);
 
   useEffect(() => {
     let alive = true;
@@ -322,173 +312,28 @@ export default function AdminAddressBookPage() {
     setContacts(filtered);
   };
 
-  /** إعادة جلب القائمة من الخادم — مصدر الحقيقي بين المتصفحات والأجهزة */
-  const refreshAddressBookFromServer = () => setServerSyncKey((k) => k + 1);
-
+  /** إشعار من تبويب آخر أو من emit بعد الحفظ — إعادة جلب مؤجلة لتجنّب تعارض الطلبات */
   useEffect(() => {
-    /** أثناء loading نجلب بـ credentials — لا ننتظر useSession (يزيد التأخير مرصوفاً مع الـ layout) */
-    if (sessionStatus === 'unauthenticated') {
-      addressBookListLoadedOnceRef.current = false;
-      setContacts([]);
-      setIsLoadingContacts(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      if (!addressBookListLoadedOnceRef.current) {
-        setIsLoadingContacts(true);
-      }
-      let listFromApi: Contact[] = [];
-      let firstApiOk = false;
-      try {
-        /** limit=0 (أو بدون limit) يعيد كل الصفوف من الخادم — limit=200 كان يقطع القائمة ويُظهر بيانات ناقصة */
-        const res = await fetch(`/api/address-book?_=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
-        firstApiOk = res.ok;
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) listFromApi = data as Contact[];
-        }
-      } catch {
-        // ignore
-      }
-      if (!firstApiOk) {
-        if (!cancelled) {
-          if (isAdminAddressBookViewer(userRole)) {
-            setContacts([]);
-          } else {
-            try {
-              const all = getAllContacts(showArchived);
-              const dashboardType = dashboardTypeForAddressBookFilter(userRole);
-              const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
-              setContacts(filtered);
-            } catch {
-              setContacts([]);
-            }
-          }
-          addressBookListLoadedOnceRef.current = true;
-          setIsLoadingContacts(false);
-        }
-        return;
-      }
-      const localContacts = isAdminAddressBookViewer(userRole) ? [] : getAllContacts(true);
-      const merged = mergeAddressBookApiWithLocal(listFromApi, localContacts);
-      const apiById = new Map(listFromApi.map((c) => [c.id, c]));
-      const apiUserIds = new Set(
-        listFromApi.map((c) => (c as Contact).userId?.trim()).filter((x): x is string => !!x)
-      );
-      /** ارفع للخادم أي جهة محلية غير موجودة بـ id؛ إن وُجد مستخدم على الخادم لنفس userId لا نكرّر الرفع */
-      const toSync = merged.filter((c) => {
-        const apiC = apiById.get(c.id);
-        if (apiC) return false;
-        const uid = (c as Contact).userId?.trim();
-        if (uid && apiUserIds.has(uid)) return false;
-        return true;
-      });
-      if (toSync.length > 0) {
-        await fetch('/api/address-book/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(toSync),
-        }).catch(() => {});
-      }
-      let toPersist = merged;
-      try {
-        const resAfter = await fetch(`/api/address-book?_=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
-        if (resAfter.ok) {
-          const dataAfter = await resAfter.json();
-          if (Array.isArray(dataAfter)) {
-            toPersist = isAdminAddressBookViewer(userRole)
-              ? mergeAddressBookApiWithLocal(dataAfter as Contact[], [])
-              : mergeAddressBookApiWithLocal(dataAfter as Contact[], merged);
-          }
-        }
-      } catch {
-        /* بعد فشل الجلب نحتفظ بـ merged */
-      }
-      persistAddressBookContactsLocally(toPersist);
-      /** الجدول يعرض من آخر دمج خادم — سابقاً searchContacts كان يقرأ من localStorage فقط فلا يعتمد على setContacts هنا */
-      const baseForDisplay = showArchived ? toPersist : toPersist.filter((c) => !c.archived);
-      const dashboardTypeForList = dashboardTypeForAddressBookFilter(userRole);
-      const filteredFromServer = dashboardTypeForList
-        ? filterContactsByRolePermissions(baseForDisplay, dashboardTypeForList)
-        : baseForDisplay;
-      if (!cancelled) setContacts(filteredFromServer);
-
-      /** للمدير لا ندمج جهات محلية قديمة؛ للعميل/المالك نُحدّث التخزين المحلي كما سابقاً */
-      if (!isAdminAddressBookViewer(userRole)) {
-        const linkedFromApi = (toPersist as Contact[]).filter((c) => c.userId?.trim());
-        if (linkedFromApi.length > 0) {
-          const byUid = new Map<string, Contact>();
-          for (const c of linkedFromApi) {
-            const uid = c.userId!.trim();
-            const prev = byUid.get(uid);
-            if (!prev || contactRevisionMs(c) > contactRevisionMs(prev)) {
-              byUid.set(uid, c);
-            }
-          }
-          for (const c of byUid.values()) {
-            mergeServerContactIntoLocalStorage(c);
-          }
-        }
-      }
-      if (cancelled) return;
-      if (!isAdminAddressBookViewer(userRole)) {
-        try {
-          const result = syncBookingContactsToAddressBook();
-          rewriteLocalAddressBookDeduped();
-          if (result.added > 0 || result.updated > 0) setSyncResult(result);
-        } catch {
-          /* لا نستبدل الجدول بـ getAllContacts — المحلي يختلف بين المتصفحات */
-        }
-      }
-      addressBookListLoadedOnceRef.current = true;
-      setIsLoadingContacts(false);
-    })();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const debouncedRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        refreshAddressBookFromServer();
+      }, 450);
+    };
+    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, debouncedRefresh);
     const onStorage = (e: StorageEvent) => {
-      if (
-        e.key === 'bhd_address_book' ||
-        e.key === ADDRESS_BOOK_REVISION_KEY ||
-        e.key === 'bhd_property_bookings' ||
-        e.key === 'bhd_contact_category_permissions'
-      ) {
-        try {
-          if (!isAdminAddressBookViewer(userRole)) {
-            syncBookingContactsToAddressBook();
-          }
-        } catch {}
-        setServerSyncKey((k) => k + 1);
+      if (e.key === ADDRESS_BOOK_REVISION_KEY || e.key === 'bhd_address_book') {
+        debouncedRefresh();
       }
     };
     window.addEventListener('storage', onStorage);
     return () => {
-      cancelled = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, debouncedRefresh);
       window.removeEventListener('storage', onStorage);
     };
-  }, [showArchived, userRole, serverSyncKey, sessionStatus]);
-
-  useEffect(() => {
-    const onUpdated = () => setServerSyncKey((k) => k + 1);
-    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, onUpdated);
-    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onUpdated);
-  }, []);
-
-  /** إعادة جلب عند العودة من تبويب آخر فقط — حدث visible عند أول تحميل للصفحة كان يُعيد الجلب ويُخفي الجدول */
-  const addressBookTabWasHiddenRef = useRef(false);
-  useEffect(() => {
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        addressBookTabWasHiddenRef.current = true;
-        return;
-      }
-      if (document.visibilityState === 'visible' && addressBookTabWasHiddenRef.current) {
-        addressBookTabWasHiddenRef.current = false;
-        setServerSyncKey((k) => k + 1);
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, []);
+  }, [refreshAddressBookFromServer]);
 
   useEffect(() => {
     if (isEmbedAdd && mounted) {
@@ -519,7 +364,7 @@ export default function AdminAddressBookPage() {
       if (!res.ok) throw new Error('Failed');
       const payload = (await res.json().catch(() => ({}))) as { ensured?: number; total?: number };
       const added = typeof payload.ensured === 'number' ? payload.ensured : 0;
-      setServerSyncKey((k) => k + 1);
+      refreshAddressBookFromServer();
       emitAddressBookUpdated();
       setSyncFromUsersResult(added);
       setTimeout(() => setSyncFromUsersResult(null), 4000);
@@ -1378,11 +1223,33 @@ export default function AdminAddressBookPage() {
           {locale === 'ar' ? 'جميع جهات الاتصال لديها حسابات مستخدمين بالفعل.' : 'All contacts already have user accounts.'}
         </div>
       )}
+      {contactsLoadError && (
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
+          {locale === 'ar'
+            ? 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
+            : 'Could not load the list from the server. Sign in and refresh the page.'}
+        </div>
+      )}
       <AdminPageHeader
         title={t('title')}
         subtitle={t('subtitle')}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/${locale}/admin/users`}
+              prefetch={true}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-all no-print"
+            >
+              {locale === 'ar' ? 'حسابات المستخدمين' : 'User accounts'}
+            </Link>
+            <Link
+              href={`/${locale}/admin/users?addUser=1`}
+              prefetch={true}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-all shadow-sm no-print"
+            >
+              <span>➕</span>
+              {locale === 'ar' ? 'مستخدم جديد' : 'New user'}
+            </Link>
             <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer">
               <span>📤</span>
               {t('importCsv')}
@@ -1551,7 +1418,7 @@ export default function AdminAddressBookPage() {
           </div>
         </div>
 
-        {isLoadingContacts ? (
+        {contactsLoading ? (
           <div className="p-6 space-y-3">
             <div className="h-10 rounded bg-gray-100 animate-pulse" />
             <div className="h-10 rounded bg-gray-100 animate-pulse" />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
@@ -249,6 +249,9 @@ function EditUserModal({
 
 export default function UsersAdminPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('usersAdmin');
 
@@ -266,6 +269,15 @@ export default function UsersAdminPage() {
   const [resetResult, setResetResult] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
   const [addedUserCreds, setAddedUserCreds] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get('addUser') !== '1') return;
+    setShowAddUser(true);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('addUser');
+    const q = next.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
 
   const buildFallbackUsers = useCallback(async (): Promise<UserRow[]> => {
     const rows: UserRow[] = [];
