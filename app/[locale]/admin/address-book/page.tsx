@@ -174,6 +174,8 @@ function normPhoneLast8(raw: string) {
   return d.length >= 8 ? d.slice(-8) : d;
 }
 
+const ADDRESS_BOOK_SYNC_BANNER_KEY = 'addressBookSyncBannerDismissed';
+
 export default function AdminAddressBookPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -229,6 +231,36 @@ export default function AdminAddressBookPage() {
     userRole,
     showArchived,
   });
+
+  const [localSyncBannerDismissed, setLocalSyncBannerDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(ADDRESS_BOOK_SYNC_BANNER_KEY) === '1') {
+        setLocalSyncBannerDismissed(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    if (!contactsLoadError) {
+      try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(ADDRESS_BOOK_SYNC_BANNER_KEY);
+      } catch {
+        /* ignore */
+      }
+      setLocalSyncBannerDismissed(false);
+    }
+  }, [contactsLoadError]);
+
+  const isLocalCacheLoadError =
+    contactsLoadError === 'fetch_failed_db_local' ||
+    contactsLoadError === 'fetch_failed_local' ||
+    contactsLoadError === 'network_local' ||
+    contactsLoadError === 'unauthorized_local';
+  const showCompactSyncBanner = Boolean(contactsLoadError && isLocalCacheLoadError && !localSyncBannerDismissed);
+  const showFullLoadErrorBanner = Boolean(contactsLoadError && !isLocalCacheLoadError);
+
   const [generatedCreds, setGeneratedCreds] = useState<{ email?: string; tempPassword: string; serialNumber?: string } | null>(null);
   const [repLinkModal, setRepLinkModal] = useState<{ repIdx: number; matches: Contact[] } | null>(null);
   const [repSearchTarget, setRepSearchTarget] = useState<number | null>(null);
@@ -1228,40 +1260,57 @@ export default function AdminAddressBookPage() {
           {locale === 'ar' ? 'جميع جهات الاتصال لديها حسابات مستخدمين بالفعل.' : 'All contacts already have user accounts.'}
         </div>
       )}
-      {contactsLoadError && (
-        <div
-          className={
-            contactsLoadError === 'unauthorized_local' ||
-            contactsLoadError === 'fetch_failed_local' ||
-            contactsLoadError === 'fetch_failed_db_local' ||
-            contactsLoadError === 'network_local'
-              ? 'rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-amber-900 text-sm'
-              : 'rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm'
-          }
-        >
-          {contactsLoadError === 'fetch_failed_db_local' || contactsLoadError === 'fetch_failed_db'
-            ? locale === 'ar'
-              ? contactsLoadError === 'fetch_failed_db_local'
-                ? 'تعذر الاتصال بقاعدة البيانات على الخادم. يُعرض أدناه نسخة محلية قديمة. تحقق من أن DATABASE_URL مُعرَّف في بيئة التشغيل (مثل Vercel) وأن قاعدة البيانات تعمل، ثم حدّث الصفحة.'
-                : 'تعذر الاتصال بقاعدة البيانات. أضف أو صحّح DATABASE_URL في إعدادات النشر ثم أعد المحاولة.'
-              : contactsLoadError === 'fetch_failed_db_local'
-                ? 'The server database is unavailable. Showing a cached local copy. Set DATABASE_URL in your deployment environment and ensure the database is reachable, then refresh.'
-                : 'Could not connect to the database. Configure DATABASE_URL in the deployment environment and try again.'
-            : contactsLoadError === 'unauthorized_local' || contactsLoadError === 'unauthorized'
+      {showCompactSyncBanner && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-950 text-sm">
+          <span className="flex-1 min-w-[12rem]">
+            {contactsLoadError === 'fetch_failed_db_local'
               ? locale === 'ar'
-                ? contactsLoadError === 'unauthorized_local'
-                  ? 'تعذر التحقق من الجلسة مع الخادم. يُعرض أدناه نسخة محلية قديمة — سجّل الدخول ثم حدّث الصفحة لمزامنة البيانات.'
-                  : 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
-                : contactsLoadError === 'unauthorized_local'
-                  ? 'Could not verify your session with the server. Showing a cached local copy. Sign in and refresh to sync.'
-                  : 'Could not load the list from the server. Sign in and refresh the page.'
-              : contactsLoadError === 'fetch_failed_local' || contactsLoadError === 'network_local'
+                ? 'قاعدة البيانات على الخادم غير متصلة — يُعرض محتوى محفوظاً في المتصفح (قد يكون قديماً).'
+                : 'Server database unreachable — showing browser-stored contacts (may be outdated).'
+              : contactsLoadError === 'unauthorized_local'
                 ? locale === 'ar'
-                  ? 'تعذر الاتصال بالخادم. يُعرض أدناه نسخة محلية — حدّث الصفحة أو تحقق من الشبكة.'
-                  : 'Could not reach the server. Showing a local copy. Refresh or check your connection.'
+                  ? 'تعذر التحقق من الجلسة — يُعرض عرض محلي.'
+                  : 'Session could not be verified — showing local copy.'
                 : locale === 'ar'
-                  ? 'تعذر تحميل القائمة من الخادم. تأكد من تسجيل الدخول ثم حدّث الصفحة.'
-                  : 'Could not load the list from the server. Sign in and refresh the page.'}
+                  ? 'تعذر الاتصال بالخادم — يُعرض عرض محلي.'
+                  : 'Could not reach the server — showing local copy.'}
+          </span>
+          <button
+            type="button"
+            onClick={() => void refreshAddressBookFromServer()}
+            className="shrink-0 px-3 py-1.5 rounded-lg font-semibold bg-amber-200/80 hover:bg-amber-300 text-amber-950 transition-colors"
+          >
+            {locale === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                sessionStorage.setItem(ADDRESS_BOOK_SYNC_BANNER_KEY, '1');
+              } catch {
+                /* ignore */
+              }
+              setLocalSyncBannerDismissed(true);
+            }}
+            className="shrink-0 px-2 py-1.5 text-amber-800/90 hover:underline text-sm"
+          >
+            {locale === 'ar' ? 'إخفاء' : 'Dismiss'}
+          </button>
+        </div>
+      )}
+      {showFullLoadErrorBanner && (
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
+          {contactsLoadError === 'fetch_failed_db'
+            ? locale === 'ar'
+              ? 'تعذر الاتصال بقاعدة البيانات. أضف DATABASE_URL أو POSTGRES_PRISMA_URL في Vercel ثم أعد النشر.'
+              : 'Could not connect to the database. Add DATABASE_URL or POSTGRES_PRISMA_URL in Vercel and redeploy.'
+            : contactsLoadError === 'unauthorized'
+              ? locale === 'ar'
+                ? 'تعذر تحميل القائمة من الخادم. سجّل الدخول ثم حدّث الصفحة.'
+                : 'Could not load the list from the server. Sign in and refresh.'
+              : locale === 'ar'
+                ? 'تعذر تحميل القائمة من الخادم. حدّث الصفحة أو تحقق من الشبكة.'
+                : 'Could not load the list. Refresh or check your connection.'}
         </div>
       )}
       <AdminPageHeader

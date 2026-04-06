@@ -100,19 +100,25 @@ export function useAdminAddressBookContacts(opts: {
             signal: ac.signal,
           });
 
+        const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+        const is5xx = (s: number) => s === 500 || s === 502 || s === 503 || s === 504;
+
         let res = await fetchOnce();
         if (res.status === 401) {
-          await new Promise((r) => setTimeout(r, 400));
+          await delay(400);
           res = await fetchOnce();
         }
         if (res.status === 401) {
-          await new Promise((r) => setTimeout(r, 700));
+          await delay(700);
           res = await fetchOnce();
         }
-        /** إعادة محاولة واحدة عند أخطاء خادم/قاعدة مؤقتة (بردّ بارد، مهلة اتصال، إلخ) */
-        if (res.status === 502 || res.status === 503 || res.status === 504 || res.status === 500) {
-          await new Promise((r) => setTimeout(r, 650));
+        /** عدة محاولات عند 5xx — بردّ بارد، قاعدة غير جاهزة، مهلات Neon/Vercel */
+        let fivexxAttempts = 0;
+        const max5xxAttempts = 5;
+        while (fivexxAttempts < max5xxAttempts && is5xx(res.status)) {
+          await delay(450 + fivexxAttempts * 550);
           res = await fetchOnce();
+          fivexxAttempts += 1;
         }
 
         if (!res.ok) {
