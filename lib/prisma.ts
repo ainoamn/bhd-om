@@ -1,22 +1,17 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { getDatabaseUrlForRuntime } from '@/lib/env/databaseUrl';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
 function createPrisma() {
-  const raw = process.env.DATABASE_URL?.trim();
-  const connectionString =
-    raw && (raw.startsWith('postgresql://') || raw.startsWith('postgres://'))
-      ? raw
-      : process.env.NODE_ENV === 'production'
-        ? '' // في الإنتاج لا نستخدم localhost — يجب تعيين DATABASE_URL في Vercel
-        : 'postgresql://postgres:postgres@127.0.0.1:5432/bhd_om';
+  const connectionString = getDatabaseUrlForRuntime();
 
   if (!connectionString) {
     throw new Error(
-      'DATABASE_URL غير معرّف. أضفه في Vercel: Settings → Environment Variables (رابط PostgreSQL من Neon أو Vercel Postgres).'
+      'DATABASE_URL غير معرّف. في Vercel: أضف DATABASE_URL أو فعّل Vercel Postgres (يُحقن POSTGRES_PRISMA_URL / POSTGRES_URL). Settings → Environment Variables.'
     );
   }
 
