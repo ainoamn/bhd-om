@@ -4,7 +4,7 @@
  *
  * - `User.name` مصدر الاسم الكامل المعروض؛ يُخزَّن في `data.name`.
  * - إذا وُجدت أجزاء في JSON وتطابق دمجها `User.name` نحتفظ بها (أسماء مركبة محفوظة من «حسابي»).
- * - إذا اختلف الدمج عن `User.name` (صف قديم/مكرر أو تعديل من لوحة أخرى) نعيد اشتقاق الأجزاء من الاسم الكامل.
+ * - إذا اختلف الدمج عن `User.name` لا نعيد تقسيم الاسم بالمسافات — التقسيم البسيط يفقد مقاطع (5+ كلمات) ويُظهر اسماً ناقصاً؛ يبقى الحقل `name` من User والأجزاء القديمة في JSON للنماذج، والعرض يعتمد `getContactDisplayName` ليعطي الأولوية لـ `name` عند التعارض.
  */
 
 function normSpaces(s: string): string {
@@ -70,7 +70,7 @@ export function applyUserIdentityToContactJson(
     if (partsJoined && partsJoined === un) {
       return;
     }
-    applyNamePartsFromUserFullName(data, user.name);
+    /** لا تستدعِ applyNamePartsFromUserFullName — يُسقط مقاطع وسطى من الأسماء الطويلة ويُفسد العرض مقارنة بجدول User */
     return;
   }
   applyNamePartsFromUserFullName(data, user.name);
