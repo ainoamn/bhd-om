@@ -6,6 +6,7 @@
 import { Prisma } from '@prisma/client';
 import type { UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { applySplitFullNameToContactJson } from '@/lib/server/namePartsFromFullName';
 
 function normalizeDigitsPhone(raw: string): string {
   let digits = raw.replace(/\D/g, '');
@@ -137,16 +138,7 @@ export async function syncLinkedAddressBookFromUserUpdate(
 
   const d = { ...((row.data as Record<string, unknown>) || {}) };
   d.name = fields.name;
-  const nameParts = fields.name.trim().split(/\s+/).filter(Boolean);
-  d.firstName = nameParts[0] || fields.name;
-  d.familyName = nameParts.length > 1 ? nameParts[nameParts.length - 1]! : nameParts[0] || '';
-  if (nameParts.length > 3) {
-    d.secondName = nameParts[1];
-    d.thirdName = nameParts[2];
-  } else if (nameParts.length === 3) {
-    d.secondName = nameParts[1];
-    d.thirdName = undefined;
-  }
+  applySplitFullNameToContactJson(d, fields.name);
   d.email = fields.email.includes('@nologin.bhd') ? undefined : fields.email;
   if (fields.phone?.trim()) {
     d.phone = normalizeDigitsPhone(fields.phone);

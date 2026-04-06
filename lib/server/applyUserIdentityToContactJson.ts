@@ -4,8 +4,10 @@
  *
  * - `User.name` مصدر الاسم الكامل المعروض؛ يُخزَّن في `data.name`.
  * - إذا وُجدت أجزاء في JSON وتطابق دمجها `User.name` نحتفظ بها (أسماء مركبة محفوظة من «حسابي»).
- * - إذا اختلف الدمج عن `User.name` لا نعيد تقسيم الاسم بالمسافات — التقسيم البسيط يفقد مقاطع (5+ كلمات) ويُظهر اسماً ناقصاً؛ يبقى الحقل `name` من User والأجزاء القديمة في JSON للنماذج، والعرض يعتمد `getContactDisplayName` ليعطي الأولوية لـ `name` عند التعارض.
+ * - إذا اختلف الدمج عن `User.name` نُعيد تعبئة الأجزاء عبر `splitFullNameToParts` (لا حذف للمقطع قبل العائلة؛ الاسم الثاني المركّب يُجمَّع في حقل واحد).
  */
+
+import { applySplitFullNameToContactJson } from '@/lib/server/namePartsFromFullName';
 
 function normSpaces(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
@@ -24,24 +26,6 @@ function joinedPartsFromData(data: Record<string, unknown>): string {
     .map((k) => (typeof data[k] === 'string' ? String(data[k]).trim() : ''))
     .filter((x) => x.length > 0);
   return normSpaces(parts.join(' '));
-}
-
-/** Fallback: لا يوجد إلا الاسم الكامل — تقسيم بسيط (عند عدم تطابق أجزاء JSON مع User.name) */
-function applyNamePartsFromUserFullName(data: Record<string, unknown>, fullName: string): void {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return;
-  data.firstName = parts[0];
-  data.familyName = parts.length > 1 ? parts[parts.length - 1]! : parts[0];
-  if (parts.length > 3) {
-    data.secondName = parts[1];
-    data.thirdName = parts[2];
-  } else if (parts.length === 3) {
-    data.secondName = parts[1];
-    data.thirdName = undefined;
-  } else {
-    data.secondName = undefined;
-    data.thirdName = undefined;
-  }
 }
 
 export function applyUserIdentityToContactJson(
@@ -66,12 +50,8 @@ export function applyUserIdentityToContactJson(
   }
 
   const partsJoined = joinedPartsFromData(data);
-  if (hasStoredNameParts(data)) {
-    if (partsJoined && partsJoined === un) {
-      return;
-    }
-    /** لا تستدعِ applyNamePartsFromUserFullName — يُسقط مقاطع وسطى من الأسماء الطويلة ويُفسد العرض مقارنة بجدول User */
+  if (hasStoredNameParts(data) && partsJoined && normSpaces(partsJoined) === un) {
     return;
   }
-  applyNamePartsFromUserFullName(data, user.name);
+  applySplitFullNameToContactJson(data, user.name);
 }

@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — تقسيم الاسم الكامل: حذف مقطع وسيط وتفريق «عبد الحميد» بين الثاني والثالث
+
+- **السبب:** `namePartsFromFullName` القديمة كانت تضع `secondName=parts[1]` و`thirdName=parts[2]` وتُسقط `parts[3]` عند خمس كلمات؛ وتفريق كلمة مركّبة في حقلين.
+- **الإصلاح:** `lib/server/namePartsFromFullName.ts` — `splitFullNameToParts` / `applySplitFullNameToContactJson` (3+ مقاطع وسطى: الثاني مركّب = ما عدا المقطع قبل العائلة، الثالث = المقطع الأخير قبل العائلة). استخدامها في `ensureAddressBookForUser`، `applyUserIdentityToContactJson` (عند تعارض الأجزاء مع `User.name`)، `syncLinkedAddressBookFromUserUpdate`.
+
 ### جلسة 2026-04-02 — تحديث المستخدم لا ينعكس في دفتر العناوين إلا بعد صفحة المستخدم / «في دفتر العناوين»
 
 - **السبب:** `PATCH /api/admin/users/[id]` كان يستدعي `syncLinkedAddressBookFromUserUpdate` فقط — إن لم يُعثر على صف (`findAddressBookRowByUserId` يعيد null) لا يُحدَّث شيء؛ ومسار `linked-contact` GET يستدعي `ensureAddressBookContactForUser` عند غياب الصف فيُنشئ/يحدّث السجل. كما أن JSON لم يخزّن `name` الصريح في بعض المسارات.

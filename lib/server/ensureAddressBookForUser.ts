@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { deleteOtherAddressBookRowsForUser } from '@/lib/server/addressBookDedupe';
 import { upsertAddressBookContactFallback } from '@/lib/server/addressBookContactUpsert';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
+import { applySplitFullNameToContactJson } from '@/lib/server/namePartsFromFullName';
 
 /** إزالة التكرار لا يجب أن تُسقط ضمان الصف — فشل SQL نادر (صلاحيات/لهجة DB) */
 async function safeDeleteOtherAddressBookRowsForUser(keepContactId: string, userId: string): Promise<void> {
@@ -64,16 +65,6 @@ async function createAddressBookRowWithoutLinkedUserIdColumn(params: {
   }
 }
 
-function namePartsFromFullName(name: string) {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
-  return {
-    firstName: parts[0] || '—',
-    secondName: parts.length > 3 ? parts[1] : undefined,
-    thirdName: parts.length > 4 ? parts[2] : undefined,
-    familyName: parts.length > 1 ? parts[parts.length - 1]! : parts[0] || '',
-  };
-}
-
 export type EnsureAddressBookUserInput = {
   userId: string;
   serialNumber: string;
@@ -97,7 +88,6 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
   if (!phoneDigits || phoneDigits.replace(/\D/g, '').length < 8) {
     phoneDigits = '968' + String(Date.now()).slice(-7);
   }
-  const np = namePartsFromFullName(name);
   const now = new Date().toISOString();
 
   try {
@@ -110,10 +100,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         data.userId = userId;
         data.serialNumber = serialNumber;
         data.name = name;
-        data.firstName = np.firstName;
-        data.secondName = np.secondName;
-        data.thirdName = np.thirdName;
-        data.familyName = np.familyName;
+        applySplitFullNameToContactJson(data, name);
         data.email = publicEmail;
         data.phone = phoneDigits;
         data.category = category;
@@ -149,10 +136,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       data.userId = userId;
       data.serialNumber = serialNumber;
       data.name = name;
-      data.firstName = np.firstName;
-      data.secondName = np.secondName;
-      data.thirdName = np.thirdName;
-      data.familyName = np.familyName;
+      applySplitFullNameToContactJson(data, name);
       data.email = publicEmail;
       data.phone = phoneDigits;
       data.category = category;
@@ -190,10 +174,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
         data.userId = userId;
         data.serialNumber = serialNumber;
         data.name = name;
-        data.firstName = np.firstName;
-        data.secondName = np.secondName;
-        data.thirdName = np.thirdName;
-        data.familyName = np.familyName;
+        applySplitFullNameToContactJson(data, name);
         data.email = publicEmail;
         data.phone = phoneDigits;
         data.category = category;
@@ -234,16 +215,13 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
       name,
       email: publicEmail,
       phone: phoneDigits,
-      firstName: np.firstName,
-      secondName: np.secondName,
-      thirdName: np.thirdName,
-      familyName: np.familyName,
       address: { fullAddress: '—', fullAddressEn: '—' },
       userId,
       serialNumber,
       createdAt: now,
       updatedAt: now,
     };
+    applySplitFullNameToContactJson(data, name);
     const dataCreateSafe = sanitizeJsonForPrisma(data);
 
     try {
@@ -277,10 +255,7 @@ export async function ensureAddressBookContactForUser(input: EnsureAddressBookUs
           merged.userId = userId;
           merged.serialNumber = serialNumber;
           merged.name = name;
-          merged.firstName = np.firstName;
-          merged.secondName = np.secondName;
-          merged.thirdName = np.thirdName;
-          merged.familyName = np.familyName;
+          applySplitFullNameToContactJson(merged, name);
           merged.email = publicEmail;
           merged.phone = phoneDigits;
           merged.category = category;
