@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -81,7 +81,11 @@ function dashboardTypeForAddressBookFilter(role: string | undefined) {
   return undefined;
 }
 import UserBarcode from '@/components/admin/UserBarcode';
-import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
+import {
+  ADDRESS_BOOK_UPDATED_EVENT,
+  ADDRESS_BOOK_REVISION_KEY,
+  emitAddressBookUpdated,
+} from '@/lib/utils/addressBookEvents';
 
 const CATEGORY_KEYS: Record<ContactCategory, string> = {
   CLIENT: 'categoryClient',
@@ -170,6 +174,7 @@ function normPhoneLast8(raw: string) {
 
 export default function AdminAddressBookPage() {
   const params = useParams();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const locale = (params?.locale as string) || 'ar';
   const { data: session, status: sessionStatus } = useSession();
@@ -210,7 +215,19 @@ export default function AdminAddressBookPage() {
   const repDropdownRef = useRef<HTMLDivElement | null>(null);
   const [serverSyncKey, setServerSyncKey] = useState(0);
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
+  /** أول دخول لمسار دفتر العناوين في هذه الجلسة — لا نكرّر الجلب عند التحميل الأول */
+  const skipNextPathnameRefetchRef = useRef(true);
   useEffect(() => setMounted(true), []);
+
+  /** إعادة جلب من الخادم عند العودة من «حسابي» أو صفحة أخرى (SPA) — CustomEvent لا يُستقبل إذا لم تكن الصفحة مُحمَّلة */
+  useEffect(() => {
+    if (!pathname?.includes('/admin/address-book')) return;
+    if (skipNextPathnameRefetchRef.current) {
+      skipNextPathnameRefetchRef.current = false;
+      return;
+    }
+    setServerSyncKey((k) => k + 1);
+  }, [pathname]);
 
   useEffect(() => {
     let alive = true;
@@ -402,7 +419,12 @@ export default function AdminAddressBookPage() {
       setIsLoadingContacts(false);
     })();
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'bhd_address_book' || e.key === 'bhd_property_bookings' || e.key === 'bhd_contact_category_permissions') {
+      if (
+        e.key === 'bhd_address_book' ||
+        e.key === ADDRESS_BOOK_REVISION_KEY ||
+        e.key === 'bhd_property_bookings' ||
+        e.key === 'bhd_contact_category_permissions'
+      ) {
         try {
           syncBookingContactsToAddressBook();
         } catch {}
