@@ -483,8 +483,6 @@ export function isOmaniNationality(nationality: string): boolean {
 }
 
 const STORAGE_KEY = 'bhd_address_book';
-let didBulkSyncContacts = false;
-let bulkSyncContactsInProgress = false;
 let didHydrateContactsFromServer = false;
 let hydrateContactsInProgress = false;
 /** يُحمَّل مرة من localStorage قبل أي قراءة — وإلا تبقى الذاكرة [] وتُمسح القائمة عند rewrite بعد setItem مباشرة */
@@ -691,8 +689,8 @@ function ensureSerialNumbers(list: Contact[]): Contact[] {
   return list.map((c) => (serialMap[c.id] ? { ...c, serialNumber: serialMap[c.id] } : c));
 }
 
+/** بدون رفع تلقائي لكل الجهات إلى الخادم — كان يسبب استبدال بيانات DB بنسخة قديمة من متصفح آخر. */
 export function getAllContacts(includeArchived = false): Contact[] {
-  syncAllContactsToServerOnce();
   const list = getStored();
   if (includeArchived) return list;
   return list.filter((c) => !c.archived);
@@ -779,22 +777,6 @@ export async function syncContactToAddressBookApi(contact: Contact): Promise<Syn
     return { ok: false, status: res.status, error: errorText };
   } catch (e) {
     return { ok: false, status: 0, error: e instanceof Error ? e.message : 'network' };
-  }
-}
-
-function syncAllContactsToServerOnce(): void {
-  if (typeof window === 'undefined') return;
-  if (didBulkSyncContacts || bulkSyncContactsInProgress) return;
-  bulkSyncContactsInProgress = true;
-  try {
-    const all = getStored();
-    for (const c of all) {
-      if (!c?.id) continue;
-      void syncContactToAddressBookApi(c);
-    }
-    didBulkSyncContacts = true;
-  } finally {
-    bulkSyncContactsInProgress = false;
   }
 }
 
