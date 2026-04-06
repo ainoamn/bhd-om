@@ -304,7 +304,7 @@ export default function AdminAddressBookPage() {
       let firstApiOk = false;
       try {
         /** limit=0 (أو بدون limit) يعيد كل الصفوف من الخادم — limit=200 كان يقطع القائمة ويُظهر بيانات ناقصة */
-        const res = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
+        const res = await fetch(`/api/address-book?_=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
         firstApiOk = res.ok;
         if (res.ok) {
           const data = await res.json();
@@ -351,7 +351,7 @@ export default function AdminAddressBookPage() {
       }
       let toPersist = merged;
       try {
-        const resAfter = await fetch('/api/address-book', { credentials: 'include', cache: 'no-store' });
+        const resAfter = await fetch(`/api/address-book?_=${Date.now()}`, { credentials: 'include', cache: 'no-store' });
         if (resAfter.ok) {
           const dataAfter = await resAfter.json();
           if (Array.isArray(dataAfter)) {

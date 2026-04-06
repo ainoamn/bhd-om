@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — admin/address-book: بيانات لا تتحدّث مع التحديث
+
+- **السبب:** `persistAddressBookContactsLocally` كان يستدعي `emitAddressBookUpdated` فيعيد تشغيل `useEffect` (serverSyncKey) فيسبب جلباً متكرراً؛ جلب الخلفية في `getStored()` قد يكتمل بعد المزامنة ويدمج قائمة قديمة فوق القائمة الطازجة؛ عدم ضبط `didHydrateContactsFromServer` بعد الحفظ من الصفحة.
+- **الإصلاح:** إزالة البث من `persist`؛ تعيين `didHydrateContactsFromServer` عند الحفظ؛ تجاهل دمج جلب الخلفية إذا اكتُملت المزامنة؛ إعادة `didHydrate` عند `clearAddressBookLocalStorage`؛ معامل `_` على طلبات الجلب في صفحة الإدارة.
+
 ### جلسة 2026-04-02 — دفتر العناوين يعرض اسماً قديماً رغم «حسابي»
 
 - **السبب:** JSON احتفظ بأجزاء قديمة لا تطابق `User.name`؛ `getContactDisplayName` كان يعرض دمج الأجزاء قبل الحقل `name`؛ `PATCH` حسابي لم يُخزّن `name` في JSON لأن `mergedSafe` وُلِد قبل تعيينه؛ `findAddressBookRowByUserId` قد يعيد صفاً أقدم عند وجود أكثر من صف لنفس المستخدم.

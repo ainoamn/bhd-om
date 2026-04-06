@@ -514,7 +514,9 @@ export function persistAddressBookContactsLocally(list: Contact[]): void {
     contactsStore = list;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     didLoadContactsFromStorageOnce = true;
-    emitAddressBookUpdated();
+    /** يمنع جلب الخلفية في getStored من دمج قائمة قديمة فوق ما جلبته صفحة الإدارة للتو */
+    didHydrateContactsFromServer = true;
+    /** لا نستدعي emitAddressBookUpdated هنا — كان يعيد تشغيل useEffect في admin/address-book (serverSyncKey) فيسبب جلباً متكرراً وتعارضاً مع الجلب الخلفي */
   } catch {
     /* تخزين معطّل */
   }
@@ -559,6 +561,7 @@ function getStored(): Contact[] {
     fetch('/api/address-book', { cache: 'no-store', credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((apiList: Contact[]) => {
+        if (didHydrateContactsFromServer) return;
         if (!Array.isArray(apiList)) return;
         if (apiList.length === 0) {
           didHydrateContactsFromServer = true;
@@ -629,6 +632,7 @@ export function clearAddressBookLocalStorage(): void {
   try {
     contactsStore = [];
     didLoadContactsFromStorageOnce = false;
+    didHydrateContactsFromServer = false;
     localStorage.removeItem(STORAGE_KEY);
     try {
       window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
