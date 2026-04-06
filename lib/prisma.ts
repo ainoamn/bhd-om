@@ -17,8 +17,10 @@ function createPrisma() {
 
   const adapter = new PrismaPg({
     connectionString,
-    connectionTimeoutMillis: 10_000,
+    /** بردّ بارد على Vercel + Neon قد يتجاوز 10 ثوانٍ أحياناً */
+    connectionTimeoutMillis: 25_000,
     idleTimeoutMillis: 60_000,
+    max: process.env.VERCEL ? 5 : 10,
   });
   return new PrismaClient({ adapter });
 }

@@ -29,15 +29,19 @@ export const dynamic = 'force-dynamic';
 
 function isLikelyDatabaseFailure(e: unknown): boolean {
   const msg = e instanceof Error ? `${e.name} ${e.message}` : String(e);
+  /** تجنّب مطابقة كلمة connection وحدها (قد تظهر في أخطاء غير DB) */
   return (
     msg.includes('DATABASE_URL') ||
-    msg.includes('Prisma') ||
     msg.includes('P1001') ||
     msg.includes('P1017') ||
+    msg.includes('P1000') ||
     msg.includes("Can't reach database") ||
-    msg.includes('connection') ||
     msg.includes('ECONNREFUSED') ||
-    msg.includes('ETIMEDOUT')
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('ENOTFOUND') ||
+    msg.includes('PrismaClient') ||
+    /password authentication failed|no pg_hba|SSL|certificate|self signed/i.test(msg) ||
+    (/Prisma/i.test(msg) && /connection|query|timeout|engine|server|database/i.test(msg))
   );
 }
 
