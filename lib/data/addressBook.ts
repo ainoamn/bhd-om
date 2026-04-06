@@ -227,6 +227,13 @@ export function getContactDisplayName(c: Contact | undefined | null, locale?: st
     return c.companyData.companyNameAr;
   }
   if (locale === 'en' && c.nameEn?.trim()) return c.nameEn;
+  /** مرتبط بحساب مستخدم: الاسم الكامل المخزَّن (مزامن مع جدول User) له أولوية على أجزاء JSON قديمة */
+  const linkedToUser =
+    Boolean((c.userId || '').trim()) || Boolean((c.serialNumber || '').trim().startsWith('USR-'));
+  const storedFull = normDisplayName((c.name || '').trim());
+  if (linkedToUser && storedFull) {
+    return storedFull;
+  }
   const parts = [c.firstName, c.secondName, c.thirdName, c.familyName].filter(Boolean);
   const joined = parts.join(' ').trim();
   const fullName = (c.name || '').trim();
