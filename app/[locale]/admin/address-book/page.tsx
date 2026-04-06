@@ -213,6 +213,10 @@ export default function AdminAddressBookPage() {
   const [creatingAccounts, setCreatingAccounts] = useState(false);
   const [mergeResult, setMergeResult] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  /** لا نستدعي API قبل أن يكون كائن الجلسة جاهزاً — يمنع 401 ورسالة الخطأ الحمراء رغم ظهور «مدير النظام» */
+  const addressBookSessionReady =
+    sessionStatus !== 'authenticated' || Boolean(session?.user);
+
   const {
     contacts,
     setContacts,
@@ -221,6 +225,7 @@ export default function AdminAddressBookPage() {
     refresh: refreshAddressBookFromServer,
   } = useAdminAddressBookContacts({
     sessionStatus,
+    sessionReady: addressBookSessionReady,
     userRole,
     showArchived,
   });

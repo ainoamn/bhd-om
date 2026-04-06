@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { getSession } from 'next-auth/react';
 import type { Contact } from '@/lib/data/addressBook';
 import {
   getAllContacts,
@@ -27,10 +28,12 @@ function isAdminLike(role: string | undefined): boolean {
  */
 export function useAdminAddressBookContacts(opts: {
   sessionStatus: 'loading' | 'authenticated' | 'unauthenticated';
+  /** عندما تكون الجلسة authenticated لكن كائن session لم يُملأ بعد — لا نجلب حتى لا يُرفَض الطلب (401) */
+  sessionReady: boolean;
   userRole: string | undefined;
   showArchived: boolean;
 }) {
-  const { sessionStatus, userRole, showArchived } = opts;
+  const { sessionStatus, sessionReady, userRole, showArchived } = opts;
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +57,10 @@ export function useAdminAddressBookContacts(opts: {
       return;
     }
 
+    if (!sessionReady) {
+      return;
+    }
+
     const myId = ++requestIdRef.current;
     const ac = new AbortController();
 
@@ -64,11 +71,29 @@ export function useAdminAddressBookContacts(opts: {
 
     (async () => {
       try {
-        const res = await fetch(`/api/address-book?_=${Date.now()}`, {
-          credentials: 'include',
-          cache: 'no-store',
-          signal: ac.signal,
-        });
+        /** يزامن كوكي الجلسة مع الخادم قبل أول طلب API — يقلّل 401 بعد تسجيل الدخول مباشرة */
+        try {
+          await getSession();
+        } catch {
+          /* ignore */
+        }
+
+        const fetchOnce = () =>
+          fetch(`/api/address-book?_=${Date.now()}`, {
+            credentials: 'include',
+            cache: 'no-store',
+            signal: ac.signal,
+          });
+
+        let res = await fetchOnce();
+        if (res.status === 401) {
+          await new Promise((r) => setTimeout(r, 400));
+          res = await fetchOnce();
+        }
+        if (res.status === 401) {
+          await new Promise((r) => setTimeout(r, 700));
+          res = await fetchOnce();
+        }
 
         if (!res.ok) {
           if (myId !== requestIdRef.current) return;
@@ -131,7 +156,7 @@ export function useAdminAddressBookContacts(opts: {
     return () => {
       ac.abort();
     };
-  }, [sessionStatus, userRole, showArchived, refreshKey]);
+  }, [sessionStatus, sessionReady, userRole, showArchived, refreshKey]);
 
   return { contacts, setContacts, loading, error, refresh };
 }

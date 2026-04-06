@@ -33,7 +33,12 @@ export async function GET(req: NextRequest) {
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
     const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
 
-    const sub = await getAuthSubFromRequest(req);
+    let sub = await getAuthSubFromRequest(req);
+    if (!sub) {
+      const sessionFallback = await getServerSession(authOptions);
+      const id = (sessionFallback?.user as { id?: string } | undefined)?.id?.trim();
+      if (id) sub = id;
+    }
     if (!sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
