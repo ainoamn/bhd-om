@@ -1543,7 +1543,7 @@ export function ensureContactFromBooking(
   name: string,
   phone: string,
   email?: string,
-  options?: { propertyId?: number; unitKey?: string; unitDisplay?: string; civilId?: string; passportNumber?: string }
+  options?: { propertyId?: number; unitKey?: string; unitDisplay?: string; civilId?: string; passportNumber?: string; nationality?: string }
 ): Contact {
   const linkData = options?.propertyId != null
     ? {
@@ -1567,6 +1567,7 @@ export function ensureContactFromBooking(
     if (existing.category !== 'TENANT') updates.category = 'CLIENT';
     if (options?.civilId) updates.civilId = options.civilId;
     if (options?.passportNumber) updates.passportNumber = options.passportNumber;
+    if (options?.nationality?.trim()) updates.nationality = options.nationality.trim();
     if (Object.keys(updates).length > 0) {
       updateContact(existing.id, updates);
     }
@@ -1587,6 +1588,7 @@ export function ensureContactFromBooking(
     if (civilIdVal) updates.civilId = civilIdVal;
     if (passportVal) updates.passportNumber = passportVal;
     if (email?.trim()) updates.email = email.trim();
+    if (options?.nationality?.trim()) updates.nationality = options.nationality.trim();
     updateContact(c.id, updates);
     return { ...c, ...updates };
   }
@@ -1597,6 +1599,7 @@ export function ensureContactFromBooking(
     if (civilIdVal) updates.civilId = civilIdVal;
     if (passportVal) updates.passportNumber = passportVal;
     if (email?.trim()) updates.email = email.trim();
+    if (options?.nationality?.trim()) updates.nationality = options.nationality.trim();
     updateContact(c.id, updates);
     return { ...c, ...updates };
   }
@@ -1605,7 +1608,7 @@ export function ensureContactFromBooking(
     secondName,
     thirdName,
     familyName,
-    nationality: '',
+    nationality: options?.nationality?.trim() || '',
     gender: 'MALE',
     phone,
     email: email?.trim() || undefined,

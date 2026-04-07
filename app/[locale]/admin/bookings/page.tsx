@@ -241,6 +241,7 @@ export default function AdminBookingsPage() {
 
   const termsForProperty = (propId: number) => getPropertyBookingTerms(String(propId));
   const canCreateContract = (b: PropertyBooking) => {
+    if (!b.accountantConfirmedAt?.trim()) return false;
     const terms = termsForProperty(b.propertyId);
     const hasRequired = (terms.requiredDocTypes || []).some((r) => r.isRequired);
     if (!hasRequired) return true;

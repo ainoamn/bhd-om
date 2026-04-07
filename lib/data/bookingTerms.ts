@@ -292,6 +292,19 @@ export function buildCompanyDocRequirementsFromTerms(
   return result;
 }
 
+/** نسخ الهوية قبل إتمام الحجز (فرد) — تسميات مطابقة لشروط العقار لتندمج مع طلبات الإدارة دون تكرار */
+export function getPreBookingIdentityRequirementsPersonal(omani: boolean): ContractDocRequirement[] {
+  const id = CONTRACT_DOC_TYPES.find((t) => t.id === 'ID_CARD')!;
+  const pass = CONTRACT_DOC_TYPES.find((t) => t.id === 'PASSPORT')!;
+  if (omani) {
+    return [{ docTypeId: 'ID_CARD', labelAr: id.labelAr, labelEn: id.labelEn, isRequired: true }];
+  }
+  return [
+    { docTypeId: 'ID_CARD', labelAr: id.labelAr, labelEn: id.labelEn, isRequired: true },
+    { docTypeId: 'PASSPORT', labelAr: pass.labelAr, labelEn: pass.labelEn, isRequired: true },
+  ];
+}
+
 /** معرّفات المستندات الإضافية لمالك الشيكات - تُزال عند العودة للمستأجر */
 export const CHEQUE_OWNER_DOC_TYPE_IDS = ['CHEQUE_OWNER_CR', 'CHEQUE_SIGNATORY_CARD', 'CHEQUE_OWNER_ID', 'RENT_GUARANTEE_LETTER'] as const;
 

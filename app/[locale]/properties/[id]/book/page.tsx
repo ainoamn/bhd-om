@@ -19,7 +19,8 @@ import {
   getBookingPaymentCooldownRemainingMs,
 } from '@/lib/utils/bookingPaymentCooldown';
 import { getPropertyById, getPropertyDataOverrides, getPropertyOverrides } from '@/lib/data/properties';
-import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
+import { getPropertyBookingTerms, getPreBookingIdentityRequirementsPersonal, buildCompanyDocRequirementsFromTerms } from '@/lib/data/bookingTerms';
+import { createDocumentRequests, uploadDocument } from '@/lib/data/bookingDocuments';
 import { isOmaniNationality, validatePhoneWithCountryCode, getContactById, getContactDisplayName, getContactForUser, updateContact, createContact, type Contact } from '@/lib/data/addressBook';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
@@ -36,8 +37,16 @@ export default function PropertyBookPage() {
   const [dataLoadedFromAccount, setDataLoadedFromAccount] = useState(false);
   const [contactIdForUpdate, setContactIdForUpdate] = useState<string | null>(null);
   const [showCompleteDataModal, setShowCompleteDataModal] = useState(false);
-  const [modalDocuments, setModalDocuments] = useState<File[]>([]);
   const [completeModalError, setCompleteModalError] = useState<string | null>(null);
+  /** رفع نسخ الهوية قبل الدفع — فرد */
+  const [personalOmaniCivilFiles, setPersonalOmaniCivilFiles] = useState<File[]>([]);
+  const [personalExpatResidenceFiles, setPersonalExpatResidenceFiles] = useState<File[]>([]);
+  const [personalExpatPassportFiles, setPersonalExpatPassportFiles] = useState<File[]>([]);
+  /** رفع نسخ الهوية قبل الدفع — شركة */
+  const [companyCrFiles, setCompanyCrFiles] = useState<File[]>([]);
+  const [companyRepOmaniCivilFiles, setCompanyRepOmaniCivilFiles] = useState<File[]>([]);
+  const [companyRepExpatResidenceFiles, setCompanyRepExpatResidenceFiles] = useState<File[]>([]);
+  const [companyRepExpatPassportFiles, setCompanyRepExpatPassportFiles] = useState<File[]>([]);
 
   const dataOverrides = getPropertyDataOverrides();
   const overrides = getPropertyOverrides();
@@ -51,7 +60,7 @@ export default function PropertyBookPage() {
   const isReserved = businessStatus === 'RESERVED';
 
   const [contactType, setContactType] = useState<BookingContactType>('PERSONAL');
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', message: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', nationality: '', message: '' });
   const [alternativePhone, setAlternativePhone] = useState({ number: '', countryCode: '968' });
   const [companyForm, setCompanyForm] = useState({
     companyNameAr: '',
@@ -133,6 +142,7 @@ export default function PropertyBookPage() {
           phoneCountryCode: code || '968',
           civilId: c.civilId || '',
           passportNumber: c.passportNumber || '',
+          nationality: (c.nationality || '').trim() || prev.nationality,
           message: prev.message,
         }));
       }
@@ -149,29 +159,40 @@ export default function PropertyBookPage() {
         phoneCountryCode: code || '968',
         civilId: prev.civilId,
         passportNumber: prev.passportNumber,
+        nationality: prev.nationality,
         message: prev.message,
       }));
     }
     setDataLoadedFromAccount(true);
   }, [session?.user]);
 
+  const personalOmaniForUi = isOmaniNationality(formData.nationality || '');
+  const repOmaniForUi = isOmaniNationality(companyForm.repNationality || '');
+
   /** عند وجود بيانات ناقصة بعد التحميل من الحساب، إظهار نافذة إكمال البيانات */
   useEffect(() => {
     if (!dataLoadedFromAccount || !session?.user) return;
-    const hasCivilOrPassport = !!(formData.civilId.trim() || formData.passportNumber.trim());
     const repOmaniCheck = isOmaniNationality(companyForm.repNationality || '');
     const repHasId = !!(companyForm.repCivilId?.trim() || (companyForm.repNationality?.trim() && !repOmaniCheck && companyForm.repPassportNumber?.trim()));
     const personalMissing = contactType === 'PERSONAL' && (
-      !formData.name.trim() || !formData.email.trim() || !formData.phone.trim() || !hasCivilOrPassport
+      !formData.name.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.nationality.trim()
+      || (personalOmaniForUi
+        ? !formData.civilId.trim() || personalOmaniCivilFiles.length < 1
+        : !formData.civilId.trim() || !formData.passportNumber.trim()
+          || personalExpatResidenceFiles.length < 1 || personalExpatPassportFiles.length < 1)
     );
     const companyMissing = contactType === 'COMPANY' && (
       !companyForm.companyNameAr?.trim() || !companyForm.commercialRegistrationNumber?.trim()
       || !formData.email.trim() || !formData.phone.trim()
       || !companyForm.repName?.trim() || !companyForm.repNameEn?.trim() || !companyForm.repPosition?.trim()
       || !companyForm.repPhone?.trim() || !companyForm.repNationality?.trim() || !repHasId
+      || companyCrFiles.length < 1
+      || (repOmaniForUi
+        ? !companyForm.repCivilId?.trim() || companyRepOmaniCivilFiles.length < 1
+        : !companyForm.repPassportNumber?.trim() || companyRepExpatResidenceFiles.length < 1 || companyRepExpatPassportFiles.length < 1)
     );
     if (personalMissing || companyMissing) setShowCompleteDataModal(true);
-  }, [dataLoadedFromAccount, contactType, formData.name, formData.email, formData.phone, formData.civilId, formData.passportNumber, companyForm.companyNameAr, companyForm.commercialRegistrationNumber, companyForm.repName, companyForm.repNameEn, companyForm.repPosition, companyForm.repPhone, companyForm.repNationality, companyForm.repCivilId, companyForm.repPassportNumber, session?.user]);
+  }, [dataLoadedFromAccount, contactType, formData.name, formData.email, formData.phone, formData.civilId, formData.passportNumber, formData.nationality, personalOmaniForUi, repOmaniForUi, personalOmaniCivilFiles.length, personalExpatResidenceFiles.length, personalExpatPassportFiles.length, companyForm.companyNameAr, companyForm.commercialRegistrationNumber, companyForm.repName, companyForm.repNameEn, companyForm.repPosition, companyForm.repPhone, companyForm.repNationality, companyForm.repCivilId, companyForm.repPassportNumber, companyCrFiles.length, companyRepOmaniCivilFiles.length, companyRepExpatResidenceFiles.length, companyRepExpatPassportFiles.length, session?.user]);
 
   /** التحقق من وجود حجز سابق للمستخدم لهذا العقار (عند تغيير البريد أو الهاتف) */
   useEffect(() => {
@@ -243,17 +264,24 @@ export default function PropertyBookPage() {
     && /^\d{2}\/\d{2}$/.test(cardData.expiry)
     && cardData.cvv.length >= 3
     && cardData.name.trim().length > 0;
-  const hasCivilOrPassport = !!(formData.civilId.trim() || formData.passportNumber.trim());
-  const repOmani = isOmaniNationality(companyForm.repNationality || '');
+  const repOmani = repOmaniForUi;
   const repHasId = !!(companyForm.repCivilId.trim() || (companyForm.repNationality?.trim() && !repOmani && companyForm.repPassportNumber.trim()));
   const companyValid = contactType === 'COMPANY'
-    ? companyForm.companyNameAr.trim() && companyForm.commercialRegistrationNumber.trim()
+    ? !!(companyForm.companyNameAr.trim() && companyForm.commercialRegistrationNumber.trim()
       && companyForm.repName.trim() && companyForm.repNameEn.trim() && companyForm.repPosition.trim() && companyForm.repPhone.trim()
       && companyForm.repNationality.trim() && repHasId
+      && companyCrFiles.length >= 1
+      && (repOmani
+        ? companyForm.repCivilId.trim() && companyRepOmaniCivilFiles.length >= 1
+        : companyForm.repPassportNumber.trim() && companyRepExpatResidenceFiles.length >= 1 && companyRepExpatPassportFiles.length >= 1))
     : true;
   const personalValid = contactType === 'PERSONAL'
-    ? formData.name && formData.email && formData.phone && hasCivilOrPassport
-    : companyForm.companyNameAr && formData.email && formData.phone;
+    ? !!(formData.name.trim() && formData.email.trim() && formData.phone.trim() && formData.nationality.trim()
+      && (personalOmaniForUi
+        ? formData.civilId.trim() && personalOmaniCivilFiles.length >= 1
+        : formData.civilId.trim() && formData.passportNumber.trim()
+          && personalExpatResidenceFiles.length >= 1 && personalExpatPassportFiles.length >= 1))
+    : !!(companyForm.companyNameAr && formData.email && formData.phone);
   const getFullPhone = (countryCode: string, num: string) => {
     const digits = (num || '').replace(/\D/g, '').replace(/^0+/, '');
     if (!digits) return '';
@@ -273,6 +301,24 @@ export default function PropertyBookPage() {
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${m}:${String(sec).padStart(2, '0')}`;
+  };
+
+  const uploadPreBookingDocuments = async (
+    docs: { id: string }[],
+    buckets: File[][],
+    uploadedBy?: string
+  ) => {
+    for (let i = 0; i < docs.length; i++) {
+      const doc = docs[i];
+      const files = buckets[i] ?? [];
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/upload/booking-documents', { method: 'POST', body: fd });
+        const data = (await res.json()) as { url?: string };
+        if (data.url) uploadDocument(doc.id, data.url, file.name, uploadedBy);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -317,6 +363,7 @@ export default function PropertyBookPage() {
         phone: mainPhone,
         civilId: isCompany ? undefined : formData.civilId.trim() || undefined,
         passportNumber: isCompany ? undefined : formData.passportNumber.trim() || undefined,
+        contactNationality: !isCompany ? formData.nationality.trim() : undefined,
         contactId: contactIdForUpdate || undefined,
         companyData: isCompany ? {
           companyNameAr: companyForm.companyNameAr.trim(),
@@ -342,6 +389,68 @@ export default function PropertyBookPage() {
         cardholderName: cardData.name.trim(),
         userId: sessionUserId,
       });
+
+      const uploadedBy = formData.email?.trim() || undefined;
+      if (!isCompany) {
+        const reqs = getPreBookingIdentityRequirementsPersonal(personalOmaniForUi);
+        const docs = createDocumentRequests(
+          booking.id,
+          property.id,
+          reqs.map((r) => ({
+            docTypeId: r.docTypeId,
+            labelAr: r.labelAr ?? '',
+            labelEn: r.labelEn ?? '',
+            isRequired: r.isRequired,
+          }))
+        );
+        const buckets = personalOmaniForUi ? [personalOmaniCivilFiles] : [personalExpatResidenceFiles, personalExpatPassportFiles];
+        await uploadPreBookingDocuments(docs, buckets, uploadedBy);
+      } else {
+        const pseudoContact = {
+          id: 'booking-temp',
+          contactType: 'COMPANY' as const,
+          firstName: companyForm.companyNameAr.trim(),
+          familyName: '',
+          nationality: '',
+          gender: 'MALE' as const,
+          phone: '',
+          email: formData.email.trim(),
+          category: 'CLIENT' as const,
+          companyData: {
+            companyNameAr: companyForm.companyNameAr.trim(),
+            companyNameEn: companyForm.companyNameEn?.trim(),
+            commercialRegistrationNumber: companyForm.commercialRegistrationNumber.trim(),
+            authorizedRepresentatives: [
+              {
+                id: 'rep-bkg',
+                name: companyForm.repName.trim(),
+                nameEn: companyForm.repNameEn.trim(),
+                position: companyForm.repPosition.trim(),
+                phone: getFullPhone(companyForm.repPhoneCountryCode || '968', companyForm.repPhone).replace(/^\+/, ''),
+                nationality: companyForm.repNationality.trim(),
+                civilId: companyForm.repCivilId?.trim(),
+                passportNumber: companyForm.repPassportNumber?.trim(),
+              },
+            ],
+          },
+          address: { fullAddress: '—', fullAddressEn: '—' },
+        } as Contact;
+        const reqs = buildCompanyDocRequirementsFromTerms(pseudoContact);
+        const docs = createDocumentRequests(
+          booking.id,
+          property.id,
+          reqs.map((r) => ({
+            docTypeId: r.docTypeId,
+            labelAr: r.labelAr ?? '',
+            labelEn: r.labelEn ?? '',
+            isRequired: r.isRequired,
+          }))
+        );
+        const buckets = repOmani
+          ? [companyCrFiles, companyRepOmaniCivilFiles]
+          : [companyCrFiles, companyRepExpatResidenceFiles, companyRepExpatPassportFiles];
+        await uploadPreBookingDocuments(docs, buckets, uploadedBy);
+      }
 
       let res: Response;
       try {
@@ -382,7 +491,14 @@ export default function PropertyBookPage() {
 
       setSubmitStatus('success');
       setCreatedBookingId(booking.id);
-      setFormData({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', message: '' });
+      setFormData({ name: '', email: '', phone: '', phoneCountryCode: '968', civilId: '', passportNumber: '', nationality: '', message: '' });
+      setPersonalOmaniCivilFiles([]);
+      setPersonalExpatResidenceFiles([]);
+      setPersonalExpatPassportFiles([]);
+      setCompanyCrFiles([]);
+      setCompanyRepOmaniCivilFiles([]);
+      setCompanyRepExpatResidenceFiles([]);
+      setCompanyRepExpatPassportFiles([]);
       setAlternativePhone({ number: '', countryCode: '968' });
       setCompanyForm({ companyNameAr: '', companyNameEn: '', commercialRegistrationNumber: '', repName: '', repNameEn: '', repPosition: '', repPhone: '', repPhoneCountryCode: '968', repNationality: '', repCivilId: '', repPassportNumber: '' });
       setTimeout(() => router.push(`/${locale}/properties/${id}/receipt?booking=${booking.id}`), 2500);
@@ -403,13 +519,23 @@ export default function PropertyBookPage() {
     setCompleteModalError(null);
     const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
     const phoneForStorage = mainPhone.replace(/^\+/, '');
-    const hasCivilOrPassport = !!(formData.civilId.trim() || formData.passportNumber.trim());
     const repOmaniCheck = isOmaniNationality(companyForm.repNationality || '');
     const repHasId = !!(companyForm.repCivilId?.trim() || (companyForm.repNationality?.trim() && !repOmaniCheck && companyForm.repPassportNumber?.trim()));
+    const modalPersonalOmani = isOmaniNationality(formData.nationality || '');
 
     if (contactType === 'PERSONAL') {
-      if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim() || !hasCivilOrPassport) {
-        setCompleteModalError(ar ? 'يرجى تعبئة الاسم، البريد، الهاتف والرقم المدني أو رقم الجواز.' : 'Please fill name, email, phone and civil ID or passport.');
+      if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.nationality.trim()) {
+        setCompleteModalError(ar ? 'يرجى تعبئة الاسم، البريد، الهاتف والجنسية.' : 'Please fill name, email, phone and nationality.');
+        return;
+      }
+      if (modalPersonalOmani) {
+        if (!formData.civilId.trim() || personalOmaniCivilFiles.length < 1) {
+          setCompleteModalError(ar ? 'للعماني: أدخل الرقم المدني وارفع نسخة من بطاقة الهوية.' : 'Omani: enter civil ID and upload a copy of your ID card.');
+          return;
+        }
+      } else if (!formData.civilId.trim() || !formData.passportNumber.trim()
+        || personalExpatResidenceFiles.length < 1 || personalExpatPassportFiles.length < 1) {
+        setCompleteModalError(ar ? 'للوافد: أدخل رقم بطاقة الإقامة ورقم الجواز وارفع نسختي بطاقة الإقامة والجواز.' : 'Expat: enter residence ID and passport numbers and upload both documents.');
         return;
       }
       const phoneVal = validatePhoneWithCountryCode(formData.phone.trim(), formData.phoneCountryCode || '968');
@@ -431,6 +557,7 @@ export default function PropertyBookPage() {
             familyName,
             email: formData.email.trim(),
             phone: phoneForStorage,
+            nationality: formData.nationality.trim(),
             civilId: formData.civilId.trim() || undefined,
             passportNumber: formData.passportNumber.trim() || undefined,
           });
@@ -442,7 +569,7 @@ export default function PropertyBookPage() {
             secondName,
             thirdName,
             familyName,
-            nationality: 'عماني',
+            nationality: formData.nationality.trim() || '—',
             gender: 'MALE',
             phone: phoneForStorage,
             email: formData.email.trim() || undefined,
@@ -455,7 +582,6 @@ export default function PropertyBookPage() {
           setContactIdForUpdate(created.id);
         }
         setShowCompleteDataModal(false);
-        setModalDocuments([]);
       } catch (e) {
         const msg = e instanceof Error ? e.message : '';
         setCompleteModalError(ar ? `تعذر الحفظ: ${msg || 'خطأ غير متوقع'}` : `Save failed: ${msg || 'Unexpected error'}`);
@@ -467,8 +593,18 @@ export default function PropertyBookPage() {
       if (!companyForm.companyNameAr?.trim() || !companyForm.commercialRegistrationNumber?.trim()
         || !formData.email.trim() || !formData.phone.trim()
         || !companyForm.repName?.trim() || !companyForm.repNameEn?.trim() || !companyForm.repPosition?.trim()
-        || !companyForm.repPhone?.trim() || !companyForm.repNationality?.trim() || !repHasId) {
-        setCompleteModalError(ar ? 'يرجى تعبئة جميع حقول الشركة والمفوض.' : 'Please fill all company and representative fields.');
+        || !companyForm.repPhone?.trim() || !companyForm.repNationality?.trim() || !repHasId
+        || companyCrFiles.length < 1) {
+        setCompleteModalError(ar ? 'يرجى تعبئة جميع حقول الشركة والمفوض ورفع السجل التجاري.' : 'Please fill all company and rep fields and upload the commercial registration.');
+        return;
+      }
+      if (repOmaniCheck) {
+        if (!companyForm.repCivilId?.trim() || companyRepOmaniCivilFiles.length < 1) {
+          setCompleteModalError(ar ? 'للمفوض العماني: الرقم المدني ونسخة البطاقة مطلوبان.' : 'Omani rep: civil ID and ID copy are required.');
+          return;
+        }
+      } else if (!companyForm.repPassportNumber?.trim() || companyRepExpatResidenceFiles.length < 1 || companyRepExpatPassportFiles.length < 1) {
+        setCompleteModalError(ar ? 'للمفوض الوافد: رقم الجواز ونسختا بطاقة الإقامة والجواز مطلوبان.' : 'Expat rep: passport number and residence + passport copies are required.');
         return;
       }
       const phoneVal = validatePhoneWithCountryCode(formData.phone.trim(), formData.phoneCountryCode || '968');
@@ -527,7 +663,6 @@ export default function PropertyBookPage() {
           setContactIdForUpdate(created.id);
         }
         setShowCompleteDataModal(false);
-        setModalDocuments([]);
       } catch (e) {
         const msg = e instanceof Error ? e.message : '';
         setCompleteModalError(ar ? `تعذر الحفظ: ${msg || 'خطأ غير متوقع'}` : `Save failed: ${msg || 'Unexpected error'}`);
@@ -653,16 +788,38 @@ export default function PropertyBookPage() {
                       <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-[#8B6F47]" placeholder="91234567" />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'الجنسية *' : 'Nationality *'}</label>
+                    <input type="text" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-[#8B6F47]" placeholder={ar ? 'مثال: عماني، هندي...' : 'e.g. Omani, Indian...'} />
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'الرقم المدني *' : 'Civil ID *'}</label>
-                      <input type="text" value={formData.civilId} onChange={(e) => setFormData({ ...formData, civilId: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-[#8B6F47]" placeholder={ar ? 'الرقم المدني' : 'Civil ID'} />
+                      <label className="block text-sm font-semibold text-white opacity-100 mb-1">{personalOmaniForUi ? (ar ? 'الرقم المدني *' : 'Civil ID *') : (ar ? 'رقم بطاقة الإقامة *' : 'Residence card No. *')}</label>
+                      <input type="text" value={formData.civilId} onChange={(e) => setFormData({ ...formData, civilId: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-[#8B6F47]" placeholder={ar ? 'الرقم' : 'Number'} />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'رقم الجواز (اختياري)' : 'Passport (optional)'}</label>
-                      <input type="text" value={formData.passportNumber} onChange={(e) => setFormData({ ...formData, passportNumber: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-[#8B6F47]" placeholder={ar ? 'للوفد' : 'For expats'} />
+                      <label className="block text-sm font-semibold text-white opacity-100 mb-1">{personalOmaniForUi ? (ar ? 'رقم الجواز (إن وجد)' : 'Passport (if any)') : (ar ? 'رقم الجواز *' : 'Passport No. *')}</label>
+                      <input type="text" value={formData.passportNumber} onChange={(e) => setFormData({ ...formData, passportNumber: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-[#8B6F47]" placeholder={ar ? 'للوافد إجباري' : 'Required for expats'} />
                     </div>
                   </div>
+                  {personalOmaniForUi ? (
+                    <div>
+                      <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'نسخة من بطاقة الهوية المدنية *' : 'Copy of civil ID card *'}</label>
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setPersonalOmaniCivilFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                      {personalOmaniCivilFiles.length > 0 && <p className="text-white/90 text-xs mt-1">{ar ? `${personalOmaniCivilFiles.length} ملف/ملفات` : `${personalOmaniCivilFiles.length} file(s)`}</p>}
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'نسخة بطاقة الإقامة *' : 'Residence card copy *'}</label>
+                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setPersonalExpatResidenceFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'نسخة جواز السفر *' : 'Passport copy *'}</label>
+                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setPersonalExpatPassportFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
               {contactType === 'COMPANY' && (
@@ -727,13 +884,29 @@ export default function PropertyBookPage() {
                       )}
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'السجل التجاري (نسخة) *' : 'Commercial registration (copy) *'}</label>
+                    <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyCrFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                  </div>
+                  {repOmaniForUi ? (
+                    <div>
+                      <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'نسخة بطاقة المفوض (مدنية) *' : 'Copy of rep civil ID *'}</label>
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyRepOmaniCivilFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'نسخة بطاقة إقامة المفوض *' : 'Rep residence card copy *'}</label>
+                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyRepExpatResidenceFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'نسخة جواز المفوض *' : 'Rep passport copy *'}</label>
+                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyRepExpatPassportFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
-              <div>
-                <label className="block text-sm font-semibold text-white opacity-100 mb-1">{ar ? 'إرفاق المستندات المطلوبة (إن وجدت)' : 'Attach required documents (if any)'}</label>
-                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setModalDocuments(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
-                {modalDocuments.length > 0 && <p className="text-white opacity-100 text-xs mt-1">{ar ? `تم اختيار ${modalDocuments.length} ملف/ملفات` : `${modalDocuments.length} file(s) selected`}</p>}
-              </div>
             </div>
             <div className="p-6 border-t border-white/10 flex justify-end gap-3">
               <button type="button" onClick={handleCompleteDataModalSave} className="px-6 py-3 rounded-xl font-bold bg-[#8B6F47] hover:bg-[#6B5535] text-white transition-all">
@@ -1009,31 +1182,59 @@ export default function PropertyBookPage() {
                           </div>
                           {phoneError && <p className="text-red-400 text-xs mt-1">{ar ? (phoneError === 'invalidPhoneOmanMin8' ? 'رقم عمان يجب أن يكون 8 أرقام على الأقل' : 'رقم الهاتف قصير جداً') : (phoneError === 'invalidPhoneOmanMin8' ? 'Oman number must be at least 8 digits' : 'Phone number is too short')}</p>}
                         </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'الجنسية *' : 'Nationality *'}</label>
+                          <input
+                            type="text"
+                            value={formData.nationality}
+                            onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                            className="w-full px-5 py-4 rounded-xl border border-white/10 text-white placeholder-white bg-white/5 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47]"
+                            placeholder={ar ? 'مثال: عماني' : 'e.g. Omani'}
+                          />
+                          <p className="text-white/80 text-xs mt-1">{ar ? 'يُحدد المستندات المطلوبة (هوية مدنية أو إقامة + جواز).' : 'Determines required ID documents (civil ID or residence + passport).'}</p>
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div>
-                            <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'الرقم المدني *' : 'Civil ID *'}</label>
+                            <label className="block text-sm font-semibold text-white opacity-100 mb-2">{personalOmaniForUi ? (ar ? 'الرقم المدني *' : 'Civil ID *') : (ar ? 'رقم بطاقة الإقامة *' : 'Residence card No. *')}</label>
                             <input
                               type="text"
                               value={formData.civilId}
                               onChange={(e) => !dataLoadedFromAccount && setFormData({ ...formData, civilId: e.target.value })}
                               readOnly={dataLoadedFromAccount}
                               className={`w-full px-5 py-4 rounded-xl border border-white/10 text-white placeholder-white transition-all ${dataLoadedFromAccount ? 'bg-white/[0.03] cursor-not-allowed opacity-90' : 'bg-white/5 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47]'}`}
-                              placeholder={ar ? 'أدخل الرقم المدني' : 'Enter civil ID'}
+                              placeholder={ar ? 'أدخل الرقم' : 'Enter number'}
                             />
-                            <p className="text-white opacity-100 text-xs mt-1">{ar ? 'أو رقم الجواز أدناه' : 'Or passport number below'}</p>
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'رقم الجواز (اختياري)' : 'Passport (optional)'}</label>
+                            <label className="block text-sm font-semibold text-white opacity-100 mb-2">{personalOmaniForUi ? (ar ? 'رقم الجواز (إن وجد)' : 'Passport (if any)') : (ar ? 'رقم الجواز *' : 'Passport No. *')}</label>
                             <input
                               type="text"
                               value={formData.passportNumber}
                               onChange={(e) => !dataLoadedFromAccount && setFormData({ ...formData, passportNumber: e.target.value })}
                               readOnly={dataLoadedFromAccount}
                               className={`w-full px-5 py-4 rounded-xl border border-white/10 text-white placeholder-white transition-all ${dataLoadedFromAccount ? 'bg-white/[0.03] cursor-not-allowed opacity-90' : 'bg-white/5 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47]'}`}
-                              placeholder={ar ? 'للمقيمين بدون رقم مدني' : 'For residents without civil ID'}
+                              placeholder={ar ? (personalOmaniForUi ? 'اختياري' : 'إلزامي للوافد') : (personalOmaniForUi ? 'Optional' : 'Required for expat')}
                             />
                           </div>
                         </div>
+                        {personalOmaniForUi ? (
+                          <div>
+                            <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'نسخة من بطاقة الهوية المدنية *' : 'Copy of civil ID card *'}</label>
+                            <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setPersonalOmaniCivilFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                            {personalOmaniCivilFiles.length > 0 && <p className="text-white/80 text-xs mt-1">{personalOmaniCivilFiles.length} {ar ? 'ملف/ملفات' : 'file(s)'}</p>}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'نسخة بطاقة الإقامة *' : 'Residence card copy *'}</label>
+                              <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setPersonalExpatResidenceFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'نسخة جواز السفر *' : 'Passport copy *'}</label>
+                              <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setPersonalExpatPassportFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                            </div>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>
@@ -1147,6 +1348,29 @@ export default function PropertyBookPage() {
                               </>
                             )}
                           </div>
+                        </div>
+                        <div className="space-y-4 pt-2">
+                          <div>
+                            <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'السجل التجاري (نسخة) *' : 'Commercial registration (copy) *'}</label>
+                            <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyCrFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                          </div>
+                          {repOmani ? (
+                            <div>
+                              <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'نسخة بطاقة المفوض (مدنية) *' : 'Copy of rep civil ID *'}</label>
+                              <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyRepOmaniCivilFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'نسخة بطاقة إقامة المفوض *' : 'Rep residence card copy *'}</label>
+                                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyRepExpatResidenceFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-white opacity-100 mb-2">{ar ? 'نسخة جواز المفوض *' : 'Rep passport copy *'}</label>
+                                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setCompanyRepExpatPassportFiles(e.target.files ? Array.from(e.target.files) : [])} className="w-full text-white text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#8B6F47] file:text-white" />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}

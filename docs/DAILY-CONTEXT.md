@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-02 — حجز عقار: هوية قبل الدفع + إدارة العقود بعد تأكيد المحاسب
+
+- **قبل الدفع:** جنسية المستأجر (فرد)، رقم مدني أو إقامة+جواز للوافد، ورفع نسخ (عماني: بطاقة مدنية؛ وافد: إقامة + جواز). شركة: سجل تجاري + مستندات المفوض بنفس المنطق. يُنشأ `createDocumentRequests` مع تسميات `CONTRACT_DOC_TYPES` ثم رفع إلى `/api/upload/booking-documents`.
+- **إدارة الحجوزات:** `canCreateContract` يتطلب `accountantConfirmedAt` ثم اعتماد المستندات عند وجود مستندات إلزامية في الشروط.
+- **لوحة المستندات:** `handleCreateRequests` يستخدم `addMissingDocumentRequests` بدل `createDocumentRequests` فقط لدمج طلبات لاحقة مع المرفوع مسبقاً.
+- **ملفات:** `book/page.tsx`, `bookingTerms.ts` (`getPreBookingIdentityRequirementsPersonal`), `bookings.ts` (`contractKind`, `contactNationality`), `addressBook.ts` (`ensureContactFromBooking` + `nationality`), `BookingDocumentsPanel.tsx`, `admin/bookings/page.tsx`.
+
 ### جلسة 2026-04-02 — حجوزاتي: زر «مراجعة واعتماد (المستأجر)» لا يفتح صفحة المستندات
 
 - **السبب:** بعد تأكيد الدفع كان الرابط يذهب دائماً إلى `/admin/contract-review` بينما اعتماد/رفع المستندات والشيكات يتم في `/properties/[id]/upload-documents`.

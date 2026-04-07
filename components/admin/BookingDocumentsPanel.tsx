@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getDocumentsByBooking,
-  createDocumentRequests,
+  addMissingDocumentRequests,
   addCustomDocumentRequest,
   approveDocument,
   rejectDocument,
@@ -292,7 +292,7 @@ export default function BookingDocumentsPanel({
       labelEn: r.labelEn || '',
       isRequired: r.isRequired,
     }));
-    createDocumentRequests(booking.id, propertyId, requirements);
+    addMissingDocumentRequests(booking.id, propertyId, requirements);
     refresh();
   };
 

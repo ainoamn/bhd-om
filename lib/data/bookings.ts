@@ -392,6 +392,9 @@ type CreateBookingInput = Omit<PropertyBooking, 'id' | 'createdAt' | 'status'> &
   cardExpiry?: string;
   cardholderName?: string;
   userId?: string;
+  /** جنسية المستأجر الشخصي — تُمرَّر لدفتر العناوين عند إنشاء الحجز */
+  contactNationality?: string;
+  contractKind?: PropertyBooking['contractKind'];
 };
 
 /** يبني كائن الحجز ويربط دفتر العناوين — بدون حفظ محلي (للتحقق من الخادم أولاً) */
@@ -431,6 +434,7 @@ export function prepareBookingForSave(data: CreateBookingInput): PropertyBooking
         unitDisplay,
         civilId: data.civilId?.trim() || undefined,
         passportNumber: data.passportNumber?.trim() || undefined,
+        nationality: data.contactNationality?.trim() || undefined,
       });
       contactIdFromEnsure = contact?.id;
     }
@@ -438,8 +442,11 @@ export function prepareBookingForSave(data: CreateBookingInput): PropertyBooking
     // فشل ربط دفتر العناوين فقط
   }
   const userId = typeof data.userId === 'string' && data.userId.trim() ? data.userId.trim() : undefined;
+  const contractKind =
+    data.contractKind ?? (prop?.type === 'SALE' ? 'SALE' : prop?.type === 'INVESTMENT' ? 'INVESTMENT' : 'RENT');
   const booking: PropertyBooking = {
     ...data,
+    contractKind,
     contactType: isCompany ? 'COMPANY' : (data.contactType || 'PERSONAL'),
     companyData: isCompany ? data.companyData : undefined,
     name: isCompany ? data.companyData!.companyNameAr : data.name,
