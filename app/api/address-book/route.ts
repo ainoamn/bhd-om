@@ -134,13 +134,26 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error('Address book GET error:', e);
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021') {
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      /** جدول/عمود غير موجود — migrate deploy؛ check-db قد يبقى ناجحاً */
+      if (e.code === 'P2021' || e.code === 'P2022') {
+        return NextResponse.json(
+          {
+            error: 'schema_not_deployed',
+            prismaCode: e.code,
+            hint: 'Run npx prisma migrate deploy against production DATABASE_URL.',
+          },
+          { status: 500, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
+        );
+      }
+      if (isTransientConnectionFailure(e)) {
+        return NextResponse.json(
+          { error: 'database_unavailable' },
+          { status: 503, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
+        );
+      }
       return NextResponse.json(
-        {
-          error: 'schema_not_deployed',
-          prismaCode: e.code,
-          hint: 'Run npx prisma migrate deploy against production DATABASE_URL.',
-        },
+        { error: 'prisma_error', prismaCode: e.code },
         { status: 500, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
       );
     }
@@ -150,7 +163,12 @@ export async function GET(req: NextRequest) {
         { status: 503, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
       );
     }
-    return NextResponse.json({ error: 'Failed to fetch address book' }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('Address book GET (non-Prisma):', msg);
+    return NextResponse.json(
+      { error: 'Failed to fetch address book', detail: process.env.NODE_ENV === 'development' ? msg : undefined },
+      { status: 500, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
+    );
   }
 }
 

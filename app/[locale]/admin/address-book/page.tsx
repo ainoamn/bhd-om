@@ -224,6 +224,7 @@ export default function AdminAddressBookPage() {
     setContacts,
     loading: contactsLoading,
     error: contactsLoadError,
+    prismaErrorCode: addressBookPrismaCode,
     refresh: refreshAddressBookFromServer,
   } = useAdminAddressBookContacts({
     sessionStatus,
@@ -1302,9 +1303,13 @@ export default function AdminAddressBookPage() {
         <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
           {contactsLoadError === 'fetch_failed_schema'
             ? locale === 'ar'
-              ? 'جدول دفتر العناوين غير موجود على قاعدة الإنتاج (الهجرات غير مطبّقة). من جهازك مع نفس DATABASE_URL: npx prisma migrate deploy ثم حدّث الصفحة. /api/check-db قد يظهر «متصل» لأنه لا يقرأ الجداول.'
-              : 'Address book table is missing on production (migrations not applied). With DATABASE_URL set locally: npx prisma migrate deploy, then refresh. /api/check-db can still show OK because it only runs SELECT 1.'
-            : contactsLoadError === 'fetch_failed_db'
+              ? `جدول أو عمود دفتر العناوين غير متوافق مع المشروع (الهجرات غير مطبّقة${addressBookPrismaCode ? ` — رمز Prisma: ${addressBookPrismaCode}` : ''}). من جهازك مع نفس DATABASE_URL: npx prisma migrate deploy ثم حدّث الصفحة. /api/check-db قد يظهر «متصل» لأنه لا يقرأ الجداول.`
+              : `Table/column mismatch (migrations not applied${addressBookPrismaCode ? ` — Prisma: ${addressBookPrismaCode}` : ''}). Run: npx prisma migrate deploy with production DATABASE_URL, then refresh. /api/check-db may still show OK (SELECT 1 only).`
+            : contactsLoadError === 'fetch_failed_prisma'
+              ? locale === 'ar'
+                ? `خطأ من قاعدة البيانات (رمز Prisma: ${addressBookPrismaCode ?? '—'}). راجع سجلات Vercel لطلب GET /api/address-book، أو نفّذ migrate deploy إن كان الجدول قديماً.`
+                : `Database error (Prisma code: ${addressBookPrismaCode ?? '—'}). Check Vercel logs for GET /api/address-book, or run migrate deploy if the schema is outdated.`
+              : contactsLoadError === 'fetch_failed_db'
             ? locale === 'ar'
               ? 'تعذر الاتصال بقاعدة البيانات. أضف DATABASE_URL أو POSTGRES_PRISMA_URL في Vercel ثم أعد النشر.'
               : 'Could not connect to the database. Add DATABASE_URL or POSTGRES_PRISMA_URL in Vercel and redeploy.'

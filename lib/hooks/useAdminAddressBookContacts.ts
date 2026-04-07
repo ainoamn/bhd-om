@@ -52,6 +52,8 @@ export function useAdminAddressBookContacts(opts: {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** من JSON عند error=prisma_error أو schema_not_deployed — للعرض في الواجهة */
+  const [prismaErrorCode, setPrismaErrorCode] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -64,6 +66,7 @@ export function useAdminAddressBookContacts(opts: {
       initialFetchCompletedRef.current = false;
       setContacts([]);
       setError(null);
+      setPrismaErrorCode(null);
       setLoading(false);
       return;
     }
@@ -83,6 +86,7 @@ export function useAdminAddressBookContacts(opts: {
       setLoading(true);
     }
     setError(null);
+    setPrismaErrorCode(null);
 
     (async () => {
       try {
@@ -119,7 +123,7 @@ export function useAdminAddressBookContacts(opts: {
           let skipRetry = false;
           try {
             const peek = (await res.clone().json()) as { error?: string };
-            if (peek?.error === 'schema_not_deployed') skipRetry = true;
+            if (peek?.error === 'schema_not_deployed' || peek?.error === 'prisma_error') skipRetry = true;
           } catch {
             /* ignore */
           }
@@ -133,13 +137,19 @@ export function useAdminAddressBookContacts(opts: {
           if (myId !== requestIdRef.current) return;
           let serverDbUnavailable = false;
           let schemaNotDeployed = false;
+          let prismaKnown = false;
+          let prismaCode: string | undefined;
           try {
-            const errJson = (await res.clone().json()) as { error?: string };
+            const errJson = (await res.clone().json()) as { error?: string; prismaCode?: string };
             if (errJson?.error === 'database_unavailable') serverDbUnavailable = true;
             if (errJson?.error === 'schema_not_deployed') schemaNotDeployed = true;
+            if (errJson?.error === 'prisma_error') prismaKnown = true;
+            prismaCode = typeof errJson?.prismaCode === 'string' ? errJson.prismaCode : undefined;
           } catch {
             /* ليست JSON */
           }
+          if (prismaCode) setPrismaErrorCode(prismaCode);
+          else setPrismaErrorCode(null);
           if (isAdminLike(userRole) || userRole === undefined) {
             const local = contactsFromLocalForDisplay(userRole, showArchived);
             setContacts(local);
@@ -147,6 +157,8 @@ export function useAdminAddressBookContacts(opts: {
               setError(local.length > 0 ? 'unauthorized_local' : 'unauthorized');
             } else if (schemaNotDeployed) {
               setError('fetch_failed_schema');
+            } else if (prismaKnown) {
+              setError('fetch_failed_prisma');
             } else if (serverDbUnavailable) {
               setError(local.length > 0 ? 'fetch_failed_db_local' : 'fetch_failed_db');
             } else {
@@ -161,7 +173,15 @@ export function useAdminAddressBookContacts(opts: {
             } catch {
               setContacts([]);
             }
-            setError(schemaNotDeployed ? 'fetch_failed_schema' : serverDbUnavailable ? 'fetch_failed_db' : 'fetch_failed');
+            setError(
+              schemaNotDeployed
+                ? 'fetch_failed_schema'
+                : prismaKnown
+                  ? 'fetch_failed_prisma'
+                  : serverDbUnavailable
+                    ? 'fetch_failed_db'
+                    : 'fetch_failed'
+            );
           }
           initialFetchCompletedRef.current = true;
           return;
@@ -190,6 +210,7 @@ export function useAdminAddressBookContacts(opts: {
         setContacts(filtered);
         initialFetchCompletedRef.current = true;
         setError(null);
+        setPrismaErrorCode(null);
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         if (myId !== requestIdRef.current) return;
@@ -216,5 +237,5 @@ export function useAdminAddressBookContacts(opts: {
     };
   }, [sessionStatus, sessionReady, userRole, showArchived, refreshKey]);
 
-  return { contacts, setContacts, loading, error, refresh };
+  return { contacts, setContacts, loading, error, prismaErrorCode, refresh };
 }
