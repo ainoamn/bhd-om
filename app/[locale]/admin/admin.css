@@ -583,6 +583,23 @@
 .address-book-table.address-book-table--compact tbody tr:hover td {
   background-color: rgb(249 250 251 / 0.8);
 }
+
+/* قائمة المستخدمين — نفس أسلوب دفتر العناوين المضغوط */
+.users-admin-page-compact {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.users-admin-page-compact .users-toolbar-actions {
+  max-width: min(100%, 72rem);
+}
+.users-admin-page-compact .users-list-card article {
+  padding: 0.625rem 0.75rem;
+}
+@media (min-width: 640px) {
+  .users-admin-page-compact .users-list-card article {
+    padding: 0.75rem 1rem;
+  }
+}
 .admin-table th {
   @apply px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/80;
 }

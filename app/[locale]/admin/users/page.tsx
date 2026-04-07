@@ -625,14 +625,14 @@ export default function UsersAdminPage() {
   };
 
   return (
-    <div className="space-y-8 w-full max-w-full min-h-0">
+    <div className="users-admin-page-compact space-y-4 w-full max-w-full min-h-0">
       {syncMsg && (
-        <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-medium">
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800 font-medium">
           {syncMsg}
         </div>
       )}
       {loadError && (
-        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-900 font-medium whitespace-pre-wrap">
+        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-900 font-medium whitespace-pre-wrap">
           {loadError}
           <button
             type="button"
@@ -647,21 +647,24 @@ export default function UsersAdminPage() {
         </div>
       )}
       <AdminPageHeader
+        compact
         title={t('title')}
         subtitle={t('subtitle') + (locale === 'ar' ? ' — إدارة أسماء المستخدمين وكلمات المرور.' : ' — Manage usernames and passwords.')}
+        actionsClassName="users-toolbar-actions"
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 justify-end">
             <button
               type="button"
               onClick={() => setShowAddUser(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all"
             >
               <span>+</span>
               {t('addUser')}
             </button>
             <Link
               href={`/${locale}/admin/address-book`}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
+              prefetch={true}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
             >
               <span>📇</span>
               {locale === 'ar' ? 'دفتر العناوين' : 'Address Book'}
@@ -670,40 +673,40 @@ export default function UsersAdminPage() {
         }
       />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="admin-card p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase">{t('total')}</p>
-          <p className="text-xl font-bold text-gray-900 mt-0.5">{stats.total}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="admin-card rounded-xl p-3 shadow-none">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide leading-tight">{t('total')}</p>
+          <p className="text-lg font-bold text-gray-900 mt-0.5 tabular-nums">{stats.total}</p>
         </div>
-        <div className="admin-card p-4 border-blue-200">
-          <p className="text-xs font-semibold text-blue-700 uppercase">{t('admins')}</p>
-          <p className="text-xl font-bold text-blue-700 mt-0.5">{stats.admins}</p>
+        <div className="admin-card rounded-xl p-3 border-blue-200/80 shadow-none">
+          <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide leading-tight">{t('admins')}</p>
+          <p className="text-lg font-bold text-blue-700 mt-0.5 tabular-nums">{stats.admins}</p>
         </div>
-        <div className="admin-card p-4 border-emerald-200">
-          <p className="text-xs font-semibold text-emerald-700 uppercase">{t('clients')}</p>
-          <p className="text-xl font-bold text-emerald-700 mt-0.5">{stats.clients}</p>
+        <div className="admin-card rounded-xl p-3 border-emerald-200/80 shadow-none">
+          <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide leading-tight">{t('clients')}</p>
+          <p className="text-lg font-bold text-emerald-700 mt-0.5 tabular-nums">{stats.clients}</p>
         </div>
-        <div className="admin-card p-4 border-amber-200">
-          <p className="text-xs font-semibold text-amber-800 uppercase">{t('owners')}</p>
-          <p className="text-xl font-bold text-amber-900 mt-0.5">{stats.owners}</p>
+        <div className="admin-card rounded-xl p-3 border-amber-200/80 shadow-none">
+          <p className="text-[10px] font-semibold text-amber-800 uppercase tracking-wide leading-tight">{t('owners')}</p>
+          <p className="text-lg font-bold text-amber-900 mt-0.5 tabular-nums">{stats.owners}</p>
         </div>
       </div>
 
-      <div className="admin-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 className="text-base font-bold text-gray-900">{t('title')}</h2>
-          <div className="flex flex-wrap gap-2">
+      <div className="admin-card users-list-card overflow-hidden rounded-xl shadow-sm">
+        <div className="px-3 py-2 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gray-50/40">
+          <h2 className="text-sm font-semibold text-gray-800">{t('title')}</h2>
+          <div className="flex flex-wrap gap-1.5 items-center">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('searchPlaceholder')}
-              className="admin-input w-48 sm:w-56 py-2 text-sm"
+              className="admin-input w-44 sm:w-52 py-1.5 px-3 text-xs rounded-lg"
             />
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="admin-select text-sm py-2"
+              className="admin-select text-xs py-1.5 px-2 rounded-lg min-w-0"
             >
               <option value="ALL">{locale === 'ar' ? 'كل الأدوار' : 'All roles'}</option>
               <option value="ADMIN">{t('roleAdmin')}</option>
@@ -714,56 +717,56 @@ export default function UsersAdminPage() {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center">
-            <div className="animate-pulse text-gray-400">{locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>
+          <div className="p-8 text-center">
+            <div className="animate-pulse text-gray-400 text-sm">{locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>
           </div>
         ) : requireAdmin ? (
-          <div className="p-12 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-amber-100 flex items-center justify-center text-4xl mx-auto mb-4">🔐</div>
-            <p className="text-gray-700 font-medium text-lg">{locale === 'ar' ? 'يجب تسجيل الدخول كمدير لعرض قائمة المستخدمين' : 'You must be logged in as Admin to view the users list'}</p>
-            <p className="text-gray-500 text-sm mt-2">{locale === 'ar' ? 'سجّل الخروج ثم ادخل بحساب المدير (admin@bhd-om.com)' : 'Sign out then log in with admin account (admin@bhd-om.com)'}</p>
-            <Link href={`/${locale}/login`} className="inline-block mt-4 px-6 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
+          <div className="p-8 text-center">
+            <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center text-2xl mx-auto mb-3">🔐</div>
+            <p className="text-gray-700 font-medium text-sm">{locale === 'ar' ? 'يجب تسجيل الدخول كمدير لعرض قائمة المستخدمين' : 'You must be logged in as Admin to view the users list'}</p>
+            <p className="text-gray-500 text-xs mt-2">{locale === 'ar' ? 'سجّل الخروج ثم ادخل بحساب المدير (admin@bhd-om.com)' : 'Sign out then log in with admin account (admin@bhd-om.com)'}</p>
+            <Link href={`/${locale}/login`} className="inline-block mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
               {locale === 'ar' ? 'صفحة تسجيل الدخول' : 'Login page'}
             </Link>
           </div>
         ) : filteredUsers.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-4xl mx-auto mb-4">👤</div>
-            <p className="text-gray-500 font-medium text-lg">{t('noUsers')}</p>
-            <p className="text-gray-400 text-sm mt-1">{t('noUsersHint')}</p>
+          <div className="p-8 text-center">
+            <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center text-2xl mx-auto mb-3">👤</div>
+            <p className="text-gray-500 font-medium text-sm">{t('noUsers')}</p>
+            <p className="text-gray-400 text-xs mt-1">{t('noUsersHint')}</p>
           </div>
         ) : (
           <div className="w-full min-w-0 divide-y divide-gray-100">
             {filteredUsers.map((u) => (
               <article
                 key={u.id}
-                className="px-4 py-4 sm:px-5 sm:py-4 hover:bg-stone-50/70 transition-colors"
+                className="hover:bg-stone-50/70 transition-colors"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3 gap-y-2">
-                  <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
-                    <UserBarcode userId={u.id} locale={locale} size={32} className="shrink-0 mt-0.5" />
+                <div className="flex flex-wrap items-start justify-between gap-2 gap-y-1.5">
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <UserBarcode userId={u.id} locale={locale} size={24} className="shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <Link
                         href={`/${locale}/admin/users/${u.id}`}
-                        prefetch
-                        className="text-base font-bold text-gray-900 hover:text-[#8B6F47] hover:underline break-words"
+                        prefetch={true}
+                        className="text-sm font-semibold text-gray-900 hover:text-[#8B6F47] hover:underline break-words leading-snug"
                       >
                         {u.name || '—'}
                       </Link>
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    <span className={`admin-badge ${u.role === 'ADMIN' ? 'admin-badge-warning' : 'admin-badge-info'}`}>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                    <span className={`admin-badge text-[10px] px-1.5 py-0.5 ${u.role === 'ADMIN' ? 'admin-badge-warning' : 'admin-badge-info'}`}>
                       {t(roleLabels[u.role] || 'roleClient')}
                     </span>
-                    <span className="admin-badge admin-badge-success">{t('statusActive')}</span>
+                    <span className="admin-badge admin-badge-success text-[10px] px-1.5 py-0.5">{t('statusActive')}</span>
                   </div>
                 </div>
 
-                <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <dl className="mt-2.5 grid grid-cols-1 gap-x-3 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
                   <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('username')}</dt>
-                    <dd className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 break-all font-mono text-xs text-gray-800">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('username')}</dt>
+                    <dd className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 break-all font-mono text-[11px] text-gray-800">
                       <Link
                         href={`/${locale}/admin/users/${u.id}`}
                         prefetch
@@ -788,8 +791,8 @@ export default function UsersAdminPage() {
                     </dd>
                   </div>
                   <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('email')}</dt>
-                    <dd className="mt-0.5 break-all text-gray-800">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('email')}</dt>
+                    <dd className="mt-0.5 break-all text-gray-800 leading-snug">
                       {u.email && !u.email.includes('@nologin.bhd') ? (
                         <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="text-[#8B6F47] hover:underline">
                           {u.email}
@@ -800,8 +803,8 @@ export default function UsersAdminPage() {
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('phone')}</dt>
-                    <dd className="mt-0.5 break-all text-gray-800">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('phone')}</dt>
+                    <dd className="mt-0.5 break-all text-gray-800 leading-snug">
                       {u.phone ? (
                         <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="text-[#8B6F47] hover:underline">
                           {u.phone}
@@ -812,12 +815,12 @@ export default function UsersAdminPage() {
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('registeredAt')}</dt>
-                    <dd className="mt-0.5 text-gray-800">{formatUserListDate(u.createdAt, locale)}</dd>
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('registeredAt')}</dt>
+                    <dd className="mt-0.5 text-gray-800 text-[11px]">{formatUserListDate(u.createdAt, locale)}</dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('plan')}</dt>
-                    <dd className="mt-0.5 break-words text-gray-800">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('plan')}</dt>
+                    <dd className="mt-0.5 break-words text-gray-800 leading-snug">
                       {u.plan ? (
                         <Link href={`/${locale}/admin/subscriptions`} prefetch className="text-[#8B6F47] hover:underline font-medium">
                           {locale === 'ar' ? u.plan.nameAr : u.plan.nameEn}
@@ -828,18 +831,18 @@ export default function UsersAdminPage() {
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('subscriptionEnds')}</dt>
-                    <dd className="mt-0.5 text-gray-800">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('subscriptionEnds')}</dt>
+                    <dd className="mt-0.5 text-gray-800 text-[11px]">
                       {u.subscriptionEndAt ? formatUserListDate(u.subscriptionEndAt, locale) : '—'}
                     </dd>
                   </div>
                 </dl>
 
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2">
                   <button
                     type="button"
                     onClick={() => setEditUser(u)}
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#8B6F47] hover:bg-gray-50"
+                    className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#8B6F47] hover:bg-gray-50"
                   >
                     {locale === 'ar' ? 'تعديل' : 'Edit'}
                   </button>
@@ -847,7 +850,7 @@ export default function UsersAdminPage() {
                     type="button"
                     onClick={() => handleResetPassword(u)}
                     disabled={!!resetPasswordUser}
-                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                    className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                   >
                     {resetPasswordUser?.id === u.id ? (locale === 'ar' ? 'جاري...' : '...') : (locale === 'ar' ? 'كلمة مرور' : 'Password')}
                   </button>
@@ -856,7 +859,7 @@ export default function UsersAdminPage() {
                       type="button"
                       onClick={() => handleAddToAddressBook(u)}
                       disabled={!!addingId}
-                      className="rounded-lg border border-[#8B6F47]/30 bg-[#8B6F47]/5 px-3 py-1.5 text-xs font-semibold text-[#6B5535] hover:bg-[#8B6F47]/10 disabled:opacity-50"
+                      className="rounded-md border border-[#8B6F47]/30 bg-[#8B6F47]/5 px-2.5 py-1 text-[11px] font-semibold text-[#6B5535] hover:bg-[#8B6F47]/10 disabled:opacity-50"
                     >
                       {addingId === u.id ? (locale === 'ar' ? 'جاري...' : 'Adding...') : (locale === 'ar' ? 'إضافة للدفتر' : 'Add to book')}
                     </button>
@@ -864,7 +867,7 @@ export default function UsersAdminPage() {
                     <Link
                       href={`/${locale}/admin/address-book`}
                       prefetch
-                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                      className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
                     >
                       {locale === 'ar' ? 'في الدفتر' : 'In book'}
                     </Link>
@@ -872,7 +875,7 @@ export default function UsersAdminPage() {
                   <Link
                     href={`/${locale}/admin/users/${u.id}`}
                     prefetch
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
                   >
                     {locale === 'ar' ? 'تفاصيل' : 'Details'}
                   </Link>
