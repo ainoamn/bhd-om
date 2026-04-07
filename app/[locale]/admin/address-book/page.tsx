@@ -1207,7 +1207,9 @@ export default function AdminAddressBookPage() {
 
   return (
     <>
-    <div className={`space-y-8 address-book-main w-full max-w-full min-h-0 ${isEmbedAdd ? 'hidden' : ''}`}>
+    <div
+      className={`address-book-page-compact address-book-main space-y-4 w-full max-w-full min-h-0 ${isEmbedAdd ? 'hidden' : ''}`}
+    >
       {importResult !== null && (
         <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-emerald-800 font-medium">
           {t('importSuccess', { count: importResult })}
@@ -1328,26 +1330,28 @@ export default function AdminAddressBookPage() {
         </div>
       )}
       <AdminPageHeader
+        compact
         title={t('title')}
         subtitle={t('subtitle')}
+        actionsClassName="address-book-toolbar-actions"
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 justify-end">
             <Link
               href={`/${locale}/admin/users`}
               prefetch={true}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-all no-print"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-all no-print"
             >
               {locale === 'ar' ? 'حسابات المستخدمين' : 'User accounts'}
             </Link>
             <Link
               href={`/${locale}/admin/users?addUser=1`}
               prefetch={true}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-all shadow-sm no-print"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 transition-all shadow-sm no-print"
             >
               <span>➕</span>
               {locale === 'ar' ? 'مستخدم جديد' : 'New user'}
             </Link>
-            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer">
+            <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer">
               <span>📤</span>
               {t('importCsv')}
               <input
@@ -1382,7 +1386,7 @@ export default function AdminAddressBookPage() {
                 a.click();
                 URL.revokeObjectURL(url);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
             >
               <span>📥</span>
               {t('exportCsv')}
@@ -1390,7 +1394,7 @@ export default function AdminAddressBookPage() {
             <button
               type="button"
               onClick={handleSyncFromBookings}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print"
             >
               <span>🔄</span>
               {locale === 'ar' ? 'تحديث من الحجوزات' : 'Sync from Bookings'}
@@ -1399,7 +1403,7 @@ export default function AdminAddressBookPage() {
               type="button"
               onClick={handleSyncFromUsers}
               disabled={syncingFromUsers}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
             >
               <span>👤</span>
               {syncingFromUsers ? (locale === 'ar' ? 'جاري...' : 'Syncing...') : tUsers('syncFromUsers')}
@@ -1412,7 +1416,7 @@ export default function AdminAddressBookPage() {
                 if (!creatingAccounts) handleCreateAccountsForContacts();
               }}
               disabled={creatingAccounts}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60 cursor-pointer"
               title={locale === 'ar' ? 'إنشاء حسابات للموجودين بدون حسابات' : 'Create accounts for contacts without user accounts'}
             >
               <span>🔐</span>
@@ -1422,7 +1426,7 @@ export default function AdminAddressBookPage() {
               <button
                 type="button"
                 onClick={handleMergeDuplicates}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all no-print"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all no-print"
               >
                 <span>🔗</span>
                 {t('mergeDuplicates')} ({duplicateGroups.length})
@@ -1431,7 +1435,7 @@ export default function AdminAddressBookPage() {
             <button
               type="button"
               onClick={openAdd}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-sm no-print"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-sm no-print"
             >
               <span>➕</span>
               {t('addContact')}
@@ -1440,40 +1444,42 @@ export default function AdminAddressBookPage() {
         }
       />
 
-      <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 transition-all duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="admin-card p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase">{t('total')}</p>
-          <p className="text-xl font-bold text-gray-900 mt-0.5">{stats.total}</p>
+      <div
+        className={`grid grid-cols-2 md:grid-cols-4 gap-2 transition-all duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}
+      >
+        <div className="admin-card rounded-xl p-3 shadow-none">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide leading-tight">{t('total')}</p>
+          <p className="text-lg font-bold text-gray-900 mt-0.5 tabular-nums">{stats.total}</p>
         </div>
-        <div className="admin-card p-4 border-blue-200">
-          <p className="text-xs font-semibold text-blue-700 uppercase">{t('clients')}</p>
-          <p className="text-xl font-bold text-blue-700 mt-0.5">{stats.clients}</p>
+        <div className="admin-card rounded-xl p-3 border-blue-200/80 shadow-none">
+          <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide leading-tight">{t('clients')}</p>
+          <p className="text-lg font-bold text-blue-700 mt-0.5 tabular-nums">{stats.clients}</p>
         </div>
-        <div className="admin-card p-4 border-emerald-200">
-          <p className="text-xs font-semibold text-emerald-700 uppercase">{t('tenants')}</p>
-          <p className="text-xl font-bold text-emerald-700 mt-0.5">{stats.tenants}</p>
+        <div className="admin-card rounded-xl p-3 border-emerald-200/80 shadow-none">
+          <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide leading-tight">{t('tenants')}</p>
+          <p className="text-lg font-bold text-emerald-700 mt-0.5 tabular-nums">{stats.tenants}</p>
         </div>
-        <div className="admin-card p-4 border-amber-200">
-          <p className="text-xs font-semibold text-amber-700 uppercase">{t('landlords')}</p>
-          <p className="text-xl font-bold text-amber-700 mt-0.5">{stats.landlords}</p>
+        <div className="admin-card rounded-xl p-3 border-amber-200/80 shadow-none">
+          <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide leading-tight">{t('landlords')}</p>
+          <p className="text-lg font-bold text-amber-700 mt-0.5 tabular-nums">{stats.landlords}</p>
         </div>
       </div>
 
-      <div className="admin-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 className="text-base font-bold text-gray-900">{t('contacts')}</h2>
-          <div className="flex flex-wrap gap-2">
+      <div className="admin-card overflow-hidden rounded-xl shadow-sm">
+        <div className="px-3 py-2 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-gray-50/40">
+          <h2 className="text-sm font-semibold text-gray-800">{t('contacts')}</h2>
+          <div className="flex flex-wrap gap-1.5 items-center">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('searchPlaceholder')}
-              className="admin-input w-48 sm:w-56 py-2 text-sm"
+              className="admin-input w-44 sm:w-52 py-1.5 px-3 text-xs rounded-lg"
             />
             <select
               value={filterContactType}
               onChange={(e) => setFilterContactType(e.target.value as ContactType | 'ALL')}
-              className="admin-select text-sm py-2"
+              className="admin-select text-xs py-1.5 px-2 rounded-lg min-w-0"
             >
               <option value="ALL">{locale === 'ar' ? 'كل الأنواع' : 'All Types'}</option>
               <option value="PERSONAL">{t('contactTypePersonal')}</option>
@@ -1482,7 +1488,7 @@ export default function AdminAddressBookPage() {
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value as ContactCategory | 'ALL')}
-              className="admin-select text-sm py-2"
+              className="admin-select text-xs py-1.5 px-2 rounded-lg min-w-0"
             >
               <option value="ALL">{t('allCategories')}</option>
               {(Object.keys(CATEGORY_KEYS) as ContactCategory[]).map((cat) => (
@@ -1491,20 +1497,20 @@ export default function AdminAddressBookPage() {
                 </option>
               ))}
             </select>
-            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer hover:bg-gray-100">
+            <label className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-gray-200 cursor-pointer hover:bg-gray-50">
               <input
                 type="checkbox"
                 checked={showArchived}
                 onChange={(e) => setShowArchived(e.target.checked)}
-                className="rounded"
+                className="rounded text-xs"
               />
-              <span className="text-sm font-medium text-gray-700">{t('showArchived')}</span>
+              <span className="text-xs font-medium text-gray-700">{t('showArchived')}</span>
             </label>
             {allTags.length > 0 && (
               <select
                 value={filterTag}
                 onChange={(e) => setFilterTag(e.target.value)}
-                className="admin-select text-sm py-2"
+                className="admin-select text-xs py-1.5 px-2 rounded-lg min-w-0"
               >
                 <option value="">{t('allTags')}</option>
                 {allTags.map((t) => (
@@ -1516,57 +1522,57 @@ export default function AdminAddressBookPage() {
         </div>
 
         {contactsLoading ? (
-          <div className="p-6 space-y-3">
-            <div className="h-10 rounded bg-gray-100 animate-pulse" />
-            <div className="h-10 rounded bg-gray-100 animate-pulse" />
-            <div className="h-10 rounded bg-gray-100 animate-pulse" />
+          <div className="p-4 space-y-2">
+            <div className="h-8 rounded-md bg-gray-100 animate-pulse" />
+            <div className="h-8 rounded-md bg-gray-100 animate-pulse" />
+            <div className="h-8 rounded-md bg-gray-100 animate-pulse" />
           </div>
         ) : filteredContacts.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-4xl mx-auto mb-4">📇</div>
-            <p className="text-gray-500 font-medium text-lg">{t('noContacts')}</p>
-            <p className="text-gray-400 text-sm mt-1">{t('noContactsHint')}</p>
-            <button type="button" onClick={openAdd} className="mt-4 text-[#8B6F47] font-semibold hover:underline">
+          <div className="p-8 text-center">
+            <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center text-2xl mx-auto mb-3">📇</div>
+            <p className="text-gray-500 font-medium text-sm">{t('noContacts')}</p>
+            <p className="text-gray-400 text-xs mt-1">{t('noContactsHint')}</p>
+            <button type="button" onClick={openAdd} className="mt-3 text-[#8B6F47] text-sm font-semibold hover:underline">
               {t('addContact')}
             </button>
           </div>
         ) : (
           <div className="w-full min-w-0 -mx-px overflow-x-auto">
-            <table className="admin-table address-book-table text-sm w-full min-w-[960px]">
+            <table className="admin-table address-book-table address-book-table--compact w-full min-w-[880px]">
               <thead>
-                <tr>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[5rem]">{t('serialNo')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[4.5rem]">{t('contactType')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[10rem]">{t('name')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[4rem]">{t('nationality')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[7rem]">{t('phone')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[5rem]">{t('civilId')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[11rem]">{t('email')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[7rem]">{t('workplace')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[6rem]">{t('category')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[7rem]">{t('linkedUnit')}</th>
-                  <th className="px-3 py-2.5 text-sm font-semibold text-gray-700 whitespace-nowrap min-w-[8rem]">{t('actions')}</th>
+                <tr className="bg-gray-50/90">
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[4.5rem]">{t('serialNo')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[4rem]">{t('contactType')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[9rem]">{t('name')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[3.5rem]">{t('nationality')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[6.5rem]">{t('phone')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[4.5rem]">{t('civilId')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[10rem]">{t('email')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[6rem]">{t('workplace')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[5.5rem]">{t('category')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[6rem]">{t('linkedUnit')}</th>
+                  <th className="px-2 py-1.5 text-[11px] font-semibold text-gray-600 whitespace-nowrap min-w-[7rem]">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredContacts.map((c) => (
                   <tr key={c.id} className={`border-t border-gray-100 hover:bg-gray-50/50 ${c.archived ? 'bg-gray-50/70 opacity-80' : ''}`}>
-                    <td className="px-3 py-2 cell-serial align-top">
+                    <td className="px-2 py-1.5 cell-serial align-top">
                       <button
                         type="button"
                         onClick={() => openEdit(c)}
-                        className="font-mono text-sm text-[#8B6F47] font-medium whitespace-nowrap hover:underline cursor-pointer"
+                        className="font-mono text-xs text-[#8B6F47] font-medium whitespace-nowrap hover:underline cursor-pointer"
                         title={locale === 'ar' ? 'عرض بيانات الجهة' : 'View contact details'}
                       >
                         {c.serialNumber || '—'}
                       </button>
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${(c.contactType || 'PERSONAL') === 'COMPANY' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>
+                    <td className="px-2 py-1.5 align-top">
+                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${(c.contactType || 'PERSONAL') === 'COMPANY' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>
                         {(c.contactType || 'PERSONAL') === 'COMPANY' ? t('contactTypeCompany') : t('contactTypePersonal')}
                       </span>
                     </td>
-                    <td className="px-3 py-2 min-w-[10rem] align-top">
+                    <td className="px-2 py-1.5 min-w-[9rem] align-top">
                       <button
                         type="button"
                         onClick={() => openEdit(c)}
@@ -1574,48 +1580,48 @@ export default function AdminAddressBookPage() {
                       >
                         <div className="flex items-center gap-1 min-w-0">
                           {(c as { userId?: string }).userId && (
-                            <UserBarcode userId={(c as { userId: string }).userId} locale={locale} size={28} className="shrink-0" />
+                            <UserBarcode userId={(c as { userId: string }).userId} locale={locale} size={24} className="shrink-0" />
                           )}
-                          <div className="font-semibold text-gray-900 hover:text-[#8B6F47] hover:underline cursor-pointer break-words" title={getContactDisplayName(c, locale)}>
+                          <div className="font-semibold text-xs text-gray-900 hover:text-[#8B6F47] hover:underline cursor-pointer break-words leading-snug" title={getContactDisplayName(c, locale)}>
                             {getContactDisplayName(c, locale)}
                           </div>
                         </div>
                         {isAuthorizedRepresentative(c) && getLinkedCompanyName(c, locale) && (
-                          <div className="text-xs text-[#8B6F47] break-words" title={getLinkedCompanyName(c, locale)}>
+                          <div className="text-[10px] text-[#8B6F47] break-words mt-0.5" title={getLinkedCompanyName(c, locale)}>
                             {getLinkedCompanyName(c, locale)}
                           </div>
                         )}
-                        {getLinkedRepPosition(c) && <div className="text-xs text-gray-500 break-words">{getLinkedRepPosition(c)}</div>}
+                        {getLinkedRepPosition(c) && <div className="text-[10px] text-gray-500 break-words">{getLinkedRepPosition(c)}</div>}
                       </button>
                     </td>
-                    <td className="px-3 py-2 text-gray-700 text-sm whitespace-nowrap align-top">{c.nationality || '—'}</td>
-                    <td className="px-3 py-2 align-top">
+                    <td className="px-2 py-1.5 text-gray-700 text-xs whitespace-nowrap align-top">{c.nationality || '—'}</td>
+                    <td className="px-2 py-1.5 align-top">
                       <div className="flex flex-col gap-0.5">
-                        <a href={`tel:${c.phone}`} className="text-[#8B6F47] hover:underline text-sm whitespace-nowrap">{c.phone}</a>
+                        <a href={`tel:${c.phone}`} className="text-[#8B6F47] hover:underline text-xs whitespace-nowrap">{c.phone}</a>
                         {c.phoneSecondary && (
-                          <a href={`tel:${c.phoneSecondary}`} className="text-sm text-gray-500 hover:underline whitespace-nowrap">{c.phoneSecondary}</a>
+                          <a href={`tel:${c.phoneSecondary}`} className="text-xs text-gray-500 hover:underline whitespace-nowrap">{c.phoneSecondary}</a>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-sm text-gray-700 whitespace-nowrap align-top">
+                    <td className="px-2 py-1.5 font-mono text-xs text-gray-700 whitespace-nowrap align-top">
                       {isCompanyContact(c) ? (c.companyData?.commercialRegistrationNumber || '—') : (c.civilId || '—')}
                     </td>
-                    <td className="px-3 py-2 cell-email align-top min-w-[11rem]">
+                    <td className="px-2 py-1.5 cell-email align-top min-w-[10rem]">
                       {c.email ? (
-                        <a href={`mailto:${c.email}`} className="text-[#8B6F47] hover:underline text-sm break-all" title={c.email}>
+                        <a href={`mailto:${c.email}`} className="text-[#8B6F47] hover:underline text-xs break-all" title={c.email}>
                           {c.email}
                         </a>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      <span className="text-gray-700 text-sm break-words block" title={getContactLocalizedField(c, 'workplace', locale) === '—' ? (c.company || '') : getContactLocalizedField(c, 'workplace', locale)}>
+                    <td className="px-2 py-1.5 align-top">
+                      <span className="text-gray-700 text-xs break-words block leading-snug" title={getContactLocalizedField(c, 'workplace', locale) === '—' ? (c.company || '') : getContactLocalizedField(c, 'workplace', locale)}>
                         {getContactLocalizedField(c, 'workplace', locale) === '—' ? (c.company || '—') : getContactLocalizedField(c, 'workplace', locale)}
                       </span>
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      <div className="flex flex-wrap gap-1">
+                    <td className="px-2 py-1.5 align-top">
+                      <div className="flex flex-wrap gap-0.5">
                         {isAuthorizedRepresentative(c) && getLinkedRepDisplayItems(c, locale).length > 0 ? (
                           <button
                             type="button"
@@ -1624,7 +1630,7 @@ export default function AdminAddressBookPage() {
                               const first = companies[0] ? getContactById(companies[0].id) : getContactById(c.authorizedForCompanyId!);
                               if (first) openEdit(first);
                             }}
-                            className="admin-badge admin-badge-info text-xs text-right block cursor-pointer hover:opacity-90 px-3 py-1.5"
+                            className="admin-badge admin-badge-info text-[10px] text-right block cursor-pointer hover:opacity-90 px-2 py-1 leading-snug"
                             title={locale === 'ar' ? `عرض سجل الشركة: ${getLinkedRepDisplay(c, locale)}` : `View company: ${getLinkedRepDisplay(c, locale)}`}
                           >
                             <div className="flex flex-col gap-1 items-end">
@@ -1648,7 +1654,7 @@ export default function AdminAddressBookPage() {
                             key={cat}
                             type="button"
                             onClick={() => setFilterCategory(cat)}
-                            className="admin-badge admin-badge-info text-xs whitespace-nowrap hover:opacity-90 cursor-pointer"
+                            className="admin-badge admin-badge-info text-[10px] whitespace-nowrap hover:opacity-90 cursor-pointer px-1.5 py-0.5"
                             title={locale === 'ar' ? 'تصفية حسب هذا التصنيف' : 'Filter by this category'}
                           >
                             {t(CATEGORY_KEYS[cat] as 'categoryClient')}
@@ -1658,7 +1664,7 @@ export default function AdminAddressBookPage() {
                           <button
                             type="button"
                             onClick={() => setFilterCategory(c.category)}
-                            className="admin-badge admin-badge-info text-xs whitespace-nowrap hover:opacity-90 cursor-pointer"
+                            className="admin-badge admin-badge-info text-[10px] whitespace-nowrap hover:opacity-90 cursor-pointer px-1.5 py-0.5"
                             title={locale === 'ar' ? 'تصفية حسب هذا التصنيف' : 'Filter by this category'}
                           >
                             {t(CATEGORY_KEYS[c.category] as 'categoryClient')}
@@ -1666,23 +1672,23 @@ export default function AdminAddressBookPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 align-top">
+                    <td className="px-2 py-1.5 align-top">
                       {c.linkedPropertyId != null ? (
                         <Link
                           href={`/${locale}/admin/properties/${c.linkedPropertyId}`}
-                          className="text-sm text-[#8B6F47] hover:underline font-medium cursor-pointer break-words"
+                          className="text-xs text-[#8B6F47] hover:underline font-medium cursor-pointer break-words leading-snug"
                           title={locale === 'ar' ? `عرض العقار: ${c.linkedUnitDisplay || ''}` : `View property: ${c.linkedUnitDisplay || ''}`}
                         >
                           {c.linkedUnitDisplay || '—'}
                         </Link>
                       ) : (
-                        <span className="text-sm text-gray-600 break-words block" title={c.linkedUnitDisplay || ''}>
+                        <span className="text-xs text-gray-600 break-words block leading-snug" title={c.linkedUnitDisplay || ''}>
                           {c.linkedUnitDisplay || '—'}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      <div className="flex items-center flex-wrap gap-0.5 min-w-0">
+                    <td className="px-2 py-1.5 align-top">
+                      <div className="flex items-center flex-wrap gap-0 min-w-0">
                         <a href={`tel:${c.phone}`} className="p-1 sm:p-1.5 rounded hover:bg-gray-100 text-emerald-600 shrink-0" title={t('call')}>📞</a>
                         <a
                           href={`https://wa.me/${(() => { const d = (c.phone || '').replace(/\D/g, ''); return d.startsWith('968') ? d : '968' + d.replace(/^0/, ''); })()}`}
