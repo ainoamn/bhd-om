@@ -11,6 +11,7 @@
 > **لعدم فقدان التصميم والترابط عند التحديث؟** راجع [docs/SITE-SCENARIOS-AND-LINKS.md](docs/SITE-SCENARIOS-AND-LINKS.md) — سيناريوهات الموقع، خريطة الصفحات، ومعايير التصميم.  
 > **بداية/نهاية الجلسة والسياق اليومي؟** في **بداية كل جلسة** اقرأ [docs/SESSION-START.md](docs/SESSION-START.md) (تعليمات البرمجة، الملفات الواجب قراءتها). في **نهاية كل جلسة** نفّذ [docs/SESSION-END.md](docs/SESSION-END.md) (رفع التغييرات، تحديث الوثائق). حدّث [docs/DAILY-CONTEXT.md](docs/DAILY-CONTEXT.md) بعد كل جلسة لضمان عدم فقدان السياق عند التنقّل بين الأجهزة.  
 > **الدليل التقني الشامل (طبقات، ربط، صيانة، مخاطر):** [docs/اقرأني-الدليل-التقني-الشامل.md](docs/اقرأني-الدليل-التقني-الشامل.md)
+> **قاعدة البيانات — ما المربوط فعلياً؟ ومسار الترقية:** [docs/DATABASE-SETUP-AND-MIGRATION.md](docs/DATABASE-SETUP-AND-MIGRATION.md)
 > **سجل الإصلاحات والترقيات (مستمر):** [docs/DEVELOPMENT-FIXES-AND-UPGRADES.md](docs/DEVELOPMENT-FIXES-AND-UPGRADES.md)
 
 ## 📋 نظرة عامة
@@ -27,13 +28,22 @@
 - **Tailwind CSS 4** - نظام تصميم Utility-First
 - **next-intl 4.8.2** - نظام الترجمة والدولية (i18n)
 - **Prisma 7.3.0** - ORM لقاعدة البيانات
-- **SQLite** - قاعدة البيانات (قابلة للترقية إلى PostgreSQL)
+- **PostgreSQL** - قاعدة البيانات في الإنتاج والتطوير (عبر Prisma؛ راجع [docs/DATABASE-SETUP-AND-MIGRATION.md](docs/DATABASE-SETUP-AND-MIGRATION.md))
 
 ### الخطوط
 
 - **Cairo** - للغة العربية (أوزان: 300-900)
 - **Inter** - للغة الإنجليزية
 - **Display: swap** - لتحسين أداء تحميل الخطوط
+
+### قاعدة البيانات (ملخص — التفاصيل في الوثيقة المخصصة)
+
+- **المشروع مربوط في الكود بـ PostgreSQL** عبر Prisma (`prisma/schema.prisma`) و`lib/prisma.ts` (محول `pg`).
+- **عنوان الاتصال** يُؤخذ من متغيرات البيئة: أولاً `DATABASE_URL`، ثم بدائل مثل `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `NEON_DATABASE_URL` (انظر `lib/env/databaseUrl.ts`).
+- **التطوير المحلي** بدون `.env` قد يستخدم افتراضياً `127.0.0.1:5432` — يجب تشغيل PostgreSQL محلياً أو ضبط الرابط.
+- **الإنتاج (مثلاً Vercel):** يجب تعريف أحد المتغيرات أعلاه بقيمة `postgresql://...` لبيئة **Production** ثم إعادة النشر؛ وإلا تفشل واجهات تعتمد على الخادم (مثل دفتر العناوين).
+- **ما يُسمى «قاعدة مؤقتة» ثم ترقية:** يعني غالباً نفس PostgreSQL على مزود/خطة أخف ثم الانتقال لمزود أقوى — **لا يلزم** تغيير نوع المحرك في المشروع طالما البقاء على Postgres.
+- **المرجع الكامل والملفات ذات الصلة:** [docs/DATABASE-SETUP-AND-MIGRATION.md](docs/DATABASE-SETUP-AND-MIGRATION.md) — ولمخطط التوسع طويل الأمد: [docs/SCALING-DATABASE.md](docs/SCALING-DATABASE.md).
 
 ## 🏗️ البنية المعمارية
 
