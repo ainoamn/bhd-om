@@ -97,6 +97,25 @@ function save(list: BookingDocument[]) {
   } catch {}
 }
 
+/** انتظار جلب مستندات الحجز من الخادم قبل الترحيل أو الدمج */
+export async function ensureBookingDocumentsHydrated(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const r = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    const payload = r.ok ? await r.json() : null;
+    if (!Array.isArray(payload)) return;
+    documentsStore = payload as BookingDocument[];
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      /* ignore */
+    }
+    didHydrateFromServer = true;
+  } catch {
+    /* ignore */
+  }
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY) {

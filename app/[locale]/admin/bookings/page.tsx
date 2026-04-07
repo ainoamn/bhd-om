@@ -6,7 +6,8 @@ import { useParams } from 'next/navigation';
 import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, mergeBookingsFromServer, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
 import { getContractByBooking, hasActiveContractForUnit, type RentalContract } from '@/lib/data/contracts';
-import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
+import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation, ensureBookingDocumentsHydrated } from '@/lib/data/bookingDocuments';
+import { migrateLegacyBookingIdentityDocumentsForBookings } from '@/lib/data/migrateBookingIdentityDocs';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getDocumentUploadLink, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
@@ -113,6 +114,7 @@ export default function AdminBookingsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteBlockedId, setDeleteBlockedId] = useState<string | null>(null);
   const [documentsPanelBooking, setDocumentsPanelBooking] = useState<PropertyBooking | null>(null);
+  const [migratingIdentityDocs, setMigratingIdentityDocs] = useState(false);
   const propertyDropdownRef = useRef<HTMLDivElement>(null);
   const unitDropdownRef = useRef<HTMLDivElement>(null);
   const contactDropdownRef = useRef<HTMLDivElement>(null);
@@ -206,6 +208,22 @@ export default function AdminBookingsPage() {
 
   const syncBookingToServer = (b: PropertyBooking) => {
     fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }).catch(() => {});
+  };
+
+  const handleMigrateIdentityDocRequests = async () => {
+    if (migratingIdentityDocs || bookings.length === 0) return;
+    setMigratingIdentityDocs(true);
+    try {
+      await ensureBookingDocumentsHydrated();
+      const res = migrateLegacyBookingIdentityDocumentsForBookings(bookings);
+      window.alert(
+        ar
+          ? `تمت المعالجة: ${res.processed} حجز نشط. أُضيفت طلبات مستندات جديدة لـ ${res.bookingsUpdated} حجز (إجمالي ${res.documentsAdded} طلباً). لم تُحذف المستندات الموجودة.`
+          : `Processed ${res.processed} active bookings. Added new document requests for ${res.bookingsUpdated} bookings (${res.documentsAdded} requests total). Existing documents were not removed.`
+      );
+    } finally {
+      setMigratingIdentityDocs(false);
+    }
   };
 
   const handleStatusChange = (bookingId: string, newStatus: BookingStatus) => {
@@ -331,6 +349,17 @@ export default function AdminBookingsPage() {
             )}
           </div>
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void handleMigrateIdentityDocRequests()}
+              disabled={migratingIdentityDocs || bookings.length === 0}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span>🪪</span>
+              {migratingIdentityDocs
+                ? (ar ? 'جاري المزامنة…' : 'Syncing…')
+                : (ar ? 'طلبات هوية للحجوزات الحالية' : 'Backfill identity document requests')}
+            </button>
             {(selectedPropId || propertyIds[0] || properties[0]?.id) && (
               <>
                 <Link
