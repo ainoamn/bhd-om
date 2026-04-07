@@ -37,21 +37,17 @@ export async function GET(req: NextRequest) {
       : null;
     const scope = getDataScope(session);
 
-    /** مزامنة المحاسبة ثقيلة (تمرّ على كل الحجوزات) — لا نعطل استجابة القائمة */
-    if (scope.isAdmin) {
-      after(async () => {
-        try {
-          await syncPaidBookingsToAccountingDb();
-        } catch {
-          /* ignore */
-        }
-      });
-    }
-
     const rows = await prisma.bookingStorage.findMany({
       orderBy: { createdAt: 'desc' },
     });
     let bookings: { propertyId?: number | string; email?: string; phone?: string; bookingSerial?: string; [k: string]: unknown }[] = [];
+    /** كان يُولَّد الرقم ويُحدَّث الصف في نفس الطلب — متسلسلاً وبطيئاً جداً مع عشرات الحجوزات */
+    const deferredSerialJobs: {
+      bookingId: string;
+      year: number;
+      parsed: Record<string, unknown>;
+    }[] = [];
+
     for (const r of rows) {
       try {
         const parsed = JSON.parse(r.data) as {
@@ -67,13 +63,12 @@ export async function GET(req: NextRequest) {
         const needSerial =
           !parsed.bookingSerial || !isValidBhdSerial(String(parsed.bookingSerial));
         if (needSerial) {
-          const bookingSerial = await generateBhdSerial('BKG', { year });
-          const next = { ...parsed, bookingSerial };
-          await prisma.bookingStorage.update({
-            where: { bookingId: r.bookingId },
-            data: { data: JSON.stringify(next), updatedAt: new Date() },
+          deferredSerialJobs.push({
+            bookingId: r.bookingId,
+            year,
+            parsed: { ...parsed } as Record<string, unknown>,
           });
-          bookings.push(next);
+          bookings.push(parsed);
         } else {
           bookings.push(parsed);
         }
@@ -81,6 +76,29 @@ export async function GET(req: NextRequest) {
         /* تخطي سجل تالف */
       }
     }
+
+    /** مزامنة المحاسبة + إصلاح أرقام BKG — بعد إرسال JSON للمتصفح */
+    after(async () => {
+      if (scope.isAdmin) {
+        try {
+          await syncPaidBookingsToAccountingDb();
+        } catch {
+          /* ignore */
+        }
+      }
+      for (const job of deferredSerialJobs) {
+        try {
+          const bookingSerial = await generateBhdSerial('BKG', { year: job.year });
+          const next = { ...job.parsed, bookingSerial };
+          await prisma.bookingStorage.update({
+            where: { bookingId: job.bookingId },
+            data: { data: JSON.stringify(next), updatedAt: new Date() },
+          });
+        } catch (err) {
+          console.error('Deferred BKG serial fix:', job.bookingId, err);
+        }
+      }
+    });
 
     if (scope.userId && !scope.isAdmin) {
       const user = await prisma.user.findUnique({

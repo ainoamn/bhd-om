@@ -70,7 +70,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/bookings', { credentials: 'include' });
+        const res = await fetch('/api/bookings', { credentials: 'include', cache: 'no-store' });
         if (res.ok) {
           const serverBookings = await res.json();
           if (Array.isArray(serverBookings)) setBookings(serverBookings);
@@ -84,8 +84,8 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (userRole !== 'ADMIN') return;
-    fetch('/api/subscriptions', { credentials: 'include' })
-      .then((r) => r.ok ? r.json() : { list: [] })
+    fetch('/api/subscriptions', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { list: [] }))
       .then((d) => setSubscriptionList(Array.isArray(d?.list) ? d.list : []))
       .catch(() => setSubscriptionList([]));
   }, [userRole]);
