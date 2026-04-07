@@ -9,6 +9,11 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-04-07 — بطء لوحة التحكم (10s+)
+
+- **السبب:** `syncPaidBookingsToAccountingDb` كانت تُستدعى **قبل** إرجاع الحجوزات/المحاسبة وتمرّ على كل سجلات الحجز؛ و`PrismaClient` لم يُخزَّن في `globalForPrisma` في الإنتاج فيزيد إعادة الاتصال على كل برد.
+- **الإصلاح:** `after()` من `next/server` لتشغيل المزامنة بعد الاستجابة في `GET /api/bookings` و`GET /api/accounting/data` و`getAccountingDataForPage`؛ `globalForPrisma.prisma = prisma` دائماً في `lib/prisma.ts`.
+
 ### جلسة 2026-04-07 — دفتر العناوين P2022: إصلاح تلقائي في API
 
 - **السبب:** عمود `linkedUserId` غير مطبّق على بعض قواعد الإنتاج.

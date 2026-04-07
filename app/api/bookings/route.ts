@@ -3,7 +3,7 @@
  * عند حفظ حجز مدفوع: يُنشأ إيصال في المحاسبة (قاعدة البيانات) تلقائياً.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDataScope } from '@/lib/auth/adminPermissions';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
@@ -37,12 +37,15 @@ export async function GET(req: NextRequest) {
       : null;
     const scope = getDataScope(session);
 
+    /** مزامنة المحاسبة ثقيلة (تمرّ على كل الحجوزات) — لا نعطل استجابة القائمة */
     if (scope.isAdmin) {
-      try {
-        await syncPaidBookingsToAccountingDb();
-      } catch {
-        // عدم إيقاف استجابة الحجوزات عند فشل المزامنة
-      }
+      after(async () => {
+        try {
+          await syncPaidBookingsToAccountingDb();
+        } catch {
+          /* ignore */
+        }
+      });
     }
 
     const rows = await prisma.bookingStorage.findMany({

@@ -760,12 +760,19 @@ export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 
 
 /** جلب كل بيانات المحاسبة من الخادم (مزامنة + قراءة) — للعرض المباشر من الصفحة دون الاعتماد على طلب API من المتصفح */
 export async function getAccountingDataForPage(filters?: { fromDate?: string; toDate?: string }) {
-  try {
-    await syncPaidBookingsToAccountingDb();
-  } catch (_) {}
-  try {
-    await syncSubscriptionHistoryToAccountingDb();
-  } catch (_) {}
+  const { after } = await import('next/server');
+  after(async () => {
+    try {
+      await syncPaidBookingsToAccountingDb();
+    } catch {
+      /* مزامنة خلفية — لا نعطل الصفحة */
+    }
+    try {
+      await syncSubscriptionHistoryToAccountingDb();
+    } catch {
+      /* ignore */
+    }
+  });
   const [accounts, documents, journalEntries, periods] = await Promise.all([
     getAccountsFromDb(),
     getDocumentsFromDb({ fromDate: filters?.fromDate, toDate: filters?.toDate }),
