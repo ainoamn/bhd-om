@@ -90,12 +90,8 @@ export function useAdminAddressBookContacts(opts: {
 
     (async () => {
       try {
-        /** يزامن كوكي الجلسة مع الخادم قبل أول طلب API — يقلّل 401 بعد تسجيل الدخول مباشرة */
-        try {
-          await getSession();
-        } catch {
-          /* ignore */
-        }
+        /** لا ننتظر getSession — يؤخر أول طلب ثانياً+؛ الكوكي يُرسل مع credentials: 'include' */
+        void getSession().catch(() => {});
 
         const fetchOnce = () =>
           fetch(`/api/address-book?_=${Date.now()}`, {
@@ -109,16 +105,16 @@ export function useAdminAddressBookContacts(opts: {
 
         let res = await fetchOnce();
         if (res.status === 401) {
-          await delay(400);
+          await delay(200);
           res = await fetchOnce();
         }
         if (res.status === 401) {
-          await delay(700);
+          await delay(350);
           res = await fetchOnce();
         }
-        /** عدة محاولات عند 5xx — بردّ بارد، قاعدة غير جاهزة، مهلات Neon/Vercel (لا نكرر عند schema_not_deployed) */
+        /** محاولتان فقط مع تأخير قصير — 5 محاولات كانت تضيف 10+ ثوانٍ دون سبب */
         let fivexxAttempts = 0;
-        const max5xxAttempts = 5;
+        const max5xxAttempts = 2;
         while (fivexxAttempts < max5xxAttempts && is5xx(res.status)) {
           let skipRetry = false;
           try {
@@ -128,7 +124,7 @@ export function useAdminAddressBookContacts(opts: {
             /* ignore */
           }
           if (skipRetry) break;
-          await delay(450 + fivexxAttempts * 550);
+          await delay(280 + fivexxAttempts * 400);
           res = await fetchOnce();
           fivexxAttempts += 1;
         }

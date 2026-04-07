@@ -269,11 +269,16 @@ export default function AdminAddressBookPage() {
   const repDropdownRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => setMounted(true), []);
 
+  /**
+   * حجوزات + مستندات محاسبة للربط مع الجهات — تُحمَّل بعد اكتمال دفتر العناوين حتى لا تتنافس مع GET /api/address-book
+   * (ثلاثة طلبات ثقيلة بالتوازي كانت تبطّئ ظهور الأسماء 10+ ثانية).
+   */
   useEffect(() => {
+    if (contactsLoading) return;
     let alive = true;
     Promise.all([
-      fetch('/api/bookings', { credentials: 'include' }).then((r) => (r.ok ? r.json() : [])),
-      fetch('/api/accounting/documents?limit=1000&offset=0', { credentials: 'include' }).then((r) =>
+      fetch('/api/bookings', { credentials: 'include', cache: 'no-store' }).then((r) => (r.ok ? r.json() : [])),
+      fetch('/api/accounting/documents?limit=400&offset=0', { credentials: 'include', cache: 'no-store' }).then((r) =>
         r.ok ? r.json() : []
       ),
     ])
@@ -290,7 +295,7 @@ export default function AdminAddressBookPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [contactsLoading]);
 
   useEffect(() => {
     if (repDropdownOpen === null) return;
