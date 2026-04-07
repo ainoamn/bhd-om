@@ -440,7 +440,20 @@ export default function MyBookingsPage() {
                   const hasContractId = !!(full?.contractId || (b as any)?.contractId);
                   const needComplete = bookingStage || hasContractId ? false : needsToCompleteContractData(b, full);
                   const contractTermsUrl = `/${locale}/properties/${b.propertyId}/contract-terms?bookingId=${b.id}${full?.email ? `&email=${encodeURIComponent(full.email)}` : ''}${full?.phone ? `&phone=${encodeURIComponent(full.phone || '')}` : ''}`;
-                  const contractReviewUrl = `/${locale}/admin/contract-review?bookingId=${b.id}`;
+                  const contractReviewUrl = `/${locale}/admin/contract-review?bookingId=${encodeURIComponent(String(b.id))}`;
+                  const propertyIdForUrls = Number(b.propertyId) || Number(full?.propertyId) || 0;
+                  const uploadDocumentsUrl =
+                    propertyIdForUrls > 0
+                      ? `/${locale}/properties/${propertyIdForUrls}/upload-documents?bookingId=${encodeURIComponent(String(b.id))}`
+                      : contractReviewUrl;
+                  const checksRow = getChecksByBooking(b.id);
+                  const docsNeedWork =
+                    hasDocumentsNeedingConfirmation(b.id) ||
+                    !areAllRequiredDocumentsApproved(b.id) ||
+                    (checksRow.length > 0 && !areAllChecksApproved(b.id));
+                  /** بعد تأكيد الدفع: صفحة رفع/اعتماد المستندات أولاً إن وُجدت متطلبات، ثم مراجعة العقد */
+                  const postPaymentPrimaryUrl =
+                    docsNeedWork && propertyIdForUrls > 0 ? uploadDocumentsUrl : contractReviewUrl;
                   const c = getContractByBooking(b.id) as RentalContract | undefined;
                   const dataOverridesRow = getPropertyDataOverrides();
                   const propRow = getPropertyById(b.propertyId, dataOverridesRow) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null;
@@ -513,9 +526,8 @@ export default function MyBookingsPage() {
                         <div className="flex flex-wrap gap-2">
                           {needComplete && (
                             <Link
-                              href={(() => {
-                                return paymentOrAccountantConfirmedRow ? contractReviewUrl : contractTermsUrl;
-                              })()}
+                              prefetch={true}
+                              href={paymentOrAccountantConfirmedRow ? postPaymentPrimaryUrl : contractTermsUrl}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
                             >
                               {(() => {
@@ -536,7 +548,8 @@ export default function MyBookingsPage() {
                           )}
                           {(showClientApprove || showOwnerApprove) && profileCompleteForContract && (
                             <Link
-                              href={contractReviewUrl}
+                              prefetch={true}
+                              href={showOwnerApprove ? contractReviewUrl : postPaymentPrimaryUrl}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                             >
                               {showClientApprove
