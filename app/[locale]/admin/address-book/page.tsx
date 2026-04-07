@@ -1300,7 +1300,11 @@ export default function AdminAddressBookPage() {
       )}
       {showFullLoadErrorBanner && (
         <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-800 text-sm">
-          {contactsLoadError === 'fetch_failed_db'
+          {contactsLoadError === 'fetch_failed_schema'
+            ? locale === 'ar'
+              ? 'جدول دفتر العناوين غير موجود على قاعدة الإنتاج (الهجرات غير مطبّقة). من جهازك مع نفس DATABASE_URL: npx prisma migrate deploy ثم حدّث الصفحة. /api/check-db قد يظهر «متصل» لأنه لا يقرأ الجداول.'
+              : 'Address book table is missing on production (migrations not applied). With DATABASE_URL set locally: npx prisma migrate deploy, then refresh. /api/check-db can still show OK because it only runs SELECT 1.'
+            : contactsLoadError === 'fetch_failed_db'
             ? locale === 'ar'
               ? 'تعذر الاتصال بقاعدة البيانات. أضف DATABASE_URL أو POSTGRES_PRISMA_URL في Vercel ثم أعد النشر.'
               : 'Could not connect to the database. Add DATABASE_URL or POSTGRES_PRISMA_URL in Vercel and redeploy.'

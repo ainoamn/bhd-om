@@ -112,10 +112,18 @@ export function useAdminAddressBookContacts(opts: {
           await delay(700);
           res = await fetchOnce();
         }
-        /** عدة محاولات عند 5xx — بردّ بارد، قاعدة غير جاهزة، مهلات Neon/Vercel */
+        /** عدة محاولات عند 5xx — بردّ بارد، قاعدة غير جاهزة، مهلات Neon/Vercel (لا نكرر عند schema_not_deployed) */
         let fivexxAttempts = 0;
         const max5xxAttempts = 5;
         while (fivexxAttempts < max5xxAttempts && is5xx(res.status)) {
+          let skipRetry = false;
+          try {
+            const peek = (await res.clone().json()) as { error?: string };
+            if (peek?.error === 'schema_not_deployed') skipRetry = true;
+          } catch {
+            /* ignore */
+          }
+          if (skipRetry) break;
           await delay(450 + fivexxAttempts * 550);
           res = await fetchOnce();
           fivexxAttempts += 1;
@@ -124,9 +132,11 @@ export function useAdminAddressBookContacts(opts: {
         if (!res.ok) {
           if (myId !== requestIdRef.current) return;
           let serverDbUnavailable = false;
+          let schemaNotDeployed = false;
           try {
             const errJson = (await res.clone().json()) as { error?: string };
             if (errJson?.error === 'database_unavailable') serverDbUnavailable = true;
+            if (errJson?.error === 'schema_not_deployed') schemaNotDeployed = true;
           } catch {
             /* ليست JSON */
           }
@@ -135,6 +145,8 @@ export function useAdminAddressBookContacts(opts: {
             setContacts(local);
             if (res.status === 401) {
               setError(local.length > 0 ? 'unauthorized_local' : 'unauthorized');
+            } else if (schemaNotDeployed) {
+              setError('fetch_failed_schema');
             } else if (serverDbUnavailable) {
               setError(local.length > 0 ? 'fetch_failed_db_local' : 'fetch_failed_db');
             } else {
@@ -149,7 +161,7 @@ export function useAdminAddressBookContacts(opts: {
             } catch {
               setContacts([]);
             }
-            setError(serverDbUnavailable ? 'fetch_failed_db' : 'fetch_failed');
+            setError(schemaNotDeployed ? 'fetch_failed_schema' : serverDbUnavailable ? 'fetch_failed_db' : 'fetch_failed');
           }
           initialFetchCompletedRef.current = true;
           return;

@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -27,9 +28,18 @@ const CACHE_ADDRESS_BOOK_GET_NO_STORE = 'private, no-store, must-revalidate';
 
 export const dynamic = 'force-dynamic';
 
-function isLikelyDatabaseFailure(e: unknown): boolean {
+/**
+ * أخطاء اتصال/مهلة فعلية — لا نخلطها مع P2021 (جدول غير موجود = هجرات غير مطبّقة).
+ * سابقاً: مطابقة "PrismaClient" في النص صنّفت أي خطأ Prisma كـ «قاعدة غير متصلة» بينما check-db (SELECT 1) ينجح.
+ */
+function isTransientConnectionFailure(e: unknown): boolean {
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    return ['P1000', 'P1001', 'P1002', 'P1008', 'P1011', 'P1017', 'P1014'].includes(e.code);
+  }
+  if (e instanceof Prisma.PrismaClientInitializationError) {
+    return true;
+  }
   const msg = e instanceof Error ? `${e.name} ${e.message}` : String(e);
-  /** تجنّب مطابقة كلمة connection وحدها (قد تظهر في أخطاء غير DB) */
   return (
     msg.includes('DATABASE_URL') ||
     msg.includes('P1001') ||
@@ -39,9 +49,7 @@ function isLikelyDatabaseFailure(e: unknown): boolean {
     msg.includes('ECONNREFUSED') ||
     msg.includes('ETIMEDOUT') ||
     msg.includes('ENOTFOUND') ||
-    msg.includes('PrismaClient') ||
-    /password authentication failed|no pg_hba|SSL|certificate|self signed/i.test(msg) ||
-    (/Prisma/i.test(msg) && /connection|query|timeout|engine|server|database/i.test(msg))
+    /password authentication failed|no pg_hba|SSL|certificate|self signed/i.test(msg)
   );
 }
 
@@ -126,7 +134,17 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error('Address book GET error:', e);
-    if (isLikelyDatabaseFailure(e)) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021') {
+      return NextResponse.json(
+        {
+          error: 'schema_not_deployed',
+          prismaCode: e.code,
+          hint: 'Run npx prisma migrate deploy against production DATABASE_URL.',
+        },
+        { status: 500, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
+      );
+    }
+    if (isTransientConnectionFailure(e)) {
       return NextResponse.json(
         { error: 'database_unavailable' },
         { status: 503, headers: { 'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE } }
