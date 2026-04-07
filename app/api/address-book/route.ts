@@ -22,6 +22,10 @@ import {
   syncUserTableFromAddressBookContact,
 } from '@/lib/server/syncUserToAddressBook';
 import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityToContactJson';
+import {
+  findManyAddressBookContactsOrHeal,
+  withAddressBookSchemaHeal,
+} from '@/lib/server/addressBookDbCompat';
 
 /** قراءة دفتر العناوين للواجهة — بدون كاش متصفح حتى تنعكس التعديلات فوراً بين المستخدم والجهات */
 const CACHE_ADDRESS_BOOK_GET_NO_STORE = 'private, no-store, must-revalidate';
@@ -71,9 +75,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const rows = await prisma.addressBookContact.findMany({
-      orderBy: { updatedAt: 'desc' },
-    });
+    const rows = await findManyAddressBookContactsOrHeal(prisma);
     const drop = getDuplicateDropContactIdsFromDbRows(rows);
     let keptRows = rows.filter((r) => !drop.has(r.contactId));
     /** إن كان منطق التكرار يُسقط كل الصفوف (خطأ بيانات/هجرة)، نعرض الكل حتى لا يظهر دفتر العناوين فارغاً */
@@ -229,17 +231,19 @@ export async function POST(req: NextRequest) {
     }
 
     const linkedUserId = bodyUserId ?? null;
-    if (linkedUserId) {
-      await prisma.addressBookContact.updateMany({
-        where: { linkedUserId, NOT: { contactId } },
-        data: { linkedUserId: null },
-      });
-    }
+    await withAddressBookSchemaHeal(prisma, async () => {
+      if (linkedUserId) {
+        await prisma.addressBookContact.updateMany({
+          where: { linkedUserId, NOT: { contactId } },
+          data: { linkedUserId: null },
+        });
+      }
 
-    await prisma.addressBookContact.upsert({
-      where: { contactId },
-      create: { contactId, linkedUserId, data: raw as object },
-      update: { data: raw as object, linkedUserId, updatedAt: new Date() },
+      await prisma.addressBookContact.upsert({
+        where: { contactId },
+        create: { contactId, linkedUserId, data: raw as object },
+        update: { data: raw as object, linkedUserId, updatedAt: new Date() },
+      });
     });
 
     if (raw.phone) {
