@@ -468,6 +468,7 @@ model AccountingDocument {
   @@index([type])
   @@index([status])
   @@index([date])
+  @@index([contactId])
   @@index([createdAt])
 }
 

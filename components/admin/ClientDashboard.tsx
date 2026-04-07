@@ -36,42 +36,36 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
-    fetch('/api/bookings', { credentials: 'include', cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: PropertyBooking[]) => {
+    const load = async () => {
+      try {
+        const r = await fetch('/api/bookings', { credentials: 'include', cache: 'no-store' });
+        const list: PropertyBooking[] = r.ok ? await r.json() : [];
         if (!alive) return;
         const rows = Array.isArray(list) ? list : [];
         setBookings(rows);
         setContracts(rows.filter((b) => !!((b as PropertyBooking & { contractData?: unknown }).contractData)));
-      })
-      .catch(() => {
+      } catch {
         if (!alive) return;
         setBookings([]);
         setContracts([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    let alive = true;
-    Promise.all([
-      fetch('/api/me/accounting-documents?type=RECEIPT', { credentials: 'include', cache: 'no-store' }),
-      fetch('/api/me/accounting-documents?type=INVOICE', { credentials: 'include', cache: 'no-store' }),
-    ])
-      .then(async ([r1, r2]) => {
+      }
+      if (!alive) return;
+      try {
+        const [r1, r2] = await Promise.all([
+          fetch('/api/me/accounting-documents?type=RECEIPT', { credentials: 'include', cache: 'no-store' }),
+          fetch('/api/me/accounting-documents?type=INVOICE', { credentials: 'include', cache: 'no-store' }),
+        ]);
         if (!alive) return;
         const [d1, d2] = await Promise.all([r1.ok ? r1.json() : [], r2.ok ? r2.json() : []]);
         setReceiptsCount(Array.isArray(d1) ? d1.length : 0);
         setInvoicesCount(Array.isArray(d2) ? d2.length : 0);
-      })
-      .catch(() => {
+      } catch {
         if (!alive) return;
         setReceiptsCount(0);
         setInvoicesCount(0);
-      });
+      }
+    };
+    void load();
     return () => {
       alive = false;
     };

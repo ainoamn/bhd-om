@@ -349,11 +349,13 @@ export async function createJournalEntryInDb(data: {
   };
 }
 
-export async function getDocumentsFromDb(filters?: { fromDate?: string; toDate?: string; type?: string }) {
+export async function getDocumentsFromDb(filters?: { fromDate?: string; toDate?: string; type?: string; contactId?: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- مركّب تاريخ + نوع + جهة اتصال لـ Prisma where
   const where: any = {};
   if (filters?.fromDate) where.date = { ...where.date, gte: new Date(filters.fromDate) };
   if (filters?.toDate) where.date = { ...where.date, lte: new Date(filters.toDate) };
   if (filters?.type) where.type = filters.type;
+  if (filters?.contactId) where.contactId = filters.contactId;
   const rows = await prisma.accountingDocument.findMany({
     where,
     orderBy: { date: 'desc' },

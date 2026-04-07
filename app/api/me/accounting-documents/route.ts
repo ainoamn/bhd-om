@@ -37,9 +37,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const docs = await getDocumentsFromDb({ type: allowedType });
-    const mine = docs.filter((d) => String((d as { contactId?: string | null }).contactId || '') === contactId);
-    return NextResponse.json(mine, {
+    const docs = await getDocumentsFromDb({ type: allowedType, contactId });
+    return NextResponse.json(docs, {
       headers: { 'Cache-Control': CACHE_ME_ACCOUNTING_DOCS_GET, Vary: HTTP_CACHE_VARY_AUTH },
     });
   } catch (e) {

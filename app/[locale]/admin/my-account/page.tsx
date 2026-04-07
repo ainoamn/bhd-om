@@ -170,7 +170,7 @@ export default function MyAccountPage() {
       });
     };
 
-    (async () => {
+    void (async () => {
       try {
         const res = await fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' });
         if (cancelled || !res.ok) throw new Error('no-server-contact');
@@ -208,19 +208,19 @@ export default function MyAccountPage() {
           phone: number ?? prev.phone,
         }));
       }
-    })();
+    })()
+      .finally(() => {
+        if (cancelled) return;
+        fetch('/api/subscriptions/me', { credentials: 'include', cache: 'no-store' })
+          .then((r) => r.json())
+          .then((d) => setSubData(d))
+          .catch(() => setSubData(null));
+      });
 
     return () => {
       cancelled = true;
     };
   }, [user?.id, user?.email, user?.phone, user?.name, sessionStatus]);
-
-  useEffect(() => {
-    fetch('/api/subscriptions/me', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => setSubData(d))
-      .catch(() => setSubData(null));
-  }, []);
 
   const handleSaveContact = async () => {
     if (!user?.id) return;
