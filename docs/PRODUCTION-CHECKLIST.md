@@ -84,5 +84,5 @@ npm run db:backfill-legacy-booking-settings
 ```bash
 npm run build
 npm run test:e2e:verify
-# GitHub Actions: e2e-api (guards + address-book auth) + e2e-critical (happy path + critical flows) — seed admin افتراضياً
+# GitHub Actions: job واحد e2e-verify — guards + address-book + happy-path + critical + public-pages
 ```

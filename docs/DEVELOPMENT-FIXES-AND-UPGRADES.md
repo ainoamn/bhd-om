@@ -379,10 +379,10 @@
 
 ### CI — E2E
 
-- **`e2e-api`:** Postgres 16 service container على الـ runner + `DATABASE_URL` ثابت للـ CI (لا يعتمد على Secrets للإنتاج) + `prisma migrate deploy` قبل البناء.
-- **`e2e-critical`:** يعمل **دائماً** مع seed admin (`admin@bhd-om.com` / `admin123`) — لا يعتمد على GitHub secrets للمدير.
-- **اختبار التصفير:** يتطلب `E2E_ALLOW_DB_RESET=true` — لا يُشغَّل في CI افتراضياً؛ بعد التصفير يتحقق من إعادة التوجيه لـ login من `my-bookings` و `my-account`.
-- **مراجعة بوابة الدفع:** `GET /api/admin/payment-gateway` (ADMIN) — provider، webhook، success/cancel URLs.
+- **Workflow:** `.github/workflows/e2e-api.yml` — job واحد `e2e-verify` (Postgres 16 + migrate + seed + build + `npm run test:e2e:verify`).
+- **بيانات المدير:** من seed — `admin@bhd-om.com` / `admin123` (لا secrets مطلوبة للمسار الأساسي).
+- **اختبار التصفير:** يتطلب `E2E_ALLOW_DB_RESET=true` — لا يُشغَّل في CI افتراضياً.
+- **أدوار إضافية (اختياري):** secrets `E2E_*_EMAIL/PASSWORD` لاختبار role-based في `critical-flows`.
 
 ## دفعة RBAC الحالية (تقارب مع متطلبات Kimi مع الحفاظ على التوافق)
 

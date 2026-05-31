@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 40) — CI موحّد + توثيق E2E
+
+- **GitHub Actions:** job واحد `e2e-verify` بدل `e2e-api` + `e2e-critical` — build/migrate/seed مرة واحدة + `test:e2e:verify`
+- **`.env.example`:** بيانات seed admin الافتراضية للـ E2E
+- **`playwright.config`:** `reuseExistingServer` محلياً (commit `3ac7065`)
+
 ### جلسة 2026-05-31 (تابع 39) — إصلاح E2E + تحقق build
 
 - **E2E merge-duplicates:** الاختبار يستخدم `POST /api/address-book/bulk` لمحاكاة تكرار legacy (POST العادي ي dedupe الهاتف)
