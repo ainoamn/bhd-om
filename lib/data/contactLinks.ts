@@ -414,17 +414,9 @@ export function getContactDerivedCategoriesFromServer(
   return deriveContactCategoriesFromLinks(bookings, contracts);
 }
 
-/** هل جهة الاتصال مرتبطة بأي سجل (حجز، عقد، مستند مالي)؟ لا يُسمح بحذفها */
+/** @deprecated استخدم isContactLinkedFromServer مع بيانات الخادم */
 export function isContactLinked(contact: Contact): { linked: boolean; bookings: number; contracts: number; documents: number } {
-  const bookings = getContactLinkedBookings(contact);
-  const contracts = getContactLinkedContracts(contact);
-  const docs = typeof window !== 'undefined' ? searchDocuments({ contactId: contact.id }) : [];
-  return {
-    linked: bookings.length > 0 || contracts.length > 0 || docs.length > 0,
-    bookings: bookings.length,
-    contracts: contracts.length,
-    documents: docs.length,
-  };
+  return { linked: false, bookings: 0, contracts: 0, documents: 0 };
 }
 
 /** هل جهة الاتصال مرتبطة — من بيانات خادم جاهزة */

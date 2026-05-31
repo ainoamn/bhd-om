@@ -137,27 +137,28 @@ export default function AdminBookingsPage() {
 
   useEffect(() => setMounted(true), []);
 
-  useEffect(() => {
-    void fetchContractsFromServer({ limit: 500 }).then(setServerContracts).catch(() => setServerContracts([]));
-  }, []);
-
   const loadData = useCallback(async () => {
     if (typeof window !== 'undefined') syncPaidBookingsToAccounting();
     try {
-      const { items, total } = await fetchPaginatedList<PropertyBooking>('/api/bookings', {
-        limit: BOOKINGS_LIST_PAGE_SIZE,
-        offset: listPage * BOOKINGS_LIST_PAGE_SIZE,
-        propertyId: filterProperty !== 'all' ? filterProperty : undefined,
-        type: filterType !== 'ALL' ? filterType : undefined,
-      });
+      const [{ items, total }, contracts] = await Promise.all([
+        fetchPaginatedList<PropertyBooking>('/api/bookings', {
+          limit: BOOKINGS_LIST_PAGE_SIZE,
+          offset: listPage * BOOKINGS_LIST_PAGE_SIZE,
+          propertyId: filterProperty !== 'all' ? filterProperty : undefined,
+          type: filterType !== 'ALL' ? filterType : undefined,
+        }),
+        fetchContractsFromServer({ limit: 500 }),
+      ]);
       setBookings(items);
       setListTotal(total);
+      setServerContracts(contracts);
       return;
     } catch {
       // ignore
     }
     setBookings([]);
     setListTotal(0);
+    setServerContracts([]);
   }, [filterProperty, filterType, listPage]);
 
   const [bankAccountsVersion, setBankAccountsVersion] = useState(0);

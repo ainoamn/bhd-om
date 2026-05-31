@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 22) — PATCH عقود + address-book server-only delete guard
+
+- **`updateContract`:** PATCH `/api/contracts/[id]`؛ إنشاء POST عند غياب cache؛ إزالة bulk sync من `getAllContracts`
+- **address-book:** `handleDelete` يتحقق عبر `isContactLinkedFromServer`؛ `deleteContact` بدون fallback محلي
+- **`isContactLinked` legacy:** deprecated — يرجع غير مرتبط (التحقق عبر server فقط)
+- **E2E:** guard لـ contracts PATCH → 401
+
 ### جلسة 2026-05-31 (تابع 21) — قفل الوحدات + حجوزات العقار من الخادم
 
 - **`hasActiveContractForUnitFromServer` / `hasContractForUnitFromServer` / `resolveContractForBookingFromServer`**

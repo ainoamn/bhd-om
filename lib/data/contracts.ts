@@ -275,20 +275,28 @@ export type ContractApprovalActor = {
 };
 
 const STORAGE_KEY = 'bhd_rental_contracts';
-let didBulkSyncContracts = false;
-let bulkSyncContractsInProgress = false;
 let didHydrateContractsFromServer = false;
 let hydrateContractsInProgress = false;
 let contractsStore: RentalContract[] = [];
 
-function syncContractToServer(contract: RentalContract): void {
+function syncContractCreateToServer(contract: RentalContract): void {
   if (typeof window === 'undefined') return;
-  if (!contract.bookingId) return;
+  if (!contract.id || !contract.bookingId) return;
   fetch('/api/contracts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(contract),
+  }).catch(() => {});
+}
+
+function syncContractPatchToServer(id: string, patch: Partial<RentalContract>): void {
+  if (typeof window === 'undefined' || !id.trim()) return;
+  fetch(`/api/contracts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(patch),
   }).catch(() => {});
 }
 
@@ -341,15 +349,6 @@ export function getAllContracts(): RentalContract[] {
       .finally(() => {
         hydrateContractsInProgress = false;
       });
-  }
-  if (!didBulkSyncContracts && !bulkSyncContractsInProgress) {
-    bulkSyncContractsInProgress = true;
-    try {
-      syncAllContractsToServer();
-      didBulkSyncContracts = true;
-    } finally {
-      bulkSyncContractsInProgress = false;
-    }
   }
   return getStored();
 }
@@ -428,7 +427,7 @@ export function syncAllContractsToServer(): number {
   let queued = 0;
   for (const c of all) {
     if (!c?.id || !c.bookingId) continue;
-    syncContractToServer(c);
+    syncContractCreateToServer(c);
     queued++;
   }
   return queued;
@@ -599,18 +598,27 @@ export function createContract(data: Omit<RentalContract, 'id' | 'createdAt' | '
   list.unshift(contract);
   save(list);
   // مسودة العقد لا تغيّر حالة العقار/الحجز — يحدث ذلك فقط عند APPROVED
-  syncContractToServer(contract);
+  syncContractCreateToServer(contract);
   return contract;
 }
 
 export function updateContract(id: string, updates: Partial<RentalContract>): RentalContract | null {
   const list = getStored();
   const idx = list.findIndex((c) => c.id === id);
-  if (idx < 0) return null;
-  const updated = { ...list[idx], ...updates, updatedAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  if (idx < 0) {
+    const bookingId = String(updates.bookingId || '').trim();
+    if (!bookingId) return null;
+    const created = { id, bookingId, ...updates, updatedAt: now } as RentalContract;
+    list.unshift(created);
+    save(list);
+    syncContractCreateToServer(created);
+    return created;
+  }
+  const updated = { ...list[idx], ...updates, updatedAt: now };
   list[idx] = updated;
   save(list);
-  syncContractToServer(updated);
+  syncContractPatchToServer(id, updated);
   return updated;
 }
 

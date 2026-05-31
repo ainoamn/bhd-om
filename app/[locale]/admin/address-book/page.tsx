@@ -13,7 +13,6 @@ import {
   buildRepNameFromParts,
   createContact,
   updateContact,
-  deleteContact,
   archiveContact,
   restoreContact,
   exportContactsToCsv,
@@ -1189,20 +1188,24 @@ export default function AdminAddressBookPage() {
   };
 
   const handleDelete = () => {
-    if (deleteId) {
-      try {
-      deleteContact(deleteId);
+    if (!deleteId) return;
+    const c = getContactById(deleteId);
+    if (!c) return;
+    const { linked } = isContactLinkedFromServer(c, serverBookings, serverContracts, serverDocuments);
+    if (linked) {
       setDeleteId(null);
-        if (isAdminAddressBookViewer(userRole)) {
-          refreshAddressBookFromServer();
-        } else {
-          setContacts(getAllContacts(showArchived));
-        }
-      } catch (err) {
-        if ((err as Error).message === 'CANNOT_DELETE_LINKED') {
-          setDeleteId(null);
-        }
+      return;
+    }
+    try {
+      archiveContact(deleteId);
+      setDeleteId(null);
+      if (isAdminAddressBookViewer(userRole)) {
+        refreshAddressBookFromServer();
+      } else {
+        setContacts(getAllContacts(showArchived));
       }
+    } catch {
+      setDeleteId(null);
     }
   };
 

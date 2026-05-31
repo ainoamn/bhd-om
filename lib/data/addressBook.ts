@@ -3,7 +3,6 @@
  * يُخزّن في localStorage
  */
 
-import { isContactLinked as checkContactLinked } from './contactLinks';
 import { dedupeContactsList, normPhoneForDedupe } from './addressBookDedupeShared';
 import { emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 
@@ -1703,12 +1702,10 @@ export function restoreContact(id: string): boolean {
   return true;
 }
 
-/** إيقاف جهة اتصال غير مرتبطة. المرتبطة (حجز/عقد/مستند مالي) لا يمكن إيقافها - تُرمى CANNOT_DELETE_LINKED */
+/** إيقاف جهة اتصال غير مرتبطة. يجب التحقق من الربط عبر isContactLinkedFromServer قبل الاستدعاء. */
 export function deleteContact(id: string): boolean {
   const contact = getContactById(id);
   if (!contact) return false;
-  const { linked } = checkContactLinked(contact);
-  if (linked) throw new Error('CANNOT_DELETE_LINKED');
   return archiveContact(id);
 }
 
