@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 13) — BookingCheckStorage + backfill من legacy
+
+- **Prisma:** جدول `BookingCheckStorage` (صف لكل شيك، unique `bookingId+checkTypeId`) + migration `20260531130000`.
+- **`bookingCheckStorageRepo.ts`:** upsert/list/backfill من `booking_checks_settings` legacy.
+- **`bookingChecksServer.ts`:** توجيه إلى repo بدل JSON monolithic في AppSetting.
+- **`/api/settings/booking-checks`:** GET/POST عبر الجدول الجديد.
+- **E2E:** guards لـ booking-checks GET/POST → 401 بدون auth.
+
 ### جلسة 2026-05-31 (تابع 12) — PATCH عام لحفظ ملف الحاجز من contract-terms
 
 - **`updatePublicContractBooking`** في `publicContractAccess.ts`: تحديث `name/email/phone/civilId/passportNumber/contactId` بعد تحقق email/phone/civilId.
