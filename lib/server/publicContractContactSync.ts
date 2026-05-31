@@ -35,6 +35,7 @@ const PUBLIC_CONTACT_KEYS = [
   'linkedUnitKey',
   'linkedUnitDisplay',
   'contactType',
+  'companyData',
 ] as const;
 
 function pickPublicContactUpdates(raw: Record<string, unknown>): Record<string, unknown> {

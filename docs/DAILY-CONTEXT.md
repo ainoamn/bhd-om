@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 33) — contract-terms server-first لجهة الاتصال
+
+- **`contract-terms`:** إزالة `updateContact`/`ensureContactFromBooking` — الحفظ عبر `persistPublicContractContact` (public-contract-access)
+- **`resolveContactIdForBooking`:** `booking.contactId` → محلي للقراءة → `newContactId()`
+- **`publicContractContactSync`:** دعم `companyData` (مفوضين الشركة)
+- **`persistPublicContractContact`:** يرجع `{ contactId, contact }` + cache محلي بعد النجاح
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 32) — صفحة الحجز server-first لجهة الاتصال
 
 - **`properties/[id]/book`:** تحميل من `fetchLinkedContactFromServer`؛ حفظ نافذة «إكمال البيانات» عبر `patchLinkedContactOnServer` (بدون `createContact`/`updateContact`)

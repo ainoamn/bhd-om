@@ -24,7 +24,7 @@ import {
 import { updateBooking, getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
 import type { RentalContract } from '@/lib/data/contracts';
 import { getBankAccountById } from '@/lib/data/bankAccounts';
-import { findContactByPhoneOrEmail, updateContact, ensureContactFromBooking, isOmaniNationality, isCompanyContact, getContactDisplayName, getContactLocalizedField, getRepDisplayName, contactAddressHasUsableContent } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, newContactId, mergeServerContactIntoLocalStorage, isOmaniNationality, isCompanyContact, getContactDisplayName, getContactLocalizedField, getRepDisplayName, contactAddressHasUsableContent, type Contact } from '@/lib/data/addressBook';
 import { getAllNationalityValues } from '@/lib/data/nationalities';
 import TranslateField from '@/components/admin/TranslateField';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
@@ -890,6 +890,35 @@ export default function ContractTermsPage() {
     civilId: civilId.trim() || undefined,
   });
 
+  const resolveContactIdForBooking = (b: PropertyBooking): string => {
+    const fromBooking = String((b as { contactId?: string }).contactId || '').trim();
+    if (fromBooking) return fromBooking;
+    const local = getContactForBooking(b);
+    if (local?.id) return local.id;
+    return newContactId();
+  };
+
+  const bookingLinkFields = (b: PropertyBooking): Record<string, unknown> => {
+    const prop = getPropertyById(String(b.propertyId), dataOverrides);
+    const unitPart = b.unitKey && prop ? getUnitDisplayFromProperty(prop, b.unitKey, true) : null;
+    const unitDisplay = unitPart ? `${b.propertyTitleAr} - ${unitPart}` : b.propertyTitleAr;
+    return {
+      linkedPropertyId: b.propertyId,
+      linkedUnitKey: b.unitKey,
+      linkedUnitDisplay: unitDisplay,
+    };
+  };
+
+  const cachePublicContactLocally = (raw: Record<string, unknown>) => {
+    const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    if (!id) return;
+    try {
+      mergeServerContactIntoLocalStorage({ ...raw, id } as Contact);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const syncProfileToServer = (
     contactId: string,
     contactPayload: Record<string, unknown>,
@@ -902,6 +931,8 @@ export default function ContractTermsPage() {
       ...verify,
       contactId,
       contact: contactPayload,
+    }).then((saved) => {
+      if (saved?.contact) cachePublicContactLocally(saved.contact);
     });
     if (bookingUpdates) {
       void patchPublicContractAccess({
@@ -962,15 +993,25 @@ export default function ContractTermsPage() {
     });
     try {
       const cd = contact.companyData;
-      updateContact(contact.id, {
-        companyData: {
-          companyNameAr: cd?.companyNameAr ?? '',
-          companyNameEn: cd?.companyNameEn,
-          commercialRegistrationNumber: cd?.commercialRegistrationNumber ?? '',
-          commercialRegistrationExpiry: cd?.commercialRegistrationExpiry,
-          establishmentDate: cd?.establishmentDate,
-          authorizedRepresentatives: repsToSave,
+      const verify = getVerifyCredentials();
+      const contactId = contact.id;
+      void persistPublicContractContact({
+        bookingId,
+        ...verify,
+        contactId,
+        contact: {
+          contactType: 'COMPANY',
+          companyData: {
+            companyNameAr: cd?.companyNameAr ?? '',
+            companyNameEn: cd?.companyNameEn,
+            commercialRegistrationNumber: cd?.commercialRegistrationNumber ?? '',
+            commercialRegistrationExpiry: cd?.commercialRegistrationExpiry,
+            establishmentDate: cd?.establishmentDate,
+            authorizedRepresentatives: repsToSave,
+          },
         },
+      }).then((saved) => {
+        if (saved?.contact) cachePublicContactLocally(saved.contact);
       });
       const updatedContact = getContactForBooking(booking);
       const propId = parseInt(id, 10);
@@ -1024,25 +1065,8 @@ export default function ContractTermsPage() {
       tags: tagsArr.length ? tagsArr : undefined,
     };
     const existingContact = getContactForBooking(booking) || findContactByPhoneOrEmail(fullPhone, f.email?.trim());
-    let contactIdForSync = existingContact?.id;
-    if (existingContact) {
-      try { updateContact(existingContact.id, contactPayload); } catch {}
-    } else {
-      try {
-        const prop = getPropertyById(booking.propertyId, dataOverrides);
-        const unitPart = booking.unitKey && prop ? getUnitDisplayFromProperty(prop, booking.unitKey, true) : null;
-        const unitDisplay = unitPart ? `${booking.propertyTitleAr} - ${unitPart}` : booking.propertyTitleAr;
-        const newContact = ensureContactFromBooking(fullName, fullPhone, f.email?.trim() || undefined, {
-          propertyId: booking.propertyId,
-          unitKey: booking.unitKey,
-          unitDisplay,
-          civilId: omani ? f.civilId?.trim() : undefined,
-          passportNumber: !omani ? f.passportNumber?.trim() : undefined,
-        });
-        updateContact(newContact.id, contactPayload);
-        contactIdForSync = newContact.id;
-      } catch {}
-    }
+    const contactIdForSync = existingContact?.id || resolveContactIdForBooking(booking);
+    const linkFields = existingContact?.id ? {} : bookingLinkFields(booking);
     const bookingUpdates = {
       name: fullName,
       phone: fullPhone,
@@ -1052,9 +1076,11 @@ export default function ContractTermsPage() {
     } as Partial<PropertyBooking>;
     updateBooking(bookingId, bookingUpdates);
     setBooking((b) => b ? { ...b, name: fullName, phone: fullPhone, email: f.email?.trim() || b.email } : b);
-    if (contactIdForSync) {
-      queueProfileServerSync(contactIdForSync, { ...contactPayload, name: fullName }, bookingUpdates);
-    }
+    queueProfileServerSync(
+      contactIdForSync,
+      { ...contactPayload, ...linkFields, name: fullName },
+      bookingUpdates
+    );
   };
 
   /** فتح نموذج التعديل وملء البيانات من جهة الاتصال */
@@ -1185,11 +1211,6 @@ export default function ContractTermsPage() {
       passportNumber: !omani ? passVal : undefined,
     } as Partial<PropertyBooking>);
 
-    const prop = getPropertyById(booking.propertyId, dataOverrides);
-    const unitPart = booking.unitKey && prop ? getUnitDisplayFromProperty(prop, booking.unitKey, true) : null;
-    const unitDisplay = unitPart ? `${booking.propertyTitleAr} - ${unitPart}` : booking.propertyTitleAr;
-    const existingContact = getContactForBooking(booking) || findContactByPhoneOrEmail(phoneVal, emailVal);
-
     const tagsArr = f.tags?.split(/[,،]/).map((t) => t.trim()).filter(Boolean) || [];
     const contactPayload = {
       firstName: firstNameVal,
@@ -1214,20 +1235,9 @@ export default function ContractTermsPage() {
       tags: tagsArr.length ? tagsArr : undefined,
     };
 
-    let contactIdForSync = existingContact?.id;
-    if (existingContact) {
-      updateContact(existingContact.id, contactPayload);
-    } else {
-      const newContact = ensureContactFromBooking(fullName, phoneVal, emailVal || undefined, {
-        propertyId: booking.propertyId,
-        unitKey: booking.unitKey,
-        unitDisplay,
-        civilId: omani ? civilVal : undefined,
-        passportNumber: !omani ? passVal : undefined,
-      });
-      updateContact(newContact.id, contactPayload);
-      contactIdForSync = newContact.id;
-    }
+    const existingContact = getContactForBooking(booking) || findContactByPhoneOrEmail(phoneVal, emailVal);
+    const contactIdForSync = existingContact?.id || resolveContactIdForBooking(booking);
+    const linkFields = existingContact?.id ? {} : bookingLinkFields(booking);
 
     const updatedBooking = {
       ...booking,
@@ -1262,8 +1272,11 @@ export default function ContractTermsPage() {
               bookingId,
               ...verify,
               contactId: contactIdForSync,
-              contact: { ...contactPayload, name: fullName },
-            }).then(Boolean)
+              contact: { ...contactPayload, ...linkFields, name: fullName },
+            }).then((saved) => {
+              if (saved?.contact) cachePublicContactLocally(saved.contact);
+              return Boolean(saved);
+            })
           : Promise.resolve(false),
       ]).then(([bookingOk]) => {
         if (bookingOk) {

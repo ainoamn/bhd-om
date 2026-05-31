@@ -72,6 +72,11 @@ export async function patchPublicContractAccess(body: {
   }
 }
 
+export type PublicContractContactSaveResult = {
+  contactId: string;
+  contact: Record<string, unknown>;
+};
+
 export async function persistPublicContractContact(opts: {
   bookingId: string;
   email?: string;
@@ -79,7 +84,7 @@ export async function persistPublicContractContact(opts: {
   civilId?: string;
   contactId: string;
   contact: Record<string, unknown>;
-}): Promise<Record<string, unknown> | null> {
+}): Promise<PublicContractContactSaveResult | null> {
   if (typeof window === 'undefined') return null;
   try {
     const res = await fetch('/api/bookings/public-contract-access', {
@@ -96,8 +101,11 @@ export async function persistPublicContractContact(opts: {
       }),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { contact?: Record<string, unknown> };
-    return data.contact ?? null;
+    const data = (await res.json()) as { contact?: Record<string, unknown>; contactId?: string };
+    const contact = data.contact;
+    const contactId = String(data.contactId || contact?.id || opts.contactId).trim();
+    if (!contactId || !contact) return null;
+    return { contactId, contact };
   } catch {
     return null;
   }
