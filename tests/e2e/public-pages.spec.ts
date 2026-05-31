@@ -14,4 +14,14 @@ test.describe('Public booking pages smoke', () => {
     await expect(page).toHaveURL(/\/properties/);
     await expect(page.locator('body')).toBeVisible();
   });
+
+  test('payment cancel page is public', async ({ page }) => {
+    await page.goto(`${baseURL}/ar/payment/cancel`);
+    await expect(page.getByText(/تم إلغاء الدفع|Payment cancelled/i)).toBeVisible();
+  });
+
+  test('payment success page renders without session id', async ({ page }) => {
+    await page.goto(`${baseURL}/ar/payment/success`);
+    await expect(page.getByText(/معرّف الجلسة|Missing payment|Could not complete/i)).toBeVisible();
+  });
 });

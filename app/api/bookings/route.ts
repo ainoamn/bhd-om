@@ -7,11 +7,11 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDataScope } from '@/lib/auth/adminPermissions';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
-import { createBookingReceiptInDb, syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
+import { persistBookingPayload } from '@/lib/server/persistBooking';
+import { syncPaidBookingsToAccountingDb } from '@/lib/accounting/data/dbService';
 import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
 import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
-import { findConflictingActiveBooking } from '@/lib/server/bookingDuplicateCheck';
 import { parsePaginationParams, paginationResponseHeaders, slicePage } from '@/lib/server/pagination';
 import { extractBookingStorageDenorm } from '@/lib/server/bookingStorageDenorm';
 import {
@@ -180,62 +180,25 @@ export async function POST(req: NextRequest) {
     if (forbidden) return forbidden;
 
     const body = (await req.json()) as Record<string, unknown>;
-    const id = typeof body?.id === 'string' ? body.id : null;
-    if (!id) {
-      return NextResponse.json({ error: 'Missing booking id' }, { status: 400 });
-    }
-    const year = new Date().getFullYear();
-    const needSerial =
-      !body.bookingSerial || !isValidBhdSerial(String(body.bookingSerial));
-    const payload: Record<string, unknown> = needSerial
-      ? { ...body, bookingSerial: await generateBhdSerial('BKG', { year }) }
-      : body;
-    const allRows = await prisma.bookingStorage.findMany({ select: { bookingId: true, data: true } });
-    const conflict = findConflictingActiveBooking(payload as Record<string, unknown>, allRows);
-    if (conflict) {
+    const saved = await persistBookingPayload(body);
+    if (!saved.ok) {
       return NextResponse.json(
         {
-          error: 'DUPLICATE_ACTIVE_BOOKING',
-          conflictingBookingId: conflict.conflictingBookingId,
-          message: 'An active booking already exists for this property and user.',
+          error: saved.error,
+          conflictingBookingId: saved.conflictingBookingId,
+          message:
+            saved.error === 'DUPLICATE_ACTIVE_BOOKING'
+              ? 'An active booking already exists for this property and user.'
+              : saved.error,
         },
-        { status: 409 }
+        { status: saved.status }
       );
-    }
-
-    const data = JSON.stringify(payload);
-    const denorm = extractBookingStorageDenorm(payload);
-    await prisma.bookingStorage.upsert({
-      where: { bookingId: id },
-      create: { bookingId: id, data, ...denorm },
-      update: { data, updatedAt: new Date(), ...denorm },
-    });
-
-    if (payload.paymentConfirmed && Number(payload.priceAtBooking) > 0 && payload.type === 'BOOKING') {
-      try {
-        await createBookingReceiptInDb({
-          id: String(payload.id),
-          propertyId: Number(payload.propertyId),
-          unitKey: typeof payload.unitKey === 'string' ? payload.unitKey : undefined,
-          propertyTitleAr: typeof payload.propertyTitleAr === 'string' ? payload.propertyTitleAr : undefined,
-          propertyTitleEn: typeof payload.propertyTitleEn === 'string' ? payload.propertyTitleEn : undefined,
-          name: typeof payload.name === 'string' ? payload.name : '',
-          priceAtBooking: Number(payload.priceAtBooking),
-          paymentDate: typeof payload.paymentDate === 'string' ? payload.paymentDate : undefined,
-          paymentMethod: typeof payload.paymentMethod === 'string' ? payload.paymentMethod : undefined,
-          paymentReferenceNo: typeof payload.paymentReferenceNo === 'string' ? payload.paymentReferenceNo : undefined,
-          contactId: typeof payload.contactId === 'string' ? payload.contactId : null,
-          bankAccountId: typeof payload.bankAccountId === 'string' ? payload.bankAccountId : null,
-        });
-      } catch (accErr) {
-        console.error('Booking receipt (accounting) error:', accErr);
-      }
     }
 
     return NextResponse.json({
       ok: true,
-      id,
-      bookingSerial: typeof payload.bookingSerial === 'string' ? payload.bookingSerial : undefined,
+      id: saved.id,
+      bookingSerial: saved.bookingSerial,
     });
   } catch (e) {
     console.error('Bookings POST error:', e);

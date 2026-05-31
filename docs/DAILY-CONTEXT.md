@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 4) — Thawani redirect + webhook + إكمال الدفع
+
+- **PaymentPendingStorage** + `persistBookingPayload` + `completePendingPayment`.
+- **APIs:** `GET /api/bookings/payment/complete`, `POST /api/webhooks/thawani`.
+- **صفحات:** `/[locale]/payment/success` و `/payment/cancel`.
+- **الحجز:** بناء المسودة + رفع المستندات ثم initiate مع `pendingBooking`؛ redirect لـ Thawani.
+- **العقود:** `admin/contracts` يستخدم `fetchContractsFromServer()`.
+
 ### جلسة 2026-05-31 (تابع 3) — بوابة دفع + عقود server-only + إزالة xlsx
 
 - **الدفع:** `lib/server/paymentGateway.ts` (mock / Thawani عند ضبط `THAWANI_*`) + `POST /api/bookings/payment/initiate`؛ صفحة `/book` تستدعي API قبل إنشاء الحجز.

@@ -12,6 +12,7 @@ function isPublicPath(pathname: string): boolean {
   if (noLocale === '/' || noLocale === '') return true;
   if (noLocale.startsWith('/login') || noLocale.startsWith('/register') || noLocale.startsWith('/forgot-password')) return true;
   if (noLocale.startsWith('/properties') || noLocale.startsWith('/projects') || noLocale.startsWith('/services') || noLocale.startsWith('/about') || noLocale.startsWith('/contact')) return true;
+  if (noLocale.startsWith('/payment')) return true;
   if (noLocale.startsWith('/api/auth')) return true;
   return false;
 }

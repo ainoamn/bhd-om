@@ -347,42 +347,6 @@ export default function PropertyBookPage() {
     const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
     const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
     try {
-      const payerName =
-        contactType === 'COMPANY' ? companyForm.companyNameAr.trim() : formData.name.trim();
-      const payRes = await fetch('/api/bookings/payment/initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          amount: depositAmount,
-          propertyId: property.id,
-          unitKey,
-          payerEmail: formData.email.trim(),
-          payerName,
-          bookingType: 'BOOKING',
-        }),
-      });
-      if (!payRes.ok) {
-        setBookingPaymentCooldown(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone);
-        setPayCooldownRemainingMs(
-          getBookingPaymentCooldownRemainingMs(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone)
-        );
-        setSubmitStatus('error');
-        setSubmitError('OTHER');
-        return;
-      }
-      const payData = (await payRes.json()) as {
-        paymentReferenceNo?: string;
-        paymentDate?: string;
-        redirectUrl?: string;
-      };
-      if (payData.redirectUrl) {
-        window.location.href = payData.redirectUrl;
-        return;
-      }
-      setIsProcessingPayment(false);
-      const paymentReferenceNo = String(payData.paymentReferenceNo || '');
-      const paymentDate = String(payData.paymentDate || new Date().toISOString());
       const isCompany = contactType === 'COMPANY';
       const repId = `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const repPhone = isCompany ? getFullPhone(companyForm.repPhoneCountryCode || '968', companyForm.repPhone) : '';
@@ -416,9 +380,9 @@ export default function PropertyBookPage() {
         } : undefined,
         message: [formData.message, alternativePhone.number.trim() ? (ar ? `رقم بديل للتواصل: ${getFullPhone(alternativePhone.countryCode, alternativePhone.number)}` : `Alternative contact: ${getFullPhone(alternativePhone.countryCode, alternativePhone.number)}`) : ''].filter(Boolean).join('\n') || undefined,
         type: 'BOOKING',
-        paymentConfirmed: true,
-        paymentDate,
-        paymentReferenceNo,
+        paymentConfirmed: false,
+        paymentDate: '',
+        paymentReferenceNo: '',
         priceAtBooking: depositAmount,
         cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
         cardExpiry: cardData.expiry,
@@ -487,6 +451,46 @@ export default function PropertyBookPage() {
           : [companyCrFiles, companyRepExpatResidenceFiles, companyRepExpatPassportFiles];
         await uploadPreBookingDocuments(docs, buckets, uploadedBy);
       }
+
+      const payerName =
+        contactType === 'COMPANY' ? companyForm.companyNameAr.trim() : formData.name.trim();
+      const payRes = await fetch('/api/bookings/payment/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: depositAmount,
+          propertyId: property.id,
+          unitKey,
+          payerEmail: formData.email.trim(),
+          payerName,
+          bookingType: 'BOOKING',
+          locale,
+          pendingBooking: booking,
+        }),
+      });
+      if (!payRes.ok) {
+        setBookingPaymentCooldown(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone);
+        setPayCooldownRemainingMs(
+          getBookingPaymentCooldownRemainingMs(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone)
+        );
+        setSubmitStatus('error');
+        setSubmitError('OTHER');
+        return;
+      }
+      const payData = (await payRes.json()) as {
+        paymentReferenceNo?: string;
+        paymentDate?: string;
+        redirectUrl?: string;
+      };
+      if (payData.redirectUrl) {
+        window.location.href = payData.redirectUrl;
+        return;
+      }
+      setIsProcessingPayment(false);
+      booking.paymentConfirmed = true;
+      booking.paymentReferenceNo = String(payData.paymentReferenceNo || '');
+      booking.paymentDate = String(payData.paymentDate || new Date().toISOString());
 
       let res: Response;
       try {

@@ -9,6 +9,7 @@ export type PaymentInitInput = {
   payerEmail: string;
   payerName: string;
   bookingType: 'BOOKING' | 'VIEWING';
+  locale?: string;
 };
 
 export type PaymentInitSuccess = {
@@ -46,6 +47,13 @@ async function initiateThawaniPayment(input: PaymentInitInput): Promise<PaymentI
     return { ok: false, error: 'THAWANI_NOT_CONFIGURED', code: 'THAWANI_NOT_CONFIGURED' };
   }
 
+  const locale = input.locale === 'en' ? 'en' : 'ar';
+  const siteBase = (process.env.NEXTAUTH_URL || '').replace(/\/$/, '');
+  const successUrl =
+    process.env.THAWANI_SUCCESS_URL || `${siteBase}/${locale}/payment/success`;
+  const cancelUrl =
+    process.env.THAWANI_CANCEL_URL || `${siteBase}/${locale}/payment/cancel`;
+
   try {
     const res = await fetch(`${baseUrl}/checkout/session`, {
       method: 'POST',
@@ -63,8 +71,8 @@ async function initiateThawaniPayment(input: PaymentInitInput): Promise<PaymentI
             unit_amount: Math.round(input.amount * 1000),
           },
         ],
-        success_url: process.env.THAWANI_SUCCESS_URL || `${process.env.NEXTAUTH_URL || ''}/payment/success`,
-        cancel_url: process.env.THAWANI_CANCEL_URL || `${process.env.NEXTAUTH_URL || ''}/payment/cancel`,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         metadata: {
           propertyId: String(input.propertyId),
           unitKey: input.unitKey || '',
@@ -111,4 +119,31 @@ export async function initiateBookingPayment(input: PaymentInitInput): Promise<P
     paymentReferenceNo: generateMockReference(),
     paymentDate: new Date().toISOString(),
   };
+}
+
+/** التحقق من دفع جلسة Thawani — mock يُقبل PAY-* في التطوير */
+export async function verifyThawaniSessionPaid(sessionId: string): Promise<boolean> {
+  const id = sessionId.trim();
+  if (!id) return false;
+
+  const secret = (process.env.THAWANI_SECRET_KEY || '').trim();
+  if (!secret) {
+    return process.env.NODE_ENV === 'development' && id.startsWith('PAY-');
+  }
+
+  const baseUrl = (process.env.THAWANI_API_BASE || 'https://checkout.thawani.om/api/v1').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${baseUrl}/checkout/session/${encodeURIComponent(id)}`, {
+      headers: { 'thawani-api-key': secret },
+      cache: 'no-store',
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as {
+      data?: { payment_status?: string; status?: string };
+    };
+    const status = String(data?.data?.payment_status || data?.data?.status || '').toLowerCase();
+    return status === 'paid' || status === 'successful' || status === 'success';
+  } catch {
+    return false;
+  }
 }

@@ -9,8 +9,7 @@ import {
   getContractByBooking,
   createContract,
   approveContractByAdmin,
-  mergeContractsFromServer,
-  syncAllContractsToServer,
+  fetchContractsFromServer,
   type RentalContract,
   type ContractStatus,
 } from '@/lib/data/contracts';
@@ -121,18 +120,11 @@ export default function AdminContractsPage() {
   };
 
   useEffect(() => {
-    syncAllContractsToServer();
     loadData();
-    fetch('/api/contracts?limit=500&offset=0', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: RentalContract[]) => {
-        if (Array.isArray(list) && list.length > 0) {
-          setApiContracts(list);
-          mergeContractsFromServer(list);
-          loadData(undefined, list);
-        }
-      })
-      .catch(() => {});
+    void fetchContractsFromServer().then((list) => {
+      setApiContracts(list);
+      loadData(undefined, list);
+    });
     fetchPaginatedList<PropertyBooking>('/api/bookings', { limit: 500, offset: 0 })
       .then(({ items }) => {
         setBookings(items);

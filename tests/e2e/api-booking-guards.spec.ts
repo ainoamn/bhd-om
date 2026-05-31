@@ -41,6 +41,20 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('payment complete requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/bookings/payment/complete?session_id=test-session`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('thawani webhook rejects invalid secret when configured', async ({ request }) => {
+    test.skip(!process.env.THAWANI_WEBHOOK_SECRET, 'Requires THAWANI_WEBHOOK_SECRET');
+    const res = await request.post(`${baseURL}/api/webhooks/thawani`, {
+      data: { event_type: 'checkout.completed', data: { session_id: 'test' } },
+      headers: { 'x-webhook-secret': 'wrong-secret' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('debug-auth is blocked in production', async ({ request }) => {
     test.skip(process.env.NODE_ENV !== 'production', 'Production-only assertion');
     const res = await request.get(`${baseURL}/api/debug-auth`);
