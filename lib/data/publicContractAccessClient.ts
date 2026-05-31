@@ -43,14 +43,16 @@ export async function fetchPublicContractBundle(opts: {
 }
 
 export async function patchPublicContractAccess(body: {
-  action: 'syncDocuments' | 'saveChecks' | 'updateBooking';
+  action: 'syncDocuments' | 'saveChecks' | 'updateBooking' | 'syncContact';
   bookingId: string;
   email?: string;
   phone?: string;
   civilId?: string;
+  contactId?: string;
   documents?: BookingDocument[];
   checks?: BookingCheckEntry[];
   updates?: Partial<PropertyBooking>;
+  contact?: Record<string, unknown>;
 }): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   try {
@@ -67,6 +69,37 @@ export async function patchPublicContractAccess(body: {
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function persistPublicContractContact(opts: {
+  bookingId: string;
+  email?: string;
+  phone?: string;
+  civilId?: string;
+  contactId: string;
+  contact: Record<string, unknown>;
+}): Promise<Record<string, unknown> | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const res = await fetch('/api/bookings/public-contract-access', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'syncContact',
+        bookingId: opts.bookingId,
+        email: opts.email,
+        phone: opts.phone,
+        civilId: opts.civilId,
+        contactId: opts.contactId,
+        contact: opts.contact,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { contact?: Record<string, unknown> };
+    return data.contact ?? null;
+  } catch {
+    return null;
   }
 }
 

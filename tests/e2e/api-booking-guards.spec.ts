@@ -135,6 +135,19 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(404);
   });
 
+  test('public contract access PATCH syncContact returns 404 for unknown booking', async ({ request }) => {
+    const res = await request.patch(`${baseURL}/api/bookings/public-contract-access`, {
+      data: {
+        action: 'syncContact',
+        bookingId: 'BKG-NO-SUCH',
+        email: 'nobody@example.com',
+        contactId: 'CNT-TEST',
+        contact: { firstName: 'Test', familyName: 'User', phone: '+96891234567' },
+      },
+    });
+    expect(res.status()).toBe(404);
+  });
+
   test('thawani webhook rejects invalid secret when configured', async ({ request }) => {
     test.skip(!process.env.THAWANI_WEBHOOK_SECRET, 'Requires THAWANI_WEBHOOK_SECRET');
     const res = await request.post(`${baseURL}/api/webhooks/thawani`, {

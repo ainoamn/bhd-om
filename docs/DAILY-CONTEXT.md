@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 14) — مزامنة جهة الاتصال للخادم من contract-terms
+
+- **`syncPublicContractContact`** + **`publicContractContactSync.ts`:** upsert في `AddressBookContact` بعد تحقق email/phone/civilId؛ ربط `contactId` بالحجز.
+- **PATCH `public-contract-access`:** action `syncContact` يُرجع `{ ok, contactId, contact }`.
+- **`persistPublicContractContact`** في العميل.
+- **contract-terms:** `savePartialProfile` يزامن للخادم (debounce 800ms)؛ `handleCompleteProfileSubmit` يزامن contact + booking معاً.
+- **E2E:** guard لـ `syncContact` → 404 لحجز غير موجود.
+
 ### جلسة 2026-05-31 (تابع 13) — BookingCheckStorage + backfill من legacy
 
 - **Prisma:** جدول `BookingCheckStorage` (صف لكل شيك، unique `bookingId+checkTypeId`) + migration `20260531130000`.

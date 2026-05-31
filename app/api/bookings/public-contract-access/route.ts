@@ -5,6 +5,7 @@ import {
   syncPublicContractDocuments,
   updatePublicContractBooking,
 } from '@/lib/server/publicContractAccess';
+import { syncPublicContractContact } from '@/lib/server/publicContractContactSync';
 import { isAllowedBrowserOrigin } from '@/lib/server/requestOrigin';
 import type { BookingDocument } from '@/lib/data/bookingDocuments';
 import type { BookingCheckEntry } from '@/lib/data/bookingChecks';
@@ -87,6 +88,32 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: result.error === 'BOOKING_NOT_FOUND' ? 404 : 400 });
       }
       return NextResponse.json({ ok: true, booking: result.booking });
+    }
+
+    if (action === 'syncContact') {
+      const contact =
+        body.contact && typeof body.contact === 'object' && !Array.isArray(body.contact)
+          ? (body.contact as Record<string, unknown>)
+          : {};
+      const contactId = String(body.contactId || contact.id || '').trim() || undefined;
+      const result = await syncPublicContractContact({
+        bookingId,
+        email,
+        phone,
+        civilId,
+        contactId,
+        contact,
+      });
+      if (!result.ok) {
+        const status =
+          result.error === 'BOOKING_NOT_FOUND'
+            ? 404
+            : result.code?.startsWith('DUPLICATE')
+              ? 409
+              : 400;
+        return NextResponse.json({ error: result.error, code: result.code }, { status });
+      }
+      return NextResponse.json({ ok: true, contactId: result.contactId, contact: result.contact });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

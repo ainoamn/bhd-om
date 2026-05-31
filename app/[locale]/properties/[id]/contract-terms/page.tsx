@@ -35,6 +35,7 @@ import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requi
 import {
   fetchPublicContractBundle,
   patchPublicContractAccess,
+  persistPublicContractContact,
   persistPublicDocumentUpload,
 } from '@/lib/data/publicContractAccessClient';
 
@@ -198,6 +199,7 @@ export default function ContractTermsPage() {
   const replaceInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const chequeImageInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const hasShownRejectionModal = useRef(false);
+  const profileSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
   const [checkFormData, setCheckFormData] = useState<Record<number, { checkNumber: string; amount: string; date: string }>>({});
   /** رقم الحساب واسم الحساب - يُدخَل مرة واحدة ويُطبَّق على كل الشيكات */
@@ -882,6 +884,46 @@ export default function ContractTermsPage() {
     return digits ? `+${digits}` : '';
   };
 
+  const getVerifyCredentials = () => ({
+    email: email.trim() || undefined,
+    phone: phone.trim() || undefined,
+    civilId: civilId.trim() || undefined,
+  });
+
+  const syncProfileToServer = (
+    contactId: string,
+    contactPayload: Record<string, unknown>,
+    bookingUpdates?: Partial<PropertyBooking>
+  ) => {
+    if (!bookingId) return;
+    const verify = getVerifyCredentials();
+    void persistPublicContractContact({
+      bookingId,
+      ...verify,
+      contactId,
+      contact: contactPayload,
+    });
+    if (bookingUpdates) {
+      void patchPublicContractAccess({
+        action: 'updateBooking',
+        bookingId,
+        ...verify,
+        updates: bookingUpdates,
+      });
+    }
+  };
+
+  const queueProfileServerSync = (
+    contactId: string,
+    contactPayload: Record<string, unknown>,
+    bookingUpdates: Partial<PropertyBooking>
+  ) => {
+    if (profileSyncTimer.current) clearTimeout(profileSyncTimer.current);
+    profileSyncTimer.current = setTimeout(() => {
+      syncProfileToServer(contactId, contactPayload, bookingUpdates);
+    }, 800);
+  };
+
   /** حفظ المفوضين بالتوقيع للشركة */
   const saveCompanyReps = () => {
     if (!bookingId || !booking) return;
@@ -982,6 +1024,7 @@ export default function ContractTermsPage() {
       tags: tagsArr.length ? tagsArr : undefined,
     };
     const existingContact = getContactForBooking(booking) || findContactByPhoneOrEmail(fullPhone, f.email?.trim());
+    let contactIdForSync = existingContact?.id;
     if (existingContact) {
       try { updateContact(existingContact.id, contactPayload); } catch {}
     } else {
@@ -997,16 +1040,21 @@ export default function ContractTermsPage() {
           passportNumber: !omani ? f.passportNumber?.trim() : undefined,
         });
         updateContact(newContact.id, contactPayload);
+        contactIdForSync = newContact.id;
       } catch {}
     }
-    updateBooking(bookingId, {
+    const bookingUpdates = {
       name: fullName,
       phone: fullPhone,
       email: f.email?.trim() || undefined,
       civilId: omani ? f.civilId?.trim() : f.passportNumber?.trim(),
       passportNumber: !omani ? f.passportNumber?.trim() : undefined,
-    } as Partial<PropertyBooking>);
+    } as Partial<PropertyBooking>;
+    updateBooking(bookingId, bookingUpdates);
     setBooking((b) => b ? { ...b, name: fullName, phone: fullPhone, email: f.email?.trim() || b.email } : b);
+    if (contactIdForSync) {
+      queueProfileServerSync(contactIdForSync, { ...contactPayload, name: fullName }, bookingUpdates);
+    }
   };
 
   /** فتح نموذج التعديل وملء البيانات من جهة الاتصال */
@@ -1166,6 +1214,7 @@ export default function ContractTermsPage() {
       tags: tagsArr.length ? tagsArr : undefined,
     };
 
+    let contactIdForSync = existingContact?.id;
     if (existingContact) {
       updateContact(existingContact.id, contactPayload);
     } else {
@@ -1177,6 +1226,7 @@ export default function ContractTermsPage() {
         passportNumber: !omani ? passVal : undefined,
       });
       updateContact(newContact.id, contactPayload);
+      contactIdForSync = newContact.id;
     }
 
     const updatedBooking = {
@@ -1192,21 +1242,31 @@ export default function ContractTermsPage() {
     setProfileError('');
     setShowCompleteProfile(false);
     if (bookingId) {
-      void patchPublicContractAccess({
-        action: 'updateBooking',
-        bookingId,
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        civilId: civilId.trim() || undefined,
-        updates: {
-          name: fullName,
-          phone: phoneVal,
-          email: emailVal || undefined,
-          civilId: omani ? civilVal : passVal || undefined,
-          passportNumber: !omani ? passVal : undefined,
-        },
-      }).then((ok) => {
-        if (ok) {
+      const verify = getVerifyCredentials();
+      const bookingUpdates = {
+        name: fullName,
+        phone: phoneVal,
+        email: emailVal || undefined,
+        civilId: omani ? civilVal : passVal || undefined,
+        passportNumber: !omani ? passVal : undefined,
+      };
+      void Promise.all([
+        patchPublicContractAccess({
+          action: 'updateBooking',
+          bookingId,
+          ...verify,
+          updates: bookingUpdates,
+        }),
+        contactIdForSync
+          ? persistPublicContractContact({
+              bookingId,
+              ...verify,
+              contactId: contactIdForSync,
+              contact: { ...contactPayload, name: fullName },
+            }).then(Boolean)
+          : Promise.resolve(false),
+      ]).then(([bookingOk]) => {
+        if (bookingOk) {
           clearDraft(`contract_terms_${bookingId}`);
           alert(ar ? 'تم إرسال الطلب بنجاح. ستظهر البيانات والمستندات لدى الإدارة للتحقق والاعتماد.' : 'Request sent successfully. Your data and documents will appear for admin verification and approval.');
         }
