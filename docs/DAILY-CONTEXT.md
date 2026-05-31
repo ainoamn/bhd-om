@@ -17,6 +17,8 @@
 - **تنظيف:** إزالة `contactsFromLocalForDisplay` الميت من `useAdminAddressBookContacts`
 - **`npm run build`** ✅ — commit `9e49add`
 
+### جلسة 2026-05-31 (تابع 36) — ContactFormModal server-first
+
 - **`ContactFormModal`:** إزالة `createContact`/`updateContact` — الحفظ عبر `saveContactToServer` فقط
 - **التكرار:** `findDuplicateContactFieldsInList` على قائمة من `GET /api/address-book` (أو `existingContacts`)
 - **التعديل:** تحميل الجهة من localStorage أو قائمة الخادم؛ `applyContactUpdateOnServer` + `mergeServerContactIntoLocalStorage`
