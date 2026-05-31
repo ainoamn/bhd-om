@@ -1,5 +1,6 @@
 /**
  * مستندات توثيق العقد - يرفعها المستأجر/المشتري ويُعتمدها المالك أو الإدارة
+ * المصدر: الخادم (`/api/settings/booking-documents`) — ذاكرة مؤقتة في المتصفح فقط
  */
 
 export type DocumentStatus = 'PENDING' | 'UPLOADED' | 'APPROVED' | 'REJECTED';
@@ -59,103 +60,100 @@ const STORAGE_KEY = 'bhd_booking_documents';
 const API_URL = '/api/settings/booking-documents';
 let didHydrateFromServer = false;
 let hydratingFromServer = false;
-let didBulkSyncToServer = false;
-let bulkSyncInProgress = false;
+let didMigrateLegacyLocalStorage = false;
 let documentsStore: BookingDocument[] = [];
+
+function migrateLegacyLocalStorageOnce(): void {
+  if (typeof window === 'undefined' || didMigrateLegacyLocalStorage) return;
+  didMigrateLegacyLocalStorage = true;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const legacy = JSON.parse(raw) as BookingDocument[];
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      documentsStore = legacy;
+      void fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(legacy),
+      }).catch(() => {});
+    }
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 function getStored(): BookingDocument[] {
   if (typeof window === 'undefined') return [];
+  migrateLegacyLocalStorageOnce();
   if (!didHydrateFromServer && !hydratingFromServer) {
     hydratingFromServer = true;
-    fetch(API_URL, { cache: 'no-store', credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((payload) => {
-        if (!Array.isArray(payload)) return;
-        documentsStore = payload as BookingDocument[];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-        didHydrateFromServer = true;
-      })
-      .catch(() => {})
-      .finally(() => {
-        hydratingFromServer = false;
-      });
+    void fetchBookingDocumentsFromServer().finally(() => {
+      hydratingFromServer = false;
+    });
   }
   return documentsStore;
 }
 
 function save(list: BookingDocument[]) {
   if (typeof window === 'undefined') return;
-  try {
-    documentsStore = list;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(list),
-    }).catch(() => {});
-  } catch {}
+  documentsStore = list;
+  void fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(list),
+  }).catch(() => {});
 }
 
-/** انتظار جلب مستندات الحجز من الخادم قبل الترحيل أو الدمج */
-export async function ensureBookingDocumentsHydrated(): Promise<void> {
-  if (typeof window === 'undefined') return;
+function mergeDocumentsFromServer(incoming: BookingDocument[], bookingId?: string): void {
+  if (incoming.length === 0) return;
+  if (bookingId) {
+    const others = documentsStore.filter((d) => d.bookingId !== bookingId);
+    documentsStore = [...others, ...incoming];
+    return;
+  }
+  const map = new Map<string, BookingDocument>();
+  for (const d of documentsStore) map.set(d.id, d);
+  for (const d of incoming) {
+    if (d?.id) map.set(d.id, d);
+  }
+  documentsStore = Array.from(map.values());
+}
+
+/** جلب مستندات الحجز من الخادم */
+export async function fetchBookingDocumentsFromServer(opts?: {
+  bookingId?: string;
+}): Promise<BookingDocument[]> {
+  if (typeof window === 'undefined') return [];
+  const qs = opts?.bookingId ? `?bookingId=${encodeURIComponent(opts.bookingId)}` : '';
   try {
-    const r = await fetch(API_URL, { cache: 'no-store', credentials: 'include' });
+    const r = await fetch(`${API_URL}${qs}`, { cache: 'no-store', credentials: 'include' });
     const payload = r.ok ? await r.json() : null;
-    if (!Array.isArray(payload)) return;
-    documentsStore = payload as BookingDocument[];
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      /* ignore */
-    }
+    if (!Array.isArray(payload)) return getStored();
+    mergeDocumentsFromServer(payload as BookingDocument[], opts?.bookingId);
     didHydrateFromServer = true;
   } catch {
     /* ignore */
   }
+  return getStored();
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY) {
-      didHydrateFromServer = false;
-      void getStored();
-    }
-  });
+/** انتظار hydrate من الخادم — استدعِه قبل الترحيل أو الدمج */
+export async function ensureBookingDocumentsHydrated(opts?: {
+  bookingId?: string;
+}): Promise<void> {
+  await fetchBookingDocumentsFromServer(opts);
 }
 
-function syncAllToServerOnce(): void {
-  if (typeof window === 'undefined') return;
-  if (didBulkSyncToServer || bulkSyncInProgress) return;
-  bulkSyncInProgress = true;
-  try {
-    const list = getStored();
-    fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(list),
-    }).catch(() => {});
-    didBulkSyncToServer = true;
-  } finally {
-    bulkSyncInProgress = false;
-  }
-}
-
-/** دمج مستندات من الخادم في التخزين المحلي (صفحة الرفع العامة أو بعد hydrate) */
+/** دمج مستندات من الخادم (صفحة الرفع العامة أو بعد hydrate) */
 export function applyDocumentsSnapshot(docs: BookingDocument[]): void {
-  if (typeof window === 'undefined') return;
-  const stored = getStored();
+  if (typeof window === 'undefined' || docs.length === 0) return;
   const bookingIds = new Set(docs.map((d) => d.bookingId));
-  const others = stored.filter((d) => !bookingIds.has(d.bookingId));
-  const merged = [...others, ...docs];
-  documentsStore = merged;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-  } catch {
-    /* ignore */
-  }
+  const others = documentsStore.filter((d) => !bookingIds.has(d.bookingId));
+  documentsStore = [...others, ...docs];
 }
 
 export { isBookingStatusEligibleForDocumentUpload } from '@/lib/data/bookingUploadEligibility';
@@ -165,7 +163,6 @@ function generateId() {
 }
 
 export function getDocumentsByBooking(bookingId: string): BookingDocument[] {
-  syncAllToServerOnce();
   return getStored().filter((d) => d.bookingId === bookingId);
 }
 
@@ -411,7 +408,7 @@ export function approveDocument(docId: string, approvedBy?: string): BookingDocu
   const idx = list.findIndex((d) => d.id === docId);
   if (idx < 0) return null;
   const doc = list[idx];
-  if (hasRejectedFiles(doc)) return null; // لا نعتمد مع صور مرفوضة
+  if (hasRejectedFiles(doc)) return null;
   const now = new Date().toISOString();
   list[idx] = {
     ...doc,
@@ -484,7 +481,6 @@ export function rejectDocument(
     rejectionReasonEn,
     approvedAt: undefined,
     approvedBy: undefined,
-    /** حذف مراجع الملفات - الصور تُحذف والبيانات تبقى أرشفة */
     fileUrl: undefined,
     fileName: undefined,
     fileUrls: undefined,

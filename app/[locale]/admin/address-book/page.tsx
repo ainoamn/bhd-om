@@ -49,15 +49,17 @@ import {
   type AuthorizedRepresentative,
 } from '@/lib/data/addressBook';
 import {
+  deriveContactCategoriesFromLinks,
   getContactLinkedBookingDocumentsFromServerBookings,
   getContactLinkedBookingsFromServerBookings,
-  getContactLinkedContractsFromServerBookings,
-  isContactLinked,
-  getContactDerivedCategories,
+  getContactLinkedContractsFromServer,
+  getContactDerivedCategoriesFromServer,
+  isContactLinkedFromServer,
   type ContactLinkedBooking,
   type ContactLinkedContract,
 } from '@/lib/data/contactLinks';
 import { syncBookingContactsToAddressBook, type PropertyBooking } from '@/lib/data/bookings';
+import type { RentalContract } from '@/lib/data/contracts';
 import TranslateField from '@/components/admin/TranslateField';
 import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
 import { getNationalitySelectOptions, normalizeNationalityToArabic } from '@/lib/data/nationalities';
@@ -204,6 +206,7 @@ export default function AdminAddressBookPage() {
   const [form, setForm] = useState(emptyForm);
   const [mounted, setMounted] = useState(false);
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
+  const [serverContracts, setServerContracts] = useState<RentalContract[]>([]);
   const [serverDocuments, setServerDocuments] = useState<AccountingDocument[]>([]);
   const [importResult, setImportResult] = useState<number | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -278,18 +281,23 @@ export default function AdminAddressBookPage() {
     let alive = true;
     Promise.all([
       fetch('/api/bookings', { credentials: 'include', cache: 'no-store' }).then((r) => (r.ok ? r.json() : [])),
+      fetch('/api/contracts?limit=500&offset=0', { credentials: 'include', cache: 'no-store' }).then((r) =>
+        r.ok ? r.json() : []
+      ),
       fetch('/api/accounting/documents?limit=400&offset=0', { credentials: 'include', cache: 'no-store' }).then((r) =>
         r.ok ? r.json() : []
       ),
     ])
-      .then(([bookingsList, docsList]) => {
+      .then(([bookingsList, contractsList, docsList]) => {
         if (!alive) return;
         setServerBookings(Array.isArray(bookingsList) ? (bookingsList as PropertyBooking[]) : []);
+        setServerContracts(Array.isArray(contractsList) ? (contractsList as RentalContract[]) : []);
         setServerDocuments(Array.isArray(docsList) ? (docsList as AccountingDocument[]) : []);
       })
       .catch(() => {
         if (!alive) return;
         setServerBookings([]);
+        setServerContracts([]);
         setServerDocuments([]);
       });
     return () => {
@@ -990,7 +998,7 @@ export default function AdminAddressBookPage() {
     const statusKey = (s: string) => (s === 'ACTIVE' ? t('statusActive') : s === 'ENDED' ? t('statusEnded') : s === 'RENEWED' ? t('statusRenewed') : s === 'CANCELLED' ? t('statusCancelled') : t('statusDraft'));
     const statusBilingual = (s: string) => (s === 'ACTIVE' ? 'نشط / Active' : s === 'ENDED' ? 'منتهي / Ended' : s === 'RENEWED' ? 'مجدد / Renewed' : s === 'CANCELLED' ? 'ملغي / Cancelled' : 'مسودة / Draft');
     const categoryBilingual: Record<string, string> = { CLIENT: 'عميل / Client', TENANT: 'مستأجر / Tenant', LANDLORD: 'مالك / Landlord', SUPPLIER: 'مورد / Supplier', PARTNER: 'شريك / Partner', GOVERNMENT: 'جهة حكومية / Government', AUTHORIZED_REP: 'مفوض بالتوقيع / Authorized Rep', OTHER: 'أخرى / Other' };
-    const derivedCats = getContactDerivedCategories(contact);
+    const derivedCats = deriveContactCategoriesFromLinks(linkedBookings, linkedContracts);
     const repCompanies = getCompaniesForRep(contact.id);
     const repCompaniesStr = repCompanies.length > 0
       ? 'مفوض: ' + repCompanies.map((co) => (co.position ? co.position + ' → ' : '') + (locale === 'en' && co.nameEn ? co.nameEn : co.nameAr)).join('، ')
@@ -1139,7 +1147,7 @@ export default function AdminAddressBookPage() {
     const html = buildPrintHtml(
       c,
       getContactLinkedBookingsFromServerBookings(c, serverBookings, serverDocuments),
-      getContactLinkedContractsFromServerBookings(c, serverBookings, serverDocuments),
+      getContactLinkedContractsFromServer(c, serverBookings, serverContracts, serverDocuments),
       getContactLinkedBookingDocumentsFromServerBookings(c, serverBookings)
     );
     const w = window.open('', '_blank');
@@ -1150,7 +1158,7 @@ export default function AdminAddressBookPage() {
     const html = buildPrintHtml(
       c,
       getContactLinkedBookingsFromServerBookings(c, serverBookings, serverDocuments),
-      getContactLinkedContractsFromServerBookings(c, serverBookings, serverDocuments),
+      getContactLinkedContractsFromServer(c, serverBookings, serverContracts, serverDocuments),
       getContactLinkedBookingDocumentsFromServerBookings(c, serverBookings)
     );
     const w = window.open('', '_blank');
@@ -1160,7 +1168,7 @@ export default function AdminAddressBookPage() {
   const handleArchive = (id: string) => {
     const c = getContactById(id);
     if (!c) return;
-    const { linked } = isContactLinked(c);
+    const { linked } = isContactLinkedFromServer(c, serverBookings, serverContracts, serverDocuments);
     if (linked) return;
     archiveContact(id);
     setDeleteId(null);
@@ -1649,7 +1657,7 @@ export default function AdminAddressBookPage() {
                             </div>
                           </button>
                         ) : null}
-                        {getContactDerivedCategories(c).map((cat) => (
+                        {getContactDerivedCategoriesFromServer(c, serverBookings, serverContracts, serverDocuments).map((cat) => (
                           <button
                             key={cat}
                             type="button"
@@ -1660,7 +1668,7 @@ export default function AdminAddressBookPage() {
                             {t(CATEGORY_KEYS[cat] as 'categoryClient')}
                           </button>
                         ))}
-                        {!isAuthorizedRepresentative(c) && getContactDerivedCategories(c).length === 0 && (
+                        {!isAuthorizedRepresentative(c) && getContactDerivedCategoriesFromServer(c, serverBookings, serverContracts, serverDocuments).length === 0 && (
                           <button
                             type="button"
                             onClick={() => setFilterCategory(c.category)}
@@ -1704,7 +1712,7 @@ export default function AdminAddressBookPage() {
                         <button type="button" onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-gray-100 text-[#8B6F47] text-xs font-medium">{t('edit')}</button>
                         {c.archived ? (
                           <button type="button" onClick={() => handleRestore(c.id)} className="p-1.5 rounded hover:bg-gray-100 text-emerald-600 text-xs font-medium">{t('restore')}</button>
-                        ) : isContactLinked(c).linked ? (
+                        ) : isContactLinkedFromServer(c, serverBookings, serverContracts, serverDocuments).linked ? (
                           <span className="p-1.5 text-gray-400 text-xs cursor-not-allowed" title={t('cannotArchiveLinked')}>{t('archive')}</span>
                         ) : (
                           <button type="button" onClick={() => setDeleteId(c.id)} className="p-1.5 rounded hover:bg-gray-100 text-amber-600 text-xs font-medium">{t('archive')}</button>
@@ -2316,7 +2324,7 @@ export default function AdminAddressBookPage() {
                 if (!contact) return null;
                 const history = contact.categoryChangeHistory || [];
                 const linkedBookings = getContactLinkedBookingsFromServerBookings(contact, serverBookings, serverDocuments);
-                const linkedContracts = getContactLinkedContractsFromServerBookings(contact, serverBookings, serverDocuments);
+                const linkedContracts = getContactLinkedContractsFromServer(contact, serverBookings, serverContracts, serverDocuments);
                 const linkedDocs = getContactLinkedBookingDocumentsFromServerBookings(contact, serverBookings);
                 const statusKey = (s: string) => (s === 'ACTIVE' ? 'statusActive' : s === 'ENDED' ? 'statusEnded' : s === 'RENEWED' ? 'statusRenewed' : s === 'CANCELLED' ? 'statusCancelled' : 'statusDraft');
                 const fmtDate = (d: string) => new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });

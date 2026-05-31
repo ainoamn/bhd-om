@@ -8,8 +8,13 @@ export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
+    const bookingId = new URL(req.url).searchParams.get('bookingId')?.trim();
     const value = await getJsonSetting<unknown>(KEY, []);
-    return NextResponse.json(Array.isArray(value) ? value : []);
+    const list = Array.isArray(value) ? value : [];
+    if (bookingId) {
+      return NextResponse.json(list.filter((d) => (d as { bookingId?: string }).bookingId === bookingId));
+    }
+    return NextResponse.json(list);
   } catch (e) {
     console.error('booking-documents GET error:', e);
     return NextResponse.json([], { status: 500 });

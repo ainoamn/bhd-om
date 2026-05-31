@@ -9,6 +9,19 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 7) — contactLinks server-first في دفتر العناوين
+
+- **`contactLinks.ts`:** `getContactLinkedContractsFromServerContracts` + `getContactLinkedContractsFromServer` (دمج ContractStorage + contractData).
+- **`isContactLinkedFromServer`** و **`getContactDerivedCategoriesFromServer`** للأرشفة والتصنيفات.
+- **address-book:** جلب `/api/contracts` مع الحجوزات؛ لا اعتماد على `getAllContracts()` في القائمة.
+
+### جلسة 2026-05-31 (تابع 6) — مستندات الحجز server-first + CI E2E
+
+- **`bookingDocuments.ts`:** إيقاف localStorage؛ `fetchBookingDocumentsFromServer` + ترحيل legacy.
+- **API:** `GET /api/settings/booking-documents?bookingId=` لفلترة خفيفة.
+- **CI:** job `e2e-critical` عند وجود `E2E_ADMIN_*` في Secrets.
+- **Thawani webhook:** توثيق في `DEVELOPMENT-FIXES-AND-UPGRADES.md`.
+
 ### جلسة 2026-05-31 (تابع 5) — hydrate العقود من الخادم في الصفحات
 
 - **`ensureContractsHydrated`** + **`fetchContractByIdFromServer`** في `lib/data/contracts.ts`.

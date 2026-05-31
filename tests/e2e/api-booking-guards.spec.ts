@@ -46,6 +46,11 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('booking-documents GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/settings/booking-documents`);
+    expect(res.status()).toBe(401);
+  });
+
   test('thawani webhook rejects invalid secret when configured', async ({ request }) => {
     test.skip(!process.env.THAWANI_WEBHOOK_SECRET, 'Requires THAWANI_WEBHOOK_SECRET');
     const res = await request.post(`${baseURL}/api/webhooks/thawani`, {

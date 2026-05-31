@@ -146,48 +146,98 @@ export function getContactLinkedBookingsFromServerBookings(
   });
 }
 
-/** العقود المرتبطة بجهة الاتصال (مستأجر أو مالك - مطابقة الهاتف أو البريد) */
-export function getContactLinkedContracts(contact: Contact): ContactLinkedContract[] {
-  const list = getAllContracts();
+function mapContactLinkedContractRow(
+  contact: Contact,
+  c: RentalContract,
+  serverDocuments?: AccountingDocument[]
+): ContactLinkedContract | null {
   const cPhone = normalizePhoneForComparison(contact.phone || '');
   const cEmail = normEmail(contact.email || '');
-  const matches = list.filter((c) => {
-    const tPhone = normalizePhoneForComparison(c.tenantPhone || '');
-    const lPhone = c.landlordPhone ? normalizePhoneForComparison(c.landlordPhone) : '';
-    const asTenant = (cPhone.length >= 6 && tPhone.length >= 6 && cPhone === tPhone) || (cEmail.length >= 3 && normEmail(c.tenantEmail) === cEmail);
-    const asLandlord = (cPhone.length >= 6 && lPhone.length >= 6 && cPhone === lPhone) || (cEmail.length >= 3 && c.landlordEmail && normEmail(c.landlordEmail) === cEmail);
-    return asTenant || asLandlord;
-  });
+  const tPhone = normalizePhoneForComparison(c.tenantPhone || '');
+  const lPhone = c.landlordPhone ? normalizePhoneForComparison(c.landlordPhone) : '';
+  const asTenant =
+    (cPhone.length >= 6 && tPhone.length >= 6 && cPhone === tPhone) ||
+    (cEmail.length >= 3 && normEmail(c.tenantEmail) === cEmail);
+  const asLandlord =
+    (cPhone.length >= 6 && lPhone.length >= 6 && cPhone === lPhone) ||
+    (cEmail.length >= 3 && !!c.landlordEmail && normEmail(c.landlordEmail) === cEmail);
+  if (!asTenant && !asLandlord) return null;
+
+  const ended = isContractEnded(c);
+  let status: ContractDisplayStatus = c.status === 'DRAFT' ? 'DRAFT' : ended ? 'ENDED' : 'ACTIVE';
+  const hasFinancialClaims = serverDocuments
+    ? serverDocuments.some(
+        (d) => String(d.contractId || '') === String(c.id) && (d.status === 'PENDING' || d.status === 'DRAFT')
+      )
+    : typeof window !== 'undefined'
+      ? searchDocuments({ contractId: c.id }).some((d) => d.status === 'PENDING' || d.status === 'DRAFT')
+      : false;
+  const role: 'tenant' | 'landlord' = asTenant ? 'tenant' : 'landlord';
   const overrides = getPropertyDataOverrides();
-  return matches.map((c) => {
-    const ended = isContractEnded(c);
-    let status: ContractDisplayStatus = c.status === 'DRAFT' ? 'DRAFT' : ended ? 'ENDED' : 'ACTIVE';
-    const docs = typeof window !== 'undefined' ? searchDocuments({ contractId: c.id }) : [];
-    const hasFinancialClaims = docs.some((d) => d.status === 'PENDING' || d.status === 'DRAFT');
-    const tPhone = normalizePhoneForComparison(c.tenantPhone || '');
-    const asTenant = (cPhone.length >= 6 && tPhone.length >= 6 && cPhone === tPhone) || (cEmail.length >= 3 && normEmail(c.tenantEmail) === cEmail);
-    const role: 'tenant' | 'landlord' = asTenant ? 'tenant' : 'landlord';
-    const prop = getPropertyById(c.propertyId, overrides);
-    const unitPart = c.unitKey && prop ? getUnitDisplayFromProperty(prop, c.unitKey, true) : null;
-    const unitDisplay = unitPart ? `${c.propertyTitleAr} - ${unitPart}` : c.propertyTitleAr;
-    return {
-      id: c.id,
-      contractId: c.id,
-      bookingId: c.bookingId,
-      date: c.createdAt,
-      propertyId: c.propertyId,
-      propertyTitleAr: c.propertyTitleAr,
-      propertyTitleEn: c.propertyTitleEn,
-      unitKey: c.unitKey,
-      unitDisplay,
-      landlordName: c.landlordName,
-      startDate: c.startDate,
-      endDate: c.endDate,
-      status,
-      hasFinancialClaims,
-      role,
-    };
-  });
+  const prop = getPropertyById(c.propertyId, overrides);
+  const unitPart = c.unitKey && prop ? getUnitDisplayFromProperty(prop, c.unitKey, true) : null;
+  const unitDisplay = unitPart ? `${c.propertyTitleAr} - ${unitPart}` : c.propertyTitleAr;
+  return {
+    id: c.id,
+    contractId: c.id,
+    bookingId: c.bookingId,
+    date: c.createdAt,
+    propertyId: c.propertyId,
+    propertyTitleAr: c.propertyTitleAr,
+    propertyTitleEn: c.propertyTitleEn,
+    unitKey: c.unitKey,
+    unitDisplay,
+    landlordName: c.landlordName,
+    startDate: c.startDate,
+    endDate: c.endDate,
+    status,
+    hasFinancialClaims,
+    role,
+  };
+}
+
+/** العقود المرتبطة بجهة الاتصال من قائمة خادم جاهزة */
+export function getContactLinkedContractsFromServerContracts(
+  contact: Contact,
+  serverContracts: RentalContract[],
+  serverDocuments?: AccountingDocument[]
+): ContactLinkedContract[] {
+  const list = Array.isArray(serverContracts) ? serverContracts : [];
+  return list
+    .map((c) => mapContactLinkedContractRow(contact, c, serverDocuments))
+    .filter((row): row is ContactLinkedContract => row !== null);
+}
+
+/** دمج عقود ContractStorage + contractData من الحجوزات + عقود المالك */
+export function getContactLinkedContractsFromServer(
+  contact: Contact,
+  serverBookings: PropertyBooking[],
+  serverContracts: RentalContract[],
+  serverDocuments?: AccountingDocument[],
+  ownerPortfolioSerials?: Set<string> | null
+): ContactLinkedContract[] {
+  const ctx: LandlordMatchContext = {
+    contactId: contact.id,
+    userEmail: contact.email,
+    userPhone: contact.phone,
+  };
+  const byContract = getContactLinkedContractsFromServerContracts(contact, serverContracts, serverDocuments);
+  const byBookingTenant = getContactLinkedContractsFromServerBookings(contact, serverBookings, serverDocuments);
+  const byLandlord = getLandlordContractsFromServerBookings(serverBookings, ctx, ownerPortfolioSerials);
+  const seen = new Set<string>();
+  const out: ContactLinkedContract[] = [];
+  for (const item of [...byContract, ...byBookingTenant, ...byLandlord]) {
+    const key = String(item.contractId || item.bookingId || item.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+/** العقود المرتبطة بجهة الاتصال (مستأجر أو مالك - مطابقة الهاتف أو البريد) */
+export function getContactLinkedContracts(contact: Contact): ContactLinkedContract[] {
+  return getContactLinkedContractsFromServerContracts(contact, getAllContracts());
 }
 
 /** ربط العقود من بيانات الحجوزات القادمة من الخادم (contractData داخل booking) */
@@ -329,17 +379,39 @@ export function getContactLinkedBookingDocumentsFromServerBookings(
   return result.sort((a, b) => (b.uploadedAt || b.createdAt || '').localeCompare(a.uploadedAt || a.createdAt || ''));
 }
 
+export function deriveContactCategoriesFromLinks(
+  linkedBookings: ContactLinkedBooking[],
+  linkedContracts: ContactLinkedContract[]
+): ContactCategory[] {
+  const cats: ContactCategory[] = [];
+  if (linkedBookings.length > 0) cats.push('CLIENT');
+  if (linkedContracts.some((c) => c.role === 'tenant')) cats.push('TENANT');
+  if (linkedContracts.some((c) => c.role === 'landlord')) cats.push('LANDLORD');
+  return [...new Set(cats)];
+}
+
 /** التصنيفات المستمدة من نشاط الجهة (حجز = عميل، عقد كمستأجر = مستأجر، عقد كمالك = مالك) */
 export function getContactDerivedCategories(contact: Contact): ContactCategory[] {
-  const bookings = getContactLinkedBookings(contact);
-  const contracts = getContactLinkedContracts(contact);
-  const cats: ContactCategory[] = [];
-  if (bookings.length > 0) cats.push('CLIENT');
-  const asTenant = contracts.filter((c) => c.role === 'tenant');
-  const asLandlord = contracts.filter((c) => c.role === 'landlord');
-  if (asTenant.length > 0) cats.push('TENANT');
-  if (asLandlord.length > 0) cats.push('LANDLORD');
-  return [...new Set(cats)];
+  return deriveContactCategoriesFromLinks(getContactLinkedBookings(contact), getContactLinkedContracts(contact));
+}
+
+/** تصنيفات مستمدة من بيانات خادم جاهزة */
+export function getContactDerivedCategoriesFromServer(
+  contact: Contact,
+  serverBookings: PropertyBooking[],
+  serverContracts: RentalContract[],
+  serverDocuments?: AccountingDocument[],
+  ownerPortfolioSerials?: Set<string> | null
+): ContactCategory[] {
+  const bookings = getContactLinkedBookingsFromServerBookings(contact, serverBookings, serverDocuments);
+  const contracts = getContactLinkedContractsFromServer(
+    contact,
+    serverBookings,
+    serverContracts,
+    serverDocuments,
+    ownerPortfolioSerials
+  );
+  return deriveContactCategoriesFromLinks(bookings, contracts);
 }
 
 /** هل جهة الاتصال مرتبطة بأي سجل (حجز، عقد، مستند مالي)؟ لا يُسمح بحذفها */
@@ -347,6 +419,31 @@ export function isContactLinked(contact: Contact): { linked: boolean; bookings: 
   const bookings = getContactLinkedBookings(contact);
   const contracts = getContactLinkedContracts(contact);
   const docs = typeof window !== 'undefined' ? searchDocuments({ contactId: contact.id }) : [];
+  return {
+    linked: bookings.length > 0 || contracts.length > 0 || docs.length > 0,
+    bookings: bookings.length,
+    contracts: contracts.length,
+    documents: docs.length,
+  };
+}
+
+/** هل جهة الاتصال مرتبطة — من بيانات خادم جاهزة */
+export function isContactLinkedFromServer(
+  contact: Contact,
+  serverBookings: PropertyBooking[],
+  serverContracts: RentalContract[],
+  serverDocuments?: AccountingDocument[],
+  ownerPortfolioSerials?: Set<string> | null
+): { linked: boolean; bookings: number; contracts: number; documents: number } {
+  const bookings = getContactLinkedBookingsFromServerBookings(contact, serverBookings, serverDocuments);
+  const contracts = getContactLinkedContractsFromServer(
+    contact,
+    serverBookings,
+    serverContracts,
+    serverDocuments,
+    ownerPortfolioSerials
+  );
+  const docs = (serverDocuments || []).filter((d) => String(d.contactId || '') === String(contact.id));
   return {
     linked: bookings.length > 0 || contracts.length > 0 || docs.length > 0,
     bookings: bookings.length,

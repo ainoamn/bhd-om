@@ -353,7 +353,7 @@
 ### أولوية عالية
 - ~~جدول Prisma مستقل للعقود (`ContractStorage`)~~ — **2026-05-31:** `ContractStorage` + `/api/contracts` + backfill من BookingStorage.
 - إكمال فصل واجهة العقود نهائياً عن `localStorage` — **جزئي 2026-05-31:** ذاكرة مؤقتة + `fetchContractsFromServer` + ترحيل legacy.
-- توحيد مسار مستندات الحجز/العقد بحيث يكون مصدره الخادم بالكامل.
+- توحيد مسار مستندات الحجز/العقد بحيث يكون مصدره الخادم بالكامل — **جزئي 2026-05-31:** مستندات الحجز ذاكرة مؤقتة + `fetchBookingDocumentsFromServer` + فلتر `?bookingId=`؛ بدون localStorage.
 - ~~بوابة دفع حقيقية بدل المحاكاة في `/book`.~~ — **2026-05-31:** `paymentGateway.ts` + `/api/bookings/payment/initiate` (mock؛ Thawani عند `THAWANI_*`).
 
 ### أولوية متوسطة
@@ -369,6 +369,17 @@
   2. تصفير كامل
   3. التأكد من تسجيل خروج فوري
   4. عدم ظهور بيانات قديمة في `my-account`/`my-bookings`
+
+### Thawani — إعداد الإنتاج
+
+1. **المتغيرات:** `THAWANI_SECRET_KEY`, `THAWANI_PUBLISHABLE_KEY`, `THAWANI_WEBHOOK_SECRET` (اختياري).
+2. **Webhook URL في لوحة Thawani:** `https://YOUR_DOMAIN/api/webhooks/thawani` مع header `x-webhook-secret` = `THAWANI_WEBHOOK_SECRET`.
+3. **Success/Cancel:** الافتراضي `/{locale}/payment/success` و `/payment/cancel` — أو `THAWANI_SUCCESS_URL` / `THAWANI_CANCEL_URL`.
+
+### CI — E2E
+
+- **`e2e-api`:** يعمل دائماً (يتطلب `DATABASE_URL` في Secrets).
+- **`e2e-critical`:** يعمل عند وجود `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` في GitHub Secrets.
 
 ## دفعة RBAC الحالية (تقارب مع متطلبات Kimi مع الحفاظ على التوافق)
 
