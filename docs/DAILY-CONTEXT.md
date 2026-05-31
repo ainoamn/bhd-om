@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 21) — قفل الوحدات + حجوزات العقار من الخادم
+
+- **`hasActiveContractForUnitFromServer` / `hasContractForUnitFromServer` / `resolveContractForBookingFromServer`**
+- **`admin/bookings`:** عقود من API لتوفر الوحدات؛ **`properties/[id]/bookings`:** حجوزات + عقود من API
+- **`fetchContractsFromServer`:** فلتر `propertyId`
+- **`/admin/data`:** بطاقة مراجعة بوابة الدفع
+
 ### جلسة 2026-05-31 (تابع 20) — إكمال server-first للعقود في صفحات الإدارة
 
 - **`resolveContractFromBooking` + `bookingHasServerContract`** في `lib/data/contracts.ts`.
