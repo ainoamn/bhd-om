@@ -22,6 +22,19 @@ type LegacyBookingSettingsStatus = {
   fullyMigrated: boolean;
 };
 
+type ProductionOverall = {
+  dbConnected: boolean;
+  paymentProductionReady: boolean;
+  legacyFullyMigrated: boolean;
+  coreEnvConfigured: boolean;
+};
+
+type DatabaseHealth = {
+  ok: boolean;
+  latencyMs?: number;
+  error?: string;
+};
+
 type PaymentGatewayStatus = {
   provider: 'mock' | 'thawani';
   thawaniConfigured: boolean;
@@ -66,20 +79,30 @@ export default function AdminDataPage() {
   const [legacyPurgeConfirm, setLegacyPurgeConfirm] = useState(false);
   const [legacyPurgeConfirmText, setLegacyPurgeConfirmText] = useState('');
   const [paymentGw, setPaymentGw] = useState<PaymentGatewayStatus | null>(null);
+  const [dbHealth, setDbHealth] = useState<DatabaseHealth | null>(null);
+  const [overallReadiness, setOverallReadiness] = useState<ProductionOverall | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
 
   const loadProductionReadiness = useCallback(async () => {
+    setReadinessLoading(true);
     try {
       const res = await fetch('/api/admin/production-readiness', { cache: 'no-store', credentials: 'include' });
       if (!res.ok) return;
       const data = (await res.json()) as {
         payment?: PaymentGatewayStatus;
         legacy?: LegacyBookingSettingsStatus;
+        database?: DatabaseHealth;
+        overall?: ProductionOverall;
       };
       if (data.payment) setPaymentGw(data.payment);
       if (data.legacy) setLegacyStatus(data.legacy);
+      if (data.database) setDbHealth(data.database);
+      if (data.overall) setOverallReadiness(data.overall);
     } catch {
       /* ignore */
+    } finally {
+      setReadinessLoading(false);
     }
   }, []);
 
@@ -177,6 +200,17 @@ export default function AdminDataPage() {
       setCopyMsg(ar ? 'تعذر النسخ' : 'Copy failed');
       setTimeout(() => setCopyMsg(null), 2500);
     }
+  };
+
+  const copyWebhookSetup = () => {
+    if (!paymentGw?.webhookUrl) return;
+    const block = [
+      `Webhook URL: ${paymentGw.webhookUrl}`,
+      `Header: ${paymentGw.webhookHeader} = <THAWANI_WEBHOOK_SECRET value in Vercel>`,
+      `Success URL: ${paymentGw.successUrl || '—'}`,
+      `Cancel URL: ${paymentGw.cancelUrl || '—'}`,
+    ].join('\n');
+    void copyToClipboard(block, ar ? 'تم نسخ إعداد Webhook' : 'Webhook setup copied');
   };
 
   const handleResetLocal = () => {
@@ -394,7 +428,80 @@ export default function AdminDataPage() {
         />
 
         {/* رمز الحماية الموحّد */}
-        <div className="admin-card p-6 sm:p-8 border-2 border-slate-200">
+                {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+          <div className="admin-card p-6 sm:p-8 border-2 border-[#8B6F47]/20 bg-gradient-to-br from-amber-50/80 to-white">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/15 flex items-center justify-center text-xl">🚀</span>
+                  {ar ? 'جاهزية الإنتاج' : 'Production readiness'}
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  {ar ? 'ملخص حي من هذا السيرفر — حدّث بعد ضبط Vercel أو الهجرات.' : 'Live summary from this server — refresh after Vercel env or migrations.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={readinessLoading}
+                onClick={() => void loadProductionReadiness()}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5435] disabled:opacity-50 transition-colors"
+              >
+                {readinessLoading ? (ar ? 'جاري التحديث…' : 'Refreshing…') : ar ? 'تحديث' : 'Refresh'}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div className={`rounded-xl p-4 border ${dbHealth?.ok ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                <p className="text-xs text-gray-600 mb-1">{ar ? 'قاعدة البيانات' : 'Database'}</p>
+                <p className={`font-bold ${dbHealth?.ok ? 'text-emerald-800' : 'text-red-800'}`}>
+                  {dbHealth?.ok
+                    ? ar
+                      ? `متصل${dbHealth.latencyMs != null ? ` (${dbHealth.latencyMs}ms)` : ''}`
+                      : `Connected${dbHealth.latencyMs != null ? ` (${dbHealth.latencyMs}ms)` : ''}`
+                    : ar
+                      ? 'غير متصل'
+                      : 'Disconnected'}
+                </p>
+              </div>
+              <div className={`rounded-xl p-4 border ${overallReadiness?.coreEnvConfigured ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                <p className="text-xs text-gray-600 mb-1">{ar ? 'متغيرات أساسية' : 'Core env'}</p>
+                <p className={`font-bold ${overallReadiness?.coreEnvConfigured ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {overallReadiness?.coreEnvConfigured ? (ar ? 'مضبوطة' : 'Configured') : ar ? 'ناقصة' : 'Incomplete'}
+                </p>
+              </div>
+              <div className={`rounded-xl p-4 border ${overallReadiness?.paymentProductionReady ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                <p className="text-xs text-gray-600 mb-1">Thawani</p>
+                <p className={`font-bold ${overallReadiness?.paymentProductionReady ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {overallReadiness?.paymentProductionReady
+                    ? ar ? 'جاهز' : 'Ready'
+                    : paymentGw?.provider === 'mock'
+                      ? 'mock'
+                      : ar ? 'جزئي' : 'Partial'}
+                </p>
+              </div>
+              <div className={`rounded-xl p-4 border ${overallReadiness?.legacyFullyMigrated ? 'bg-emerald-50 border-emerald-200' : 'bg-violet-50 border-violet-200'}`}>
+                <p className="text-xs text-gray-600 mb-1">{ar ? 'Legacy booking' : 'Legacy booking'}</p>
+                <p className={`font-bold ${overallReadiness?.legacyFullyMigrated ? 'text-emerald-800' : 'text-violet-800'}`}>
+                  {overallReadiness?.legacyFullyMigrated ? (ar ? 'مكتمل' : 'Migrated') : ar ? 'يحتاج ترحيل' : 'Needs backfill'}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
+              <a href="/api/check-env" target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] underline">
+                /api/check-env
+              </a>
+              <a href="/api/check-db" target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] underline">
+                /api/check-db
+              </a>
+              {paymentGw?.webhookUrl && (
+                <button type="button" onClick={copyWebhookSetup} className="text-[#8B6F47] underline font-semibold">
+                  {ar ? 'نسخ إعداد Webhook' : 'Copy webhook setup'}
+                </button>
+              )}
+            </p>
+          </div>
+        )}
+
+<div className="admin-card p-6 sm:p-8 border-2 border-slate-200">
           <h2 className="text-lg font-bold text-gray-900 mb-2">
             {ar ? 'رمز الحماية (الخادم)' : 'Security PIN (server)'}
           </h2>

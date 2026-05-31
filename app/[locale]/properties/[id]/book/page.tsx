@@ -85,7 +85,8 @@ export default function PropertyBookPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [submitError, setSubmitError] = useState<'ALREADY_BOOKED' | 'MAX_REACHED' | 'DUPLICATE_SERVER' | 'OTHER' | null>(null);
+  const [submitError, setSubmitError] = useState<'ALREADY_BOOKED' | 'MAX_REACHED' | 'DUPLICATE_SERVER' | 'PAYMENT_INIT' | 'OTHER' | null>(null);
+  const [paymentErrorDetail, setPaymentErrorDetail] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [userHasExistingBooking, setUserHasExistingBooking] = useState<boolean | null>(null);
   const [existingBookingForLink, setExistingBookingForLink] = useState<{ id: string; email?: string } | null>(null);
@@ -359,6 +360,7 @@ export default function PropertyBookPage() {
     setIsProcessingPayment(true);
     setSubmitStatus('idle');
     setSubmitError(null);
+    setPaymentErrorDetail(null);
     const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
     const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
     try {
@@ -489,8 +491,16 @@ export default function PropertyBookPage() {
         setPayCooldownRemainingMs(
           getBookingPaymentCooldownRemainingMs(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone)
         );
+        let payErrMsg = '';
+        try {
+          const errJson = (await payRes.json()) as { error?: string; code?: string };
+          payErrMsg = String(errJson.error || errJson.code || '').trim();
+        } catch {
+          /* ignore */
+        }
         setSubmitStatus('error');
-        setSubmitError('OTHER');
+        setSubmitError('PAYMENT_INIT');
+        setPaymentErrorDetail(payErrMsg || null);
         return;
       }
       const payData = (await payRes.json()) as {
@@ -1140,7 +1150,11 @@ export default function PropertyBookPage() {
                           ? (ar ? 'يوجد حجز نشط لهذا العقار لحسابك (الخادم). لا يُسمح بحجز مكرر.' : 'An active booking for this property already exists on the server. Duplicate booking is not allowed.')
                           : submitError === 'MAX_REACHED'
                             ? (ar ? 'تم الوصول للحد الأقصى من الحجوزات لهذا العقار.' : 'Maximum bookings reached for this property.')
-                            : (ar ? 'حدث خطأ. يرجى المحاولة مرة أخرى بعد انتهاء فترة الانتظار إن وُجدت.' : 'An error occurred. Please try again after any wait period shown.')}
+                            : submitError === 'PAYMENT_INIT'
+                              ? (ar
+                                  ? `تعذّر بدء الدفع${paymentErrorDetail ? `: ${paymentErrorDetail}` : ''}. تحقق من إعدادات الدفع أو حاول لاحقاً.`
+                                  : `Could not start payment${paymentErrorDetail ? `: ${paymentErrorDetail}` : ''}. Check payment settings or try later.`)
+                              : (ar ? 'حدث خطأ. يرجى المحاولة مرة أخرى بعد انتهاء فترة الانتظار إن وُجدت.' : 'An error occurred. Please try again after any wait period shown.')}
                     </div>
                   )}
                   <form id="booking-form" onSubmit={handleSubmit} className="space-y-8">

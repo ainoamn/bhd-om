@@ -138,17 +138,23 @@ test.describe('API — address book (authenticated admin)', () => {
     expect(contactAgain.id).toBe(contact.id);
   });
 
-  test('GET production-readiness returns payment and legacy status for admin', async ({ page }) => {
+  test('GET production-readiness returns payment, database, and legacy status for admin', async ({ page }) => {
     const res = await page.request.get('/api/admin/production-readiness');
     expect(res.ok()).toBeTruthy();
     const body = (await res.json()) as {
       payment?: { provider?: string; webhookUrl?: string };
       legacy?: { fullyMigrated?: boolean };
+      database?: { ok?: boolean };
+      overall?: { dbConnected?: boolean; paymentProductionReady?: boolean };
       checkEnvPath?: string;
+      checkDbPath?: string;
     };
     expect(body.payment?.provider).toMatch(/mock|thawani/);
     expect(typeof body.legacy?.fullyMigrated).toBe('boolean');
+    expect(typeof body.database?.ok).toBe('boolean');
+    expect(typeof body.overall?.dbConnected).toBe('boolean');
     expect(body.checkEnvPath).toBe('/api/check-env');
+    expect(body.checkDbPath).toBe('/api/check-db');
   });
 
   test('POST legacy-booking-settings backfill runs for admin', async ({ page }) => {
