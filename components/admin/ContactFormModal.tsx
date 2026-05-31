@@ -16,6 +16,7 @@ import {
   AddressBookSaveError,
   applyContactUpdateOnServer,
   buildNewContactForServer,
+  fetchAddressBookListFromServer,
   saveContactToServer,
 } from '@/lib/client/addressBookServerApi';
 import { emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
@@ -122,13 +123,10 @@ export default function ContactFormModal({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/address-book?limit=500', {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (cancelled || !res.ok) return;
-        const data = await res.json();
-        if (!cancelled && Array.isArray(data)) setServerContacts(data as Contact[]);
+        const data = await fetchAddressBookListFromServer(500);
+        if (!cancelled && data.length >= 0) {
+          setServerContacts(data);
+        }
       } catch {
         /* ignore */
       }

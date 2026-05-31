@@ -33,8 +33,9 @@ import {
   calcRentBaseForFees,
   calcOtherTax,
 } from '@/lib/contractCalculations';
-import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, getAllContacts, isOmaniNationality, isCompanyContact, type Contact } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, isOmaniNationality, isCompanyContact, type Contact } from '@/lib/data/addressBook';
 import { applyContactUpdateOnServer, saveContactToServer } from '@/lib/client/addressBookServerApi';
+import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
 import ContactFormModal from '@/components/admin/ContactFormModal';
 import { mergeBookingsFromServer, updateBooking, type PropertyBooking } from '@/lib/data/bookings';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
@@ -201,6 +202,7 @@ export default function ContractDetailPage() {
     broker: false, saleDates: true, saleData: true, contractTerms: true,
   });
   const [showAddBrokerModal, setShowAddBrokerModal] = useState(false);
+  const { contacts: brokerAddressBookContacts } = useServerAddressBookContacts({ includeArchived: false });
   const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }));
 
   const [bookingPollTick, setBookingPollTick] = useState(0);
@@ -1715,7 +1717,7 @@ export default function ContractDetailPage() {
               <span className="text-violet-600">{openSections.broker ? '▼' : '▶'}</span>
             </button>
             {openSections.broker && (() => {
-              const contacts = getAllContacts(false).filter((c) => !c.archived);
+              const contacts = brokerAddressBookContacts;
               const applyBrokerFromContact = (c: Contact) => {
                 setForm((prev) => ({
                   ...prev,

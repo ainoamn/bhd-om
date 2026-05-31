@@ -40,7 +40,8 @@ import {
   type DocumentStatus,
 } from '@/lib/data/accounting';
 import { ensureDefaultPeriods } from '@/lib/accounting/compliance/periodEngine';
-import { getAllContacts, getContactDisplayFull, searchContacts } from '@/lib/data/addressBook';
+import { getContactDisplayFull, searchContacts } from '@/lib/data/addressBook';
+import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
 import { getAllBankAccounts, getBankAccountDisplay } from '@/lib/data/bankAccounts';
 import { syncPaidBookingsToAccounting, getBookingsPendingAccountantConfirmation, confirmBookingReceiptByAccountant, getBookingsPendingCancellation, completeCancellationByAccountant, getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
 import { getDocumentUploadLink, getDocumentLinkMessage, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
@@ -259,7 +260,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [pendingConfirmBookings, setPendingConfirmBookings] = useState<PropertyBooking[]>([]);
   const syncRetryRef = useRef(false);
   const skipFirstLoadRef = useRef(!!initialData);
-  const contacts = typeof window !== 'undefined' ? getAllContacts() : [];
+  const { contacts } = useServerAddressBookContacts();
   const bankAccounts = typeof window !== 'undefined' ? getAllBankAccounts() : [];
   const mergedProperties = useMemo(() => propertiesList.map((p) => getPropertyById(p.id) || p), []);
 

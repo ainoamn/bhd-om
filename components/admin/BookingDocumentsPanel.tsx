@@ -21,7 +21,8 @@ import { getChecksByBooking, approveCheck, rejectCheck } from '@/lib/data/bookin
 import { resolveContractFromBooking } from '@/lib/data/contracts';
 import { openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
 import { getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
-import { findContactByPhoneOrEmail, getContactById, getContactDisplayFull, getRepDisplayName, searchContacts, getAllContacts, isCompanyContact, isOmaniNationality, type Contact, type AuthorizedRepresentative } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, getContactById, getContactDisplayFull, getRepDisplayName, isCompanyContact, isOmaniNationality, type Contact, type AuthorizedRepresentative } from '@/lib/data/addressBook';
+import { filterContactsForSearch, useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
 import { hasPropertyLandlord, setPropertyLandlord } from '@/lib/data/propertyLandlords';
 import { isPropertyExtraDataComplete } from '@/lib/data/propertyExtraData';
 import TranslateField from '@/components/admin/TranslateField';
@@ -229,6 +230,7 @@ export default function BookingDocumentsPanel({
   const [addDocDescAr, setAddDocDescAr] = useState('');
   const [addDocDescEn, setAddDocDescEn] = useState('');
   const [showExtraDataModal, setShowExtraDataModal] = useState(false);
+  const { contacts: serverAddressBookContacts } = useServerAddressBookContacts({ enabled: open });
 
   const refresh = useCallback(() => {
     setDocs(getDocumentsByBooking(booking.id));
@@ -1262,8 +1264,8 @@ export default function BookingDocumentsPanel({
                 <option value="">{ar ? '— اختر المالك —' : '— Select landlord —'}</option>
                 {(() => {
                   const list = landlordSearch.trim()
-                    ? searchContacts(landlordSearch)
-                    : getAllContacts();
+                    ? filterContactsForSearch(serverAddressBookContacts, landlordSearch)
+                    : serverAddressBookContacts;
                   return list.map((c) => (
                     <option key={c.id} value={c.id}>
                       {getContactDisplayFull(c, locale)} {c.phone ? `| ${c.phone}` : ''} {c.email ? `| ${c.email}` : ''}

@@ -23,11 +23,27 @@ export class AddressBookSaveError extends Error {
 }
 
 function mapServerCode(code: string | undefined): AddressBookSaveErrorCode {
+  if (code === 'DUPLICATE_PHONE') return 'DUPLICATE_PHONE';
   if (code === 'DUPLICATE_CIVIL_ID') return 'DUPLICATE_CIVIL_ID';
   if (code === 'DUPLICATE_PASSPORT') return 'DUPLICATE_PASSPORT';
   if (code === 'DUPLICATE_SERIAL') return 'DUPLICATE_SERIAL';
   if (code === 'DUPLICATE_EMAIL') return 'UNKNOWN';
   return 'UNKNOWN';
+}
+
+/** جلب قائمة دفتر العناوين — GET /api/address-book */
+export async function fetchAddressBookListFromServer(limit = 500): Promise<Contact[]> {
+  try {
+    const res = await fetch(`/api/address-book?limit=${Math.min(500, Math.max(1, limit))}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? (data as Contact[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 /** جلب جهة المستخدم المرتبطة — GET /api/user/linked-contact */

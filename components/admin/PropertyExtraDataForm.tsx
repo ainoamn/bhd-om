@@ -6,7 +6,8 @@ import Link from 'next/link';
 import Icon from '@/components/icons/Icon';
 import { getPropertyById, updateProperty, type Property } from '@/lib/data/properties';
 import { getPropertyLandlordContactId, setPropertyLandlord } from '@/lib/data/propertyLandlords';
-import { getAllContacts, getContactById, getContactDisplayFull, searchContacts, type Contact } from '@/lib/data/addressBook';
+import { getContactById, getContactDisplayFull, type Contact } from '@/lib/data/addressBook';
+import { filterContactsForSearch, useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
 import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
 import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
 import { formatSurveyMapNumber } from '@/lib/utils/surveyMapNumber';
@@ -151,6 +152,7 @@ export default function PropertyExtraDataForm({
   const landlordComboboxRef = useRef<HTMLDivElement>(null);
   const landlordTriggerRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const { contacts: serverAddressBookContacts } = useServerAddressBookContacts();
 
   const updateDropdownPosition = useCallback(() => {
     if (landlordTriggerRef.current) {
@@ -304,8 +306,8 @@ export default function PropertyExtraDataForm({
 
   const landlordOptions = useMemo(() => {
     let list: Contact[] = landlordSearch.trim()
-      ? searchContacts(landlordSearch)
-      : getAllContacts();
+      ? filterContactsForSearch(serverAddressBookContacts, landlordSearch)
+      : serverAddressBookContacts;
     if (landlordCategoryFilter !== 'all') {
       list = list.filter((c) => c.category === landlordCategoryFilter);
     }
@@ -318,7 +320,7 @@ export default function PropertyExtraDataForm({
       });
     }
     return list;
-  }, [landlordSearch, landlordCategoryFilter]);
+  }, [landlordSearch, landlordCategoryFilter, serverAddressBookContacts]);
   const selectedContact = landlordContactId ? getContactById(landlordContactId) : null;
 
   useEffect(() => {

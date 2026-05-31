@@ -21,21 +21,6 @@ function isAdminLike(role: string | undefined): boolean {
   return role === 'ADMIN' || role === 'SUPER_ADMIN';
 }
 
-/** عرض جهات من التخزين المحلي عند تعذّر الخادم (للمدير أو عند غياب الدور بعد التحميل). */
-function contactsFromLocalForDisplay(
-  userRole: string | undefined,
-  showArchived: boolean
-): Contact[] {
-  try {
-    const all = getAllContacts(showArchived);
-    const dashboardType = dashboardTypeForAddressBookFilter(userRole);
-    const base = showArchived ? all : all.filter((c) => !c.archived);
-    return dashboardType ? filterContactsByRolePermissions(base, dashboardType) : base;
-  } catch {
-    return [];
-  }
-}
-
 /**
  * جلب دفتر العناوين من الخادم فقط (طلب HTTP واحد لكل دورة).
  * للمدير: مصدر العرض = استجابة GET /api/address-book (مع هوية User من الخادم)، ثم تحديث التخزين المحلي للدوال المساعدة دون إطلاق حدث مزامنة.

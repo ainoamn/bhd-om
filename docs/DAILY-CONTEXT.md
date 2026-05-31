@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 37) — server-first للقوائم + جاهزية إنتاج admin/data
+
+- **`useServerAddressBookContacts`:** hook مشترك + `fetchAddressBookListFromServer` — حجوزات، عقود (وسيط)، محاسبة، بيانات إضافية
+- **`admin/data`:** بطاقة هجرات DB، نسخ webhook URL، تأكيد نصي `PURGE-LEGACY-BOOKING-SETTINGS`، رابط `/api/check-env`
+- **`ContactFormModal`:** يستخدم `fetchAddressBookListFromServer`؛ `DUPLICATE_PHONE` في `mapServerCode`
+- **تنظيف:** إزالة `contactsFromLocalForDisplay` الميت من `useAdminAddressBookContacts`
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 36) — ContactFormModal server-first
 
 - **`ContactFormModal`:** إزالة `createContact`/`updateContact` — الحفظ عبر `saveContactToServer` فقط

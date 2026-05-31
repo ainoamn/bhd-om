@@ -64,7 +64,9 @@ export default function AdminDataPage() {
   const [legacyMsg, setLegacyMsg] = useState<string | null>(null);
   const [legacyErr, setLegacyErr] = useState<string | null>(null);
   const [legacyPurgeConfirm, setLegacyPurgeConfirm] = useState(false);
+  const [legacyPurgeConfirmText, setLegacyPurgeConfirmText] = useState('');
   const [paymentGw, setPaymentGw] = useState<PaymentGatewayStatus | null>(null);
+  const [copyMsg, setCopyMsg] = useState<string | null>(null);
 
   const loadProductionReadiness = useCallback(async () => {
     try {
@@ -122,7 +124,7 @@ export default function AdminDataPage() {
   };
 
   const handleLegacyPurge = async () => {
-    if (!legacyPurgeConfirm) return;
+    if (!legacyPurgeConfirm || legacyPurgeConfirmText.trim() !== PURGE_LEGACY_CONFIRM) return;
     setLegacyBusy(true);
     setLegacyErr(null);
     setLegacyMsg(null);
@@ -158,10 +160,22 @@ export default function AdminDataPage() {
           : `Removed legacy keys: ${(data.removed || []).join(', ') || '—'}`
       );
       setLegacyPurgeConfirm(false);
+      setLegacyPurgeConfirmText('');
     } catch {
       setLegacyErr(ar ? 'خطأ شبكة' : 'Network error');
     } finally {
       setLegacyBusy(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, okMsg: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyMsg(okMsg);
+      setTimeout(() => setCopyMsg(null), 2500);
+    } catch {
+      setCopyMsg(ar ? 'تعذر النسخ' : 'Copy failed');
+      setTimeout(() => setCopyMsg(null), 2500);
     }
   };
 
@@ -550,6 +564,27 @@ export default function AdminDataPage() {
           </div>
         </div>
 
+        {/* قاعدة البيانات — هجرات الإنتاج */}
+        {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+          <div className="admin-card p-6 sm:p-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <span className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-xl">🗄️</span>
+              {ar ? 'قاعدة البيانات (هجرات الإنتاج)' : 'Database (production migrations)'}
+            </h2>
+            <p className="text-gray-600 text-sm mb-3">
+              {ar
+                ? 'بعد النشر على Vercel، نفّذ من جهاز متصل بـ DATABASE_URL الإنتاج:'
+                : 'After Vercel deploy, run from a machine with production DATABASE_URL:'}
+            </p>
+            <pre className="text-xs bg-gray-900 text-gray-100 p-4 rounded-xl overflow-x-auto mb-3">
+              npm run db:migrate:deploy{'\n'}npm run db:backfill-legacy-booking-settings
+            </pre>
+            <p className="text-xs text-gray-500">
+              {ar ? 'ثم ارجع هنا لـ backfill/purge legacy أدناه.' : 'Then use backfill/purge legacy below.'}
+            </p>
+          </div>
+        )}
+
         {/* بوابة الدفع */}
         {paymentGw && (
           <div className="admin-card p-6 sm:p-8">
@@ -577,6 +612,18 @@ export default function AdminDataPage() {
                     : 'Thawani partial — complete checklist below'}
               </p>
             )}
+            {copyMsg && (
+              <p className="mb-3 text-sm text-emerald-700 font-medium">{copyMsg}</p>
+            )}
+            <p className="mb-4 text-xs text-gray-500">
+              {ar ? 'تحقق سريع:' : 'Quick check:'}{' '}
+              <a href="/api/check-env" target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] underline">
+                /api/check-env
+              </a>
+              {' · '}
+              {ar ? 'راجع' : 'See'}{' '}
+              <code className="text-xs">docs/PRODUCTION-CHECKLIST.md</code>
+            </p>
             <ul className="mb-4 space-y-2">
               {paymentGw.checks.map((c) => (
                 <li key={c.id} className="flex items-center gap-2 text-sm">
@@ -618,9 +665,23 @@ export default function AdminDataPage() {
                   {paymentGw.webhookUrl || paymentGw.webhookPath}
                 </dd>
                 {paymentGw.webhookUrl && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    {ar ? 'Header:' : 'Header:'} <code>{paymentGw.webhookHeader}</code>
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyToClipboard(
+                          paymentGw.webhookUrl,
+                          ar ? 'تم نسخ رابط Webhook' : 'Webhook URL copied'
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800"
+                    >
+                      {ar ? 'نسخ URL' : 'Copy URL'}
+                    </button>
+                    <p className="text-xs text-gray-500">
+                      {ar ? 'Header:' : 'Header:'} <code>{paymentGw.webhookHeader}</code>
+                    </p>
+                  </div>
                 )}
               </div>
               <div className="sm:col-span-2">
@@ -706,9 +767,17 @@ export default function AdminDataPage() {
                 </button>
               ) : (
                 <>
+                  <input
+                    type="text"
+                    value={legacyPurgeConfirmText}
+                    onChange={(e) => setLegacyPurgeConfirmText(e.target.value)}
+                    placeholder={PURGE_LEGACY_CONFIRM}
+                    className="admin-input w-full max-w-md text-sm"
+                    aria-label={ar ? 'تأكيد حذف legacy' : 'Confirm legacy purge'}
+                  />
                   <button
                     type="button"
-                    disabled={legacyBusy}
+                    disabled={legacyBusy || legacyPurgeConfirmText.trim() !== PURGE_LEGACY_CONFIRM}
                     onClick={() => void handleLegacyPurge()}
                     className="px-5 py-2.5 rounded-xl font-semibold bg-red-700 text-white hover:bg-red-800 disabled:opacity-50 transition-colors"
                   >
@@ -717,7 +786,10 @@ export default function AdminDataPage() {
                   <button
                     type="button"
                     disabled={legacyBusy}
-                    onClick={() => setLegacyPurgeConfirm(false)}
+                    onClick={() => {
+                      setLegacyPurgeConfirm(false);
+                      setLegacyPurgeConfirmText('');
+                    }}
                     className="px-5 py-2.5 rounded-xl font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
                   >
                     {ar ? 'إلغاء' : 'Cancel'}

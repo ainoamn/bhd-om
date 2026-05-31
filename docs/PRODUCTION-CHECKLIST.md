@@ -52,7 +52,7 @@ npm run db:backfill-legacy-booking-settings
 
 1. افتح `/admin/data` كـ ADMIN
 2. **Backfill** legacy → مستندات/شيكات إلى الجداول
-3. عند `fullyMigrated: true` → **Purge** مفاتيح AppSetting (تأكيد `PURGE-LEGACY-BOOKING-SETTINGS`)
+3. عند `fullyMigrated: true` → اكتب `PURGE-LEGACY-BOOKING-SETTINGS` ثم **Purge** (تأكيد نصي في الواجهة)
 
 ---
 
