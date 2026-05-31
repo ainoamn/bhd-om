@@ -380,7 +380,7 @@
 ### CI — E2E
 
 - **`e2e-api`:** Postgres 16 service container على الـ runner + `DATABASE_URL` ثابت للـ CI (لا يعتمد على Secrets للإنتاج) + `prisma migrate deploy` قبل البناء.
-- **`e2e-critical`:** يعمل عند وجود `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` (`if: secrets`) + `prisma db seed` بعد migrate.
+- **`e2e-critical`:** يعمل **دائماً** مع seed admin (`admin@bhd-om.com` / `admin123`) — لا يعتمد على GitHub secrets للمدير.
 - **اختبار التصفير:** يتطلب `E2E_ALLOW_DB_RESET=true` — لا يُشغَّل في CI افتراضياً؛ بعد التصفير يتحقق من إعادة التوجيه لـ login من `my-bookings` و `my-account`.
 - **مراجعة بوابة الدفع:** `GET /api/admin/payment-gateway` (ADMIN) — provider، webhook، success/cancel URLs.
 

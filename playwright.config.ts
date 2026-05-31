@@ -21,7 +21,8 @@ export default defineConfig({
     ? {
         command: 'npm run start',
         url: 'http://localhost:3000',
-        reuseExistingServer: false,
+        /** محلياً: إن كان المنفذ 3000 مشغولاً بـ `npm run start` بعد build — لا فشل */
+        reuseExistingServer: !process.env.GITHUB_ACTIONS,
         timeout: 120_000,
       }
     : undefined,
