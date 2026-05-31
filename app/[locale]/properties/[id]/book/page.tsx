@@ -21,7 +21,8 @@ import {
 import { getPropertyById, getPropertyDataOverrides, getPropertyOverrides } from '@/lib/data/properties';
 import { getPropertyBookingTerms, getPreBookingIdentityRequirementsPersonal, buildCompanyDocRequirementsFromTerms } from '@/lib/data/bookingTerms';
 import { createDocumentRequests, uploadDocument } from '@/lib/data/bookingDocuments';
-import { isOmaniNationality, validatePhoneWithCountryCode, getContactById, getContactDisplayName, getContactForUser, updateContact, createContact, type Contact } from '@/lib/data/addressBook';
+import { isOmaniNationality, validatePhoneWithCountryCode, mergeServerContactIntoLocalStorage, type Contact } from '@/lib/data/addressBook';
+import { AddressBookSaveError, fetchLinkedContactFromServer, patchLinkedContactOnServer } from '@/lib/client/addressBookServerApi';
 import PhoneCountryCodeSelect from '@/components/admin/PhoneCountryCodeSelect';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 
@@ -36,8 +37,10 @@ export default function PropertyBookPage() {
   const filledFromSession = useRef(false);
   const [dataLoadedFromAccount, setDataLoadedFromAccount] = useState(false);
   const [contactIdForUpdate, setContactIdForUpdate] = useState<string | null>(null);
+  const [linkedContact, setLinkedContact] = useState<Contact | null>(null);
   const [showCompleteDataModal, setShowCompleteDataModal] = useState(false);
   const [completeModalError, setCompleteModalError] = useState<string | null>(null);
+  const [completeModalSaving, setCompleteModalSaving] = useState(false);
   /** رفع نسخ الهوية قبل الدفع — فرد */
   const [personalOmaniCivilFiles, setPersonalOmaniCivilFiles] = useState<File[]>([]);
   const [personalExpatResidenceFiles, setPersonalExpatResidenceFiles] = useState<File[]>([]);
@@ -92,26 +95,22 @@ export default function PropertyBookPage() {
 
   useEffect(() => setMounted(true), []);
 
-  /** تعبئة بيانات الحجز من حساب المستخدم المسجّل: جهة الاتصال إن وُجدت، وإلا من بيانات الجلسة (الاسم، البريد، الهاتف) */
+  /** تعبئة بيانات الحجز من حساب المستخدم: GET /api/user/linked-contact ثم بيانات الجلسة */
   useEffect(() => {
     if (typeof window === 'undefined' || !session?.user || filledFromSession.current) return;
     filledFromSession.current = true;
     const user = session.user as { id?: string; name?: string; email?: string; phone?: string };
-    const contact = getContactForUser({ id: user.id || '', email: user.email, phone: user.phone });
-    const hasFullContact = contact && 'contactType' in contact && contact.id;
 
-    if (hasFullContact) {
-      const c = contact as Contact;
+    const fillFromContact = (c: Contact) => {
+      setLinkedContact(c);
       setContactIdForUpdate(c.id);
       const { code, number } = parsePhoneToCountryAndNumber(c.phone || '');
       if (c.contactType === 'COMPANY' && c.companyData) {
         const cd = c.companyData;
         const rep = cd?.authorizedRepresentatives?.[0];
-        const repContactId = rep && (rep as { contactId?: string }).contactId;
-        const linkedRep = repContactId ? getContactById(repContactId) : undefined;
-        const repName = (rep?.name || (linkedRep ? getContactDisplayName(linkedRep) : '')).trim() || '';
-        const repNameEn = (rep?.nameEn || (linkedRep ? getContactDisplayName(linkedRep, 'en') : '')).trim() || '';
-        const repPhone = rep?.phone || linkedRep?.phone;
+        const repName = (rep?.name || '').trim() || '';
+        const repNameEn = (rep?.nameEn || '').trim() || '';
+        const repPhone = rep?.phone;
         const parsedRepPhone = repPhone ? parsePhoneToCountryAndNumber(repPhone) : { code: '968', number: '' };
         setContactType('COMPANY');
         setFormData((prev) => ({
@@ -129,9 +128,9 @@ export default function PropertyBookPage() {
           repPosition: rep?.position || '',
           repPhone: parsedRepPhone.number || '',
           repPhoneCountryCode: parsedRepPhone.code || '968',
-          repNationality: rep?.nationality || linkedRep?.nationality || '',
-          repCivilId: rep?.civilId || linkedRep?.civilId || '',
-          repPassportNumber: rep?.passportNumber || linkedRep?.passportNumber || '',
+          repNationality: rep?.nationality || '',
+          repCivilId: rep?.civilId || '',
+          repPassportNumber: rep?.passportNumber || '',
         });
       } else {
         setContactType('PERSONAL');
@@ -146,12 +145,13 @@ export default function PropertyBookPage() {
           message: prev.message,
         }));
       }
-    } else {
-      /** لا توجد جهة اتصال كاملة في دفتر العناوين: تعبئة من بيانات الجلسة (الاسم، البريد، الهاتف) */
+    };
+
+    const fillFromSessionUser = () => {
       setContactType('PERSONAL');
-      const phoneStr = (contact as { phone?: string } | undefined)?.phone || user.phone || '';
+      const phoneStr = user.phone || '';
       const { code, number } = parsePhoneToCountryAndNumber(phoneStr);
-      const emailStr = (contact as { email?: string } | undefined)?.email || user.email || '';
+      const emailStr = user.email || '';
       setFormData((prev) => ({
         name: (user.name || '').trim() || prev.name,
         email: emailStr || prev.email,
@@ -162,8 +162,23 @@ export default function PropertyBookPage() {
         nationality: prev.nationality,
         message: prev.message,
       }));
-    }
-    setDataLoadedFromAccount(true);
+    };
+
+    void (async () => {
+      try {
+        const c = await fetchLinkedContactFromServer();
+        if (c?.id) {
+          mergeServerContactIntoLocalStorage(c);
+          fillFromContact(c);
+          setDataLoadedFromAccount(true);
+          return;
+        }
+      } catch {
+        /* session fallback */
+      }
+      fillFromSessionUser();
+      setDataLoadedFromAccount(true);
+    })();
   }, [session?.user]);
 
   const personalOmaniForUi = isOmaniNationality(formData.nationality || '');
@@ -555,7 +570,16 @@ export default function PropertyBookPage() {
     }
   };
 
-  const handleCompleteDataModalSave = () => {
+  const mapContactSaveError = (e: unknown): string => {
+    if (e instanceof AddressBookSaveError) {
+      if (e.code === 'DUPLICATE_CIVIL_ID') return ar ? 'الرقم المدني مسجّل لجهة أخرى' : 'Civil ID already registered';
+      if (e.code === 'DUPLICATE_PASSPORT') return ar ? 'رقم الجواز مسجّل لجهة أخرى' : 'Passport already registered';
+      if (e.code === 'DUPLICATE_SERIAL') return ar ? 'الرقم المتسلسل مستخدم' : 'Serial number conflict';
+    }
+    return e instanceof Error ? e.message : '';
+  };
+
+  const handleCompleteDataModalSave = async () => {
     setCompleteModalError(null);
     const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
     const phoneForStorage = mainPhone.replace(/^\+/, '');
@@ -589,42 +613,31 @@ export default function PropertyBookPage() {
       const secondName = parts.length > 3 ? parts[1] : undefined;
       const thirdName = parts.length > 4 ? parts[2] : undefined;
       try {
-        if (contactIdForUpdate) {
-          updateContact(contactIdForUpdate, {
-            firstName,
-            secondName,
-            thirdName,
-            familyName,
-            email: formData.email.trim(),
-            phone: phoneForStorage,
-            nationality: formData.nationality.trim(),
-            civilId: formData.civilId.trim() || undefined,
-            passportNumber: formData.passportNumber.trim() || undefined,
-          });
-        } else {
-          const user = session?.user as { id?: string };
-          const created = createContact({
-            contactType: 'PERSONAL',
-            firstName,
-            secondName,
-            thirdName,
-            familyName,
-            nationality: formData.nationality.trim() || '—',
-            gender: 'MALE',
-            phone: phoneForStorage,
-            email: formData.email.trim() || undefined,
-            category: 'CLIENT',
-            civilId: formData.civilId.trim() || undefined,
-            passportNumber: formData.passportNumber.trim() || undefined,
-            userId: user?.id,
-            address: { fullAddress: '—', fullAddressEn: '—' },
-          });
-          setContactIdForUpdate(created.id);
-        }
+        setCompleteModalSaving(true);
+        const saved = await patchLinkedContactOnServer({
+          contactType: 'PERSONAL',
+          firstName,
+          secondName,
+          thirdName,
+          familyName,
+          email: formData.email.trim(),
+          phone: phoneForStorage,
+          nationality: formData.nationality.trim(),
+          civilId: formData.civilId.trim() || undefined,
+          passportNumber: formData.passportNumber.trim() || undefined,
+          category: 'CLIENT',
+          gender: 'MALE',
+          address: { fullAddress: '—', fullAddressEn: '—' },
+        });
+        mergeServerContactIntoLocalStorage(saved);
+        setLinkedContact(saved);
+        setContactIdForUpdate(saved.id);
         setShowCompleteDataModal(false);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : '';
+        const msg = mapContactSaveError(e);
         setCompleteModalError(ar ? `تعذر الحفظ: ${msg || 'خطأ غير متوقع'}` : `Save failed: ${msg || 'Unexpected error'}`);
+      } finally {
+        setCompleteModalSaving(false);
       }
       return;
     }
@@ -653,7 +666,7 @@ export default function PropertyBookPage() {
         setCompleteModalError(ar ? 'رقم الهاتف أو هاتف المفوض غير صالح.' : 'Invalid company or rep phone.');
         return;
       }
-      const existingCompany = contactIdForUpdate ? getContactById(contactIdForUpdate) : null;
+      const existingCompany = linkedContact?.contactType === 'COMPANY' ? linkedContact : null;
       const existingRep = existingCompany?.companyData?.authorizedRepresentatives?.[0] as { id?: string; contactId?: string } | undefined;
       const repId = existingRep?.id || `rep-${Date.now()}`;
       const repPhoneFull = getFullPhone(companyForm.repPhoneCountryCode || '968', companyForm.repPhone).replace(/^\+/, '');
@@ -669,43 +682,34 @@ export default function PropertyBookPage() {
         passportNumber: repOmaniCheck ? undefined : companyForm.repPassportNumber?.trim() || undefined,
       };
       try {
-        if (contactIdForUpdate) {
-          const existing = getContactById(contactIdForUpdate);
-          updateContact(contactIdForUpdate, {
-            email: formData.email.trim(),
-            phone: phoneForStorage,
-            companyData: {
-              ...existing?.companyData,
-              companyNameAr: companyForm.companyNameAr.trim(),
-              companyNameEn: companyForm.companyNameEn?.trim() || undefined,
-              commercialRegistrationNumber: companyForm.commercialRegistrationNumber.trim(),
-              authorizedRepresentatives: [repData as import('@/lib/data/addressBook').AuthorizedRepresentative],
-            },
-          });
-        } else {
-          const created = createContact({
-            contactType: 'COMPANY',
-            firstName: companyForm.companyNameAr.trim(),
-            familyName: '',
-            nationality: '',
-            gender: 'MALE',
-            phone: phoneForStorage,
-            email: formData.email.trim() || undefined,
-            category: 'CLIENT',
-            companyData: {
-              companyNameAr: companyForm.companyNameAr.trim(),
-              companyNameEn: companyForm.companyNameEn?.trim() || undefined,
-              commercialRegistrationNumber: companyForm.commercialRegistrationNumber.trim(),
-              authorizedRepresentatives: [repData as import('@/lib/data/addressBook').AuthorizedRepresentative],
-            },
-            address: { fullAddress: '—', fullAddressEn: '—' },
-          });
-          setContactIdForUpdate(created.id);
-        }
+        setCompleteModalSaving(true);
+        const saved = await patchLinkedContactOnServer({
+          contactType: 'COMPANY',
+          firstName: companyForm.companyNameAr.trim(),
+          familyName: '',
+          nationality: '',
+          gender: 'MALE',
+          email: formData.email.trim(),
+          phone: phoneForStorage,
+          category: 'CLIENT',
+          companyData: {
+            ...existingCompany?.companyData,
+            companyNameAr: companyForm.companyNameAr.trim(),
+            companyNameEn: companyForm.companyNameEn?.trim() || undefined,
+            commercialRegistrationNumber: companyForm.commercialRegistrationNumber.trim(),
+            authorizedRepresentatives: [repData as import('@/lib/data/addressBook').AuthorizedRepresentative],
+          },
+          address: { fullAddress: '—', fullAddressEn: '—' },
+        });
+        mergeServerContactIntoLocalStorage(saved);
+        setLinkedContact(saved);
+        setContactIdForUpdate(saved.id);
         setShowCompleteDataModal(false);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : '';
+        const msg = mapContactSaveError(e);
         setCompleteModalError(ar ? `تعذر الحفظ: ${msg || 'خطأ غير متوقع'}` : `Save failed: ${msg || 'Unexpected error'}`);
+      } finally {
+        setCompleteModalSaving(false);
       }
     }
   };
@@ -949,8 +953,8 @@ export default function PropertyBookPage() {
               )}
             </div>
             <div className="p-6 border-t border-white/10 flex justify-end gap-3">
-              <button type="button" onClick={handleCompleteDataModalSave} className="px-6 py-3 rounded-xl font-bold bg-[#8B6F47] hover:bg-[#6B5535] text-white transition-all">
-                {ar ? 'حفظ ومتابعة' : 'Save & Continue'}
+              <button type="button" onClick={() => void handleCompleteDataModalSave()} disabled={completeModalSaving} className="px-6 py-3 rounded-xl font-bold bg-[#8B6F47] hover:bg-[#6B5535] text-white transition-all disabled:opacity-60">
+                {completeModalSaving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'حفظ ومتابعة' : 'Save & continue')}
               </button>
             </div>
           </div>

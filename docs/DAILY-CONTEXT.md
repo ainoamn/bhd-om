@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 32) — صفحة الحجز server-first لجهة الاتصال
+
+- **`properties/[id]/book`:** تحميل من `fetchLinkedContactFromServer`؛ حفظ نافذة «إكمال البيانات» عبر `patchLinkedContactOnServer` (بدون `createContact`/`updateContact`)
+- **`lib/client/addressBookServerApi.ts`:** `fetchLinkedContactFromServer` + `patchLinkedContactOnServer`
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 31) — «حسابي» server-first + E2E linked-contact
 
 - **`admin/my-account`:** إزالة fallback `findContactByUserId`؛ العرض من `GET /api/user/linked-contact` فقط + بيانات الجلسة عند الفشل

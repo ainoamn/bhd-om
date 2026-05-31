@@ -26,7 +26,49 @@ function mapServerCode(code: string | undefined): AddressBookSaveErrorCode {
   if (code === 'DUPLICATE_CIVIL_ID') return 'DUPLICATE_CIVIL_ID';
   if (code === 'DUPLICATE_PASSPORT') return 'DUPLICATE_PASSPORT';
   if (code === 'DUPLICATE_SERIAL') return 'DUPLICATE_SERIAL';
+  if (code === 'DUPLICATE_EMAIL') return 'UNKNOWN';
   return 'UNKNOWN';
+}
+
+/** جلب جهة المستخدم المرتبطة — GET /api/user/linked-contact */
+export async function fetchLinkedContactFromServer(): Promise<Contact | null> {
+  const res = await fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' });
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data || typeof data !== 'object') return null;
+  const id = typeof (data as { id?: string }).id === 'string' ? String((data as { id: string }).id).trim() : '';
+  return id ? (data as Contact) : null;
+}
+
+/** حفظ/تحديث جهة المستخدم — PATCH /api/user/linked-contact (ينشئ صفاً إن لم يوجد) */
+export async function patchLinkedContactOnServer(patch: Partial<Contact>): Promise<Contact> {
+  try {
+    const res = await fetch('/api/user/linked-contact', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (res.ok) {
+      return (await res.json()) as Contact;
+    }
+    let code: string | undefined;
+    let errorText: string | undefined;
+    try {
+      const j = (await res.json()) as { error?: string; code?: string };
+      code = j.code;
+      errorText = j.error;
+    } catch {
+      /* ignore */
+    }
+    if (res.status === 409 && code) {
+      throw new AddressBookSaveError(mapServerCode(code), errorText);
+    }
+    throw new AddressBookSaveError('UNKNOWN', errorText || `HTTP ${res.status}`);
+  } catch (e) {
+    if (e instanceof AddressBookSaveError) throw e;
+    throw new AddressBookSaveError('NETWORK', e instanceof Error ? e.message : 'network');
+  }
 }
 
 /** رفع جهة اتصال إلى الخادم — المصدر الوحيد للحفظ في لوحة الإدارة */
