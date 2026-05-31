@@ -15,9 +15,7 @@
 - **`refreshAddressBookFlagsFromServer`:** عند تحميل المستخدمين + حدث `ADDRESS_BOOK_UPDATED_EVENT`
 - **`handleAddToAddressBook`:** `POST /api/admin/users/[id]/ensure-address-book` (مثل صفحة المستخدم الفردية)
 - **`AddUserModal`:** يعتمد على `create-from-contact` الذي يضمن الصف على الخادم
-- **`npm run build`** ✅
-
-### جلسة 2026-05-31 (تابع 33) — contract-terms server-first لجهة الاتصال
+- **`npm run build`** ✅ — commit `1cd98ef`
 
 - **`contract-terms`:** إزالة `updateContact`/`ensureContactFromBooking` — الحفظ عبر `persistPublicContractContact` (public-contract-access)
 - **`resolveContactIdForBooking`:** `booking.contactId` → محلي للقراءة → `newContactId()`
