@@ -47,6 +47,18 @@ test.describe('Critical DB-first flows', () => {
     await expect(page.locator('body')).toBeVisible();
   });
 
+  test('admin address-book and data pages load', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing E2E admin credentials');
+
+    await loginWithCredentials(page, creds!);
+    await page.goto('/ar/admin/address-book');
+    await expect(page).toHaveURL(/\/admin\/address-book/);
+    await page.goto('/ar/admin/data');
+    await expect(page).toHaveURL(/\/admin\/data/);
+    await expect(page.locator('body')).toBeVisible();
+  });
+
   test('role-based routes load for available credentials', async ({ page }) => {
     const roles: RoleCred[] = [
       {

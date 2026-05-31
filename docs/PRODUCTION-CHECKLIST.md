@@ -64,6 +64,20 @@ npm run db:backfill-legacy-booking-settings
 
 ---
 
+## 6. دفتر العناوين (ADMIN)
+
+من `/admin/address-book`:
+
+| العملية | API |
+|---------|-----|
+| عرض القائمة | `GET /api/address-book` |
+| sync من الحجوزات | `POST /api/admin/address-book/sync-from-bookings` |
+| sync من المستخدمين | `POST /api/admin/address-book/bulk-ensure-from-users` |
+| استيراد CSV | `POST /api/admin/address-book/import-csv` |
+| دمج التكرارات | `POST /api/admin/address-book/merge-duplicates` |
+
+---
+
 ## 6. CI محلي
 
 ```bash

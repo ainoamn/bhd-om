@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 28) — address-book: إزالة getAllContacts من العرض
+
+- **archive/restore/delete:** دائماً `refreshAddressBookFromServer` + `emitAddressBookUpdated`
+- **create accounts for contacts:** جلب من `GET /api/address-book` بدل localStorage
+- **E2E critical:** `/admin/address-book` + `/admin/data` تحميل
+- **`PRODUCTION-CHECKLIST`:** قسم APIs دفتر العناوين
+
 ### جلسة 2026-05-31 (تابع 27) — دمج تكرار دفتر العناوين من الخادم
 
 - **`lib/addressBook/contactDuplicates.ts`:** find groups + merge core

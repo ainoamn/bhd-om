@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
-  getAllContacts,
   searchContacts,
   getRepDisplayName,
   buildRepNameFromParts,
@@ -77,10 +76,6 @@ function dashboardTypeForAddressBookFilter(role: string | undefined) {
   return undefined;
 }
 
-/** عرض المدير: مصدر الحقيقة هو الخادم فقط — لا دمج مع localStorage (يختلف بين التبويبات والمتصفحات). */
-function isAdminAddressBookViewer(role: string | undefined): boolean {
-  return role === 'ADMIN' || role === 'SUPER_ADMIN';
-}
 import UserBarcode from '@/components/admin/UserBarcode';
 import {
   ADDRESS_BOOK_UPDATED_EVENT,
@@ -439,12 +434,17 @@ export default function AdminAddressBookPage() {
     setCreatingAccounts(true);
     try {
       let contacts: Contact[];
-      try {
-        contacts = getAllContacts(true);
-      } catch {
-        setUserCreateMsg(locale === 'ar' ? 'تعذر قراءة دفتر العناوين' : 'Could not read address book');
+      const abRes = await fetch('/api/address-book?limit=500', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!abRes.ok) {
+        setUserCreateMsg(
+          locale === 'ar' ? 'تعذر جلب دفتر العناوين من الخادم' : 'Could not load address book from server'
+        );
         return;
       }
+      contacts = (await abRes.json()) as Contact[];
       const res = await fetch('/api/admin/users', { credentials: 'include' });
       if (!res.ok) {
         if (res.status === 401) {
@@ -1188,20 +1188,14 @@ export default function AdminAddressBookPage() {
     if (linked) return;
     archiveContact(id);
     setDeleteId(null);
-    if (isAdminAddressBookViewer(userRole)) {
-      refreshAddressBookFromServer();
-    } else {
-      setContacts(getAllContacts(showArchived));
-    }
+    refreshAddressBookFromServer();
+    emitAddressBookUpdated();
   };
 
   const handleRestore = (id: string) => {
     restoreContact(id);
-    if (isAdminAddressBookViewer(userRole)) {
-      refreshAddressBookFromServer();
-    } else {
-      setContacts(getAllContacts(showArchived));
-    }
+    refreshAddressBookFromServer();
+    emitAddressBookUpdated();
   };
 
   const handleDelete = () => {
@@ -1216,11 +1210,8 @@ export default function AdminAddressBookPage() {
     try {
       archiveContact(deleteId);
       setDeleteId(null);
-      if (isAdminAddressBookViewer(userRole)) {
-        refreshAddressBookFromServer();
-      } else {
-        setContacts(getAllContacts(showArchived));
-      }
+      refreshAddressBookFromServer();
+      emitAddressBookUpdated();
     } catch {
       setDeleteId(null);
     }
