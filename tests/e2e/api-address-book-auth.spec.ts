@@ -102,3 +102,43 @@ test.describe('API — address book (authenticated admin)', () => {
     expect((merged.merged ?? 0)).toBeGreaterThan(0);
   });
 });
+
+test.describe('API — linked-contact (authenticated user)', () => {
+  test.beforeEach(async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing admin credentials');
+    await loginWithCredentials(page, creds!);
+  });
+
+  test('GET /api/user/linked-contact ensures profile row', async ({ page }) => {
+    const res = await page.request.get('/api/user/linked-contact');
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body).not.toBeNull();
+    expect(typeof (body as { id?: string }).id).toBe('string');
+    expect(String((body as { id?: string }).id).length).toBeGreaterThan(4);
+  });
+
+  test('PATCH /api/user/linked-contact updates and persists', async ({ page }) => {
+    const marker = `E2E-${Date.now()}`;
+    const patchRes = await page.request.patch('/api/user/linked-contact', {
+      data: {
+        firstName: marker,
+        familyName: 'LinkedContact',
+        nationality: 'عماني',
+        gender: 'MALE',
+        email: 'admin@bhd-om.com',
+        phone: '96890001111',
+        address: { fullAddress: 'E2E linked-contact address' },
+      },
+    });
+    expect(patchRes.ok()).toBeTruthy();
+    const saved = (await patchRes.json()) as Contact;
+    expect(saved.firstName).toBe(marker);
+
+    const getRes = await page.request.get('/api/user/linked-contact');
+    expect(getRes.ok()).toBeTruthy();
+    const loaded = (await getRes.json()) as Contact;
+    expect(loaded.firstName).toBe(marker);
+  });
+});

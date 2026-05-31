@@ -8,7 +8,6 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import Link from 'next/link';
 import Icon from '@/components/icons/Icon';
 import {
-  findContactByUserId,
   getContactDisplayName,
   isOmaniNationality,
   validateCivilIdExpiry,
@@ -111,6 +110,7 @@ export default function MyAccountPage() {
   const isAdmin = user?.role === 'ADMIN';
 
   const [contact, setContact] = useState<Contact | { id: string; email?: string; phone?: string } | null>(null);
+  const [contactLoadError, setContactLoadError] = useState<'fetch_failed' | 'network' | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -170,43 +170,52 @@ export default function MyAccountPage() {
       });
     };
 
+    const fillFormFromSessionUser = () => {
+      if (!user) return;
+      const { code, number } = parsePhoneToCountryAndNumber(user.phone || '968');
+      const nameParts = (user.name || '').trim().split(/\s+/).filter(Boolean);
+      setContact({ id: '', email: user.email ?? undefined, phone: user.phone ?? undefined });
+      setForm((prev) => ({
+        ...prev,
+        firstName: nameParts[0] ?? '',
+        familyName: nameParts.slice(1).join(' ') || prev.familyName,
+        email: user.email ?? prev.email,
+        phoneCountryCode: code || '968',
+        phone: number ?? prev.phone,
+      }));
+    };
+
     void (async () => {
+      if (!user?.id) return;
+      setContactLoadError(null);
       try {
         const res = await fetch('/api/user/linked-contact', { credentials: 'include', cache: 'no-store' });
-        if (cancelled || !res.ok) throw new Error('no-server-contact');
+        if (cancelled) return;
+        if (!res.ok) {
+          setContactLoadError('fetch_failed');
+          fillFormFromSessionUser();
+          return;
+        }
         const data = await res.json();
-        const row = data && typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
+        if (data === null) {
+          fillFormFromSessionUser();
+          return;
+        }
+        const row = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
         const idStr = typeof row?.id === 'string' ? row.id.trim() : '';
         if (row && idStr) {
           const co = data as Contact;
           mergeServerContactIntoLocalStorage(co);
-          if (!cancelled) {
-            setContact(co);
-            fillFormFromContact(co);
-          }
+          setContact(co);
+          fillFormFromContact(co);
           return;
         }
+        fillFormFromSessionUser();
       } catch {
-        /* fallback محلي */
-      }
-      if (cancelled) return;
-      const uid = user?.id;
-      if (!uid) return;
-      const c = findContactByUserId(uid);
-      setContact(c || { id: '', email: user.email ?? undefined, phone: user.phone ?? undefined });
-      if (c) {
-        fillFormFromContact(c);
-      } else {
-        const { code, number } = parsePhoneToCountryAndNumber(user.phone || '968');
-        const nameParts = (user.name || '').trim().split(/\s+/).filter(Boolean);
-        setForm((prev) => ({
-          ...prev,
-          firstName: nameParts[0] ?? '',
-          familyName: nameParts.slice(1).join(' ') || prev.familyName,
-          email: user.email ?? prev.email,
-          phoneCountryCode: code || '968',
-          phone: number ?? prev.phone,
-        }));
+        if (!cancelled) {
+          setContactLoadError('network');
+          fillFormFromSessionUser();
+        }
       }
     })()
       .finally(() => {
@@ -334,6 +343,7 @@ export default function MyAccountPage() {
       const saved = data as Contact;
       mergeServerContactIntoLocalStorage(saved);
       setContact(saved);
+      setContactLoadError(null);
       setEditing(false);
       emitAddressBookUpdated();
       void updateSession?.();
@@ -537,6 +547,14 @@ export default function MyAccountPage() {
   return (
     <div className="admin-main-inner space-y-6">
       <AdminPageHeader title={title} subtitle={ar ? 'بيانات حسابك وباقتك' : 'Your account details and plan'} />
+
+      {contactLoadError && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-amber-900 text-sm max-w-3xl">
+          {ar
+            ? 'تعذّر تحميل بياناتك من الخادم — تُعرض بيانات الحساب الأساسية فقط. أعد تحميل الصفحة أو احفظ لإنشاء/تحديث السجل.'
+            : 'Could not load your profile from the server — showing basic account data only. Reload or save to create/update your record.'}
+        </div>
+      )}
 
       {/* بياناتي — تعديل وتعبئة على نفس الصفحة (بيانات المستخدم فقط) */}
       <div className="admin-card max-w-3xl">

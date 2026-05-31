@@ -59,6 +59,19 @@ test.describe('Critical DB-first flows', () => {
     await expect(page.locator('body')).toBeVisible();
   });
 
+  test('my-account page loads and linked-contact API responds', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing E2E admin credentials');
+
+    await loginWithCredentials(page, creds!);
+    const apiRes = await page.request.get('/api/user/linked-contact');
+    expect(apiRes.ok()).toBeTruthy();
+
+    await page.goto('/ar/admin/my-account');
+    await expect(page).toHaveURL(/\/admin\/my-account/);
+    await expect(page.locator('body')).toBeVisible();
+  });
+
   test('role-based routes load for available credentials', async ({ page }) => {
     const roles: RoleCred[] = [
       {
