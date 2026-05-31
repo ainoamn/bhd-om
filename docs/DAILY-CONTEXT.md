@@ -14,7 +14,9 @@
 - **`admin/my-account`:** إزالة fallback `findContactByUserId`؛ العرض من `GET /api/user/linked-contact` فقط + بيانات الجلسة عند الفشل
 - **بانر تحذير** عند فشل تحميل الخادم
 - **E2E:** `linked-contact` GET/PATCH في `api-address-book-auth.spec.ts`؛ `my-account` في `critical-flows`
-- **`npm run build`** ✅ — commit `d33ca7b` — E2E مصادق لـ address-book + إصلاح requireAuth
+- **`npm run build`** ✅ — commit `d33ca7b`
+
+### جلسة 2026-05-31 (تابع 30) — E2E مصادق لـ address-book + إصلاح requireAuth
 
 - **`tests/e2e/api-address-book-auth.spec.ts`:** POST create/archive، import-csv، merge-duplicates (بعد login)
 - **CI `e2e-api`:** `prisma db seed` قبل الاختبارات؛ `SEED_ADMIN_CREDENTIALS` في CI
