@@ -3,16 +3,22 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  createContact,
-  updateContact,
   getContactById,
-  findDuplicateContactFields,
+  findDuplicateContactFieldsInList,
+  mergeServerContactIntoLocalStorage,
   contactAddressHasUsableContent,
   type Contact,
   type ContactCategory,
   type ContactAddress,
   type ContactGender,
 } from '@/lib/data/addressBook';
+import {
+  AddressBookSaveError,
+  applyContactUpdateOnServer,
+  buildNewContactForServer,
+  saveContactToServer,
+} from '@/lib/client/addressBookServerApi';
+import { emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import TranslateField from '@/components/admin/TranslateField';
 import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
 import DateInput from '@/components/shared/DateInput';
@@ -58,6 +64,8 @@ export interface ContactFormModalProps {
   /** التصنيف الافتراضي عند الإضافة (مثل LANDLORD لمالك جديد) */
   initialCategory?: ContactCategory;
   locale?: string;
+  /** قائمة جهات للتحقق من التكرار — إن لم تُمرَّر تُجلب من GET /api/address-book */
+  existingContacts?: Contact[];
 }
 
 export default function ContactFormModal({
@@ -70,6 +78,7 @@ export default function ContactFormModal({
   initialPhone = '',
   initialCategory = 'CLIENT',
   locale = 'ar',
+  existingContacts,
 }: ContactFormModalProps) {
   const t = useTranslations('addressBook');
   const [form, setForm] = useState({
@@ -98,6 +107,36 @@ export default function ContactFormModal({
     tags: [] as string[],
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [serverContacts, setServerContacts] = useState<Contact[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const contactsForDupCheck =
+    serverContacts.length > 0 ? serverContacts : (existingContacts ?? []);
+
+  useEffect(() => {
+    if (!open) return;
+    if (existingContacts && existingContacts.length > 0) {
+      setServerContacts(existingContacts);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/address-book?limit=500', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data)) setServerContacts(data as Contact[]);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, existingContacts]);
 
   const parseName = (fullName: string) => {
     const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -115,7 +154,9 @@ export default function ContactFormModal({
 
   useEffect(() => {
     if (open && editContactId) {
-      const c = getContactById(editContactId);
+      const c =
+        getContactById(editContactId) ||
+        serverContacts.find((x) => x.id === editContactId);
       if (c) {
         const baseForm = {
           firstName: c.firstName || '',
@@ -163,7 +204,7 @@ export default function ContactFormModal({
         }));
       }
     }
-  }, [open, editContactId, initialName, initialEmail, initialPhone, initialCategory, draftKey]);
+  }, [open, editContactId, initialName, initialEmail, initialPhone, initialCategory, draftKey, serverContacts]);
 
   useEffect(() => {
     if (!open) return;
@@ -207,7 +248,8 @@ export default function ContactFormModal({
     if (!form.phone?.trim()) errors.phone = t('fieldRequired');
     if (!contactAddressHasUsableContent(form.address)) errors.address = t('fieldRequired');
 
-    const dups = findDuplicateContactFields(
+    const dups = findDuplicateContactFieldsInList(
+      contactsForDupCheck,
       form.phone.trim(),
       form.civilId?.trim(),
       form.passportNumber?.trim(),
@@ -257,7 +299,8 @@ export default function ContactFormModal({
           fullAddressEn: raw.fullAddressEn?.trim() || undefined,
         }
       : undefined;
-    const payload = {
+    const payload: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
+      contactType: 'PERSONAL',
       firstName: form.firstName.trim(),
       secondName: form.secondName?.trim() || undefined,
       thirdName: form.thirdName?.trim() || undefined,
@@ -282,29 +325,47 @@ export default function ContactFormModal({
       notesEn: form.notesEn?.trim() || undefined,
       tags: form.tags?.length ? form.tags : undefined,
     };
+    setSubmitting(true);
     try {
-      const contact = editContactId
-        ? (updateContact(editContactId, payload) || getContactById(editContactId)!)
-        : createContact(payload);
-      clearDraft(draftKey);
-      try {
-        await fetch('/api/address-book', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(contact),
-        });
-      } catch {
-        // جهة الاتصال محفوظة محلياً؛ المزامنة مع الخادم قد تفشل
+      let saved: Contact;
+      if (editContactId) {
+        const current =
+          getContactById(editContactId) ||
+          contactsForDupCheck.find((c) => c.id === editContactId);
+        if (!current) {
+          setFormErrors({
+            firstName: locale === 'ar' ? 'تعذر تحميل جهة الاتصال من الخادم' : 'Could not load contact from server',
+          });
+          return;
+        }
+        saved = await saveContactToServer(applyContactUpdateOnServer(current, payload));
+      } else {
+        const created = buildNewContactForServer(payload, contactsForDupCheck);
+        saved = await saveContactToServer(created);
       }
-      onSaved(contact);
+      mergeServerContactIntoLocalStorage(saved);
+      clearDraft(draftKey);
+      emitAddressBookUpdated();
+      onSaved(saved);
       onClose();
     } catch (err) {
+      if (err instanceof AddressBookSaveError) {
+        if (err.code === 'DUPLICATE_PHONE') setFormErrors((e) => ({ ...e, phone: t('duplicatePhone') }));
+        else if (err.code === 'DUPLICATE_CIVIL_ID') setFormErrors((e) => ({ ...e, civilId: t('duplicateCivilId') }));
+        else if (err.code === 'DUPLICATE_PASSPORT') setFormErrors((e) => ({ ...e, passportNumber: t('duplicatePassportNumber') }));
+        else {
+          setFormErrors({ firstName: err.message || (locale === 'ar' ? 'فشل الحفظ' : 'Save failed') });
+        }
+        return;
+      }
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'DUPLICATE_PHONE') setFormErrors((e) => ({ ...e, phone: t('duplicatePhone') }));
       else if (msg === 'DUPLICATE_CIVIL_ID') setFormErrors((e) => ({ ...e, civilId: t('duplicateCivilId') }));
       else if (msg === 'DUPLICATE_PASSPORT') setFormErrors((e) => ({ ...e, passportNumber: t('duplicatePassportNumber') }));
+      else setFormErrors({ firstName: locale === 'ar' ? 'فشل الحفظ على الخادم' : 'Failed to save on server' });
       return;
+    } finally {
+      setSubmitting(false);
     }
     setForm({
       firstName: '',
@@ -564,8 +625,8 @@ export default function ContactFormModal({
             <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
               {t('cancel')}
             </button>
-            <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
-              {editContactId ? t('save') : t('add')}
+            <button type="submit" disabled={submitting} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] disabled:opacity-50">
+              {submitting ? (locale === 'ar' ? 'جاري الحفظ...' : 'Saving...') : (editContactId ? t('save') : t('add'))}
             </button>
           </div>
         </form>

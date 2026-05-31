@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 36) — ContactFormModal server-first
+
+- **`ContactFormModal`:** إزالة `createContact`/`updateContact` — الحفظ عبر `saveContactToServer` فقط
+- **التكرار:** `findDuplicateContactFieldsInList` على قائمة من `GET /api/address-book` (أو `existingContacts`)
+- **التعديل:** تحميل الجهة من localStorage أو قائمة الخادم؛ `applyContactUpdateOnServer` + `mergeServerContactIntoLocalStorage`
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 35) — E2E ensure-address-book + عقود server-first (مالك)
 
 - **E2E:** `POST ensure-address-book` (إنشاء مستخدم + idempotent + linked-contact) في `api-address-book-auth.spec.ts`
