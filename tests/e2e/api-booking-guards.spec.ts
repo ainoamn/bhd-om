@@ -85,6 +85,7 @@ test.describe('API guards — booking & contract path', () => {
 
   test('public upload PATCH rejects missing fields', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-upload-access`, {
+      headers: e2eBrowserHeaders(),
       data: { action: 'upload', bookingId: 'BKG-TEST' },
     });
     expect(res.status()).toBe(400);
@@ -92,6 +93,7 @@ test.describe('API guards — booking & contract path', () => {
 
   test('public upload PATCH returns 404 for unknown booking', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-upload-access`, {
+      headers: e2eBrowserHeaders(),
       data: {
         action: 'upload',
         bookingId: 'BKG-NO-SUCH',

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { loginWithCredentials, resolveE2EAdminCredentials } from './helpers/auth';
 
-const hasCreds =
+const hasResetCreds =
   !!process.env.E2E_ADMIN_EMAIL &&
   !!process.env.E2E_ADMIN_PASSWORD &&
   !!process.env.E2E_SECURITY_PIN;
@@ -11,45 +12,29 @@ type RoleCred = {
   landingPath: string;
 };
 
-async function loginAsAdmin(page: import('@playwright/test').Page) {
-  await page.goto('/ar/login');
-  await page.getByLabel(/البريد الإلكتروني|email/i).fill(process.env.E2E_ADMIN_EMAIL || '');
-  await page.getByLabel(/كلمة المرور|password/i).fill(process.env.E2E_ADMIN_PASSWORD || '');
-  await page.getByRole('button', { name: /دخول|login|sign in/i }).click();
-}
-
-async function loginWithCreds(
-  page: import('@playwright/test').Page,
-  email: string,
-  password: string
-) {
-  await page.goto('/ar/login');
-  await page.getByLabel(/البريد الإلكتروني|email/i).fill(email);
-  await page.getByLabel(/كلمة المرور|password/i).fill(password);
-  await page.getByRole('button', { name: /دخول|login|sign in/i }).click();
-}
-
 test.describe('Critical DB-first flows', () => {
   test('reset flow logs out deleted session user', async ({ page }) => {
     test.skip(
-      !hasCreds || process.env.E2E_ALLOW_DB_RESET !== 'true',
-      'Set E2E_ALLOW_DB_RESET=true to run destructive DB reset test'
+      !hasResetCreds || process.env.E2E_ALLOW_DB_RESET !== 'true',
+      'Set E2E_ALLOW_DB_RESET=true and E2E_SECURITY_PIN to run destructive DB reset test'
     );
 
-    await loginAsAdmin(page);
+    const creds = resolveE2EAdminCredentials();
+    if (!creds) test.skip();
+    await loginWithCredentials(page, creds!);
     await page.goto('/ar/admin/data');
     await page.getByPlaceholder(/رمز الحماية|security pin/i).fill(process.env.E2E_SECURITY_PIN || '');
     await page.getByRole('button', { name: /بدء تصفير قاعدة البيانات|start database reset/i }).click();
     await page.getByRole('button', { name: /تأكيد تصفير الخادم|confirm server reset/i }).click();
 
-    // Expected behavior after reset: session invalidation and redirect to login.
     await expect(page).toHaveURL(/\/(ar|en)\/login|\/login/i);
   });
 
   test('admin bookings and contracts pages load', async ({ page }) => {
-    test.skip(!hasCreds, 'Missing E2E credentials env vars');
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing E2E admin credentials');
 
-    await loginAsAdmin(page);
+    await loginWithCredentials(page, creds!);
     await page.goto('/ar/admin/bookings');
     await expect(page).toHaveURL(/\/admin\/bookings/);
     await page.goto('/ar/admin/contracts');
@@ -60,8 +45,8 @@ test.describe('Critical DB-first flows', () => {
   test('role-based routes load for available credentials', async ({ page }) => {
     const roles: RoleCred[] = [
       {
-        email: process.env.E2E_ADMIN_EMAIL,
-        password: process.env.E2E_ADMIN_PASSWORD,
+        email: process.env.E2E_ADMIN_EMAIL || resolveE2EAdminCredentials()?.email,
+        password: process.env.E2E_ADMIN_PASSWORD || resolveE2EAdminCredentials()?.password,
         landingPath: '/ar/admin',
       },
       {
@@ -91,10 +76,22 @@ test.describe('Critical DB-first flows', () => {
         localStorage.clear();
         sessionStorage.clear();
       });
-      await loginWithCreds(page, role.email || '', role.password || '');
+      await loginWithCredentials(page, { email: role.email!, password: role.password! });
       await page.goto(role.landingPath);
       await expect(page).toHaveURL(new RegExp(role.landingPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
       await expect(page.locator('body')).toBeVisible();
     }
+  });
+
+  test('legacy booking settings API returns status for admin', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing E2E admin credentials');
+
+    await loginWithCredentials(page, creds!);
+    const res = await page.request.get('/api/admin/legacy-booking-settings');
+    expect(res.ok()).toBeTruthy();
+    const data = (await res.json()) as { tableDocumentCount?: number; fullyMigrated?: boolean };
+    expect(typeof data.tableDocumentCount).toBe('number');
+    expect(typeof data.fullyMigrated).toBe('boolean');
   });
 });
