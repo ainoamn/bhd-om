@@ -308,14 +308,22 @@ model ContactSubmission {
 
 /// حجوزات من الواجهة العامة — تُخزّن على الخادم لظهورها في لوحة الإدارة والمحاسبة
 model BookingStorage {
-  id        String   @id @default(cuid())
-  bookingId String   @unique // BKG-xxx من الواجهة
-  data      String   // JSON كامل للحجز (PropertyBooking)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  bookingId   String   @unique // BKG-xxx من الواجهة
+  data        String   // JSON كامل للحجز (PropertyBooking)
+  propertyId  Int?
+  status      String?
+  bookingType String?
+  emailNorm   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([createdAt])
   @@index([updatedAt])
+  @@index([propertyId])
+  @@index([status])
+  @@index([bookingType])
+  @@index([propertyId, status])
 }
 
 /// ملفات مرفوعة من صفحة شروط العقد (مستندات توثيق) — تُخزّن في DB ليعمل الرفع على Vercel بدون Blob

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { normalizeRole, type SystemRole } from '@/lib/auth/roles';
-
-const authSecret =
-  process.env.NEXTAUTH_SECRET ||
-  (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 export interface GuardContext {
   token: Awaited<ReturnType<typeof getToken>>;
@@ -13,7 +10,7 @@ export interface GuardContext {
 }
 
 export async function requireAuth(req: NextRequest): Promise<GuardContext | NextResponse> {
-  const token = await getToken({ req, secret: authSecret });
+  const token = await getToken({ req, secret: getAuthSecret() });
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

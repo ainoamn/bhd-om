@@ -8,7 +8,8 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 
 import { properties, updateProperty, updatePropertyUnit, getPropertyOverrides, getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, type PropertyBusinessStatus, type Property } from '@/lib/data/properties';
 import PropertyBarcode from '@/components/admin/PropertyBarcode';
-import { getAllBookings, mergeBookingsFromServer } from '@/lib/data/bookings';
+import { fetchPaginatedList } from '@/lib/api/fetchPaginatedList';
+import type { PropertyBooking } from '@/lib/data/bookings';
 
 type PropertyWithStatus = (typeof properties)[number] & { businessStatus?: PropertyBusinessStatus; isPublished?: boolean; propertySubTypeAr?: string };
 
@@ -73,6 +74,7 @@ export default function PropertiesAdminPage() {
   const [dbProperties, setDbProperties] = useState<DbPropertyItem[]>([]);
   const [isLoadingDbProperties, setIsLoadingDbProperties] = useState(true);
   const [ownerUsers, setOwnerUsers] = useState<Array<{ id: string; name: string; serialNumber: string }>>([]);
+  const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
   const isAdmin = (session?.user as { role?: string })?.role === 'ADMIN';
   const canManageProperties = isAdmin || (session?.user as { role?: string })?.role === 'COMPANY' || (session?.user as { role?: string })?.role === 'ORG_MANAGER';
 
@@ -84,13 +86,14 @@ export default function PropertiesAdminPage() {
     refresh();
     (async () => {
       try {
-        const res = await fetch('/api/bookings');
-        if (res.ok) {
-          const serverBookings = await res.json();
-          if (Array.isArray(serverBookings) && serverBookings.length > 0) mergeBookingsFromServer(serverBookings);
-        }
+        const { items } = await fetchPaginatedList<PropertyBooking>('/api/bookings', {
+          limit: 500,
+          offset: 0,
+          cache: 'no-store',
+        });
+        setServerBookings(items);
       } catch {
-        // تجاهل
+        setServerBookings([]);
       }
       refresh();
     })();
@@ -131,13 +134,13 @@ export default function PropertiesAdminPage() {
 
   const activeBookingKeySet = useMemo(() => {
     const keys = new Set<string>();
-    for (const b of getAllBookings()) {
+    for (const b of serverBookings) {
       if (b.type !== 'BOOKING' || b.status === 'CANCELLED') continue;
       const key = `${b.propertyId}::${b.unitKey || '__main__'}`;
       keys.add(key);
     }
     return keys;
-  }, [overrides]);
+  }, [serverBookings, overrides]);
 
   /** هل للعقار/الوحدة حجز نشط (محجوز/مؤجر) - التعديل يكون من صفحة الحجوزات فقط */
   const hasActiveBooking = (propertyId: number, unitKey?: string) => {

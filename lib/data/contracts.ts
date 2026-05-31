@@ -413,17 +413,14 @@ export function createContract(data: Omit<RentalContract, 'id' | 'createdAt' | '
   const contract: RentalContract = {
     ...data,
     id: generateId(),
+    status: data.status ?? 'DRAFT',
     createdAt: now,
     updatedAt: now,
   };
   const list = getStored();
   list.unshift(contract);
   save(list);
-  // بعد إنشاء العقد يصبح العقار مؤجراً ولا يمكن تغيير الحالة من صفحة الحجوزات
-  setPropertyRentedFromContract(contract);
-  if (contract.bookingId) {
-    updateBookingStatus(contract.bookingId, 'RENTED');
-  }
+  // مسودة العقد لا تغيّر حالة العقار/الحجز — يحدث ذلك فقط عند APPROVED
   syncContractToServer(contract);
   return contract;
 }
@@ -440,6 +437,7 @@ export function updateContract(id: string, updates: Partial<RentalContract>): Re
 }
 
 function setPropertyRentedFromContract(contract: RentalContract) {
+  if (contract.status !== 'APPROVED') return;
   try {
     const kind = contract.propertyContractKind ?? 'RENT';
     const status = kind === 'SALE' ? 'SOLD' : 'RENTED';
@@ -572,9 +570,9 @@ export function approveContractByTenant(id: string, actor?: ContractApprovalActo
   const updated = updateContract(id, patch);
   if (updated) {
     const next = getContractById(id)!;
-    if (next.landlordApprovedAt) {
-      updateContract(id, { status: 'APPROVED' });
-      setPropertyRentedFromContract(next);
+    if (next.landlordApprovedAt && next.tenantApprovedAt) {
+      const approved = updateContract(id, { status: 'APPROVED' });
+      if (approved) setPropertyRentedFromContract(approved);
     }
   }
   return updated;
@@ -644,7 +642,9 @@ export function finalizeContractApproval(id: string): RentalContract | null {
   const c = getContractById(id);
   if (!c) return null;
   if (c.status === 'TENANT_APPROVED' && c.landlordApprovedAt) {
-    return updateContract(id, { status: 'APPROVED' });
+    const updated = updateContract(id, { status: 'APPROVED' });
+    if (updated) setPropertyRentedFromContract(updated);
+    return updated;
   }
   if (c.status === 'LANDLORD_APPROVED' && c.tenantApprovedAt) {
     const updated = updateContract(id, { status: 'APPROVED' });

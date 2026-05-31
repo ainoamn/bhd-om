@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, mergeBookingsFromServer, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { fetchPaginatedList } from '@/lib/api/fetchPaginatedList';
+import ListPagination from '@/components/admin/ListPagination';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
 import { getContractByBooking, hasActiveContractForUnit, type RentalContract } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation, ensureBookingDocumentsHydrated } from '@/lib/data/bookingDocuments';
@@ -17,6 +19,7 @@ import ContactFormModal from '@/components/admin/ContactFormModal';
 import AddUnitModal from '@/components/admin/AddUnitModal';
 import BookingDocumentsPanel from '@/components/admin/BookingDocumentsPanel';
 import DateInput from '@/components/shared/DateInput';
+import { getContractStageStatusLabel, resolveContractKind, type ContractStageLike } from '@/lib/data/bookingContractLabels';
 
 /** يطابق النص مع خيارات البحث - يدعم العربية والأرقام */
 function matchesSearch(text: string, search: string): boolean {
@@ -45,8 +48,6 @@ const TYPE_LABELS: Record<string, { ar: string; en: string }> = {
   BOOKING: { ar: 'حجز', en: 'Booking' },
   VIEWING: { ar: 'معاينة', en: 'Viewing' },
 };
-
-type ContractStageLike = 'DRAFT' | 'ADMIN_APPROVED' | 'TENANT_APPROVED' | 'LANDLORD_APPROVED' | 'APPROVED' | 'CANCELLED';
 
 function getDisplayContractStageForBooking(b: PropertyBooking, contractStatus?: string): ContractStageLike | undefined {
   const stage = (b.contractStage || contractStatus) as ContractStageLike | undefined;
@@ -115,6 +116,9 @@ export default function AdminBookingsPage() {
   const [deleteBlockedId, setDeleteBlockedId] = useState<string | null>(null);
   const [documentsPanelBooking, setDocumentsPanelBooking] = useState<PropertyBooking | null>(null);
   const [migratingIdentityDocs, setMigratingIdentityDocs] = useState(false);
+  const [listPage, setListPage] = useState(0);
+  const [listTotal, setListTotal] = useState(0);
+  const BOOKINGS_LIST_PAGE_SIZE = 50;
   const propertyDropdownRef = useRef<HTMLDivElement>(null);
   const unitDropdownRef = useRef<HTMLDivElement>(null);
   const contactDropdownRef = useRef<HTMLDivElement>(null);
@@ -131,21 +135,24 @@ export default function AdminBookingsPage() {
 
   useEffect(() => setMounted(true), []);
 
-  const loadData = async () => {
-    if (typeof window !== 'undefined') syncPaidBookingsToAccounting(); // مزامنة تلقائية مع المحاسبة
+  const loadData = useCallback(async () => {
+    if (typeof window !== 'undefined') syncPaidBookingsToAccounting();
     try {
-      const res = await fetch('/api/bookings', { credentials: 'include', cache: 'no-store' });
-      const serverBookings = res.ok ? await res.json() : [];
-      if (Array.isArray(serverBookings)) {
-        setBookings(serverBookings);
-        if (serverBookings.length > 0) mergeBookingsFromServer(serverBookings);
-        return;
-      }
+      const { items, total } = await fetchPaginatedList<PropertyBooking>('/api/bookings', {
+        limit: BOOKINGS_LIST_PAGE_SIZE,
+        offset: listPage * BOOKINGS_LIST_PAGE_SIZE,
+        propertyId: filterProperty !== 'all' ? filterProperty : undefined,
+        type: filterType !== 'ALL' ? filterType : undefined,
+      });
+      setBookings(items);
+      setListTotal(total);
+      return;
     } catch {
       // ignore
     }
     setBookings([]);
-  };
+    setListTotal(0);
+  }, [filterProperty, filterType, listPage]);
 
   const [bankAccountsVersion, setBankAccountsVersion] = useState(0);
 
@@ -163,7 +170,6 @@ export default function AdminBookingsPage() {
     };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
-    // polling احتياطي خفيف فقط.
     const iv = window.setInterval(() => {
       if (cancelled || document.visibilityState !== 'visible') return;
       void loadData();
@@ -180,7 +186,11 @@ export default function AdminBookingsPage() {
       window.clearInterval(iv);
       window.removeEventListener('storage', onStorage);
     };
-  }, []);
+  }, [loadData]);
+
+  useEffect(() => {
+    setListPage(0);
+  }, [filterType, filterProperty]);
 
   const bankAccounts = typeof window !== 'undefined' ? getActiveBankAccounts() : [];
   const defaultBankAccount = typeof window !== 'undefined' ? getDefaultBankAccount() : null;
@@ -266,14 +276,10 @@ export default function AdminBookingsPage() {
     return getDocumentsByBooking(b.id).length > 0 && areAllRequiredDocumentsApproved(b.id);
   };
 
-  const filteredBookings = bookings.filter((b) => {
-    const typeMatch = filterType === 'ALL' || b.type === filterType;
-    const propMatch = filterProperty === 'all' || String(b.propertyId) === filterProperty;
-    return typeMatch && propMatch;
-  });
+  const pagedBookings = bookings;
 
   const stats = {
-    total: bookings.length,
+    total: listTotal,
     pending: bookings.filter((b) => b.status === 'PENDING').length,
     confirmed: bookings.filter((b) => b.status === 'CONFIRMED').length,
     cancelled: bookings.filter((b) => b.status === 'CANCELLED').length,
@@ -472,7 +478,7 @@ export default function AdminBookingsPage() {
           </div>
         </div>
 
-        {filteredBookings.length === 0 ? (
+        {listTotal === 0 ? (
           <div className="p-16 text-center">
             <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-4xl mx-auto mb-4">📭</div>
             <p className="text-gray-500 font-medium text-lg">{ar ? 'لا توجد حجوزات أو طلبات معاينة' : 'No bookings or viewing requests'}</p>
@@ -496,7 +502,7 @@ export default function AdminBookingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredBookings.map((b) => {
+                  {pagedBookings.map((b) => {
                     const { serial, label } = getUnitDisplay(b.propertyId, b.unitKey);
                     const prop = getPropertyById(b.propertyId, dataOverrides);
                     const propSerial = (prop as { serialNumber?: string })?.serialNumber || '';
@@ -580,25 +586,20 @@ export default function AdminBookingsPage() {
                                 const isApproved = !!approved;
                                 const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
                                 const displayStage = getDisplayContractStageForBooking(b, c?.status);
-                                const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : displayStage === 'APPROVED'
-                                  ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
-                                  : displayStage === 'ADMIN_APPROVED'
-                                    ? (ar ? 'بانتظار توقيع المشتري' : 'Waiting for buyer signature')
-                                    : displayStage === 'TENANT_APPROVED'
-                                      ? (ar ? 'بانتظار توقيع البائع (المالك)' : 'Waiting for seller (owner) signature')
-                                      : displayStage === 'LANDLORD_APPROVED'
-                                    ? allDocsAndChecksApproved
-                                      ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
-                                      : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
-                                    : (ar ? 'عقد مسودة - بانتظار رفع المستندات' : 'Draft - pending document upload');
+                                const propKind = resolveContractKind(
+                                  b.contractKind,
+                                  (getPropertyById(b.propertyId, getPropertyDataOverrides()) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null)?.type
+                                );
+                                const contractStatusLabel = getContractStageStatusLabel(ar, {
+                                  kind: propKind,
+                                  displayStage,
+                                  hasContract: !!c,
+                                  allDocsAndChecksApproved: allDocsAndChecksApproved,
+                                });
                                 const docUploadLink = typeof window !== 'undefined' ? getDocumentUploadLink(window.location.origin, locale, b.propertyId, b.id, b.email) : '';
                                 const docMsg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${docUploadLink}` : `Hello, please complete the contract documentation by uploading the required documents:\n${docUploadLink}`;
                                 const needsDocs = c && c.status !== 'APPROVED';
                                 const needsApproval = hasDocumentsNeedingConfirmation(b.id) || (getChecksByBooking(b.id).length > 0 && !areAllChecksApproved(b.id));
-                                const propKind = ((getPropertyById(b.propertyId, getPropertyDataOverrides()) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null)?.type ?? 'RENT') as
-                                  | 'RENT'
-                                  | 'SALE'
-                                  | 'INVESTMENT';
                                 const contractsHref = c?.id
                                   ? `/${locale}/admin/contracts/${c.id}`
                                   : `/${locale}/admin/contracts?kind=${propKind}`;
@@ -750,7 +751,7 @@ export default function AdminBookingsPage() {
             </div>
 
             <div className="md:hidden divide-y divide-gray-100">
-              {filteredBookings.map((b) => {
+              {pagedBookings.map((b) => {
                 const { serial, label } = getUnitDisplay(b.propertyId, b.unitKey);
                 const prop = getPropertyById(b.propertyId, dataOverrides);
                 const propSerial = (prop as { serialNumber?: string })?.serialNumber || '';
@@ -794,17 +795,16 @@ export default function AdminBookingsPage() {
                             const isApproved = !!approved;
                             const allDocsAndChecksApproved = areAllRequiredDocumentsApproved(b.id) && (getChecksByBooking(b.id).length === 0 || areAllChecksApproved(b.id));
                             const displayStage = getDisplayContractStageForBooking(b, c?.status);
-                            const contractStatusLabel = !c ? (ar ? 'عقد قيد الإعداد' : 'Contract in progress') : displayStage === 'APPROVED'
-                              ? (ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)')
-                              : displayStage === 'ADMIN_APPROVED'
-                                ? (ar ? 'بانتظار توقيع المشتري' : 'Waiting for buyer signature')
-                                : displayStage === 'TENANT_APPROVED'
-                                  ? (ar ? 'بانتظار توقيع البائع (المالك)' : 'Waiting for seller (owner) signature')
-                                  : displayStage === 'LANDLORD_APPROVED'
-                                ? allDocsAndChecksApproved
-                                  ? (ar ? 'في انتظار الاعتماد النهائي للعقد' : 'Awaiting final contract approval')
-                                  : (ar ? 'تم اعتماده مبدئياً من قبل الإدارة وفي انتظار إكمال البيانات من قبل المستأجر لاعتماد المستندات' : 'Preliminarily approved by admin, awaiting tenant to complete data for document approval')
-                                : (ar ? 'عقد مسودة - بانتظار رفع المستندات' : 'Draft - pending document upload');
+                            const propKindCard = resolveContractKind(
+                              b.contractKind,
+                              (getPropertyById(b.propertyId, getPropertyDataOverrides()) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null)?.type
+                            );
+                            const contractStatusLabel = getContractStageStatusLabel(ar, {
+                              kind: propKindCard,
+                              displayStage,
+                              hasContract: !!c,
+                              allDocsAndChecksApproved: allDocsAndChecksApproved,
+                            });
                             const docUploadLink = typeof window !== 'undefined' ? getDocumentUploadLink(window.location.origin, locale, b.propertyId, b.id, b.email) : '';
                             const docMsg = ar ? `مرحباً، يرجى إكمال إجراءات توثيق العقد عن طريق رفع المستندات المطلوبة:\n${docUploadLink}` : `Hello, please complete the contract documentation by uploading the required documents:\n${docUploadLink}`;
                             const needsDocs = c && c.status !== 'APPROVED';
@@ -912,6 +912,15 @@ export default function AdminBookingsPage() {
                 );
               })}
             </div>
+
+            <ListPagination
+              ar={ar}
+              page={listPage}
+              pageSize={BOOKINGS_LIST_PAGE_SIZE}
+              total={listTotal}
+              onPageChange={setListPage}
+              className="mt-6 px-2"
+            />
           </>
         )}
       </div>

@@ -12,16 +12,35 @@ import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } fro
 import { HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
 import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
 import { findConflictingActiveBooking } from '@/lib/server/bookingDuplicateCheck';
+import { parsePaginationParams, paginationResponseHeaders, slicePage } from '@/lib/server/pagination';
+import { extractBookingStorageDenorm } from '@/lib/server/bookingStorageDenorm';
+import {
+  backfillBookingStorageDenormBatch,
+  listBookingStorageRows,
+  parseBookingStorageData,
+  type BookingListFilters,
+} from '@/lib/server/repositories/bookingStorageRepo';
 
 const CACHE_BOOKINGS_LIST = 'private, no-store';
+
+function parseBookingListFilters(url: URL): BookingListFilters | undefined {
+  const filters: BookingListFilters = {};
+  const propertyIdRaw = url.searchParams.get('propertyId');
+  const status = url.searchParams.get('status')?.trim();
+  const bookingType =
+    url.searchParams.get('type')?.trim() || url.searchParams.get('bookingType')?.trim();
+  if (propertyIdRaw && Number.isFinite(Number(propertyIdRaw))) {
+    filters.propertyId = Number(propertyIdRaw);
+  }
+  if (status) filters.status = status;
+  if (bookingType) filters.bookingType = bookingType;
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const limitParam = Number(url.searchParams.get('limit') || 0);
-    const offsetParam = Number(url.searchParams.get('offset') || 0);
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 0;
-    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+    const pagination = parsePaginationParams(url, { maxLimit: 500 });
 
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
@@ -36,9 +55,12 @@ export async function GET(req: NextRequest) {
         }
       : null;
     const scope = getDataScope(session);
+    const filters = scope.isAdmin ? parseBookingListFilters(url) : undefined;
 
-    const rows = await prisma.bookingStorage.findMany({
-      orderBy: { createdAt: 'desc' },
+    const { total: rowTotal, rows } = await listBookingStorageRows({
+      ...pagination,
+      adminScope: scope.isAdmin,
+      filters,
     });
     let bookings: { propertyId?: number | string; email?: string; phone?: string; bookingSerial?: string; [k: string]: unknown }[] = [];
     /** كان يُولَّد الرقم ويُحدَّث الصف في نفس الطلب — متسلسلاً وبطيئاً جداً مع عشرات الحجوزات */
@@ -50,15 +72,8 @@ export async function GET(req: NextRequest) {
 
     for (const r of rows) {
       try {
-        const parsed = JSON.parse(r.data) as {
-          propertyId?: number | string;
-          email?: string;
-          phone?: string;
-          id?: string;
-          bookingSerial?: string;
-          [k: string]: unknown;
-        };
-        if (!parsed.id && r.bookingId) (parsed as { id?: string }).id = r.bookingId;
+        const parsed = parseBookingStorageData(r);
+        if (!parsed) continue;
         const year = r.createdAt.getFullYear();
         const needSerial =
           !parsed.bookingSerial || !isValidBhdSerial(String(parsed.bookingSerial));
@@ -68,10 +83,8 @@ export async function GET(req: NextRequest) {
             year,
             parsed: { ...parsed } as Record<string, unknown>,
           });
-          bookings.push(parsed);
-        } else {
-          bookings.push(parsed);
         }
+        bookings.push(parsed);
       } catch {
         /* تخطي سجل تالف */
       }
@@ -85,14 +98,20 @@ export async function GET(req: NextRequest) {
         } catch {
           /* ignore */
         }
+        try {
+          await backfillBookingStorageDenormBatch(50);
+        } catch {
+          /* ignore */
+        }
       }
       for (const job of deferredSerialJobs) {
         try {
           const bookingSerial = await generateBhdSerial('BKG', { year: job.year });
           const next = { ...job.parsed, bookingSerial };
+          const denorm = extractBookingStorageDenorm(next);
           await prisma.bookingStorage.update({
             where: { bookingId: job.bookingId },
-            data: { data: JSON.stringify(next), updatedAt: new Date() },
+            data: { data: JSON.stringify(next), updatedAt: new Date(), ...denorm },
           });
         } catch (err) {
           console.error('Deferred BKG serial fix:', job.bookingId, err);
@@ -134,14 +153,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const paged = limit > 0 ? bookings.slice(offset, offset + limit) : bookings;
+    const totalAfterFilter = bookings.length;
+    const paged = scope.isAdmin && !pagination.unlimited
+      ? bookings
+      : slicePage(bookings, pagination);
+    const totalCount = scope.isAdmin && !pagination.unlimited ? rowTotal : totalAfterFilter;
+
     return NextResponse.json(paged, {
       headers: {
         'Cache-Control': CACHE_BOOKINGS_LIST,
         Vary: HTTP_CACHE_VARY_AUTH,
-        'X-Total-Count': String(bookings.length),
-        'X-Limit': String(limit || bookings.length),
-        'X-Offset': String(offset),
+        ...paginationResponseHeaders(totalCount, pagination),
       },
     });
   } catch (e) {
@@ -182,10 +204,11 @@ export async function POST(req: NextRequest) {
     }
 
     const data = JSON.stringify(payload);
+    const denorm = extractBookingStorageDenorm(payload);
     await prisma.bookingStorage.upsert({
       where: { bookingId: id },
-      create: { bookingId: id, data },
-      update: { data, updatedAt: new Date() },
+      create: { bookingId: id, data, ...denorm },
+      update: { data, updatedAt: new Date(), ...denorm },
     });
 
     if (payload.paymentConfirmed && Number(payload.priceAtBooking) > 0 && payload.type === 'BOOKING') {

@@ -5,8 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import PageHero from '@/components/shared/PageHero';
-import { getDocumentsByBooking, uploadDocument, replaceFileInDocument, getDocumentFiles, hasRejectedFiles, formatDocumentTimestamp } from '@/lib/data/bookingDocuments';
-import { getBookingsByProperty } from '@/lib/data/bookings';
+import { getDocumentsByBooking, uploadDocument, replaceFileInDocument, getDocumentFiles, hasRejectedFiles, formatDocumentTimestamp, applyDocumentsSnapshot } from '@/lib/data/bookingDocuments';
+import { mergeBookingsFromServer } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
 import type { BookingDocument } from '@/lib/data/bookingDocuments';
@@ -43,44 +43,93 @@ export default function UploadDocumentsPage() {
   const dataOverrides = getPropertyDataOverrides();
   const property = getPropertyById(id, dataOverrides);
 
-  const verifyAndLoad = () => {
+  const loadFromServer = async (opts: { email: string; bookingId?: string }) => {
     setVerifyError('');
-    if (!email.trim()) {
+    const emailTrim = opts.email.trim();
+    if (!emailTrim) {
       setVerifyError(ar ? 'أدخل البريد الإلكتروني' : 'Enter your email');
       return;
     }
-    const bookings = getBookingsByProperty(parseInt(id, 10));
-    const match = bookings.find(
-      (b) => b.status === 'CONFIRMED' && b.email.toLowerCase() === email.trim().toLowerCase()
-    );
-    if (match) {
-      setBookingId(match.id);
-      setDocs(getDocumentsByBooking(match.id));
-    } else {
-      setVerifyError(ar ? 'لم يتم العثور على حجز مؤكد بهذا البريد' : 'No confirmed booking found with this email');
+    try {
+      const qs = new URLSearchParams({
+        propertyId: String(parseInt(id, 10)),
+        email: emailTrim,
+      });
+      if (opts.bookingId) qs.set('bookingId', opts.bookingId);
+      const res = await fetch(`/api/bookings/public-upload-access?${qs.toString()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        setVerifyError(
+          ar ? 'لم يتم العثور على حجز مؤكد بهذا البريد' : 'No eligible booking found with this email'
+        );
+        return;
+      }
+      const data = (await res.json()) as {
+        booking?: { id?: string; email?: string };
+        documents?: BookingDocument[];
+      };
+      const bid = String(data.booking?.id || '');
+      if (!bid) {
+        setVerifyError(ar ? 'لم يتم العثور على الحجز' : 'Booking not found');
+        return;
+      }
+      setBookingId(bid);
+      if (data.booking?.email) setEmail(data.booking.email);
+      const serverDocs = Array.isArray(data.documents) ? data.documents : [];
+      applyDocumentsSnapshot(serverDocs);
+      setDocs(serverDocs);
+      if (data.booking) {
+        mergeBookingsFromServer([data.booking as import('@/lib/data/bookings').PropertyBooking]);
+      }
+    } catch {
+      setVerifyError(ar ? 'تعذر التحقق من الحجز' : 'Failed to verify booking');
     }
   };
 
+  const verifyAndLoad = () => {
+    void loadFromServer({ email });
+  };
+
   useEffect(() => {
-    if (bookingIdParam) {
-      const bookings = getBookingsByProperty(parseInt(id, 10));
-      const match = bookings.find(
-        (b) => b.id === bookingIdParam && b.status === 'CONFIRMED' && b.propertyId === parseInt(id, 10)
-      );
-      if (match) {
-        setBookingId(bookingIdParam);
-        setDocs(getDocumentsByBooking(bookingIdParam));
-        if (match.email) setEmail(match.email);
-        setVerifyError('');
-      } else {
-        setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
-      }
+    if (bookingIdParam && emailParam) {
+      void loadFromServer({ email: emailParam, bookingId: bookingIdParam });
+    } else if (bookingIdParam) {
+      void loadFromServer({ email: emailParam || email, bookingId: bookingIdParam });
     }
     if (property) setPropertyTitle(ar ? property.titleAr : property.titleEn);
-  }, [id, bookingIdParam, ar, property]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, bookingIdParam, emailParam, ar, property]);
 
   const refreshDocs = () => {
     if (bookingId) setDocs(getDocumentsByBooking(bookingId));
+  };
+
+  const persistUploadToServer = async (
+    docId: string,
+    fileUrl: string,
+    fileName: string,
+    action: 'upload' | 'replace',
+    oldFileUrl?: string
+  ) => {
+    if (!bookingId || !email.trim()) return false;
+    const res = await fetch('/api/bookings/public-upload-access', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        bookingId,
+        email: email.trim(),
+        docId,
+        fileUrl,
+        fileName,
+        ...(oldFileUrl ? { oldFileUrl } : {}),
+      }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data.document) {
+      applyDocumentsSnapshot([data.document]);
+    }
+    return true;
   };
 
   const handleFileSelect = async (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,7 +147,12 @@ export default function UploadDocumentsPage() {
         });
         const data = await res.json();
         if (data.url) {
-          uploadDocument(docId, data.url, file.name, email.trim() || undefined);
+          const synced = await persistUploadToServer(docId, data.url, file.name, 'upload');
+          if (synced) {
+            uploadDocument(docId, data.url, file.name, email.trim() || undefined);
+          } else {
+            alert(ar ? 'فشل حفظ المستند على الخادم' : 'Failed to save document on server');
+          }
         } else {
           alert(ar ? 'فشل الرفع' : 'Upload failed');
         }
@@ -132,8 +186,13 @@ export default function UploadDocumentsPage() {
       const res = await fetch('/api/upload/booking-documents', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.url) {
-        replaceFileInDocument(docId, oldFileUrl, data.url, file.name);
-        refreshDocs();
+        const synced = await persistUploadToServer(docId, data.url, file.name, 'replace', oldFileUrl);
+        if (synced) {
+          replaceFileInDocument(docId, oldFileUrl, data.url, file.name);
+          refreshDocs();
+        } else {
+          alert(ar ? 'فشل حفظ المستند على الخادم' : 'Failed to save document on server');
+        }
       } else {
         alert(ar ? 'فشل الرفع' : 'Upload failed');
       }

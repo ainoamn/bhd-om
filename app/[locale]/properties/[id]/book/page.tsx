@@ -348,6 +348,8 @@ export default function PropertyBookPage() {
     try {
       await new Promise((r) => setTimeout(r, 1500));
       setIsProcessingPayment(false);
+      const paymentReferenceNo = `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+      const paymentDate = new Date().toISOString();
       const isCompany = contactType === 'COMPANY';
       const repId = `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
@@ -383,6 +385,8 @@ export default function PropertyBookPage() {
         message: [formData.message, alternativePhone.number.trim() ? (ar ? `رقم بديل للتواصل: ${getFullPhone(alternativePhone.countryCode, alternativePhone.number)}` : `Alternative contact: ${getFullPhone(alternativePhone.countryCode, alternativePhone.number)}`) : ''].filter(Boolean).join('\n') || undefined,
         type: 'BOOKING',
         paymentConfirmed: true,
+        paymentDate,
+        paymentReferenceNo,
         priceAtBooking: depositAmount,
         cardLast4: cardData.number.replace(/\s/g, '').slice(-4),
         cardExpiry: cardData.expiry,

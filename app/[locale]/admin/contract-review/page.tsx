@@ -10,6 +10,7 @@ import type { PropertyBooking } from '@/lib/data/bookings';
 import type { CheckInfo, ContractApprovalActor, RentalContract } from '@/lib/data/contracts';
 import { getContractByBooking, getContractById } from '@/lib/data/contracts';
 import { getContractReviewDisplayStage } from '@/lib/data/bookingContractStage';
+import { isAdminRoleForContractFinalize } from '@/lib/data/bookingContractLabels';
 
 type ContractKind = 'RENT' | 'SALE' | 'INVESTMENT';
 type ContractStage = NonNullable<PropertyBooking['contractStage']>;
@@ -768,6 +769,14 @@ export default function ContractReviewPage() {
     if (displayStage !== 'TENANT_APPROVED') return false;
     return userRole === 'OWNER';
   }, [displayStage, userRole]);
+
+  const canAdminFinalize = useMemo(() => {
+    if (displayStage !== 'LANDLORD_APPROVED') return false;
+    return isAdminRoleForContractFinalize(userRole);
+  }, [displayStage, userRole]);
+
+  const adminContractHref =
+    booking?.contractId ? `/${locale}/admin/contracts/${booking.contractId}` : null;
 
   const approve = async () => {
     if (!booking) return;
@@ -1577,6 +1586,13 @@ export default function ContractReviewPage() {
                         ? '✓ متابعة التوقيع والاعتماد'
                         : '✓ Continue to e-sign & approve'}
                   </button>
+                ) : canAdminFinalize && adminContractHref ? (
+                  <Link
+                    href={adminContractHref}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-emerald-700 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:from-emerald-700 hover:to-emerald-800"
+                  >
+                    {ar ? '✓ الانتقال للاعتماد النهائي' : '✓ Go to final approval'}
+                  </Link>
                 ) : (
                   <span className="text-center text-sm text-stone-500 sm:text-end">
                     {ar ? 'لا يوجد إجراء اعتماد متاح حالياً' : 'No approval action available right now'}

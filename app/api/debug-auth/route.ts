@@ -7,6 +7,10 @@ import { prisma } from '@/lib/prisma';
 import { compare } from 'bcryptjs';
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const email = new URL(request.url).searchParams.get('email') || 'admin@bhd-om.com';
   const testPassword = 'admin123';
 

@@ -9,6 +9,21 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع) — فلاتر DB للحجوزات + NEXTAUTH_SECRET + رفع
+
+- **BookingStorage:** أعمدة مفهرسة `propertyId`, `status`, `bookingType`, `emailNorm` + فلاتر `GET /api/bookings?propertyId=&status=&type=` + backfill تدريجي في `after()`.
+- **أمان:** `lib/server/authSecret.ts` — `getAuthSecret()` إلزامي في الإنتاج؛ مُطبَّق في `auth.ts`, `guard.ts`, `proxy.ts`, `getAuthSubFromRequest.ts`.
+- **لوحة الحجوزات:** pagination + فلاتر من الخادم عبر `fetchPaginatedList` (بدون فلترة client-side للعقار/النوع).
+- **البناء:** `npm run build` ✅؛ `prisma db push` ✅.
+
+### جلسة 2026-05-31 — إغلاق مراحل المراجعة الشاملة (0 → 1 → 2 → 3)
+
+- **المرحلة 1:** مسار الحجز end-to-end (بوابة محاسب على الخادم، `public-upload-access`، تسميات RENT/SALE، CTA اعتماد نهائي).
+- **المرحلة 0:** إصلاح `createContract` (لا RENTED/SOLD عند المسودة)، روابط `upload-documents`، أمان `debug-auth` ورفع الملفات، `paymentReferenceNo`.
+- **المرحلة 2:** pagination موحّد (`lib/server/pagination.ts`, `bookingStorageRepo`)، `ListPagination` في الحجوزات/العقود، server-only reads في bookings/contracts/properties.
+- **المرحلة 3:** E2E (`api-booking-guards`, `public-pages`, توسيع `critical-flows`)، تحديث `DEVELOPMENT-FIXES-AND-UPGRADES.md` §38.
+- **ملفات رئيسية:** `bookingContractGate.ts`, `bookingContractLabels.ts`, `bookingDocumentsServer.ts`, `fetchPaginatedList.ts`, `ListPagination.tsx`, `admin/bookings|contracts|properties/page.tsx`, `api/bookings/route.ts`.
+
 ### جلسة 2026-04-02 — حجز عقار: هوية قبل الدفع + إدارة العقود بعد تأكيد المحاسب
 
 - **قبل الدفع:** جنسية المستأجر (فرد)، رقم مدني أو إقامة+جواز للوافد، ورفع نسخ (عماني: بطاقة مدنية؛ وافد: إقامة + جواز). شركة: سجل تجاري + مستندات المفوض بنفس المنطق. يُنشأ `createDocumentRequests` مع تسميات `CONTRACT_DOC_TYPES` ثم رفع إلى `/api/upload/booking-documents`.

@@ -43,16 +43,14 @@ test.describe('Critical DB-first flows', () => {
     await expect(page).toHaveURL(/\/(ar|en)\/login|\/login/i);
   });
 
-  test('address-book and bookings do not show stale local data', async ({ page }) => {
+  test('admin bookings and contracts pages load', async ({ page }) => {
     test.skip(!hasCreds, 'Missing E2E credentials env vars');
 
     await loginAsAdmin(page);
-    await page.goto('/ar/admin/address-book');
-    await expect(page.getByRole('heading', { name: /دفتر العناوين|address book/i })).toBeVisible();
-
-    await page.goto('/ar/admin/my-bookings');
-    await expect(page).toHaveURL(/\/admin\/my-bookings/);
-    // Presence check only; data assertions are environment-specific.
+    await page.goto('/ar/admin/bookings');
+    await expect(page).toHaveURL(/\/admin\/bookings/);
+    await page.goto('/ar/admin/contracts');
+    await expect(page).toHaveURL(/\/admin\/contracts/);
     await expect(page.locator('body')).toBeVisible();
   });
 

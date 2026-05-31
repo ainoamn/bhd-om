@@ -143,6 +143,23 @@ function syncAllToServerOnce(): void {
   }
 }
 
+/** دمج مستندات من الخادم في التخزين المحلي (صفحة الرفع العامة أو بعد hydrate) */
+export function applyDocumentsSnapshot(docs: BookingDocument[]): void {
+  if (typeof window === 'undefined') return;
+  const stored = getStored();
+  const bookingIds = new Set(docs.map((d) => d.bookingId));
+  const others = stored.filter((d) => !bookingIds.has(d.bookingId));
+  const merged = [...others, ...docs];
+  documentsStore = merged;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  } catch {
+    /* ignore */
+  }
+}
+
+export { isBookingStatusEligibleForDocumentUpload } from '@/lib/data/bookingUploadEligibility';
+
 function generateId() {
   return `BDOC-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }

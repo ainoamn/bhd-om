@@ -9,7 +9,7 @@ export function getDocumentUploadLink(
   bookingId: string,
   email?: string
 ): string {
-  const url = `${origin}/${locale}/properties/${propertyId}/contract-terms?bookingId=${bookingId}${email ? `&email=${encodeURIComponent(email)}` : ''}`;
+  const url = `${origin}/${locale}/properties/${propertyId}/upload-documents?bookingId=${encodeURIComponent(bookingId)}${email ? `&email=${encodeURIComponent(email)}` : ''}`;
   return url;
 }
 

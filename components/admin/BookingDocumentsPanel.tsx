@@ -327,7 +327,7 @@ export default function BookingDocumentsPanel({
   };
 
   const uploadLink = typeof window !== 'undefined'
-    ? `${window.location.origin}/${locale}/properties/${propertyId}/contract-terms?bookingId=${booking.id}${booking.email ? `&email=${encodeURIComponent(booking.email)}` : ''}`
+    ? `${window.location.origin}/${locale}/properties/${propertyId}/upload-documents?bookingId=${encodeURIComponent(booking.id)}${booking.email ? `&email=${encodeURIComponent(booking.email)}` : ''}`
     : '';
 
   const copyLink = () => {

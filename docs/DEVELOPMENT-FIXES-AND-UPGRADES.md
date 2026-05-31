@@ -10,6 +10,34 @@
 
 ## ما تم تنفيذه (منجز)
 
+### 38) إغلاق مراحل المراجعة A–Z (0 → 1 → 2 → 3) — 2026-05-31
+
+**المرحلة 1 — مسار الحجز end-to-end**
+- بوابة `accountantConfirmedAt` على الخادم (`/api/contracts`).
+- صفحة `upload-documents`: حالات CONFIRMED/RENTED/SOLD + API عام `/api/bookings/public-upload-access`.
+- تسميات RENT/SALE في الحجوزات والعقود (`bookingContractLabels.ts`).
+- CTA اعتماد نهائي في `contract-review` + `finalizeContractApproval` في صفحة العقد.
+
+**المرحلة 0 — أمان وإصلاحات حرجة**
+- `createContract`: لا تغيير حالة العقار/الحجز إلا عند `APPROVED`.
+- `getDocumentUploadLink` → `/upload-documents`.
+- تعطيل `/api/debug-auth` في الإنتاج + فحص origin لرفع المستندات.
+- `paymentDate` + `paymentReferenceNo` عند الحجز.
+
+**المرحلة 2 — pagination + server-first**
+- `lib/server/pagination.ts` + `lib/server/repositories/bookingStorageRepo.ts`.
+- `GET /api/bookings`: pagination على DB للمسؤول (`skip/take`).
+- `lib/api/fetchPaginatedList.ts` + `ListPagination` في `/admin/bookings` و`/admin/contracts`.
+- `/admin/bookings`: قراءة server-only (بدون `mergeBookingsFromServer` عند التحميل).
+- `/admin/contracts`: إزالة دمج `getAllContracts()` المحلي — الخادم فقط.
+- `/admin/properties`: `activeBookingKeySet` من `/api/bookings` بدل `getAllBookings()`.
+
+**المرحلة 3 — اختبارات ومعايير**
+- `tests/e2e/api-booking-guards.spec.ts` — حماية API (401/404).
+- `tests/e2e/public-pages.spec.ts` — smoke للصفحات العامة.
+- توسيع `critical-flows.spec.ts` — تحميل صفحات الحجوزات/العقود.
+- `npm run test:e2e:api` في `package.json`.
+
 ### 37) إغلاق fallback المحلي في الطبقات المتبقية + إكمال pagination
 - إغلاق fallback القراءة من `localStorage` في:
   - `lib/data/bookingTerms.ts`

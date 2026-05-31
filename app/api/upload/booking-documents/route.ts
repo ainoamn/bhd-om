@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { put } from '@vercel/blob';
 import { prisma } from '@/lib/prisma';
+import { isAllowedBrowserOrigin } from '@/lib/server/requestOrigin';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'booking-documents');
 
@@ -16,6 +17,10 @@ const useDb = !!process.env.VERCEL && !useBlob;
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isAllowedBrowserOrigin(request)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     if (!file) {

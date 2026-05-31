@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
+import { assertAccountantConfirmedForContract, parseBookingStorageRow } from '@/lib/server/bookingContractGate';
 
 function safeParse(data: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(data) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  return parseBookingStorageRow(data);
 }
 
 function extractContract(parsed: Record<string, unknown>, id: string) {
@@ -57,6 +54,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!parsed) continue;
       const contract = extractContract(parsed, id);
       if (!contract) continue;
+
+      const isNewContract = !parsed.contractId && !parsed.contractData;
+      const nextStatus = String(patch.status || contract.status || parsed.contractStage || 'DRAFT');
+      const prevStage = String(parsed.contractStage || contract.status || '');
+      const advancingFromDraft = prevStage === 'DRAFT' && nextStatus !== 'DRAFT';
+      if (isNewContract || advancingFromDraft || !parsed.contractId) {
+        const gate = assertAccountantConfirmedForContract(parsed);
+        if (!gate.ok) {
+          return NextResponse.json(
+            { error: gate.error, message: 'Accountant must confirm payment before contract operations.' },
+            { status: 403 }
+          );
+        }
+      }
 
       const now = new Date().toISOString();
       const nextContract = { ...contract, ...patch, id, bookingId: contract.bookingId, updatedAt: now };

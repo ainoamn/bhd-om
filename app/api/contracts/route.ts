@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
 import { CACHE_CONTRACTS_LIST_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { assertAccountantConfirmedForContract, parseBookingStorageRow } from '@/lib/server/bookingContractGate';
+import { parsePaginationParams, paginationResponseHeaders, slicePage } from '@/lib/server/pagination';
+import { listBookingStorageRows, parseBookingStorageData } from '@/lib/server/repositories/bookingStorageRepo';
 
 function parseBookingRow(row: { bookingId: string; data: string }) {
-  try {
-    const parsed = JSON.parse(row.data) as Record<string, unknown>;
-    return parsed;
-  } catch {
-    return null;
-  }
+  return parseBookingStorageRow(row.data);
 }
 
 function toContractFromBooking(booking: Record<string, unknown>) {
@@ -30,28 +28,23 @@ function toContractFromBooking(booking: Record<string, unknown>) {
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const limitParam = Number(url.searchParams.get('limit') || 0);
-    const offsetParam = Number(url.searchParams.get('offset') || 0);
-    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 0;
-    const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? offsetParam : 0;
+    const pagination = parsePaginationParams(url, { maxLimit: 500 });
 
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
 
-    const rows = await prisma.bookingStorage.findMany({ orderBy: { updatedAt: 'desc' } });
+    const { rows } = await listBookingStorageRows({ ...pagination, unlimited: true });
     const list = rows
-      .map((r) => parseBookingRow({ bookingId: r.bookingId, data: r.data }))
+      .map((r) => parseBookingStorageData(r))
       .filter(Boolean)
       .map((b) => toContractFromBooking(b as Record<string, unknown>))
       .filter(Boolean);
-    const paged = limit > 0 ? list.slice(offset, offset + limit) : list;
+    const paged = slicePage(list, pagination);
     return NextResponse.json(paged, {
       headers: {
         'Cache-Control': CACHE_CONTRACTS_LIST_GET,
         Vary: HTTP_CACHE_VARY_AUTH,
-        'X-Total-Count': String(list.length),
-        'X-Limit': String(limit || list.length),
-        'X-Offset': String(offset),
+        ...paginationResponseHeaders(list.length, pagination),
       },
     });
   } catch (e) {
@@ -75,6 +68,13 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.bookingStorage.findUnique({ where: { bookingId } });
     const now = new Date().toISOString();
     const prev = existing ? parseBookingRow({ bookingId, data: existing.data }) : {};
+    const gate = assertAccountantConfirmedForContract(prev || {});
+    if (!gate.ok) {
+      return NextResponse.json(
+        { error: gate.error, message: 'Accountant must confirm payment before creating a contract.' },
+        { status: 403 }
+      );
+    }
     const merged = {
       ...(prev || {}),
       id: bookingId,

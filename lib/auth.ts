@@ -7,6 +7,7 @@ import { compare } from 'bcryptjs';
 import { verifyImpersonateToken } from '@/lib/impersonate';
   // OAuth - يُفعّل عند إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في .env
 import { prisma } from '@/lib/prisma';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 /** إعادة التحقق من وجود المستخدم في DB — أطول = أقل استعلامات وتأخير أقل على /api/auth/session */
 const TOKEN_DB_REVALIDATE_SECONDS = 180;
@@ -223,8 +224,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   // في الإنتاج يجب تعيين NEXTAUTH_SECRET في Vercel (Environment Variables). محلياً يُستخدم مفتاح تطوير إن لم يُعرّف.
-  secret:
-    process.env.NEXTAUTH_SECRET ||
-    (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+  secret: getAuthSecret(),
   debug: process.env.NODE_ENV === 'development',
 };

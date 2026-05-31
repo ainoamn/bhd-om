@@ -6,7 +6,6 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
-  getAllContracts,
   getContractByBooking,
   createContract,
   approveContractByAdmin,
@@ -15,20 +14,15 @@ import {
   type RentalContract,
   type ContractStatus,
 } from '@/lib/data/contracts';
+import { fetchPaginatedList } from '@/lib/api/fetchPaginatedList';
+import ListPagination from '@/components/admin/ListPagination';
 import { updateBooking, getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
 import { getContactById, getContactDisplayName, findContactByPhoneOrEmail, isOmaniNationality } from '@/lib/data/addressBook';
 import { isPropertyExtraDataComplete } from '@/lib/data/propertyExtraData';
 
-const STATUS_LABELS: Record<ContractStatus, { ar: string; en: string }> = {
-  DRAFT: { ar: 'مسودة - بانتظار رفع المستندات', en: 'Draft - Pending docs' },
-  ADMIN_APPROVED: { ar: 'اعتماد مبدئي من الإدارة', en: 'Preliminary admin approval' },
-  TENANT_APPROVED: { ar: 'اعتمده المستأجر', en: 'Tenant Approved' },
-  LANDLORD_APPROVED: { ar: 'اعتمده المالك', en: 'Landlord Approved' },
-  APPROVED: { ar: 'معتمد - نافذ', en: 'Approved - Active' },
-  CANCELLED: { ar: 'مُشطوب', en: 'Cancelled' },
-};
+import { getAdminContractListStatusLabel } from '@/lib/data/bookingContractLabels';
 
 function sessionToContractActor(session: {
   user?: { name?: string | null; serialNumber?: string | null };
@@ -79,6 +73,8 @@ export default function AdminContractsPage() {
   const [apiContracts, setApiContracts] = useState<RentalContract[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [mounted, setMounted] = useState(false);
+  const [listPage, setListPage] = useState(0);
+  const CONTRACTS_PAGE_SIZE = 50;
 
   useEffect(() => setMounted(true), []);
 
@@ -116,12 +112,9 @@ export default function AdminContractsPage() {
   };
 
   const loadData = (latestBookings?: PropertyBooking[], latestApiContracts?: RentalContract[]) => {
-    const localContracts = getAllContracts().map((c) => ({ ...c, source: 'local' as const }));
     const apiContractViews = (latestApiContracts || apiContracts).map((c) => ({ ...c, source: 'server' as const }));
     const serverContracts = buildServerContracts(latestBookings || bookings);
     const merged = new Map<string, ContractView>();
-    // Local first, then server-derived, then API contracts as source of truth.
-    for (const c of localContracts) merged.set(c.id, c as ContractView);
     for (const c of serverContracts) merged.set(c.id, c);
     for (const c of apiContractViews) merged.set(c.id, c as ContractView);
     setContracts(Array.from(merged.values()));
@@ -130,7 +123,7 @@ export default function AdminContractsPage() {
   useEffect(() => {
     syncAllContractsToServer();
     loadData();
-    fetch('/api/contracts', { credentials: 'include' })
+    fetch('/api/contracts?limit=500&offset=0', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: RentalContract[]) => {
         if (Array.isArray(list) && list.length > 0) {
@@ -140,16 +133,17 @@ export default function AdminContractsPage() {
         }
       })
       .catch(() => {});
-    fetch('/api/bookings', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list: PropertyBooking[]) => {
-        const rows = Array.isArray(list) ? list : [];
-        setBookings(rows);
-        loadData(rows, undefined);
+    fetchPaginatedList<PropertyBooking>('/api/bookings', { limit: 500, offset: 0 })
+      .then(({ items }) => {
+        setBookings(items);
+        loadData(items, undefined);
       })
       .catch(() => setBookings([]));
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'bhd_rental_contracts') loadData();
+    const onStorage = () => {
+      void fetchPaginatedList<PropertyBooking>('/api/bookings', { limit: 500, offset: 0 }).then(({ items }) => {
+        setBookings(items);
+        loadData(items, undefined);
+      });
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -327,6 +321,15 @@ export default function AdminContractsPage() {
     return filterStatus === 'all' || c.status === filterStatus;
   });
 
+  useEffect(() => {
+    setListPage(0);
+  }, [filterStatus, contractKind]);
+
+  const pagedContracts = filteredContracts.slice(
+    listPage * CONTRACTS_PAGE_SIZE,
+    (listPage + 1) * CONTRACTS_PAGE_SIZE
+  );
+
   const stats = {
     total: contracts.filter((c) => getContractKind(c) === contractKind).length,
     draft: contracts.filter((c) => getContractKind(c) === contractKind && c.status === 'DRAFT').length,
@@ -458,7 +461,7 @@ export default function AdminContractsPage() {
                 onClick={() => setFilterStatus(s)}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${filterStatus === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
               >
-                {ar ? STATUS_LABELS[s]?.ar : STATUS_LABELS[s]?.en}
+                {getAdminContractListStatusLabel(ar, s, contractKind)}
               </button>
             ))}
           </div>
@@ -505,7 +508,7 @@ export default function AdminContractsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredContracts.map((c) => (
+                {pagedContracts.map((c) => (
                   <tr key={c.id}>
                     <td>
                       <span className="font-mono text-sm text-[#8B6F47]">{c.id.slice(0, 16)}...</span>
@@ -538,7 +541,7 @@ export default function AdminContractsPage() {
                           c.status === 'APPROVED' ? 'admin-badge-success' : c.status === 'DRAFT' ? 'admin-badge-warning' : c.status === 'CANCELLED' ? 'bg-gray-100 text-gray-600' : 'admin-badge-info'
                         }`}
                       >
-                        {ar ? STATUS_LABELS[c.status]?.ar : STATUS_LABELS[c.status]?.en}
+                        {getAdminContractListStatusLabel(ar, c.status, getContractKind(c))}
                       </span>
                     </td>
                     <td>
@@ -563,6 +566,15 @@ export default function AdminContractsPage() {
             </table>
           </div>
         )}
+
+        <ListPagination
+          ar={ar}
+          page={listPage}
+          pageSize={CONTRACTS_PAGE_SIZE}
+          total={filteredContracts.length}
+          onPageChange={setListPage}
+          className="mt-6"
+        />
       </div>
     </div>
   );

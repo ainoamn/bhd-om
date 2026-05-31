@@ -13,6 +13,7 @@ import {
   approveContractByTenant,
   approveContractByLandlord,
   approveContractByAdminFinal,
+  finalizeContractApproval,
   cancelContract,
   revertContractToDraft,
   getContractMissingFields,
@@ -1491,9 +1492,21 @@ export default function ContractDetailPage() {
                   </button>
                 )}
                 {contract.status === 'LANDLORD_APPROVED' && (
-                  <button type="button" onClick={() => setConfirmAction('tenant')} className="px-4 py-2 rounded-xl font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
-                    {ar ? (isSale ? 'اعتماد المشتري' : `اعتماد ${tenantWordAr}`) : (isSale ? 'Buyer Approve' : `${tenantWordEn} Approve`)}
-                  </button>
+                  <>
+                    <button type="button" onClick={() => setConfirmAction('tenant')} className="px-4 py-2 rounded-xl font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100">
+                      {ar ? (isSale ? 'اعتماد المشتري' : `اعتماد ${tenantWordAr}`) : (isSale ? 'Buyer Approve' : `${tenantWordEn} Approve`)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmAction('final')}
+                      disabled={!signaturesReadyForAdminFinal}
+                      className={`px-4 py-2 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 ${
+                        !signaturesReadyForAdminFinal ? 'opacity-60 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {ar ? 'اعتماد نهائي' : 'Final Approval'}
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
@@ -3912,7 +3925,10 @@ export default function ContractDetailPage() {
                   if (!areAllRequiredDocumentsApproved(contract!.bookingId)) { alert(ar ? 'يجب اعتماد جميع المستندات أولاً' : 'Approve all documents first'); return; }
                   const bChecks = getChecksByBooking(contract!.bookingId);
                   if (bChecks.length > 0 && !areAllChecksApproved(contract!.bookingId)) { alert(ar ? 'يجب اعتماد جميع الشيكات أولاً' : 'Approve all cheques first'); return; }
-                  const updated = approveContractByAdminFinal(id);
+                  const updated =
+                    contract!.status === 'LANDLORD_APPROVED' || contract!.status === 'TENANT_APPROVED'
+                      ? finalizeContractApproval(id)
+                      : approveContractByAdminFinal(id);
                   if (updated) syncContractStageToBookingAndServer(updated).catch(() => {});
                   loadContract();
                 }

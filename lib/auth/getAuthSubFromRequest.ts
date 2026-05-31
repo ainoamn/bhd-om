@@ -8,10 +8,7 @@ import { cookies, headers } from 'next/headers';
 import { getToken } from 'next-auth/jwt';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-
-const NEXTAUTH_SECRET =
-  process.env.NEXTAUTH_SECRET ||
-  (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 const SESSION_COOKIE_NAMES = [
   'next-auth.session-token',
@@ -45,7 +42,7 @@ export async function getAuthSubFromRequest(req: NextRequest): Promise<string | 
       } as NextRequest;
       const tokenFromHeader = await getToken({
         req: reqFromCookie,
-        secret: NEXTAUTH_SECRET,
+        secret: getAuthSecret(),
       });
       const fromHeader = tokenUserId(tokenFromHeader);
       if (fromHeader) return fromHeader;
@@ -56,7 +53,7 @@ export async function getAuthSubFromRequest(req: NextRequest): Promise<string | 
 
   let token = await getToken({
     req,
-    secret: NEXTAUTH_SECRET,
+    secret: getAuthSecret(),
   });
   const fromToken = tokenUserId(token);
   if (fromToken) return fromToken;
@@ -66,7 +63,7 @@ export async function getAuthSubFromRequest(req: NextRequest): Promise<string | 
     const reqWithCookie = {
       headers: new Headers({ cookie: `${fromRequest.name}=${fromRequest.value}` }),
     } as NextRequest;
-    token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
+    token = await getToken({ req: reqWithCookie, secret: getAuthSecret() });
     const id = tokenUserId(token);
     if (id) return id;
   }
@@ -77,7 +74,7 @@ export async function getAuthSubFromRequest(req: NextRequest): Promise<string | 
     if (sessionCookie?.value) {
       const cookieHeader = `${sessionCookie.name}=${sessionCookie.value}`;
       const reqWithCookie = { headers: new Headers({ cookie: cookieHeader }) } as NextRequest;
-      token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
+      token = await getToken({ req: reqWithCookie, secret: getAuthSecret() });
       const id = tokenUserId(token);
       if (id) return id;
     }

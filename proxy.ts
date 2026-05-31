@@ -3,11 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { routing } from './i18n/routing';
 import { canAccessRoute, getDefaultRouteForRole } from '@/lib/auth/permissions';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 const intlMiddleware = createMiddleware(routing);
-const authSecret =
-  process.env.NEXTAUTH_SECRET ||
-  (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
 
 function isPublicPath(pathname: string): boolean {
   const noLocale = pathname.replace(/^\/[a-z]{2}(?=\/|$)/, '') || pathname;
@@ -34,6 +32,9 @@ export default async function proxy(req: NextRequest) {
   }
 
   if (pathname.startsWith('/api/')) {
+    if (pathname.startsWith('/api/debug-auth') && process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
     const needsApiAuth = pathname.startsWith('/api/admin') || pathname.startsWith('/api/accounting');
     if (!needsApiAuth) return NextResponse.next();
   }
@@ -46,7 +47,7 @@ export default async function proxy(req: NextRequest) {
     return intlMiddleware(req);
   }
 
-  const token = await getToken({ req, secret: authSecret });
+  const token = await getToken({ req, secret: getAuthSecret() });
   if (!token) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
