@@ -16,7 +16,7 @@
 - **CI:** `e2e-critical` يعمل دائماً مع seed admin (بدون GitHub secrets)
 - **`admin/users`:** `useServerAddressBookContacts` بدل fetch مكرر
 - **`syncContactsFromUsers`:** `@deprecated`
-- **`npm run build`** ✅
+- **`npm run build`** ✅ — commit `c2039f4`
 
 ### جلسة 2026-05-31 (تابع 37) — server-first للقوائم + جاهزية إنتاج admin/data
 
