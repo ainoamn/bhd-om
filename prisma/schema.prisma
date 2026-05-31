@@ -399,6 +399,27 @@ model BookingDocumentStorage {
   @@index([updatedAt])
 }
 
+/// شيكات الحجز — صف لكل شيك (بدل JSON monolithic في AppSetting)
+model BookingCheckStorage {
+  id          String   @id @default(cuid())
+  bookingId   String
+  checkTypeId String
+  data        String   // JSON كامل (BookingCheckEntry)
+  propertyId  Int?
+  isApproved  Boolean  @default(false)
+  isRejected  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([bookingId, checkTypeId])
+  @@index([bookingId])
+  @@index([propertyId])
+  @@index([isApproved])
+  @@index([isRejected])
+  @@index([bookingId, isApproved])
+  @@index([updatedAt])
+}
+
 /// دفتر العناوين — جهات الاتصال (مالك، عميل، ...) تُخزّن على الخادم لتعكس في كل الصفحات
 model AddressBookContact {
   id            String   @id @default(cuid())

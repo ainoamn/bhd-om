@@ -58,6 +58,18 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('booking-checks GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/settings/booking-checks`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('booking-checks POST requires authentication', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/settings/booking-checks`, {
+      data: [],
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('public upload PATCH rejects missing fields', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-upload-access`, {
       data: { action: 'upload', bookingId: 'BKG-TEST' },

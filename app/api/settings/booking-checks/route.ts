@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
-import { getJsonSetting, upsertJsonSetting } from '@/lib/server/repositories/appSettingsRepo';
-
-const KEY = 'booking_checks_settings';
+import { listAllBookingChecksFromDb, saveAllBookingChecksToDb } from '@/lib/server/bookingChecksServer';
+import type { ChecksStoreEntry } from '@/lib/server/repositories/bookingCheckStorageRepo';
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
-    const value = await getJsonSetting<unknown>(KEY, []);
-    return NextResponse.json(Array.isArray(value) ? value : []);
+    const value = await listAllBookingChecksFromDb();
+    return NextResponse.json(value);
   } catch (e) {
     console.error('booking-checks GET error:', e);
     return NextResponse.json([], { status: 500 });
@@ -23,7 +22,8 @@ export async function POST(req: NextRequest) {
     const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN', 'COMPANY', 'ORG_MANAGER', 'CLIENT', 'OWNER', 'LANDLORD']);
     if (forbidden) return forbidden;
     const body = await req.json().catch(() => []);
-    await upsertJsonSetting(KEY, Array.isArray(body) ? body : []);
+    const entries = (Array.isArray(body) ? body : []) as ChecksStoreEntry[];
+    await saveAllBookingChecksToDb(entries);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('booking-checks POST error:', e);
