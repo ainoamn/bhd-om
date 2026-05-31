@@ -11,7 +11,7 @@
 
 ### جلسة 2026-05-31 (تابع 40) — CI موحّد + توثيق E2E
 
-- **GitHub Actions:** job واحد `e2e-verify` بدل `e2e-api` + `e2e-critical` — build/migrate/seed مرة واحدة + `test:e2e:verify`
+- **GitHub Actions:** job واحد `e2e-verify` بدل `e2e-api` + `e2e-critical` — build/migrate/seed مرة واحدة + `test:e2e:verify` — commit `811adc9`
 - **`.env.example`:** بيانات seed admin الافتراضية للـ E2E
 - **`playwright.config`:** `reuseExistingServer` محلياً (commit `3ac7065`)
 
