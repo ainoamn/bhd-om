@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 23) — جاهزية إنتاج Thawani + check-env موسّع
+
+- **`getPaymentGatewayStatus`:** checklist، `productionReady`، `webhookUrl`، مفاتيح Thawani (بدون قيم)
+- **`/api/check-env`:** NEXTAUTH_URL، PAYMENT_PROVIDER، THAWANI_PRODUCTION_READY، WEBHOOK_URL، hints
+- **`/admin/data`:** badge جاهزية + checklist + webhook URL كامل
+- **`docs/PRODUCTION-CHECKLIST.md`** + `npm run db:migrate:deploy`
+- **E2E:** check-env لا يكشف أسراراً
+
 ### جلسة 2026-05-31 (تابع 22) — PATCH عقود + address-book server-only delete guard
 
 - **`updateContract`:** PATCH `/api/contracts/[id]`؛ إنشاء POST عند غياب cache؛ إزالة bulk sync من `getAllContracts`

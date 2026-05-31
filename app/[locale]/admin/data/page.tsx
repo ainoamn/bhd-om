@@ -25,11 +25,18 @@ type LegacyBookingSettingsStatus = {
 type PaymentGatewayStatus = {
   provider: 'mock' | 'thawani';
   thawaniConfigured: boolean;
+  secretKeySet: boolean;
+  publishableKeySet: boolean;
   webhookSecretSet: boolean;
   webhookPath: string;
+  webhookUrl: string;
+  webhookHeader: string;
   successUrl: string;
   cancelUrl: string;
   nextAuthUrlSet: boolean;
+  siteBase: string | null;
+  productionReady: boolean;
+  checks: Array<{ id: string; ok: boolean; labelAr: string; labelEn: string }>;
 };
 
 export default function AdminDataPage() {
@@ -562,6 +569,29 @@ export default function AdminDataPage() {
                 ? 'مراجعة جاهزية Thawani على هذا السيرفر — اضبط المتغيرات في Vercel ثم webhook.'
                 : 'Thawani readiness on this server — set Vercel env vars then configure webhook.'}
             </p>
+            {paymentGw.productionReady ? (
+              <p className="mb-4 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                ✓ {ar ? 'جاهز للإنتاج (Thawani)' : 'Production ready (Thawani)'}
+              </p>
+            ) : (
+              <p className="mb-4 inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                {paymentGw.provider === 'mock'
+                  ? ar
+                    ? 'وضع mock — أضف مفاتيح Thawani في Vercel'
+                    : 'Mock mode — add Thawani keys in Vercel'
+                  : ar
+                    ? 'Thawani جزئياً — أكمل checklist أدناه'
+                    : 'Thawani partial — complete checklist below'}
+              </p>
+            )}
+            <ul className="mb-4 space-y-2">
+              {paymentGw.checks.map((c) => (
+                <li key={c.id} className="flex items-center gap-2 text-sm">
+                  <span className={c.ok ? 'text-emerald-600' : 'text-red-500'}>{c.ok ? '✓' : '✗'}</span>
+                  <span className="text-gray-800">{ar ? c.labelAr : c.labelEn}</span>
+                </li>
+              ))}
+            </ul>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <dt className="text-gray-500">{ar ? 'المزود' : 'Provider'}</dt>
@@ -578,12 +608,27 @@ export default function AdminDataPage() {
                 <dd className="font-semibold text-gray-900">{paymentGw.webhookSecretSet ? '✓' : '—'}</dd>
               </div>
               <div>
+                <dt className="text-gray-500">Secret key</dt>
+                <dd className="font-semibold text-gray-900">{paymentGw.secretKeySet ? '✓' : '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">Publishable key</dt>
+                <dd className="font-semibold text-gray-900">{paymentGw.publishableKeySet ? '✓' : '—'}</dd>
+              </div>
+              <div>
                 <dt className="text-gray-500">NEXTAUTH_URL</dt>
                 <dd className="font-semibold text-gray-900">{paymentGw.nextAuthUrlSet ? '✓' : '—'}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-gray-500">{ar ? 'Webhook' : 'Webhook'}</dt>
-                <dd className="font-mono text-xs text-gray-800 break-all">{paymentGw.webhookPath}</dd>
+                <dt className="text-gray-500">{ar ? 'Webhook (URL كامل)' : 'Webhook (full URL)'}</dt>
+                <dd className="font-mono text-xs text-gray-800 break-all">
+                  {paymentGw.webhookUrl || paymentGw.webhookPath}
+                </dd>
+                {paymentGw.webhookUrl && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {ar ? 'Header:' : 'Header:'} <code>{paymentGw.webhookHeader}</code>
+                  </p>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-gray-500">{ar ? 'Success URL' : 'Success URL'}</dt>

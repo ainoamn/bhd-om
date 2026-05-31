@@ -35,18 +35,69 @@ function resolveProvider(): PaymentProvider {
   return 'mock';
 }
 
+export type PaymentGatewayCheck = {
+  id: string;
+  ok: boolean;
+  labelAr: string;
+  labelEn: string;
+};
+
 /** حالة بوابة الدفع — للمراجعة من لوحة الإدارة */
 export function getPaymentGatewayStatus() {
   const provider = resolveProvider();
   const siteBase = (process.env.NEXTAUTH_URL || '').replace(/\/$/, '');
+  const secretKeySet = !!(process.env.THAWANI_SECRET_KEY || '').trim();
+  const publishableKeySet = !!(process.env.THAWANI_PUBLISHABLE_KEY || '').trim();
+  const webhookSecretSet = !!(process.env.THAWANI_WEBHOOK_SECRET || '').trim();
+  const nextAuthUrlSet = !!siteBase;
+  const webhookPath = '/api/webhooks/thawani';
+  const webhookUrl = siteBase ? `${siteBase}${webhookPath}` : '';
+
+  const checks: PaymentGatewayCheck[] = [
+    {
+      id: 'nextauth_url',
+      ok: nextAuthUrlSet,
+      labelAr: 'NEXTAUTH_URL مضبوط',
+      labelEn: 'NEXTAUTH_URL is set',
+    },
+    {
+      id: 'thawani_secret',
+      ok: secretKeySet,
+      labelAr: 'THAWANI_SECRET_KEY مضبوط',
+      labelEn: 'THAWANI_SECRET_KEY is set',
+    },
+    {
+      id: 'thawani_publishable',
+      ok: publishableKeySet,
+      labelAr: 'THAWANI_PUBLISHABLE_KEY مضبوط',
+      labelEn: 'THAWANI_PUBLISHABLE_KEY is set',
+    },
+    {
+      id: 'webhook_secret',
+      ok: webhookSecretSet,
+      labelAr: 'THAWANI_WEBHOOK_SECRET مضبوط',
+      labelEn: 'THAWANI_WEBHOOK_SECRET is set',
+    },
+  ];
+
+  const productionReady =
+    provider === 'thawani' && nextAuthUrlSet && secretKeySet && publishableKeySet && webhookSecretSet;
+
   return {
     provider,
     thawaniConfigured: provider === 'thawani',
-    webhookSecretSet: !!(process.env.THAWANI_WEBHOOK_SECRET || '').trim(),
-    webhookPath: '/api/webhooks/thawani',
+    secretKeySet,
+    publishableKeySet,
+    webhookSecretSet,
+    webhookPath,
+    webhookUrl,
+    webhookHeader: 'x-webhook-secret',
     successUrl: process.env.THAWANI_SUCCESS_URL || (siteBase ? `${siteBase}/ar/payment/success` : ''),
     cancelUrl: process.env.THAWANI_CANCEL_URL || (siteBase ? `${siteBase}/ar/payment/cancel` : ''),
-    nextAuthUrlSet: !!siteBase,
+    nextAuthUrlSet,
+    siteBase: siteBase || null,
+    productionReady,
+    checks,
   };
 }
 

@@ -95,6 +95,17 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('check-env returns safe production hints without secrets', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/check-env`);
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.NEXTAUTH_SECRET).toMatch(/معرّف|غير معرّف/);
+    expect(body.DATABASE_URL).toMatch(/معرّف|غير معرّف/);
+    expect(['mock', 'thawani']).toContain(body.PAYMENT_PROVIDER);
+    expect(body.THAWANI_PRODUCTION_READY).toMatch(/نعم|لا/);
+    expect(JSON.stringify(body)).not.toMatch(/sk_|secret_key|THAWANI_SECRET/i);
+  });
+
   test('public upload PATCH rejects missing fields', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-upload-access`, {
       headers: e2eBrowserHeaders(),
