@@ -9,6 +9,24 @@ on:
 jobs:
   e2e-api:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bhd_om
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bhd_om
+      NEXTAUTH_SECRET: ci-test-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
 
@@ -25,25 +43,35 @@ jobs:
 
       - name: Apply database migrations
         run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Build application
         run: npm run build
-        env:
-          NEXTAUTH_SECRET: ci-test-secret-not-for-production
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run API guard tests
         run: npm run test:e2e:api
         env:
           CI: true
-          NEXTAUTH_SECRET: ci-test-secret-not-for-production
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   e2e-critical:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bhd_om
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bhd_om
+      NEXTAUTH_SECRET: ci-test-secret-not-for-production
+      NEXTAUTH_URL: http://localhost:3000
       E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
     if: env.E2E_ADMIN_EMAIL != '' && env.E2E_ADMIN_PASSWORD != ''
@@ -63,23 +91,17 @@ jobs:
 
       - name: Apply database migrations
         run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Seed database for E2E logins
+        run: npx prisma db seed
 
       - name: Build application
         run: npm run build
-        env:
-          NEXTAUTH_SECRET: ci-test-secret-not-for-production
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run critical flow tests
         run: npm run test:e2e:critical
         env:
           CI: true
-          NEXTAUTH_SECRET: ci-test-secret-not-for-production
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
-          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
           E2E_SECURITY_PIN: ${{ secrets.E2E_SECURITY_PIN }}
           E2E_ACCOUNTANT_EMAIL: ${{ secrets.E2E_ACCOUNTANT_EMAIL }}
           E2E_ACCOUNTANT_PASSWORD: ${{ secrets.E2E_ACCOUNTANT_PASSWORD }}
