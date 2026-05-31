@@ -43,12 +43,14 @@ export async function fetchPublicContractBundle(opts: {
 }
 
 export async function patchPublicContractAccess(body: {
-  action: 'syncDocuments' | 'saveChecks';
+  action: 'syncDocuments' | 'saveChecks' | 'updateBooking';
   bookingId: string;
   email?: string;
   phone?: string;
+  civilId?: string;
   documents?: BookingDocument[];
   checks?: BookingCheckEntry[];
+  updates?: Partial<PropertyBooking>;
 }): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   try {
@@ -57,7 +59,12 @@ export async function patchPublicContractAccess(body: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return res.ok;
+    if (!res.ok) return false;
+    if (body.action === 'updateBooking') {
+      const data = (await res.json()) as { booking?: PropertyBooking };
+      if (data.booking) mergeBookingsFromServer([data.booking]);
+    }
+    return true;
   } catch {
     return false;
   }

@@ -3,6 +3,7 @@ import { parseBookingStorageRow } from '@/lib/server/bookingContractGate';
 import { findBookingStorageForPublicUpload } from '@/lib/server/repositories/bookingStorageRepo';
 import { listBookingDocumentsFromDb, saveBookingDocumentsToDb } from '@/lib/server/repositories/bookingDocumentStorageRepo';
 import { getChecksForBookingFromDb, saveChecksForBookingToDb } from '@/lib/server/bookingChecksServer';
+import { extractBookingStorageDenorm } from '@/lib/server/bookingStorageDenorm';
 import type { BookingDocument } from '@/lib/data/bookingDocuments';
 import type { BookingCheckEntry } from '@/lib/data/bookingChecks';
 
@@ -192,24 +193,58 @@ export async function verifyPublicContractTenant(opts: {
   bookingId: string;
   email?: string;
   phone?: string;
+  civilId?: string;
 }): Promise<Record<string, unknown> | null> {
   const bookingId = opts.bookingId.trim();
   if (!bookingId) return null;
-  const email = (opts.email || '').trim();
-  const phone = (opts.phone || '').trim();
 
   const row = await prisma.bookingStorage.findUnique({ where: { bookingId } });
   if (!row) return null;
   const booking = rowToBooking(row);
   if (!booking) return null;
 
-  const emailOk =
-    email.length >= 3 && String(booking.email || '').trim().toLowerCase() === email.toLowerCase();
-  const phoneOk =
-    normalizePublicPhone(phone).length >= 6 &&
-    normalizePublicPhone(String(booking.phone || '')) === normalizePublicPhone(phone);
-  if (!emailOk && !phoneOk) return null;
+  if (!bookingMatchesIdentity(booking, opts)) return null;
   return booking;
+}
+
+const PUBLIC_BOOKING_PROFILE_KEYS = [
+  'name',
+  'email',
+  'phone',
+  'civilId',
+  'passportNumber',
+  'contactId',
+] as const;
+
+/** تحديث بيانات الحاجز (الملف الشخصي) من صفحة شروط العقد — بدون login */
+export async function updatePublicContractBooking(opts: {
+  bookingId: string;
+  email?: string;
+  phone?: string;
+  civilId?: string;
+  updates: Record<string, unknown>;
+}): Promise<{ ok: true; booking: Record<string, unknown> } | { ok: false; error: string }> {
+  const verified = await verifyPublicContractTenant(opts);
+  if (!verified) return { ok: false, error: 'BOOKING_NOT_FOUND' };
+
+  const merged: Record<string, unknown> = { ...verified };
+  for (const key of PUBLIC_BOOKING_PROFILE_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(opts.updates, key)) {
+      const val = opts.updates[key];
+      if (val !== undefined) merged[key] = val;
+    }
+  }
+
+  const bookingId = String(merged.id || opts.bookingId);
+  const data = JSON.stringify(merged);
+  const denorm = extractBookingStorageDenorm(merged);
+  await prisma.bookingStorage.upsert({
+    where: { bookingId },
+    create: { bookingId, data, ...denorm },
+    update: { data, updatedAt: new Date(), ...denorm },
+  });
+
+  return { ok: true, booking: merged };
 }
 
 export async function getPublicContractBundle(opts: {

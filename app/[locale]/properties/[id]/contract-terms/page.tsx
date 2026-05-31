@@ -1192,19 +1192,25 @@ export default function ContractTermsPage() {
     setProfileError('');
     setShowCompleteProfile(false);
     if (bookingId) {
-        fetch('/api/bookings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedBooking),
-          credentials: 'include',
-        })
-          .then((res) => {
-            if (res.ok) {
-              clearDraft(`contract_terms_${bookingId}`);
-              alert(ar ? 'تم إرسال الطلب بنجاح. ستظهر البيانات والمستندات لدى الإدارة للتحقق والاعتماد.' : 'Request sent successfully. Your data and documents will appear for admin verification and approval.');
-            }
-          })
-          .catch(() => {});
+      void patchPublicContractAccess({
+        action: 'updateBooking',
+        bookingId,
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        civilId: civilId.trim() || undefined,
+        updates: {
+          name: fullName,
+          phone: phoneVal,
+          email: emailVal || undefined,
+          civilId: omani ? civilVal : passVal || undefined,
+          passportNumber: !omani ? passVal : undefined,
+        },
+      }).then((ok) => {
+        if (ok) {
+          clearDraft(`contract_terms_${bookingId}`);
+          alert(ar ? 'تم إرسال الطلب بنجاح. ستظهر البيانات والمستندات لدى الإدارة للتحقق والاعتماد.' : 'Request sent successfully. Your data and documents will appear for admin verification and approval.');
+        }
+      });
     }
   };
 

@@ -3,6 +3,7 @@ import {
   getPublicContractBundle,
   savePublicContractChecks,
   syncPublicContractDocuments,
+  updatePublicContractBooking,
 } from '@/lib/server/publicContractAccess';
 import { isAllowedBrowserOrigin } from '@/lib/server/requestOrigin';
 import type { BookingDocument } from '@/lib/data/bookingDocuments';
@@ -52,6 +53,7 @@ export async function PATCH(req: NextRequest) {
     const bookingId = String(body.bookingId || '').trim();
     const email = String(body.email || '').trim() || undefined;
     const phone = String(body.phone || '').trim() || undefined;
+    const civilId = String(body.civilId || '').trim() || undefined;
 
     if (!bookingId || !action) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -73,6 +75,18 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: result.error === 'BOOKING_NOT_FOUND' ? 404 : 400 });
       }
       return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'updateBooking') {
+      const updates =
+        body.updates && typeof body.updates === 'object' && !Array.isArray(body.updates)
+          ? (body.updates as Record<string, unknown>)
+          : {};
+      const result = await updatePublicContractBooking({ bookingId, email, phone, civilId, updates });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.error === 'BOOKING_NOT_FOUND' ? 404 : 400 });
+      }
+      return NextResponse.json({ ok: true, booking: result.booking });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

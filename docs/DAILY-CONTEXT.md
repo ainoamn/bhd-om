@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 12) — PATCH عام لحفظ ملف الحاجز من contract-terms
+
+- **`updatePublicContractBooking`** في `publicContractAccess.ts`: تحديث `name/email/phone/civilId/passportNumber/contactId` بعد تحقق email/phone/civilId.
+- **PATCH `public-contract-access`:** action جديد `updateBooking` يُرجع `{ ok, booking }`.
+- **`publicContractAccessClient`:** دعم `updateBooking` + دمج الحجز في localStorage.
+- **contract-terms:** استبدال `POST /api/bookings` (يتطلب login) بـ PATCH عام بعد إكمال الملف الشخصي.
+- **E2E:** guard لـ `updateBooking` مع حجز غير موجود → 404.
+
 ### جلسة 2026-05-31 (تابع 11) — contract-terms: مستندات وشيكات عبر API عام
 
 - **PATCH `/api/bookings/public-contract-access`:** `syncDocuments` + `saveChecks` مع تحقق email/phone.

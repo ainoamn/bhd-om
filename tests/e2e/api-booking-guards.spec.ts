@@ -111,6 +111,18 @@ test.describe('API guards — booking & contract path', () => {
     expect([400, 404]).toContain(res.status());
   });
 
+  test('public contract access PATCH updateBooking returns 404 for unknown booking', async ({ request }) => {
+    const res = await request.patch(`${baseURL}/api/bookings/public-contract-access`, {
+      data: {
+        action: 'updateBooking',
+        bookingId: 'BKG-NO-SUCH',
+        email: 'nobody@example.com',
+        updates: { name: 'Test User' },
+      },
+    });
+    expect(res.status()).toBe(404);
+  });
+
   test('thawani webhook rejects invalid secret when configured', async ({ request }) => {
     test.skip(!process.env.THAWANI_WEBHOOK_SECRET, 'Requires THAWANI_WEBHOOK_SECRET');
     const res = await request.post(`${baseURL}/api/webhooks/thawani`, {
