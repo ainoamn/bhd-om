@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 41) — لوحة جاهزية الإنتاج + أخطاء دفع أوضح
+
+- **`GET /api/admin/production-readiness`:** `database` ping + `overall` (DB، env، Thawani، legacy)
+- **`/admin/data`:** بطاقة جاهزية حية (4 مؤشرات، تحديث، نسخ إعداد Webhook)
+- **`/properties/.../book`:** خطأ `PAYMENT_INIT` مع تفاصيل من API
+- **`npm run test:ci`:** build + test:e2e:verify
+- **E2E:** production-readiness يتحقق من `database` و `overall`
+- **CI yaml:** تنظيف التنسيق — commit `7f37dbf`
+
 ### جلسة 2026-05-31 (تابع 40) — CI موحّد + توثيق E2E
 
 - **GitHub Actions:** job واحد `e2e-verify` بدل `e2e-api` + `e2e-critical` — build/migrate/seed مرة واحدة + `test:e2e:verify` — commit `811adc9`
