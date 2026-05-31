@@ -27,6 +27,8 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bhd_om
       NEXTAUTH_SECRET: ci-test-secret-not-for-production
       NEXTAUTH_URL: http://localhost:3000
+      E2E_ADMIN_EMAIL: admin@bhd-om.com
+      E2E_ADMIN_PASSWORD: admin123
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +56,8 @@ jobs:
         run: npm run test:e2e:api
         env:
           CI: true
+          E2E_ADMIN_EMAIL: admin@bhd-om.com
+          E2E_ADMIN_PASSWORD: admin123
 
   e2e-critical:
     runs-on: ubuntu-latest

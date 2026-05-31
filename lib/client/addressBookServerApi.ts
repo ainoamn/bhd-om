@@ -1,6 +1,6 @@
 'use client';
 
-import type { Contact, ContactCategory } from '@/lib/data/addressBook';
+import type { Contact } from '@/lib/data/addressBook';
 import { generateContactSerialNumberFromList, newContactId } from '@/lib/data/addressBook';
 
 export type AddressBookSaveErrorCode =

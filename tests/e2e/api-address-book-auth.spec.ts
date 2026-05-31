@@ -88,8 +88,9 @@ test.describe('API — address book (authenticated admin)', () => {
     const a = buildTestContact(`${suffix}-a`, phone, `${suffix.slice(-4)}1`.padStart(4, '0'));
     const b = buildTestContact(`${suffix}-b`, phone, `${suffix.slice(-4)}2`.padStart(4, '0'));
 
+    // POST dedupes same phone — bulk upsert simulates legacy duplicate rows still in DB
     expect((await page.request.post('/api/address-book', { data: a })).ok()).toBeTruthy();
-    expect((await page.request.post('/api/address-book', { data: b })).ok()).toBeTruthy();
+    expect((await page.request.post('/api/address-book/bulk', { data: [b] })).ok()).toBeTruthy();
 
     const summaryRes = await page.request.get('/api/admin/address-book/merge-duplicates');
     expect(summaryRes.ok()).toBeTruthy();

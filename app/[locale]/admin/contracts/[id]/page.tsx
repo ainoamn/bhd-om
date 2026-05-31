@@ -33,9 +33,10 @@ import {
   calcRentBaseForFees,
   calcOtherTax,
 } from '@/lib/contractCalculations';
-import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, isOmaniNationality, isCompanyContact, type Contact } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, isOmaniNationality, isCompanyContact, mergeServerContactIntoLocalStorage, type Contact } from '@/lib/data/addressBook';
 import { applyContactUpdateOnServer, saveContactToServer } from '@/lib/client/addressBookServerApi';
 import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
+import { emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import ContactFormModal from '@/components/admin/ContactFormModal';
 import { mergeBookingsFromServer, updateBooking, type PropertyBooking } from '@/lib/data/bookings';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
@@ -1014,7 +1015,9 @@ export default function ContractDetailPage() {
                   }
                 }
                 if (!lc) return;
-                await saveContactToServer(applyContactUpdateOnServer(lc, payload));
+                const saved = await saveContactToServer(applyContactUpdateOnServer(lc, payload));
+                mergeServerContactIntoLocalStorage(saved);
+                emitAddressBookUpdated();
               } catch {
                 /* ignore */
               }

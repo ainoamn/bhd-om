@@ -30,7 +30,7 @@ export async function GET() {
     hints.push('أضف NEXTAUTH_URL=https://www.bhd-om.com');
   }
   if (payment.provider === 'mock') {
-    hints.push('Thawani غير مفعّل — أضف THAWANI_SECRET_KEY و THAWANI_PUBLISHABLE_KEY للدفع الحقيقي');
+    hints.push('Thawani غير مفعّل — أضف مفاتيح Thawani (Secret + Publishable) في Vercel');
   } else if (!payment.productionReady) {
     hints.push('Thawani جزئياً — أكمل THAWANI_WEBHOOK_SECRET وربط webhook في لوحة Thawani');
   }

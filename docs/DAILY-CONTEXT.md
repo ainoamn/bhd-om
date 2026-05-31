@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 39) — إصلاح E2E + تحقق build
+
+- **E2E merge-duplicates:** الاختبار يستخدم `POST /api/address-book/bulk` لمحاكاة تكرار legacy (POST العادي ي dedupe الهاتف)
+- **E2E check-env:** فحص الأسرار على حقول الحالة فقط؛ نص التلميح لا يذكر أسماء متغيرات حساسة
+- **CI:** `E2E_ADMIN_EMAIL/PASSWORD` في job `e2e-api`
+- **`npm run build`** ✅ — **`npm run test:e2e:verify`** ✅ (58 passed, 3 skipped)
+
 ### جلسة 2026-05-31 (تابع 38) — Thawani metadata + E2E webhook + CI critical
 
 - **Thawani:** `bookingId` في metadata و `client_reference_id` + `customer_email` من `payment/initiate`

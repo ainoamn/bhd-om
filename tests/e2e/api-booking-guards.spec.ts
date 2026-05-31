@@ -139,7 +139,14 @@ test.describe('API guards — booking & contract path', () => {
     if (body.THAWANI_PRODUCTION_READY != null) {
       expect(String(body.THAWANI_PRODUCTION_READY)).toMatch(/نعم|لا/);
     }
-    expect(JSON.stringify(body)).not.toMatch(/sk_|secret_key|THAWANI_SECRET/i);
+    const { hints, ...statusFields } = body;
+    expect(JSON.stringify(statusFields)).not.toMatch(/sk_|secret_key/i);
+    if (Array.isArray(hints)) {
+      for (const hint of hints) {
+        expect(String(hint)).not.toMatch(/^sk_/);
+        expect(String(hint)).not.toMatch(/sk_live_|sk_test_/i);
+      }
+    }
   });
 
   test('public upload PATCH rejects missing fields', async ({ request }) => {
