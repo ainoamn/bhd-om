@@ -176,6 +176,22 @@ export function saveBookingChecks(
   save(all);
 }
 
+/** دمج شيكات من الخادم لحجز واحد */
+export function applyChecksSnapshot(bookingId: string, checks: BookingCheckEntry[]): void {
+  if (typeof window === 'undefined' || !bookingId || checks.length === 0) return;
+  const all = getStored();
+  const idx = all.findIndex((e) => e.bookingId === bookingId);
+  const entry = { bookingId, checks };
+  if (idx >= 0) all[idx] = entry;
+  else all.push(entry);
+  checksStore = all;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function updateCheckEntry(
   bookingId: string,
   checkTypeId: string,

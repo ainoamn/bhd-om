@@ -104,6 +104,13 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(404);
   });
 
+  test('public contract access PATCH rejects missing fields', async ({ request }) => {
+    const res = await request.patch(`${baseURL}/api/bookings/public-contract-access`, {
+      data: { action: 'saveChecks', bookingId: 'BKG-TEST' },
+    });
+    expect([400, 404]).toContain(res.status());
+  });
+
   test('thawani webhook rejects invalid secret when configured', async ({ request }) => {
     test.skip(!process.env.THAWANI_WEBHOOK_SECRET, 'Requires THAWANI_WEBHOOK_SECRET');
     const res = await request.post(`${baseURL}/api/webhooks/thawani`, {

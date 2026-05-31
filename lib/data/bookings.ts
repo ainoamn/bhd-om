@@ -522,23 +522,9 @@ export async function fetchPublicContractBookingsFromServer(opts: {
   phone?: string;
   civilId?: string;
 }): Promise<PropertyBooking[]> {
-  if (typeof window === 'undefined') return [];
-  const qs = new URLSearchParams();
-  if (opts.propertyId != null) qs.set('propertyId', String(opts.propertyId));
-  if (opts.bookingId) qs.set('bookingId', opts.bookingId);
-  if (opts.email) qs.set('email', opts.email);
-  if (opts.phone) qs.set('phone', opts.phone);
-  if (opts.civilId) qs.set('civilId', opts.civilId);
-  try {
-    const res = await fetch(`/api/bookings/public-contract-access?${qs.toString()}`, { cache: 'no-store' });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { bookings?: PropertyBooking[] };
-    const list = Array.isArray(data.bookings) ? data.bookings : [];
-    if (list.length > 0) mergeBookingsFromServer(list);
-    return list;
-  } catch {
-    return [];
-  }
+  const { fetchPublicContractBundle } = await import('@/lib/data/publicContractAccessClient');
+  const bundle = await fetchPublicContractBundle(opts);
+  return bundle.bookings;
 }
 
 /** مزامنة جميع الحجوزات مع دفتر العناوين - إضافة جهات اتصال للحجوزات التي لا تملك جهة في الدفتر */

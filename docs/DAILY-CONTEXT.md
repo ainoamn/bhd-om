@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 11) — contract-terms: مستندات وشيكات عبر API عام
+
+- **PATCH `/api/bookings/public-contract-access`:** `syncDocuments` + `saveChecks` مع تحقق email/phone.
+- **GET:** يُرجع `documents` + `checks` مع الحجز.
+- **`bookingChecksServer.ts`** + **`publicContractAccessClient.ts`**.
+- **contract-terms:** رفع مستندات عبر `public-upload-access`؛ مزامنة شيكات/مستندات للخادم.
+
 ### جلسة 2026-05-31 (تابع 10) — contract-terms + receipt server-first
 
 - **APIs عامة:** `GET /api/bookings/public-contract-access` و `GET /api/bookings/public-receipt`.

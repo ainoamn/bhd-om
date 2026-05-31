@@ -1,9 +1,12 @@
-/**
- * وصول عام لصفحة شروط العقد — التحقق بالبريد/الهاتف/الرقم المدني أو رابط bookingId.
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { findBookingsForPublicContractAccess } from '@/lib/server/publicContractAccess';
+import {
+  getPublicContractBundle,
+  savePublicContractChecks,
+  syncPublicContractDocuments,
+} from '@/lib/server/publicContractAccess';
+import { isAllowedBrowserOrigin } from '@/lib/server/requestOrigin';
+import type { BookingDocument } from '@/lib/data/bookingDocuments';
+import type { BookingCheckEntry } from '@/lib/data/bookingChecks';
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,22 +22,62 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'bookingId or identity field required' }, { status: 400 });
     }
 
-    const bookings = await findBookingsForPublicContractAccess({
+    const bundle = await getPublicContractBundle({
       propertyId,
       bookingId,
       email,
       phone,
       civilId,
-      allowRented: !!bookingId,
     });
 
-    if (bookings.length === 0) {
+    if (bundle.bookings.length === 0) {
       return NextResponse.json({ error: 'BOOKING_NOT_FOUND' }, { status: 404 });
     }
 
-    return NextResponse.json({ bookings });
+    return NextResponse.json(bundle);
   } catch (e) {
     console.error('GET /api/bookings/public-contract-access', e);
     return NextResponse.json({ error: 'Failed to verify access' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    if (!isAllowedBrowserOrigin(req)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = (await req.json()) as Record<string, unknown>;
+    const action = String(body.action || '');
+    const bookingId = String(body.bookingId || '').trim();
+    const email = String(body.email || '').trim() || undefined;
+    const phone = String(body.phone || '').trim() || undefined;
+
+    if (!bookingId || !action) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (action === 'syncDocuments') {
+      const documents = Array.isArray(body.documents) ? (body.documents as BookingDocument[]) : [];
+      const result = await syncPublicContractDocuments({ bookingId, email, phone, documents });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.error === 'BOOKING_NOT_FOUND' ? 404 : 400 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'saveChecks') {
+      const checks = Array.isArray(body.checks) ? (body.checks as BookingCheckEntry[]) : [];
+      const result = await savePublicContractChecks({ bookingId, email, phone, checks });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.error === 'BOOKING_NOT_FOUND' ? 404 : 400 });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  } catch (e) {
+    console.error('PATCH /api/bookings/public-contract-access', e);
+    return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }

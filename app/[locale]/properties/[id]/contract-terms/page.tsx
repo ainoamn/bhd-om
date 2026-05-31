@@ -11,12 +11,10 @@ import { getChecksByBooking, saveBookingChecks, areAllChecksApproved } from '@/l
 import { getBookingsByProperty, fetchPublicContractBookingsFromServer, getUnitDisplayFromProperty } from '@/lib/data/bookings';
 import {
   getDocumentsByBooking,
-  uploadDocument,
   createDocumentRequests,
   addMissingDocumentRequests,
   removeDocumentRequest,
   removeDocumentRequestsByTypes,
-  replaceFileInDocument,
   getDocumentFiles,
   hasRejectedFiles,
   formatDocumentTimestamp,
@@ -34,6 +32,11 @@ import DateInput from '@/components/shared/DateInput';
 import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { saveDraft, loadDraft, clearDraft } from '@/lib/utils/draftStorage';
 import { getRequiredFieldClass, showMissingFieldsAlert } from '@/lib/utils/requiredFields';
+import {
+  fetchPublicContractBundle,
+  patchPublicContractAccess,
+  persistPublicDocumentUpload,
+} from '@/lib/data/publicContractAccessClient';
 
 /** جلب جهة الاتصال للحجز مع تفضيل النوع المطابق (شخصي/شركة) لتجنب الخلط عند تشابه الهاتف */
 function getContactForBooking(b: PropertyBooking) {
@@ -530,6 +533,13 @@ export default function ContractTermsPage() {
       imageUrl: imageOverrides?.[idx] ?? chequeImageUrls[idx] ?? stored[idx]?.imageUrl,
     }));
     saveBookingChecks(bookingId, entries);
+    void patchPublicContractAccess({
+      action: 'saveChecks',
+      bookingId,
+      email: booking?.email,
+      phone: booking?.phone,
+      checks: getChecksByBooking(bookingId),
+    });
   };
 
   const handleChequeAccountChange = (field: 'accountNumber' | 'accountName', value: string) => {
@@ -767,6 +777,21 @@ export default function ContractTermsPage() {
     setBooking(match);
     setDocs(docList);
     setMatchedBookings([]);
+    void patchPublicContractAccess({
+      action: 'syncDocuments',
+      bookingId: match.id,
+      email: match.email,
+      phone: match.phone,
+      documents: docList,
+    });
+    void fetchPublicContractBundle({
+      bookingId: match.id,
+      propertyId: propId,
+      email: match.email,
+      phone: match.phone,
+    }).then(({ documents }) => {
+      if (documents.length > 0) setDocs(documents);
+    });
     if (contact && isCompanyContact(contact)) {
       const reps = contact.companyData?.authorizedRepresentatives || [];
       const loaded = reps.length > 0
@@ -1237,14 +1262,14 @@ export default function ContractTermsPage() {
       }
 
       let active = true;
-      void fetchPublicContractBookingsFromServer({
+      void fetchPublicContractBundle({
         propertyId: propId,
         bookingId: bookingIdParam,
         email: emailParam || undefined,
         phone: phoneParam || undefined,
         civilId: civilIdParam || undefined,
-      }).then((list) => {
-        const serverMatch = list.find((b) => b.id === bookingIdParam) ?? list[0];
+      }).then((bundle) => {
+        const serverMatch = bundle.bookings.find((b) => b.id === bookingIdParam) ?? bundle.bookings[0];
         if (!active) return;
         if (serverMatch) {
           const merged: PropertyBooking = localMatch
@@ -1253,6 +1278,7 @@ export default function ContractTermsPage() {
           loadBookingIntoView(merged);
           if (merged.email) setEmail(merged.email);
           if (merged.phone) setPhone(merged.phone);
+          if (bundle.documents.length > 0) setDocs(bundle.documents);
           setVerifyError('');
         } else if (!localMatch) {
           setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
@@ -1265,13 +1291,13 @@ export default function ContractTermsPage() {
         active = false;
       };
     } else if ((emailParam || phoneParam || civilIdParam) && mounted) {
-      void fetchPublicContractBookingsFromServer({
+      void fetchPublicContractBundle({
         propertyId: parseInt(id, 10),
         email: emailParam || undefined,
         phone: phoneParam || undefined,
         civilId: civilIdParam || undefined,
-      }).then((list) => {
-        const matches = list.filter((b) => {
+      }).then((bundle) => {
+        const matches = bundle.bookings.filter((b) => {
           if (b.type !== 'BOOKING' || (b.status !== 'PENDING' && b.status !== 'CONFIRMED')) return false;
           if (emailParam && b.email?.toLowerCase() === emailParam.trim().toLowerCase()) return true;
           if (phoneParam && normalizePhone(b.phone) === normalizePhone(phoneParam)) return true;
@@ -1352,6 +1378,11 @@ export default function ContractTermsPage() {
   const handleFileSelect = async (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
+    const tenantEmail = (booking?.email || email).trim();
+    if (!bookingId || !tenantEmail) {
+      alert(ar ? 'أدخل البريد الإلكتروني للتحقق' : 'Enter your email to verify');
+      return;
+    }
     setUploadingId(docId);
     try {
       for (let i = 0; i < files.length; i++) {
@@ -1361,8 +1392,17 @@ export default function ContractTermsPage() {
         const res = await fetch('/api/upload/booking-documents', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.url) {
-          const uploadedBy = booking ? getBookingDisplayName(booking, locale) : undefined;
-          uploadDocument(docId, data.url, file.name, uploadedBy);
+          const saved = await persistPublicDocumentUpload({
+            bookingId,
+            email: tenantEmail,
+            docId,
+            fileUrl: data.url,
+            fileName: file.name,
+            action: 'upload',
+          });
+          if (!saved) {
+            alert(ar ? 'فشل حفظ المستند على الخادم' : 'Failed to save document on server');
+          }
         } else {
           alert(data?.error || (ar ? 'فشل الرفع' : 'Upload failed'));
         }
@@ -1388,6 +1428,11 @@ export default function ContractTermsPage() {
   const handleReplaceFileSelect = async (docId: string, oldFileUrl: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
+    const tenantEmail = (booking?.email || email).trim();
+    if (!bookingId || !tenantEmail) {
+      alert(ar ? 'أدخل البريد الإلكتروني للتحقق' : 'Enter your email to verify');
+      return;
+    }
     setUploadingId(docId);
     try {
       const file = files[0];
@@ -1396,8 +1441,17 @@ export default function ContractTermsPage() {
       const res = await fetch('/api/upload/booking-documents', { method: 'POST', body: formData });
       const data = await res.json();
       if (data.url) {
-        replaceFileInDocument(docId, oldFileUrl, data.url, file.name);
-        refreshDocs();
+        const saved = await persistPublicDocumentUpload({
+          bookingId,
+          email: tenantEmail,
+          docId,
+          fileUrl: data.url,
+          fileName: file.name,
+          action: 'replace',
+          oldFileUrl,
+        });
+        if (saved) refreshDocs();
+        else alert(ar ? 'فشل حفظ المستند على الخادم' : 'Failed to save document on server');
       } else {
         alert(data?.error || (ar ? 'فشل الرفع' : 'Upload failed'));
       }

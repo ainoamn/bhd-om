@@ -1,5 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { parseBookingStorageRow } from '@/lib/server/bookingContractGate';
+import { findBookingStorageForPublicUpload } from '@/lib/server/repositories/bookingStorageRepo';
+import { listBookingDocumentsFromDb, saveBookingDocumentsToDb } from '@/lib/server/repositories/bookingDocumentStorageRepo';
+import { getChecksForBookingFromDb, saveChecksForBookingToDb } from '@/lib/server/bookingChecksServer';
+import type { BookingDocument } from '@/lib/data/bookingDocuments';
+import type { BookingCheckEntry } from '@/lib/data/bookingChecks';
 
 const DEEP_LINK_STATUSES = new Set(['PENDING', 'CONFIRMED', 'RENTED']);
 const VERIFY_STATUSES = new Set(['PENDING', 'CONFIRMED']);
@@ -181,4 +186,74 @@ export async function getPublicBookingReceipt(opts: {
   }
 
   return { booking, receipt, contact };
+}
+
+export async function verifyPublicContractTenant(opts: {
+  bookingId: string;
+  email?: string;
+  phone?: string;
+}): Promise<Record<string, unknown> | null> {
+  const bookingId = opts.bookingId.trim();
+  if (!bookingId) return null;
+  const email = (opts.email || '').trim();
+  const phone = (opts.phone || '').trim();
+
+  const row = await prisma.bookingStorage.findUnique({ where: { bookingId } });
+  if (!row) return null;
+  const booking = rowToBooking(row);
+  if (!booking) return null;
+
+  const emailOk =
+    email.length >= 3 && String(booking.email || '').trim().toLowerCase() === email.toLowerCase();
+  const phoneOk =
+    normalizePublicPhone(phone).length >= 6 &&
+    normalizePublicPhone(String(booking.phone || '')) === normalizePublicPhone(phone);
+  if (!emailOk && !phoneOk) return null;
+  return booking;
+}
+
+export async function getPublicContractBundle(opts: {
+  propertyId?: number;
+  bookingId?: string;
+  email?: string;
+  phone?: string;
+  civilId?: string;
+}): Promise<{
+  bookings: Record<string, unknown>[];
+  documents: BookingDocument[];
+  checks: BookingCheckEntry[];
+}> {
+  const bookings = await findBookingsForPublicContractAccess({
+    ...opts,
+    allowRented: !!opts.bookingId,
+  });
+  const primaryId = String(opts.bookingId || bookings[0]?.id || '').trim();
+  const documents = primaryId ? await listBookingDocumentsFromDb({ bookingId: primaryId }) : [];
+  const checks = primaryId ? await getChecksForBookingFromDb(primaryId) : [];
+  return { bookings, documents, checks };
+}
+
+export async function syncPublicContractDocuments(opts: {
+  bookingId: string;
+  email?: string;
+  phone?: string;
+  documents: BookingDocument[];
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const verified = await verifyPublicContractTenant(opts);
+  if (!verified) return { ok: false, error: 'BOOKING_NOT_FOUND' };
+  const docs = (opts.documents || []).filter((d) => d.bookingId === opts.bookingId);
+  await saveBookingDocumentsToDb(docs);
+  return { ok: true };
+}
+
+export async function savePublicContractChecks(opts: {
+  bookingId: string;
+  email?: string;
+  phone?: string;
+  checks: BookingCheckEntry[];
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const verified = await verifyPublicContractTenant(opts);
+  if (!verified) return { ok: false, error: 'BOOKING_NOT_FOUND' };
+  await saveChecksForBookingToDb(opts.bookingId, opts.checks);
+  return { ok: true };
 }
