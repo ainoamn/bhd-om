@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 17) — واجهة admin/data لـ legacy + mock payment complete
+
+- **`/admin/data`:** بطاقة ترحيل/حذف legacy (مستندات + شيكات) مع عرض الحالة.
+- **`payment/initiate`:** حفظ `PaymentPending` للـ mock أيضاً (مسار Thawani-like عبر `/payment/complete`).
+- **E2E:** اختبار `payment/complete` مع mock + pendingBooking.
+- **`.env.example`:** أوامر migrate + backfill legacy.
+
 ### جلسة 2026-05-31 (تابع 16) — تنظيف legacy booking settings
 
 - **`legacyBookingSettingsCleanup.ts`:** status + backfill كامل + verify + purge لمفاتيح AppSetting.

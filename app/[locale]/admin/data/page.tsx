@@ -1,13 +1,26 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
   resetAllOperationalData,
   clearClientCachesAfterServerDbReset,
 } from '@/lib/data/backup';
+
+const PURGE_LEGACY_CONFIRM = 'PURGE-LEGACY-BOOKING-SETTINGS';
+
+type LegacyBookingSettingsStatus = {
+  legacyDocumentCount: number;
+  legacyCheckBookingCount: number;
+  legacyCheckRowCount: number;
+  tableDocumentCount: number;
+  tableCheckCount: number;
+  legacyDocumentsPresent: boolean;
+  legacyChecksPresent: boolean;
+  fullyMigrated: boolean;
+};
 
 export default function AdminDataPage() {
   const params = useParams();
@@ -29,6 +42,106 @@ export default function AdminDataPage() {
   const [pinChangeMsg, setPinChangeMsg] = useState<string | null>(null);
   const [pinChangeErr, setPinChangeErr] = useState<string | null>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
+  const [legacyStatus, setLegacyStatus] = useState<LegacyBookingSettingsStatus | null>(null);
+  const [legacyBusy, setLegacyBusy] = useState(false);
+  const [legacyMsg, setLegacyMsg] = useState<string | null>(null);
+  const [legacyErr, setLegacyErr] = useState<string | null>(null);
+  const [legacyPurgeConfirm, setLegacyPurgeConfirm] = useState(false);
+
+  const loadLegacyStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/legacy-booking-settings', { cache: 'no-store', credentials: 'include' });
+      if (!res.ok) return;
+      const data = (await res.json()) as LegacyBookingSettingsStatus;
+      setLegacyStatus(data);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') return;
+    void loadLegacyStatus();
+  }, [status, userRole, loadLegacyStatus]);
+
+  const handleLegacyBackfill = async () => {
+    setLegacyBusy(true);
+    setLegacyErr(null);
+    setLegacyMsg(null);
+    try {
+      const res = await fetch('/api/admin/legacy-booking-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'backfill' }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        documentsMigrated?: number;
+        checksMigrated?: number;
+        status?: LegacyBookingSettingsStatus;
+      };
+      if (!res.ok) {
+        setLegacyErr(data.error || (ar ? 'فشل الترحيل' : 'Backfill failed'));
+        return;
+      }
+      if (data.status) setLegacyStatus(data.status);
+      setLegacyMsg(
+        ar
+          ? `تم الترحيل: ${data.documentsMigrated ?? 0} مستند، ${data.checksMigrated ?? 0} شيك.`
+          : `Migrated: ${data.documentsMigrated ?? 0} documents, ${data.checksMigrated ?? 0} checks.`
+      );
+    } catch {
+      setLegacyErr(ar ? 'خطأ شبكة' : 'Network error');
+    } finally {
+      setLegacyBusy(false);
+    }
+  };
+
+  const handleLegacyPurge = async () => {
+    if (!legacyPurgeConfirm) return;
+    setLegacyBusy(true);
+    setLegacyErr(null);
+    setLegacyMsg(null);
+    try {
+      const res = await fetch('/api/admin/legacy-booking-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'purge', confirm: PURGE_LEGACY_CONFIRM }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        removed?: string[];
+        status?: LegacyBookingSettingsStatus;
+        verify?: { missingDocuments?: number; missingChecks?: number };
+      };
+      if (!res.ok) {
+        if (data.verify) {
+          setLegacyErr(
+            ar
+              ? `لم يكتمل الترحيل: ${data.verify.missingDocuments ?? 0} مستند، ${data.verify.missingChecks ?? 0} شيك ناقص.`
+              : `Migration incomplete: ${data.verify.missingDocuments ?? 0} docs, ${data.verify.missingChecks ?? 0} checks missing.`
+          );
+        } else {
+          setLegacyErr(data.error || (ar ? 'فشل الحذف' : 'Purge failed'));
+        }
+        return;
+      }
+      if (data.status) setLegacyStatus(data.status);
+      setLegacyMsg(
+        ar
+          ? `تم حذف مفاتيح legacy: ${(data.removed || []).join(', ') || '—'}`
+          : `Removed legacy keys: ${(data.removed || []).join(', ') || '—'}`
+      );
+      setLegacyPurgeConfirm(false);
+    } catch {
+      setLegacyErr(ar ? 'خطأ شبكة' : 'Network error');
+    } finally {
+      setLegacyBusy(false);
+    }
+  };
 
   const handleResetLocal = () => {
     if (!localResetConfirm) return;
@@ -414,6 +527,103 @@ export default function AdminDataPage() {
             />
           </div>
         </div>
+
+        {/* ترحيل legacy مستندات/شيكات الحجز */}
+        {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+          <div className="admin-card p-6 sm:p-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <span className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">📋</span>
+              {ar ? 'ترحيل مستندات وشيكات الحجز (legacy)' : 'Booking documents & checks migration (legacy)'}
+            </h2>
+            <p className="text-gray-600 text-sm mb-4">
+              {ar
+                ? 'نقل البيانات من AppSetting (booking_documents_settings / booking_checks_settings) إلى الجداول المفهرسة. بعد التحقق يمكن حذف مفاتيح legacy.'
+                : 'Move data from AppSetting JSON keys into indexed tables. Purge legacy keys after verification.'}
+            </p>
+            {legacyMsg && (
+              <div className="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">{legacyMsg}</div>
+            )}
+            {legacyErr && (
+              <div className="mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm">{legacyErr}</div>
+            )}
+            {legacyStatus && (
+              <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4 text-sm">
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <dt className="text-gray-500">{ar ? 'مستندات legacy' : 'Legacy docs'}</dt>
+                  <dd className="font-semibold text-gray-900">{legacyStatus.legacyDocumentCount}</dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <dt className="text-gray-500">{ar ? 'شيكات legacy' : 'Legacy checks'}</dt>
+                  <dd className="font-semibold text-gray-900">{legacyStatus.legacyCheckRowCount}</dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <dt className="text-gray-500">{ar ? 'جدول المستندات' : 'Document rows'}</dt>
+                  <dd className="font-semibold text-gray-900">{legacyStatus.tableDocumentCount}</dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <dt className="text-gray-500">{ar ? 'جدول الشيكات' : 'Check rows'}</dt>
+                  <dd className="font-semibold text-gray-900">{legacyStatus.tableCheckCount}</dd>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 col-span-2 sm:col-span-1">
+                  <dt className="text-gray-500">{ar ? 'جاهز للحذف' : 'Fully migrated'}</dt>
+                  <dd className={`font-semibold ${legacyStatus.fullyMigrated ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {legacyStatus.fullyMigrated ? (ar ? 'نعم' : 'Yes') : ar ? 'لا — شغّل الترحيل' : 'No — run backfill'}
+                  </dd>
+                </div>
+              </dl>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={legacyBusy}
+                onClick={() => void handleLegacyBackfill()}
+                className="px-5 py-2.5 rounded-xl font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              >
+                {legacyBusy ? (ar ? 'جاري الترحيل…' : 'Migrating…') : ar ? 'ترحيل من legacy' : 'Backfill from legacy'}
+              </button>
+              <button
+                type="button"
+                disabled={legacyBusy}
+                onClick={() => void loadLegacyStatus()}
+                className="px-5 py-2.5 rounded-xl font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:opacity-50 transition-colors"
+              >
+                {ar ? 'تحديث الحالة' : 'Refresh status'}
+              </button>
+              {!legacyPurgeConfirm ? (
+                <button
+                  type="button"
+                  disabled={legacyBusy || !legacyStatus?.fullyMigrated}
+                  onClick={() => {
+                    setLegacyPurgeConfirm(true);
+                    setLegacyErr(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {ar ? 'حذف مفاتيح legacy' : 'Purge legacy keys'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={legacyBusy}
+                    onClick={() => void handleLegacyPurge()}
+                    className="px-5 py-2.5 rounded-xl font-semibold bg-red-700 text-white hover:bg-red-800 disabled:opacity-50 transition-colors"
+                  >
+                    {ar ? 'تأكيد الحذف' : 'Confirm purge'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={legacyBusy}
+                    onClick={() => setLegacyPurgeConfirm(false)}
+                    className="px-5 py-2.5 rounded-xl font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+                  >
+                    {ar ? 'إلغاء' : 'Cancel'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* تصفير بيانات المتصفح التشغيلية + نسخ محلي */}
         <div className="admin-card p-6 sm:p-8">

@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error, code: result.code }, { status: 400 });
     }
 
-    if (pendingBooking && result.redirectUrl) {
+    if (pendingBooking && result.paymentReferenceNo) {
       await savePaymentPending({
         sessionId: result.paymentReferenceNo,
         userId: auth.userId,

@@ -105,4 +105,67 @@ test.describe('Booking happy path (mock payment → server → public contract)'
     );
     await expect(page.locator('body')).toBeVisible();
   });
+
+  test('completes mock payment via payment/complete (Thawani-like flow)', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD (or run locally with seeded admin)');
+
+    await loginWithCredentials(page, creds!);
+
+    const ts = Date.now();
+    const identity = buildE2EBookingIdentity(ts);
+    const propertyId = Number(process.env.E2E_PROPERTY_ID || 1);
+    const depositAmount = 50;
+
+    const pendingBooking = {
+      id: identity.bookingId,
+      propertyId,
+      unitKey: identity.unitKey,
+      propertyTitleAr: 'عقار E2E complete',
+      propertyTitleEn: 'E2E Complete Property',
+      name: 'مستأجر E2E Complete',
+      email: identity.email,
+      phone: identity.phone,
+      type: 'BOOKING',
+      status: 'PENDING',
+      priceAtBooking: depositAmount,
+    };
+
+    const payRes = await page.request.post('/api/bookings/payment/initiate', {
+      data: {
+        amount: depositAmount,
+        propertyId,
+        unitKey: identity.unitKey,
+        payerEmail: identity.email,
+        payerName: 'E2E Complete Tenant',
+        bookingType: 'BOOKING',
+        locale: 'ar',
+        pendingBooking,
+      },
+    });
+    expect(payRes.ok()).toBeTruthy();
+    const payData = (await payRes.json()) as { paymentReferenceNo?: string; provider?: string };
+    expect(payData.provider).toBe('mock');
+    const sessionId = payData.paymentReferenceNo || '';
+    expect(sessionId).toMatch(/^PAY-/);
+
+    const completeRes = await page.request.get(
+      `/api/bookings/payment/complete?session_id=${encodeURIComponent(sessionId)}`
+    );
+    expect(completeRes.ok()).toBeTruthy();
+    const completeData = (await completeRes.json()) as { bookingId?: string; propertyId?: number };
+    expect(completeData.bookingId).toBe(identity.bookingId);
+    expect(completeData.propertyId).toBe(propertyId);
+
+    const bundleQs = new URLSearchParams({
+      bookingId: identity.bookingId,
+      email: identity.email,
+    });
+    const bundleRes = await page.request.get(
+      `/api/bookings/public-contract-access?${bundleQs.toString()}`
+    );
+    expect(bundleRes.ok()).toBeTruthy();
+    const bundle = (await bundleRes.json()) as { bookings?: { paymentConfirmed?: boolean }[] };
+    expect(bundle.bookings?.[0]?.paymentConfirmed).toBe(true);
+  });
 });
