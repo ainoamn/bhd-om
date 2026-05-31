@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '@/lib/utils/csvExport';
 
 interface ClaimsPaymentsExportButtonsProps {
   tableData: Array<Record<string, string | number>>;
@@ -52,11 +52,7 @@ export default function ClaimsPaymentsExportButtons({
   const handleExcel = () => {
     const labels = headers.map((h) => (ar ? h.labelAr : h.labelEn));
     const rows = tableData.map((row) => headers.map((h) => row[h.key] ?? ''));
-    const data = [labels, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, filename.slice(0, 31));
-    XLSX.writeFile(wb, `${filename}.xlsx`);
+    downloadCsv(filename, [labels, ...rows]);
   };
 
   const handleWord = () => {

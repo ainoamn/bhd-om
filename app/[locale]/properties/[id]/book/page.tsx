@@ -345,14 +345,46 @@ export default function PropertyBookPage() {
     setSubmitStatus('idle');
     setSubmitError(null);
     const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
+    const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
     try {
-      await new Promise((r) => setTimeout(r, 1500));
+      const payerName =
+        contactType === 'COMPANY' ? companyForm.companyNameAr.trim() : formData.name.trim();
+      const payRes = await fetch('/api/bookings/payment/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: depositAmount,
+          propertyId: property.id,
+          unitKey,
+          payerEmail: formData.email.trim(),
+          payerName,
+          bookingType: 'BOOKING',
+        }),
+      });
+      if (!payRes.ok) {
+        setBookingPaymentCooldown(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone);
+        setPayCooldownRemainingMs(
+          getBookingPaymentCooldownRemainingMs(property.id, unitKey, sessionUserId, formData.email?.trim() || '', mainPhone)
+        );
+        setSubmitStatus('error');
+        setSubmitError('OTHER');
+        return;
+      }
+      const payData = (await payRes.json()) as {
+        paymentReferenceNo?: string;
+        paymentDate?: string;
+        redirectUrl?: string;
+      };
+      if (payData.redirectUrl) {
+        window.location.href = payData.redirectUrl;
+        return;
+      }
       setIsProcessingPayment(false);
-      const paymentReferenceNo = `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-      const paymentDate = new Date().toISOString();
+      const paymentReferenceNo = String(payData.paymentReferenceNo || '');
+      const paymentDate = String(payData.paymentDate || new Date().toISOString());
       const isCompany = contactType === 'COMPANY';
       const repId = `rep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const mainPhone = getFullPhone(formData.phoneCountryCode || '968', formData.phone);
       const repPhone = isCompany ? getFullPhone(companyForm.repPhoneCountryCode || '968', companyForm.repPhone) : '';
       const booking = prepareBookingForSave({
         propertyId: property.id,

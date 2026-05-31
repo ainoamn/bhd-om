@@ -352,9 +352,9 @@
 
 ### أولوية عالية
 - ~~جدول Prisma مستقل للعقود (`ContractStorage`)~~ — **2026-05-31:** `ContractStorage` + `/api/contracts` + backfill من BookingStorage.
-- إكمال فصل واجهة العقود نهائياً عن `localStorage` (تحويل دوال القراءة/الكتابة إلى async server-only داخل `lib/server`).
+- إكمال فصل واجهة العقود نهائياً عن `localStorage` — **جزئي 2026-05-31:** ذاكرة مؤقتة + `fetchContractsFromServer` + ترحيل legacy.
 - توحيد مسار مستندات الحجز/العقد بحيث يكون مصدره الخادم بالكامل.
-- بوابة دفع حقيقية بدل المحاكاة في `/book`.
+- ~~بوابة دفع حقيقية بدل المحاكاة في `/book`.~~ — **2026-05-31:** `paymentGateway.ts` + `/api/bookings/payment/initiate` (mock؛ Thawani عند `THAWANI_*`).
 
 ### أولوية متوسطة
 - تقليل الـ fallback المحلي في `address-book` أكثر (الإبقاء فقط للحالات الطارئة).

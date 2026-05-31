@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '@/lib/utils/csvExport';
 
 type ReportView = 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger';
 
@@ -49,7 +49,6 @@ export default function ReportExportButtons({
   };
 
   const handleExcel = () => {
-    const wb = XLSX.utils.book_new();
     if (reportView === 'trial' && trialBalance.length > 0) {
       const data = [
         [ar ? 'الرمز' : 'Code', ar ? 'الاسم' : 'Account', ar ? 'مدين' : 'Debit', ar ? 'دائن' : 'Credit'],
@@ -61,8 +60,7 @@ export default function ReportExportButtons({
         ]),
         ['', ar ? 'الإجمالي' : 'Total', trialBalance.reduce((s, r) => s + r.debit, 0), trialBalance.reduce((s, r) => s + r.credit, 0)],
       ];
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, reportLabel.slice(0, 31));
+      downloadCsv(filename, data);
     } else if (reportView === 'income' && incomeStatement) {
       const rows: (string | number)[][] = [[ar ? 'الإيرادات' : 'Revenue'], [ar ? 'الرمز' : 'Code', ar ? 'الاسم' : 'Name', ar ? 'المبلغ' : 'Amount']];
       incomeStatement.revenue.items.forEach((i) => rows.push([i.code, ar ? i.nameAr : i.nameEn, i.amount]));
@@ -74,8 +72,7 @@ export default function ReportExportButtons({
       rows.push([ar ? 'إجمالي المصروفات' : 'Total Expenses', '', incomeStatement.expense.total]);
       rows.push([]);
       rows.push([ar ? 'صافي الدخل' : 'Net Income', '', incomeStatement.netIncome]);
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, reportLabel.slice(0, 31));
+      downloadCsv(filename, rows);
     } else if (reportView === 'balance' && balanceSheet) {
       const rows: (string | number)[][] = [
         [ar ? 'الأصول' : 'Assets'],
@@ -90,8 +87,7 @@ export default function ReportExportButtons({
         [ar ? 'حقوق الملكية' : 'Equity'],
         ...balanceSheet.equity.map((i) => [i.code, ar ? i.nameAr : i.nameEn, i.amount]),
       ];
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, reportLabel.slice(0, 31));
+      downloadCsv(filename, rows);
     } else if (reportView === 'cashflow' && cashFlow) {
       const rows = [
         [ar ? 'التشغيل' : 'Operating', cashFlow.operating],
@@ -99,13 +95,10 @@ export default function ReportExportButtons({
         [ar ? 'التمويل' : 'Financing', cashFlow.financing],
         [ar ? 'التدفق الصافي' : 'Net Change', cashFlow.netChange],
       ];
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, reportLabel.slice(0, 31));
+      downloadCsv(filename, rows);
     } else {
-      const ws = XLSX.utils.aoa_to_sheet([[reportLabel, reportFrom, reportTo]]);
-      XLSX.utils.book_append_sheet(wb, ws, 'Report');
+      downloadCsv(filename, [[reportLabel, reportFrom, reportTo]]);
     }
-    XLSX.writeFile(wb, `${filename}.xlsx`);
   };
 
   const handleWord = () => {

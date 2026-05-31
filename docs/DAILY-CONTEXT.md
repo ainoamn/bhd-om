@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 3) — بوابة دفع + عقود server-only + إزالة xlsx
+
+- **الدفع:** `lib/server/paymentGateway.ts` (mock / Thawani عند ضبط `THAWANI_*`) + `POST /api/bookings/payment/initiate`؛ صفحة `/book` تستدعي API قبل إنشاء الحجز.
+- **العقود:** `lib/data/contracts.ts` — ذاكرة مؤقتة فقط؛ ترحيل legacy من localStorage ثم حذفه؛ `fetchContractsFromServer()`.
+- **أمان:** إزالة `xlsx`؛ تصدير Excel → CSV (`lib/utils/csvExport.ts`).
+- **اختبار:** `payment initiate requires authentication`.
+
 ### جلسة 2026-05-31 (تابع 2) — ContractStorage + أمان HTTP + CI
 
 - **ContractStorage:** جدول Prisma مستقل للعقود مع فهرسة `propertyId/status/contractKind`؛ `/api/contracts` يقرأ/يكتب من الجدول مع dual-write إلى BookingStorage؛ backfill تدريجي.

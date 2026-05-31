@@ -1,6 +1,6 @@
 /**
  * عقود الإيجار - إدارة كاملة
- * تُخزّن في localStorage
+ * المصدر: الخادم (ContractStorage) — ذاكرة مؤقتة في المتصفح فقط
  */
 
 import { updateProperty, updatePropertyUnit } from './properties';
@@ -292,17 +292,34 @@ function syncContractToServer(contract: RentalContract): void {
   }).catch(() => {});
 }
 
+let didMigrateLegacyLocalStorage = false;
+
+function migrateLegacyLocalStorageOnce(): void {
+  if (typeof window === 'undefined' || didMigrateLegacyLocalStorage) return;
+  didMigrateLegacyLocalStorage = true;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const legacy = JSON.parse(raw) as RentalContract[];
+    if (Array.isArray(legacy) && legacy.length > 0) {
+      contractsStore = legacy;
+      syncAllContractsToServer();
+    }
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 function getStored(): RentalContract[] {
   if (typeof window === 'undefined') return [];
+  migrateLegacyLocalStorageOnce();
   return contractsStore;
 }
 
 function save(list: RentalContract[]) {
   if (typeof window === 'undefined') return;
-  try {
-    contractsStore = list;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch {}
+  contractsStore = list;
 }
 
 function generateId() {
@@ -340,19 +357,32 @@ export function getAllContracts(): RentalContract[] {
 export function mergeContractsFromServer(list: RentalContract[]): number {
   const incoming = Array.isArray(list) ? list : [];
   if (incoming.length === 0) return 0;
-  const current = getStored();
-  const map = new Map(current.map((c) => [c.id, c] as const));
-  let changed = 0;
+  const map = new Map<string, RentalContract>();
   for (const c of incoming) {
-    if (!c?.id) continue;
-    const prev = map.get(c.id);
-    if (!prev || String(prev.updatedAt || '') !== String(c.updatedAt || '')) {
-      map.set(c.id, c);
-      changed++;
-    }
+    if (c?.id) map.set(c.id, c);
   }
-  if (changed > 0) save(Array.from(map.values()));
-  return changed;
+  const next = Array.from(map.values());
+  const changed = next.length !== contractsStore.length;
+  contractsStore = next;
+  return changed ? next.length : 0;
+}
+
+/** جلب العقود من الخادم — للصفحات التي تحتاج بيانات محدّثة */
+export async function fetchContractsFromServer(opts?: {
+  limit?: number;
+  offset?: number;
+}): Promise<RentalContract[]> {
+  if (typeof window === 'undefined') return [];
+  const qs = new URLSearchParams();
+  qs.set('limit', String(opts?.limit ?? 500));
+  qs.set('offset', String(opts?.offset ?? 0));
+  const res = await fetch(`/api/contracts?${qs.toString()}`, { cache: 'no-store', credentials: 'include' });
+  const list = res.ok ? ((await res.json()) as RentalContract[]) : [];
+  if (Array.isArray(list) && list.length > 0) {
+    mergeContractsFromServer(list);
+    didHydrateContractsFromServer = true;
+  }
+  return getStored();
 }
 
 export function syncAllContractsToServer(): number {
