@@ -7,7 +7,7 @@ import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBo
 import { fetchPaginatedList } from '@/lib/api/fetchPaginatedList';
 import ListPagination from '@/components/admin/ListPagination';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
-import { resolveContractFromBooking, hasActiveContractForUnit, type RentalContract } from '@/lib/data/contracts';
+import { resolveContractFromBooking, hasActiveContractForUnitFromServer, fetchContractsFromServer, type RentalContract } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation, ensureBookingDocumentsHydrated } from '@/lib/data/bookingDocuments';
 import { migrateLegacyBookingIdentityDocumentsForBookings } from '@/lib/data/migrateBookingIdentityDocs';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
@@ -66,9 +66,10 @@ function isUnitAvailableForBooking(
   propertyId: number,
   unitKey: string | undefined,
   bookings: PropertyBooking[],
+  serverContracts: RentalContract[],
   excludeBookingId?: string
 ): boolean {
-  if (hasActiveContractForUnit(propertyId, unitKey)) return false;
+  if (hasActiveContractForUnitFromServer(propertyId, unitKey, bookings, serverContracts)) return false;
   const hasActiveBooking = bookings.some(
     (b) =>
       b.id !== excludeBookingId &&
@@ -118,6 +119,7 @@ export default function AdminBookingsPage() {
   const [migratingIdentityDocs, setMigratingIdentityDocs] = useState(false);
   const [listPage, setListPage] = useState(0);
   const [listTotal, setListTotal] = useState(0);
+  const [serverContracts, setServerContracts] = useState<RentalContract[]>([]);
   const BOOKINGS_LIST_PAGE_SIZE = 50;
   const propertyDropdownRef = useRef<HTMLDivElement>(null);
   const unitDropdownRef = useRef<HTMLDivElement>(null);
@@ -134,6 +136,10 @@ export default function AdminBookingsPage() {
   }, []);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    void fetchContractsFromServer({ limit: 500 }).then(setServerContracts).catch(() => setServerContracts([]));
+  }, []);
 
   const loadData = useCallback(async () => {
     if (typeof window !== 'undefined') syncPaidBookingsToAccounting();
@@ -970,7 +976,7 @@ export default function AdminBookingsPage() {
                   alert(ar ? 'يرجى اختيار العميل من دفتر العناوين أو إضافة جهة اتصال جديدة.' : 'Please select a client from the address book or add a new contact.');
                   return;
                 }
-                if (!isUnitAvailableForBooking(propId, manualForm.unitKey || undefined, bookings, editingBookingId || undefined)) {
+                if (!isUnitAvailableForBooking(propId, manualForm.unitKey || undefined, bookings, serverContracts, editingBookingId || undefined)) {
                   alert(ar ? 'الوحدة المحددة محجوزة أو مؤجرة. يرجى اختيار وحدة أخرى.' : 'The selected unit is booked or rented. Please select another unit.');
                   return;
                 }
@@ -1139,7 +1145,7 @@ export default function AdminBookingsPage() {
                         .filter((p: { id: number }) => {
                           const prop = getPropertyById(p.id, dataOverrides) as { propertySubTypeAr?: string };
                           const isMulti = prop?.propertySubTypeAr === 'متعدد الوحدات';
-                          if (!isMulti && !isUnitAvailableForBooking(p.id, undefined, bookings, editingBookingId || undefined)) return false;
+                          if (!isMulti && !isUnitAvailableForBooking(p.id, undefined, bookings, serverContracts, editingBookingId || undefined)) return false;
                           return true;
                         })
                         .map((p: { id: number }) => {
@@ -1205,7 +1211,7 @@ export default function AdminBookingsPage() {
                   ...showrooms.map((_, i) => ({ key: `showroom-${i}`, unitType: ar ? 'معرض' : 'Showroom', unitNum: String(i + 1) })),
                   ...apartments.map((_, i) => ({ key: `apartment-${i}`, unitType: ar ? 'شقة' : 'Apartment', unitNum: String(i + 1) })),
                 ];
-                const units = allUnits.filter((u) => isUnitAvailableForBooking(propId, u.key || undefined, bookings, editingBookingId || undefined));
+                const units = allUnits.filter((u) => isUnitAvailableForBooking(propId, u.key || undefined, bookings, serverContracts, editingBookingId || undefined));
                 return (
                   <>
                     <div ref={unitDropdownRef} className="relative">

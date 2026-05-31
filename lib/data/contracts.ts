@@ -371,17 +371,23 @@ export function mergeContractsFromServer(list: RentalContract[]): number {
 export async function fetchContractsFromServer(opts?: {
   limit?: number;
   offset?: number;
+  propertyId?: number;
 }): Promise<RentalContract[]> {
   if (typeof window === 'undefined') return [];
   const qs = new URLSearchParams();
   qs.set('limit', String(opts?.limit ?? 500));
   qs.set('offset', String(opts?.offset ?? 0));
+  if (opts?.propertyId != null && Number.isFinite(opts.propertyId)) {
+    qs.set('propertyId', String(opts.propertyId));
+  }
   const res = await fetch(`/api/contracts?${qs.toString()}`, { cache: 'no-store', credentials: 'include' });
   const list = res.ok ? ((await res.json()) as RentalContract[]) : [];
   if (Array.isArray(list) && list.length > 0) {
     mergeContractsFromServer(list);
     didHydrateContractsFromServer = true;
+    return list;
   }
+  if (opts?.propertyId != null) return [];
   return getStored();
 }
 
@@ -488,26 +494,88 @@ export function bookingHasServerContract(b: PropertyBooking): boolean {
   );
 }
 
+function unitKeysMatch(a?: string, b?: string): boolean {
+  return (a || '') === (b || '');
+}
+
+/** هل يوجد عقد نافذ للوحدة — من بيانات الخادم (ContractStorage + contractStage على الحجز) */
+export function hasActiveContractForUnitFromServer(
+  propertyId: number,
+  unitKey: string | undefined,
+  serverBookings: PropertyBooking[] = [],
+  serverContracts: RentalContract[] = []
+): boolean {
+  for (const c of serverContracts) {
+    if (Number(c.propertyId) !== propertyId || !unitKeysMatch(c.unitKey, unitKey)) continue;
+    if (c.status === 'DRAFT' || c.status === 'CANCELLED') continue;
+    if (isContractEnded(c)) continue;
+    return true;
+  }
+  for (const b of serverBookings) {
+    if (Number(b.propertyId) !== propertyId || !unitKeysMatch(b.unitKey, unitKey)) continue;
+    if (!bookingHasServerContract(b)) continue;
+    const stage = String(
+      (b as PropertyBooking & { contractStage?: unknown }).contractStage ||
+        resolveContractFromBooking(b)?.status ||
+        'DRAFT'
+    );
+    if (stage === 'DRAFT' || stage === 'CANCELLED') continue;
+    const resolved = resolveContractFromBooking(b);
+    if (resolved?.endDate && isContractEnded(resolved)) continue;
+    return true;
+  }
+  return false;
+}
+
+/** هل يوجد أي عقد للوحدة — من بيانات الخادم (بما فيه المسودة) */
+export function hasContractForUnitFromServer(
+  propertyId: number,
+  unitKey: string | undefined,
+  serverBookings: PropertyBooking[] = [],
+  serverContracts: RentalContract[] = []
+): boolean {
+  if (
+    serverContracts.some(
+      (c) => Number(c.propertyId) === propertyId && unitKeysMatch(c.unitKey, unitKey)
+    )
+  ) {
+    return true;
+  }
+  return serverBookings.some(
+    (b) =>
+      Number(b.propertyId) === propertyId &&
+      unitKeysMatch(b.unitKey, unitKey) &&
+      bookingHasServerContract(b)
+  );
+}
+
+/** ربط حجز بعقد من الخادم — ContractStorage ثم حقول الحجز */
+export function resolveContractForBookingFromServer(
+  b: PropertyBooking,
+  serverContracts: RentalContract[] = []
+): RentalContract | undefined {
+  const fromBooking = resolveContractFromBooking(b);
+  if (fromBooking) return fromBooking;
+  const contractId = String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim();
+  if (contractId) {
+    const byId = serverContracts.find((c) => c.id === contractId);
+    if (byId) return byId;
+  }
+  return serverContracts.find(
+    (c) =>
+      c.bookingId === b.id ||
+      (Number(c.propertyId) === Number(b.propertyId) && unitKeysMatch(c.unitKey, b.unitKey))
+  );
+}
+
 /** هل يوجد عقد نافذ للوحدة؟ (معتمد أو قيد الاعتماد) */
 export function hasActiveContractForUnit(propertyId: number, unitKey?: string): boolean {
-  const list = getStored();
-  return list.some(
-    (c) =>
-      c.propertyId === propertyId &&
-      (unitKey ? c.unitKey === unitKey : !c.unitKey) &&
-      c.status !== 'DRAFT' &&
-      !isContractEnded(c)
-  );
+  return hasActiveContractForUnitFromServer(propertyId, unitKey, [], getStored());
 }
 
 /** هل يوجد أي عقد للوحدة؟ (بما فيه المسودة - لقفل الحالة من صفحة الحجوزات) */
 export function hasContractForUnit(propertyId: number, unitKey?: string): boolean {
-  const list = getStored();
-  return list.some(
-    (c) =>
-      c.propertyId === propertyId &&
-      (unitKey ? c.unitKey === unitKey : !c.unitKey)
-  );
+  return hasContractForUnitFromServer(propertyId, unitKey, [], getStored());
 }
 
 function isContractEnded(c: RentalContract): boolean {

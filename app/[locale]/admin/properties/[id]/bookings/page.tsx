@@ -1,11 +1,17 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { getBookingsByProperty, updateBookingStatus, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, hasBookingFinancialLinkage, requestBookingCancellation, hasPendingCancellationRequest, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { updateBookingStatus, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, hasBookingFinancialLinkage, requestBookingCancellation, hasPendingCancellationRequest, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
+import { fetchPaginatedList } from '@/lib/api/fetchPaginatedList';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
-import { hasContractForUnit, getContractsByProperty } from '@/lib/data/contracts';
+import {
+  fetchContractsFromServer,
+  hasContractForUnitFromServer,
+  resolveContractForBookingFromServer,
+  type RentalContract,
+} from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
@@ -29,8 +35,10 @@ export default function PropertyBookingsPage() {
   const id = params?.id as string;
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
+  const propertyId = parseInt(id, 10);
 
   const [bookings, setBookings] = useState<PropertyBooking[]>([]);
+  const [serverContracts, setServerContracts] = useState<RentalContract[]>([]);
   const [propertyTitle, setPropertyTitle] = useState('');
   const [propertySerial, setPropertySerial] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'BOOKING' | 'VIEWING'>('ALL');
@@ -39,28 +47,42 @@ export default function PropertyBookingsPage() {
 
   useEffect(() => setMounted(true), []);
 
-  const loadData = () => {
+  const loadData = useCallback(async () => {
     const dataOverrides = getPropertyDataOverrides();
     const prop = getPropertyById(id, dataOverrides);
-    const baseProp = properties.find((p: { id: number }) => p.id === parseInt(id, 10));
+    const baseProp = properties.find((p: { id: number }) => p.id === propertyId);
     const serial = (prop as { serialNumber?: string })?.serialNumber || (baseProp as { serialNumber?: string })?.serialNumber || '';
     if (prop) {
       setPropertyTitle(ar ? prop.titleAr : prop.titleEn);
     }
     setPropertySerial(serial);
-    setBookings(getBookingsByProperty(parseInt(id, 10)));
-  };
+    try {
+      const [{ items }, contracts] = await Promise.all([
+        fetchPaginatedList<PropertyBooking>('/api/bookings', { propertyId, limit: 500, offset: 0 }),
+        fetchContractsFromServer({ propertyId, limit: 500 }),
+      ]);
+      setBookings(items);
+      setServerContracts(contracts);
+    } catch {
+      setBookings([]);
+      setServerContracts([]);
+    }
+  }, [ar, id, propertyId]);
 
   useEffect(() => {
-    loadData();
-    // مزامنة تلقائية: إنشاء إيصالات للحجوزات المدفوعة التي لا تملك إيصالاً في المحاسبة
-    syncPaidBookingsToAccounting(parseInt(id, 10));
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'bhd_property_bookings' || e.key === 'bhd_rental_contracts' || e.key === 'bhd_booking_documents' || e.key === 'bhd_booking_cancellation_requests') loadData();
+    void loadData();
+    syncPaidBookingsToAccounting(propertyId);
+    const onFocus = () => void loadData();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void loadData();
     };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [id, locale, ar]);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [loadData, propertyId]);
 
   const getUnitDisplay = (unitKey?: string) => {
     if (!unitKey) return { serial: '', label: '—' };
@@ -79,22 +101,16 @@ export default function PropertyBookingsPage() {
 
   const handleStatusChange = (bookingId: string, newStatus: BookingStatus) => {
     updateBookingStatus(bookingId, newStatus);
-    setBookings(getBookingsByProperty(parseInt(id, 10)));
+    void loadData();
   };
 
-  const contracts = getContractsByProperty(parseInt(id, 10));
-  const getContractForBooking = (b: PropertyBooking) =>
-    contracts.find(
-      (c) =>
-        c.bookingId === b.id ||
-        (b.contractId && c.id === b.contractId) ||
-        (c.propertyId === b.propertyId && (c.unitKey || '') === (b.unitKey || ''))
-    );
+  const getContractForBooking = (b: PropertyBooking) => resolveContractForBookingFromServer(b, serverContracts);
   const getApprovedContractForBooking = (b: PropertyBooking) => {
     const c = getContractForBooking(b);
     return c && c.status === 'APPROVED' ? c : undefined;
   };
-  const isStatusLocked = (b: PropertyBooking) => hasContractForUnit(parseInt(id, 10), b.unitKey);
+  const isStatusLocked = (b: PropertyBooking) =>
+    hasContractForUnitFromServer(propertyId, b.unitKey, bookings, serverContracts);
 
   const terms = getPropertyBookingTerms(id);
   const hasRequiredDocs = (terms.requiredDocTypes || []).some((r) => r.isRequired);
@@ -408,7 +424,7 @@ export default function PropertyBookingsPage() {
                                   return <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار المحاسبة (استرداد/خصم)' : '⏳ Pending accounting (refund)'}</p>;
                                 }
                                 return (
-                                  <button type="button" onClick={() => { requestBookingCancellation(b.id); setBookings(getBookingsByProperty(parseInt(id, 10))); }} className="text-xs text-red-600 hover:underline font-medium" title={ar ? 'يرسل الطلب للمحاسبة' : 'Sends to accounting'}>
+                                  <button type="button" onClick={() => { requestBookingCancellation(b.id); void loadData(); }} className="text-xs text-red-600 hover:underline font-medium" title={ar ? 'يرسل الطلب للمحاسبة' : 'Sends to accounting'}>
                                     {ar ? 'إلغاء الحجز' : 'Cancel booking'}
                                   </button>
                                 );
@@ -587,7 +603,7 @@ export default function PropertyBookingsPage() {
                             hasPendingCancellationRequest(b.id) ? (
                               <p className="text-xs text-amber-600">{ar ? '⏳ بانتظار المحاسبة' : '⏳ Pending accounting'}</p>
                             ) : (
-                              <button type="button" onClick={() => { requestBookingCancellation(b.id); setBookings(getBookingsByProperty(parseInt(id, 10))); }} className="text-xs text-red-600 hover:underline font-medium">{ar ? 'إلغاء الحجز' : 'Cancel booking'}</button>
+                              <button type="button" onClick={() => { requestBookingCancellation(b.id); void loadData(); }} className="text-xs text-red-600 hover:underline font-medium">{ar ? 'إلغاء الحجز' : 'Cancel booking'}</button>
                             )
                           ) : (
                             <button type="button" onClick={() => handleStatusChange(b.id, 'CANCELLED')} className="text-xs text-red-600 hover:underline font-medium">{ar ? 'إلغاء الحجز' : 'Cancel booking'}</button>

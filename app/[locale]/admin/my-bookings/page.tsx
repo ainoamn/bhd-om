@@ -15,7 +15,7 @@ import { ADDRESS_BOOK_UPDATED_EVENT } from '@/lib/utils/addressBookEvents';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { type PropertyBooking } from '@/lib/data/bookings';
 import { inferBookingContractStage } from '@/lib/data/bookingContractStage';
-import { resolveContractFromBooking, bookingHasServerContract, hasContractForUnit } from '@/lib/data/contracts';
+import { resolveContractFromBooking, bookingHasServerContract } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
@@ -70,9 +70,7 @@ function needsToCompleteContractData(
   const id = linked.id;
   const effectiveStatus = fullBooking?.status ?? linked.status;
   if (effectiveStatus === 'CANCELLED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD') return false;
-  const hasContract =
-    (fullBooking && bookingHasServerContract(fullBooking)) ||
-    hasContractForUnit(linked.propertyId, linked.unitKey);
+  const hasContract = !!(fullBooking && bookingHasServerContract(fullBooking));
   const c = fullBooking ? resolveContractFromBooking(fullBooking) : undefined;
   if (hasContract && c && c.status === 'APPROVED') return false;
   const docsNeedConfirmation = hasDocumentsNeedingConfirmation(id);
@@ -104,9 +102,7 @@ function getBookingStatusDisplay(
   if (effectiveStatus === 'RENTED') return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
   if (effectiveStatus === 'SOLD') return { main: ar ? STATUS_LABELS.SOLD.ar : STATUS_LABELS.SOLD.en };
 
-  const hasContract =
-    (fullBooking && bookingHasServerContract(fullBooking)) ||
-    hasContractForUnit(linked.propertyId, linked.unitKey);
+  const hasContract = !!(fullBooking && bookingHasServerContract(fullBooking));
   const c = fullBooking ? resolveContractFromBooking(fullBooking) : undefined;
 
   if (hasContract && c) {

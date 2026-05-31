@@ -22,6 +22,16 @@ type LegacyBookingSettingsStatus = {
   fullyMigrated: boolean;
 };
 
+type PaymentGatewayStatus = {
+  provider: 'mock' | 'thawani';
+  thawaniConfigured: boolean;
+  webhookSecretSet: boolean;
+  webhookPath: string;
+  successUrl: string;
+  cancelUrl: string;
+  nextAuthUrlSet: boolean;
+};
+
 export default function AdminDataPage() {
   const params = useParams();
   const { data: session, status } = useSession();
@@ -47,6 +57,7 @@ export default function AdminDataPage() {
   const [legacyMsg, setLegacyMsg] = useState<string | null>(null);
   const [legacyErr, setLegacyErr] = useState<string | null>(null);
   const [legacyPurgeConfirm, setLegacyPurgeConfirm] = useState(false);
+  const [paymentGw, setPaymentGw] = useState<PaymentGatewayStatus | null>(null);
 
   const loadLegacyStatus = useCallback(async () => {
     try {
@@ -59,11 +70,22 @@ export default function AdminDataPage() {
     }
   }, []);
 
+  const loadPaymentGatewayStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/payment-gateway', { cache: 'no-store', credentials: 'include' });
+      if (!res.ok) return;
+      setPaymentGw((await res.json()) as PaymentGatewayStatus);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     if (status !== 'authenticated') return;
     if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') return;
     void loadLegacyStatus();
-  }, [status, userRole, loadLegacyStatus]);
+    void loadPaymentGatewayStatus();
+  }, [status, userRole, loadLegacyStatus, loadPaymentGatewayStatus]);
 
   const handleLegacyBackfill = async () => {
     setLegacyBusy(true);
@@ -527,6 +549,49 @@ export default function AdminDataPage() {
             />
           </div>
         </div>
+
+        {/* بوابة الدفع */}
+        {paymentGw && (
+          <div className="admin-card p-6 sm:p-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <span className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-xl">💳</span>
+              {ar ? 'بوابة الدفع' : 'Payment gateway'}
+            </h2>
+            <p className="text-gray-600 text-sm mb-4">
+              {ar
+                ? 'مراجعة جاهزية Thawani على هذا السيرفر — اضبط المتغيرات في Vercel ثم webhook.'
+                : 'Thawani readiness on this server — set Vercel env vars then configure webhook.'}
+            </p>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-gray-500">{ar ? 'المزود' : 'Provider'}</dt>
+                <dd className="font-semibold text-gray-900">{paymentGw.provider}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">Thawani</dt>
+                <dd className={`font-semibold ${paymentGw.thawaniConfigured ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {paymentGw.thawaniConfigured ? (ar ? 'مُفعّل' : 'Configured') : ar ? 'mock (غير مُعد)' : 'mock (not configured)'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">{ar ? 'Webhook secret' : 'Webhook secret'}</dt>
+                <dd className="font-semibold text-gray-900">{paymentGw.webhookSecretSet ? '✓' : '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">NEXTAUTH_URL</dt>
+                <dd className="font-semibold text-gray-900">{paymentGw.nextAuthUrlSet ? '✓' : '—'}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-500">{ar ? 'Webhook' : 'Webhook'}</dt>
+                <dd className="font-mono text-xs text-gray-800 break-all">{paymentGw.webhookPath}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-500">{ar ? 'Success URL' : 'Success URL'}</dt>
+                <dd className="font-mono text-xs text-gray-800 break-all">{paymentGw.successUrl || '—'}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
 
         {/* ترحيل legacy مستندات/شيكات الحجز */}
         {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
