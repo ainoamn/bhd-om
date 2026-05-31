@@ -8,7 +8,7 @@ import { getPropertyById, getPropertyDataOverrides, getPropertyDisplayText } fro
 import { getPropertyExtraDataPairs } from '@/lib/data/propertyExtraData';
 import { getContractTypeTerms, getRequiredDocTypesForBooking, getChequeOwnerExtraDocRequirements, CHEQUE_OWNER_DOC_TYPE_IDS, CONTRACT_DOC_TYPES, CHECK_TYPES, type ContractType } from '@/lib/data/bookingTerms';
 import { getChecksByBooking, saveBookingChecks, areAllChecksApproved } from '@/lib/data/bookingChecks';
-import { getBookingsByProperty, getAllBookings, getUnitDisplayFromProperty } from '@/lib/data/bookings';
+import { getBookingsByProperty, fetchPublicContractBookingsFromServer, getUnitDisplayFromProperty } from '@/lib/data/bookings';
 import {
   getDocumentsByBooking,
   uploadDocument,
@@ -1154,24 +1154,23 @@ export default function ContractTermsPage() {
       updateContact(newContact.id, contactPayload);
     }
 
-    setBooking({
+    const updatedBooking = {
       ...booking,
       name: fullName,
       phone: phoneVal,
       email: emailVal || undefined,
       civilId: omani ? civilVal : passVal,
       passportNumber: !omani ? passVal : undefined,
-    } as PropertyBooking);
+    } as PropertyBooking;
+    setBooking(updatedBooking);
     setProfileFormErrors({});
     setProfileError('');
     setShowCompleteProfile(false);
     if (bookingId) {
-      const updated = getAllBookings().find((b) => b.id === bookingId);
-      if (updated) {
         fetch('/api/bookings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updated),
+          body: JSON.stringify(updatedBooking),
           credentials: 'include',
         })
           .then((res) => {
@@ -1181,7 +1180,6 @@ export default function ContractTermsPage() {
             }
           })
           .catch(() => {});
-      }
     }
   };
 
@@ -1194,20 +1192,21 @@ export default function ContractTermsPage() {
       setVerifyError(ar ? 'أدخل الرقم المدني أو رقم الهاتف أو البريد الإلكتروني' : 'Enter civil ID, phone number, or email');
       return;
     }
-    const allBookings = getAllBookings();
-    const matches = allBookings.filter(isMatch);
-    if (matches.length === 0) {
-      setVerifyError(ar ? 'لم يتم العثور على حجز بهذا الرقم المدني أو رقم الهاتف أو البريد' : 'No booking found with this civil ID, phone number, or email');
-    } else if (matches.length === 1) {
-      const match = matches[0];
-      if (match.propertyId !== parseInt(id, 10)) {
-        router.push(`/${locale}/properties/${match.propertyId}/contract-terms?bookingId=${match.id}`);
+    void fetchPublicContractBookingsFromServer({ email: emailVal, phone: phoneVal, civilId: civilIdVal }).then((serverList) => {
+      const matches = serverList.filter(isMatch);
+      if (matches.length === 0) {
+        setVerifyError(ar ? 'لم يتم العثور على حجز بهذا الرقم المدني أو رقم الهاتف أو البريد' : 'No booking found with this civil ID, phone number, or email');
+      } else if (matches.length === 1) {
+        const match = matches[0];
+        if (match.propertyId !== parseInt(id, 10)) {
+          router.push(`/${locale}/properties/${match.propertyId}/contract-terms?bookingId=${match.id}`);
+        } else {
+          loadBookingIntoView(match);
+        }
       } else {
-        loadBookingIntoView(match);
+        setMatchedBookings(matches);
       }
-    } else {
-      setMatchedBookings(matches);
-    }
+    });
   };
 
   const handleSelectBooking = (match: PropertyBooking) => {
@@ -1238,69 +1237,65 @@ export default function ContractTermsPage() {
       }
 
       let active = true;
-      (async () => {
-        try {
-          const res = await fetch('/api/bookings', { credentials: 'include' });
-          const list = res.ok ? await res.json() : [];
-          const serverMatch = Array.isArray(list)
-            ? list.find(
-                (b: any) =>
-                  b?.id === bookingIdParam &&
-                  b?.type === 'BOOKING' &&
-                  (b?.status === 'PENDING' || b?.status === 'CONFIRMED' || b?.status === 'RENTED') &&
-                  Number(b?.propertyId) === propId
-              )
-            : null;
-
-          if (!active) return;
-          if (serverMatch) {
-            // نفضّل بيانات السيرفر إذا كانت تحتوي على contractData أو contractKind المزامن.
-            const merged: PropertyBooking = localMatch
-              ? ({ ...localMatch, ...serverMatch, id: localMatch.id ?? serverMatch.id } as PropertyBooking)
-              : (serverMatch as PropertyBooking);
-
-            // لا نرسل الطلبات أو المستندات هنا؛ فقط نضمن أن محتوى العقد يظهر.
-            loadBookingIntoView(merged);
-            if (merged.email) setEmail(merged.email);
-            if (merged.phone) setPhone(merged.phone);
-            setVerifyError('');
-          } else if (!localMatch) {
-            setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
-          }
-        } catch {
-          if (!localMatch) setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
+      void fetchPublicContractBookingsFromServer({
+        propertyId: propId,
+        bookingId: bookingIdParam,
+        email: emailParam || undefined,
+        phone: phoneParam || undefined,
+        civilId: civilIdParam || undefined,
+      }).then((list) => {
+        const serverMatch = list.find((b) => b.id === bookingIdParam) ?? list[0];
+        if (!active) return;
+        if (serverMatch) {
+          const merged: PropertyBooking = localMatch
+            ? ({ ...localMatch, ...serverMatch, id: localMatch.id ?? serverMatch.id } as PropertyBooking)
+            : serverMatch;
+          loadBookingIntoView(merged);
+          if (merged.email) setEmail(merged.email);
+          if (merged.phone) setPhone(merged.phone);
+          setVerifyError('');
+        } else if (!localMatch) {
+          setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
         }
-      })();
+      }).catch(() => {
+        if (!localMatch) setVerifyError(ar ? 'رابط غير صالح أو انتهت صلاحيته' : 'Invalid or expired link');
+      });
 
       return () => {
         active = false;
       };
     } else if ((emailParam || phoneParam || civilIdParam) && mounted) {
-      const allBookings = getAllBookings();
-      const matches = allBookings.filter((b) => {
-        if (b.type !== 'BOOKING' || (b.status !== 'PENDING' && b.status !== 'CONFIRMED')) return false;
-        if (emailParam && b.email?.toLowerCase() === emailParam.trim().toLowerCase()) return true;
-        if (phoneParam && normalizePhone(b.phone) === normalizePhone(phoneParam)) return true;
-        if (civilIdParam && normalizeCivilId((b as { civilId?: string }).civilId || '') === normalizeCivilId(civilIdParam)) return true;
-        if (civilIdParam && normalizeCivilId((b as { passportNumber?: string }).passportNumber || '') === normalizeCivilId(civilIdParam)) return true;
-        return false;
-      });
-      setPhone(phoneParam || '');
-      setEmail(emailParam || '');
-      setCivilId(civilIdParam || '');
-      setVerifyError('');
-      if (matches.length === 1) {
-        const match = matches[0];
-        if (match.propertyId !== parseInt(id, 10)) {
-          router.push(`/${locale}/properties/${match.propertyId}/contract-terms?bookingId=${match.id}`);
-        } else {
-          loadBookingIntoView(match);
+      void fetchPublicContractBookingsFromServer({
+        propertyId: parseInt(id, 10),
+        email: emailParam || undefined,
+        phone: phoneParam || undefined,
+        civilId: civilIdParam || undefined,
+      }).then((list) => {
+        const matches = list.filter((b) => {
+          if (b.type !== 'BOOKING' || (b.status !== 'PENDING' && b.status !== 'CONFIRMED')) return false;
+          if (emailParam && b.email?.toLowerCase() === emailParam.trim().toLowerCase()) return true;
+          if (phoneParam && normalizePhone(b.phone) === normalizePhone(phoneParam)) return true;
+          if (civilIdParam && normalizeCivilId((b as { civilId?: string }).civilId || '') === normalizeCivilId(civilIdParam)) return true;
+          if (civilIdParam && normalizeCivilId((b as { passportNumber?: string }).passportNumber || '') === normalizeCivilId(civilIdParam)) return true;
+          return false;
+        });
+        setPhone(phoneParam || '');
+        setEmail(emailParam || '');
+        setCivilId(civilIdParam || '');
+        setVerifyError('');
+        if (matches.length === 1) {
+          const match = matches[0];
+          if (match.propertyId !== parseInt(id, 10)) {
+            router.push(`/${locale}/properties/${match.propertyId}/contract-terms?bookingId=${match.id}`);
+          } else {
+            loadBookingIntoView(match);
+          }
+        } else if (matches.length > 1) {
+          setMatchedBookings(matches);
         }
-      } else if (matches.length > 1) {
-        setMatchedBookings(matches);
-      }
+      });
     }
-  }, [id, bookingIdParam, emailParam, phoneParam, civilIdParam, mounted, ar]);
+  }, [id, bookingIdParam, emailParam, phoneParam, civilIdParam, mounted, ar, locale, router]);
 
   const refreshDocs = () => {
     if (bookingId) setDocs(getDocumentsByBooking(bookingId));
@@ -1329,8 +1324,7 @@ export default function ContractTermsPage() {
 
   useEffect(() => {
     if (!bookingId || docs.length > 0 || requiredDocTypes.length === 0) return;
-      const allBookings = getAllBookings();
-      const b = allBookings.find((x) => x.id === bookingId);
+    const b = booking?.id === bookingId ? booking : null;
     const contact = b ? getContactForBooking(b) : null;
     const resolvedContractType: ContractType = (b?.contractKind as ContractType | undefined) ?? contractType;
     let reqTypes = getRequiredDocTypesForBooking(id, resolvedContractType, contact ?? null, (list, c) => filterDocTypesByNationality(list, c as { nationality?: string } | null));
@@ -1353,7 +1347,7 @@ export default function ContractTermsPage() {
         );
         setDocs(getDocumentsByBooking(bookingId));
       }
-  }, [bookingId, id, docs.length, requiredDocTypes.length]);
+  }, [bookingId, id, docs.length, requiredDocTypes.length, booking, contractType]);
 
   const handleFileSelect = async (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

@@ -514,6 +514,33 @@ export function mergeBookingsFromServer(serverBookings: PropertyBooking[]): void
   saveBookings(Array.from(byId.values()));
 }
 
+/** جلب حجوزات لصفحة شروط العقد (API عام — بدون تسجيل دخول) */
+export async function fetchPublicContractBookingsFromServer(opts: {
+  propertyId?: number;
+  bookingId?: string;
+  email?: string;
+  phone?: string;
+  civilId?: string;
+}): Promise<PropertyBooking[]> {
+  if (typeof window === 'undefined') return [];
+  const qs = new URLSearchParams();
+  if (opts.propertyId != null) qs.set('propertyId', String(opts.propertyId));
+  if (opts.bookingId) qs.set('bookingId', opts.bookingId);
+  if (opts.email) qs.set('email', opts.email);
+  if (opts.phone) qs.set('phone', opts.phone);
+  if (opts.civilId) qs.set('civilId', opts.civilId);
+  try {
+    const res = await fetch(`/api/bookings/public-contract-access?${qs.toString()}`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { bookings?: PropertyBooking[] };
+    const list = Array.isArray(data.bookings) ? data.bookings : [];
+    if (list.length > 0) mergeBookingsFromServer(list);
+    return list;
+  } catch {
+    return [];
+  }
+}
+
 /** مزامنة جميع الحجوزات مع دفتر العناوين - إضافة جهات اتصال للحجوزات التي لا تملك جهة في الدفتر */
 export function syncBookingContactsToAddressBook(): { added: number; updated: number } {
   if (typeof window === 'undefined') return { added: 0, updated: 0 };

@@ -79,6 +79,31 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(404);
   });
 
+  test('public contract access rejects missing params', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/bookings/public-contract-access`);
+    expect(res.status()).toBe(400);
+  });
+
+  test('public contract access returns 404 for unknown booking', async ({ request }) => {
+    const qs = new URLSearchParams({
+      bookingId: 'BKG-NO-SUCH',
+      email: 'no-such-user@example.test',
+    });
+    const res = await request.get(`${baseURL}/api/bookings/public-contract-access?${qs.toString()}`);
+    expect(res.status()).toBe(404);
+  });
+
+  test('public receipt rejects missing bookingId', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/bookings/public-receipt`);
+    expect(res.status()).toBe(400);
+  });
+
+  test('public receipt returns 404 for unknown booking', async ({ request }) => {
+    const qs = new URLSearchParams({ bookingId: 'BKG-NO-SUCH', propertyId: '1' });
+    const res = await request.get(`${baseURL}/api/bookings/public-receipt?${qs.toString()}`);
+    expect(res.status()).toBe(404);
+  });
+
   test('thawani webhook rejects invalid secret when configured', async ({ request }) => {
     test.skip(!process.env.THAWANI_WEBHOOK_SECRET, 'Requires THAWANI_WEBHOOK_SECRET');
     const res = await request.post(`${baseURL}/api/webhooks/thawani`, {

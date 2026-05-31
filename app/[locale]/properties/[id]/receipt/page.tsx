@@ -3,11 +3,10 @@
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { searchDocuments } from '@/lib/data/accounting';
-import { getAllBookings, getBookingDisplayName } from '@/lib/data/bookings';
-import { getContactById } from '@/lib/data/addressBook';
 import type { AccountingDocument } from '@/lib/data/accounting';
 import type { Contact } from '@/lib/data/addressBook';
+import { getBookingDisplayName } from '@/lib/data/bookings';
+import type { PropertyBooking } from '@/lib/data/bookings';
 import InvoicePrint from '@/components/admin/InvoicePrint';
 import PageHero from '@/components/shared/PageHero';
 
@@ -29,21 +28,38 @@ export default function PropertyReceiptPage() {
 
   useEffect(() => {
     if (!mounted || !bookingId) return;
-    const docs = searchDocuments({ bookingId });
-    const receipt = docs.find((d) => ['RECEIPT', 'DEPOSIT', 'PAYMENT'].includes(d.type)) || docs[0];
-    if (receipt) {
-      setDoc(receipt);
-      const c = receipt.contactId ? getContactById(receipt.contactId) : null;
-      setContact(c || null);
-      if (!c) {
-        const booking = getAllBookings().find((b) => b.id === bookingId);
-        setContactFallback(booking ? `${getBookingDisplayName(booking, locale)}${booking.phone ? ` · ${booking.phone}` : ''}` : '');
-      } else {
-        setContactFallback('');
-      }
-    }
-    setLoaded(true);
-  }, [mounted, bookingId]);
+    let alive = true;
+    const propertyId = parseInt(id, 10);
+    const qs = new URLSearchParams({ bookingId });
+    if (Number.isFinite(propertyId)) qs.set('propertyId', String(propertyId));
+
+    void fetch(`/api/bookings/public-receipt?${qs.toString()}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { receipt?: AccountingDocument; contact?: Contact; booking?: PropertyBooking } | null) => {
+        if (!alive) return;
+        if (data?.receipt) {
+          setDoc(data.receipt);
+          setContact((data.contact as Contact) || null);
+          if (!data.contact && data.booking) {
+            const b = data.booking;
+            setContactFallback(
+              `${getBookingDisplayName(b, locale)}${b.phone ? ` · ${b.phone}` : ''}`
+            );
+          } else {
+            setContactFallback('');
+          }
+        }
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLoaded(true);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [mounted, bookingId, id, locale]);
 
   if (!mounted) return null;
 

@@ -353,7 +353,7 @@
 ### أولوية عالية
 - ~~جدول Prisma مستقل للعقود (`ContractStorage`)~~ — **2026-05-31:** `ContractStorage` + `/api/contracts` + backfill من BookingStorage.
 - ~~جدول Prisma مستقل لمستندات الحجز (`BookingDocumentStorage`)~~ — **2026-05-31:** صف لكل مستند + backfill من `booking_documents_settings`.
-- إكمال فصل واجهة العقود نهائياً عن `localStorage` — **جزئي 2026-05-31:** ذاكرة مؤقتة + `fetchContractsFromServer` + ترحيل legacy.
+- إكمال فصل واجهة العقود نهائياً عن `localStorage` — **جزئي 2026-05-31:** contract-terms + receipt server-first؛ باقي الصفحات ذاكرة مؤقتة.
 - ~~توحيد مسار مستندات الحجز بحيث يكون مصدره الخادم بالكامل~~ — **2026-05-31:** `BookingDocumentStorage` + API paginated + backfill legacy.
 - ~~بوابة دفع حقيقية بدل المحاكاة في `/book`.~~ — **2026-05-31:** `paymentGateway.ts` + `/api/bookings/payment/initiate` (mock؛ Thawani عند `THAWANI_*`).
 

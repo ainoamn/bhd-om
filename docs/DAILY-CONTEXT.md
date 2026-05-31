@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 10) — contract-terms + receipt server-first
+
+- **APIs عامة:** `GET /api/bookings/public-contract-access` و `GET /api/bookings/public-receipt`.
+- **`publicContractAccess.ts`:** بحث حجز من BookingStorage بفهرس emailNorm.
+- **contract-terms:** إزالة `getAllBookings()` و `/api/bookings` (كان يتطلب login).
+- **receipt:** إيصال من المحاسبة عبر `reference=booking:{id}` بدل localStorage.
+- **E2E:** guards للمسارات الجديدة.
+
 ### جلسة 2026-05-31 (تابع 9) — CI + guards API + أمان E2E
 
 - **CI:** `prisma migrate deploy` قبل build؛ إصلاح شرط `e2e-critical` عبر `env`.
