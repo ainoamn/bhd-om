@@ -376,6 +376,29 @@ model BookingDocumentFile {
   @@index([createdAt])
 }
 
+/// مستندات توثيق الحجز — صف لكل مستند (بدل JSON monolithic في AppSetting)
+model BookingDocumentStorage {
+  id         String   @id @default(cuid())
+  documentId String   @unique // BDOC-xxx
+  bookingId  String
+  data       String   // JSON كامل (BookingDocument)
+  propertyId Int?
+  status     String?  // PENDING | UPLOADED | APPROVED | REJECTED
+  docTypeId  String?
+  isRequired Boolean  @default(false)
+  emailNorm  String?  // uploadedBy normalized
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([docTypeId])
+  @@index([bookingId, status])
+  @@index([propertyId, status])
+  @@index([updatedAt])
+}
+
 /// دفتر العناوين — جهات الاتصال (مالك، عميل، ...) تُخزّن على الخادم لتعكس في كل الصفحات
 model AddressBookContact {
   id            String   @id @default(cuid())

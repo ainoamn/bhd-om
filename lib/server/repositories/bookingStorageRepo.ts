@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { parseBookingStorageRow } from '@/lib/server/bookingContractGate';
+import { parseBookingStorageRow, isBookingStatusEligibleForDocumentUpload } from '@/lib/server/bookingContractGate';
 import { extractBookingStorageDenorm } from '@/lib/server/bookingStorageDenorm';
 import type { PaginationParams } from '@/lib/server/pagination';
 
@@ -84,4 +84,55 @@ export async function listBookingStorageRows(
     orderBy: { createdAt: 'desc' },
   });
   return { total: rows.length, rows };
+}
+
+function normEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** بحث حجز للرفع العام — يستخدم emailNorm المفهرس مع fallback محدود */
+export async function findBookingStorageForPublicUpload(opts: {
+  email: string;
+  bookingId?: string;
+  propertyId?: number;
+}): Promise<ParsedBookingRow | null> {
+  const emailNorm = normEmail(opts.email);
+  if (emailNorm.length < 3) return null;
+
+  const indexedWhere: {
+    emailNorm: string;
+    bookingId?: string;
+    propertyId?: number;
+  } = { emailNorm };
+  if (opts.bookingId) indexedWhere.bookingId = opts.bookingId;
+  if (opts.propertyId != null) indexedWhere.propertyId = opts.propertyId;
+
+  let rows = await prisma.bookingStorage.findMany({
+    where: indexedWhere,
+    orderBy: { updatedAt: 'desc' },
+    take: opts.bookingId ? 1 : 15,
+  });
+
+  if (rows.length === 0) {
+    const fallbackWhere: { bookingId?: string; propertyId?: number } = {};
+    if (opts.bookingId) fallbackWhere.bookingId = opts.bookingId;
+    if (opts.propertyId != null) fallbackWhere.propertyId = opts.propertyId;
+    rows = await prisma.bookingStorage.findMany({
+      where: Object.keys(fallbackWhere).length ? fallbackWhere : undefined,
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  for (const row of rows) {
+    const parsed = parseBookingStorageData(row);
+    if (!parsed) continue;
+    const id = String(parsed.id || row.bookingId || '');
+    if (opts.bookingId && id !== opts.bookingId) continue;
+    if (opts.propertyId != null && Number(parsed.propertyId) !== opts.propertyId) continue;
+    if (normEmail(String(parsed.email || '')) !== emailNorm) continue;
+    if (!isBookingStatusEligibleForDocumentUpload(parsed.status)) continue;
+    return parsed;
+  }
+  return null;
 }

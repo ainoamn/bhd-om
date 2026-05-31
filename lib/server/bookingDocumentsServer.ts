@@ -1,51 +1,29 @@
-import { prisma } from '@/lib/prisma';
-import { getJsonSetting, upsertJsonSetting } from '@/lib/server/repositories/appSettingsRepo';
 import type { BookingDocument, DocumentFileItem } from '@/lib/data/bookingDocuments';
 import {
   isBookingStatusEligibleForDocumentUpload,
-  parseBookingStorageRow,
 } from '@/lib/server/bookingContractGate';
-
-const DOCUMENTS_KEY = 'booking_documents_settings';
+import { findBookingStorageForPublicUpload } from '@/lib/server/repositories/bookingStorageRepo';
+import {
+  getBookingDocumentFromDb,
+  listBookingDocumentsFromDb,
+  saveBookingDocumentsToDb,
+  upsertBookingDocumentToDb,
+} from '@/lib/server/repositories/bookingDocumentStorageRepo';
 
 export async function loadAllBookingDocuments(): Promise<BookingDocument[]> {
-  const value = await getJsonSetting<unknown>(DOCUMENTS_KEY, []);
-  return Array.isArray(value) ? (value as BookingDocument[]) : [];
+  return listBookingDocumentsFromDb({ limit: 500 });
 }
 
 export async function saveAllBookingDocuments(docs: BookingDocument[]): Promise<void> {
-  await upsertJsonSetting(DOCUMENTS_KEY, docs);
+  await saveBookingDocumentsToDb(docs);
 }
 
 export async function getDocumentsForBookingFromDb(bookingId: string): Promise<BookingDocument[]> {
-  const all = await loadAllBookingDocuments();
-  return all.filter((d) => d.bookingId === bookingId);
+  return listBookingDocumentsFromDb({ bookingId, limit: 100 });
 }
 
 function normEmail(email: string): string {
   return email.trim().toLowerCase();
-}
-
-async function findVerifiedBooking(opts: {
-  email: string;
-  bookingId?: string;
-  propertyId?: number;
-}): Promise<Record<string, unknown> | null> {
-  const emailNorm = normEmail(opts.email);
-  if (!emailNorm || emailNorm.length < 3) return null;
-
-  const rows = await prisma.bookingStorage.findMany({ orderBy: { updatedAt: 'desc' } });
-  for (const row of rows) {
-    const parsed = parseBookingStorageRow(row.data);
-    if (!parsed) continue;
-    const id = String(parsed.id || row.bookingId || '');
-    if (opts.bookingId && id !== opts.bookingId) continue;
-    if (opts.propertyId != null && Number(parsed.propertyId) !== opts.propertyId) continue;
-    if (normEmail(String(parsed.email || '')) !== emailNorm) continue;
-    if (!isBookingStatusEligibleForDocumentUpload(parsed.status)) continue;
-    return { ...parsed, id };
-  }
-  return null;
 }
 
 export async function findBookingForPublicUpload(opts: {
@@ -53,7 +31,13 @@ export async function findBookingForPublicUpload(opts: {
   email: string;
   bookingId?: string;
 }): Promise<Record<string, unknown> | null> {
-  return findVerifiedBooking(opts);
+  const parsed = await findBookingStorageForPublicUpload({
+    email: opts.email,
+    bookingId: opts.bookingId,
+    propertyId: opts.propertyId,
+  });
+  if (!parsed) return null;
+  return parsed as Record<string, unknown>;
 }
 
 function getDocumentFiles(doc: BookingDocument): DocumentFileItem[] {
@@ -70,17 +54,21 @@ export async function applyPublicDocumentUpload(opts: {
   fileUrl: string;
   fileName: string;
 }): Promise<{ ok: true; document: BookingDocument } | { ok: false; error: string }> {
-  const verified = await findVerifiedBooking({ email: opts.email, bookingId: opts.bookingId });
-  if (!verified) return { ok: false, error: 'BOOKING_NOT_FOUND' };
+  const verified = await findBookingStorageForPublicUpload({
+    email: opts.email,
+    bookingId: opts.bookingId,
+  });
+  if (!verified || !isBookingStatusEligibleForDocumentUpload(verified.status)) {
+    return { ok: false, error: 'BOOKING_NOT_FOUND' };
+  }
 
-  const all = await loadAllBookingDocuments();
-  const idx = all.findIndex((d) => d.id === opts.docId && d.bookingId === opts.bookingId);
-  if (idx < 0) return { ok: false, error: 'DOCUMENT_NOT_FOUND' };
-
-  const now = new Date().toISOString();
-  const doc = all[idx];
+  const doc = await getBookingDocumentFromDb(opts.docId);
+  if (!doc || doc.bookingId !== opts.bookingId) {
+    return { ok: false, error: 'DOCUMENT_NOT_FOUND' };
+  }
   if (doc.status === 'APPROVED') return { ok: false, error: 'DOCUMENT_ALREADY_APPROVED' };
 
+  const now = new Date().toISOString();
   const files = [...getDocumentFiles(doc), { url: opts.fileUrl, name: opts.fileName }];
   const urls = files.map((f) => f.url);
   const names = files.map((f) => f.name);
@@ -96,8 +84,7 @@ export async function applyPublicDocumentUpload(opts: {
     uploadedBy: normEmail(opts.email),
     updatedAt: now,
   };
-  all[idx] = updated;
-  await saveAllBookingDocuments(all);
+  await upsertBookingDocumentToDb(updated);
   return { ok: true, document: updated };
 }
 
@@ -109,15 +96,20 @@ export async function applyPublicDocumentReplace(opts: {
   newFileUrl: string;
   newFileName: string;
 }): Promise<{ ok: true; document: BookingDocument } | { ok: false; error: string }> {
-  const verified = await findVerifiedBooking({ email: opts.email, bookingId: opts.bookingId });
-  if (!verified) return { ok: false, error: 'BOOKING_NOT_FOUND' };
+  const verified = await findBookingStorageForPublicUpload({
+    email: opts.email,
+    bookingId: opts.bookingId,
+  });
+  if (!verified || !isBookingStatusEligibleForDocumentUpload(verified.status)) {
+    return { ok: false, error: 'BOOKING_NOT_FOUND' };
+  }
 
-  const all = await loadAllBookingDocuments();
-  const idx = all.findIndex((d) => d.id === opts.docId && d.bookingId === opts.bookingId);
-  if (idx < 0) return { ok: false, error: 'DOCUMENT_NOT_FOUND' };
+  const doc = await getBookingDocumentFromDb(opts.docId);
+  if (!doc || doc.bookingId !== opts.bookingId) {
+    return { ok: false, error: 'DOCUMENT_NOT_FOUND' };
+  }
 
   const now = new Date().toISOString();
-  const doc = all[idx];
   const files = getDocumentFiles(doc).map((f) =>
     f.url === opts.oldFileUrl
       ? {
@@ -143,7 +135,6 @@ export async function applyPublicDocumentReplace(opts: {
     status: 'UPLOADED',
     updatedAt: now,
   };
-  all[idx] = updated;
-  await saveAllBookingDocuments(all);
+  await upsertBookingDocumentToDb(updated);
   return { ok: true, document: updated };
 }

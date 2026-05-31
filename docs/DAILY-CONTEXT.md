@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 8) — BookingDocumentStorage + تحسين بحث الحجز
+
+- **Prisma:** جدول `BookingDocumentStorage` (صف لكل مستند) + migration `20260531120000`.
+- **`bookingDocumentStorageRepo.ts`:** upsert/list/backfill من `booking_documents_settings` legacy.
+- **`bookingDocumentsServer.ts`:** رفع/استبدال per-row؛ لا rewrite للـ JSON monolithic.
+- **`bookingStorageRepo`:** `findBookingStorageForPublicUpload` بفهرس `emailNorm`.
+- **E2E:** POST booking-documents + PATCH public-upload-access guards.
+
 ### جلسة 2026-05-31 (تابع 7) — contactLinks server-first في دفتر العناوين
 
 - **`contactLinks.ts`:** `getContactLinkedContractsFromServerContracts` + `getContactLinkedContractsFromServer` (دمج ContractStorage + contractData).
