@@ -15,7 +15,7 @@
 - **CI `e2e-api`:** `prisma db seed` قبل الاختبارات؛ `SEED_ADMIN_CREDENTIALS` في CI
 - **`requireAuth`:** نفس بدائل كوكي JWT مثل `getAuthSubFromRequest` + fallback `getServerSession`
 - **`check-env` E2E:** PAYMENT_PROVIDER اختياري
-- **`npm run build`** ✅
+- **`npm run build`** ✅ — commit `15453be`
 
 ### جلسة 2026-05-31 (تابع 29) — create/update/archive دفتر العناوين server-only (ADMIN)
 
