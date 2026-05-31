@@ -326,6 +326,28 @@ model BookingStorage {
   @@index([propertyId, status])
 }
 
+/// عقود الإيجار/البيع — جدول مستقل (مصدر الخادم) مع JSON كامل
+model ContractStorage {
+  id           String   @id @default(cuid())
+  contractId   String   @unique // CNT-xxx
+  bookingId    String   @unique
+  data         String   // JSON كامل للعقد (RentalContract)
+  propertyId   Int?
+  status       String?
+  contractKind String?
+  emailNorm    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([propertyId])
+  @@index([status])
+  @@index([contractKind])
+  @@index([bookingId])
+  @@index([propertyId, status])
+}
+
 /// ملفات مرفوعة من صفحة شروط العقد (مستندات توثيق) — تُخزّن في DB ليعمل الرفع على Vercel بدون Blob
 model BookingDocumentFile {
   id        String   @id @default(cuid())

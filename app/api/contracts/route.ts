@@ -1,50 +1,84 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAuth } from '@/lib/auth/guard';
 import { CACHE_CONTRACTS_LIST_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
-import { assertAccountantConfirmedForContract, parseBookingStorageRow } from '@/lib/server/bookingContractGate';
+import { assertAccountantConfirmedForContract } from '@/lib/server/bookingContractGate';
 import { parsePaginationParams, paginationResponseHeaders, slicePage } from '@/lib/server/pagination';
-import { listBookingStorageRows, parseBookingStorageData } from '@/lib/server/repositories/bookingStorageRepo';
+import {
+  listBookingStorageRows,
+  parseBookingStorageData,
+} from '@/lib/server/repositories/bookingStorageRepo';
+import {
+  backfillContractStorageFromBookingsBatch,
+  contractFromBookingJson,
+  listContractStorageRows,
+  parseContractStorageData,
+  upsertContractStorageRow,
+} from '@/lib/server/repositories/contractStorageRepo';
+import { syncContractIntoBookingStorage } from '@/lib/server/syncContractBookingStorage';
+import { prisma } from '@/lib/prisma';
+import { parseBookingStorageRow } from '@/lib/server/bookingContractGate';
 
-function parseBookingRow(row: { bookingId: string; data: string }) {
-  return parseBookingStorageRow(row.data);
-}
-
-function toContractFromBooking(booking: Record<string, unknown>) {
-  const contractId = String(booking.contractId || booking.id || '');
-  const contractData = ((booking.contractData as Record<string, unknown> | undefined) || {}) as Record<string, unknown>;
-  if (!contractId) return null;
-  if (!Object.keys(contractData).length) return null;
-  return {
-    ...contractData,
-    id: contractId,
-    bookingId: String(booking.id || ''),
-    status: String(booking.contractStage || contractData.status || 'DRAFT'),
-    updatedAt: String(booking.updatedAt || contractData.updatedAt || new Date().toISOString()),
-    createdAt: String(booking.createdAt || contractData.createdAt || new Date().toISOString()),
-  };
+function parseContractListFilters(url: URL) {
+  const filters: {
+    propertyId?: number;
+    status?: string;
+    contractKind?: string;
+    bookingId?: string;
+  } = {};
+  const propertyIdRaw = url.searchParams.get('propertyId');
+  const status = url.searchParams.get('status')?.trim();
+  const contractKind =
+    url.searchParams.get('contractKind')?.trim() || url.searchParams.get('kind')?.trim();
+  const bookingId = url.searchParams.get('bookingId')?.trim();
+  if (propertyIdRaw && Number.isFinite(Number(propertyIdRaw))) {
+    filters.propertyId = Number(propertyIdRaw);
+  }
+  if (status) filters.status = status;
+  if (contractKind) filters.contractKind = contractKind;
+  if (bookingId) filters.bookingId = bookingId;
+  return Object.keys(filters).length > 0 ? filters : undefined;
 }
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const pagination = parsePaginationParams(url, { maxLimit: 500 });
+    const filters = parseContractListFilters(url);
 
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
 
-    const { rows } = await listBookingStorageRows({ ...pagination, unlimited: true });
-    const list = rows
-      .map((r) => parseBookingStorageData(r))
-      .filter(Boolean)
-      .map((b) => toContractFromBooking(b as Record<string, unknown>))
-      .filter(Boolean);
-    const paged = slicePage(list, pagination);
+    const { total: rowTotal, rows } = await listContractStorageRows({ ...pagination, filters });
+    let list = rows
+      .map((r) => parseContractStorageData(r))
+      .filter(Boolean) as Record<string, unknown>[];
+
+    /** انتقالي: إن لم يُترحَّل بعد، اقرأ من BookingStorage */
+    if (rowTotal === 0 && !filters) {
+      const { rows: bookingRows } = await listBookingStorageRows({ ...pagination, unlimited: true });
+      list = bookingRows
+        .map((r) => parseBookingStorageData(r))
+        .filter(Boolean)
+        .map((b) => contractFromBookingJson(b as Record<string, unknown>))
+        .filter(Boolean) as Record<string, unknown>[];
+    }
+
+    after(async () => {
+      try {
+        await backfillContractStorageFromBookingsBatch(50);
+      } catch {
+        /* ignore */
+      }
+    });
+
+    const paged = rowTotal > 0 ? list : slicePage(list, pagination);
+    const totalCount = rowTotal > 0 ? rowTotal : list.length;
+
     return NextResponse.json(paged, {
       headers: {
         'Cache-Control': CACHE_CONTRACTS_LIST_GET,
         Vary: HTTP_CACHE_VARY_AUTH,
-        ...paginationResponseHeaders(list.length, pagination),
+        ...paginationResponseHeaders(totalCount, pagination),
       },
     });
   } catch (e) {
@@ -67,7 +101,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.bookingStorage.findUnique({ where: { bookingId } });
     const now = new Date().toISOString();
-    const prev = existing ? parseBookingRow({ bookingId, data: existing.data }) : {};
+    const prev = existing ? parseBookingStorageRow(existing.data) : {};
     const gate = assertAccountantConfirmedForContract(prev || {});
     if (!gate.ok) {
       return NextResponse.json(
@@ -75,20 +109,19 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-    const merged = {
-      ...(prev || {}),
-      id: bookingId,
-      contractId: id,
-      contractStage: String(body.status || (prev as Record<string, unknown> | undefined)?.contractStage || 'DRAFT'),
-      contractData: { ...(body || {}), id, bookingId, updatedAt: now },
+
+    const status = String(body.status || (prev as Record<string, unknown> | undefined)?.contractStage || 'DRAFT');
+    const contractPayload = {
+      ...(body || {}),
+      id,
+      bookingId,
+      status,
       updatedAt: now,
+      createdAt: String(body.createdAt || (prev as Record<string, unknown> | undefined)?.createdAt || now),
     };
 
-    await prisma.bookingStorage.upsert({
-      where: { bookingId },
-      create: { bookingId, data: JSON.stringify(merged) },
-      update: { data: JSON.stringify(merged), updatedAt: new Date() },
-    });
+    await upsertContractStorageRow({ contractId: id, bookingId, payload: contractPayload });
+    await syncContractIntoBookingStorage(bookingId, id, contractPayload, status);
 
     return NextResponse.json({ ok: true, id, bookingId });
   } catch (e) {

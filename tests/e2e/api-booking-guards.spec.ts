@@ -29,6 +29,11 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('contracts GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/contracts?limit=1&offset=0`);
+    expect(res.status()).toBe(401);
+  });
+
   test('debug-auth is blocked in production', async ({ request }) => {
     test.skip(process.env.NODE_ENV !== 'production', 'Production-only assertion');
     const res = await request.get(`${baseURL}/api/debug-auth`);

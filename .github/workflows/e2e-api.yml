@@ -1,0 +1,37 @@
+name: E2E API guards
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  e2e-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXTAUTH_SECRET: ci-test-secret-not-for-production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run API guard tests
+        run: npm run test:e2e:api
+        env:
+          CI: true
+          NEXTAUTH_SECRET: ci-test-secret-not-for-production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -11,7 +11,7 @@ import { authOptions } from '@/lib/auth';
 import { hasPermission, type AccountingPermission, type AccountingRole } from './permissions';
 import { getRoleFromUserRole } from './permissions';
 
-const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 const SESSION_COOKIE_NAMES = [
   'next-auth.session-token',
@@ -39,7 +39,7 @@ export async function getAccountingRoleFromRequest(request: NextRequest): Promis
 
   let token = await getToken({
     req: request,
-    secret: NEXTAUTH_SECRET,
+    secret: getAuthSecret(),
   });
 
   if (!token) {
@@ -48,7 +48,7 @@ export async function getAccountingRoleFromRequest(request: NextRequest): Promis
       const reqWithCookie = {
         headers: new Headers({ cookie: `${fromRequest.name}=${fromRequest.value}` }),
       } as NextRequest;
-      token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
+      token = await getToken({ req: reqWithCookie, secret: getAuthSecret() });
     }
   }
 
@@ -59,7 +59,7 @@ export async function getAccountingRoleFromRequest(request: NextRequest): Promis
       if (sessionCookie?.value) {
         const cookieHeader = `${sessionCookie.name}=${sessionCookie.value}`;
         const reqWithCookie = { headers: new Headers({ cookie: cookieHeader }) } as NextRequest;
-        token = await getToken({ req: reqWithCookie, secret: NEXTAUTH_SECRET });
+        token = await getToken({ req: reqWithCookie, secret: getAuthSecret() });
         if (token) break;
       }
     }

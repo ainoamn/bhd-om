@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/guard';
 import { assertAccountantConfirmedForContract, parseBookingStorageRow } from '@/lib/server/bookingContractGate';
+import {
+  contractFromBookingJson,
+  getContractStorageById,
+  parseContractStorageData,
+  upsertContractStorageRow,
+} from '@/lib/server/repositories/contractStorageRepo';
+import { syncContractIntoBookingStorage } from '@/lib/server/syncContractBookingStorage';
+import { prisma } from '@/lib/prisma';
 
-function safeParse(data: string): Record<string, unknown> | null {
-  return parseBookingStorageRow(data);
-}
-
-function extractContract(parsed: Record<string, unknown>, id: string) {
-  const cid = String(parsed.contractId || parsed.id || '');
-  const cd = ((parsed.contractData as Record<string, unknown> | undefined) || {}) as Record<string, unknown>;
-  const cdid = String(cd.id || '');
-  if (cid !== id && cdid !== id) return null;
-  return {
-    ...cd,
-    id,
-    bookingId: String(parsed.id || cd.bookingId || ''),
-    status: String(parsed.contractStage || cd.status || 'DRAFT'),
-    createdAt: String(cd.createdAt || parsed.createdAt || new Date().toISOString()),
-    updatedAt: String(cd.updatedAt || parsed.updatedAt || new Date().toISOString()),
-  };
+function extractContractFromBooking(parsed: Record<string, unknown>, id: string) {
+  const contract = contractFromBookingJson(parsed);
+  if (!contract) return null;
+  const cid = String(contract.id || '');
+  if (cid !== id) return null;
+  return contract;
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,13 +23,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
     const { id } = await params;
-    const rows = await prisma.bookingStorage.findMany({ orderBy: { updatedAt: 'desc' } });
-    for (const r of rows) {
-      const parsed = safeParse(r.data);
-      if (!parsed) continue;
-      const contract = extractContract(parsed, id);
+
+    const row = await getContractStorageById(id);
+    if (row) {
+      const contract = parseContractStorageData(row);
       if (contract) return NextResponse.json(contract);
     }
+
+    const rows = await prisma.bookingStorage.findMany({ orderBy: { updatedAt: 'desc' } });
+    for (const r of rows) {
+      const parsed = parseBookingStorageRow(r.data);
+      if (!parsed) continue;
+      const contract = extractContractFromBooking(parsed, id);
+      if (contract) return NextResponse.json(contract);
+    }
+
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   } catch (e) {
     console.error('GET /api/contracts/[id]', e);
@@ -48,11 +52,53 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const patch = (await req.json()) as Record<string, unknown>;
 
+    const stored = await getContractStorageById(id);
+    if (stored) {
+      const current = parseContractStorageData(stored);
+      if (!current) {
+        return NextResponse.json({ error: 'Corrupt contract data' }, { status: 500 });
+      }
+      const bookingId = String(current.bookingId || stored.bookingId || '').trim();
+      const prevStage = String(current.status || 'DRAFT');
+      const nextStatus = String(patch.status || prevStage || 'DRAFT');
+      const advancingFromDraft = prevStage === 'DRAFT' && nextStatus !== 'DRAFT';
+      if (advancingFromDraft) {
+        const bookingRow = bookingId
+          ? await prisma.bookingStorage.findUnique({ where: { bookingId } })
+          : null;
+        const parsedBooking = bookingRow ? parseBookingStorageRow(bookingRow.data) : null;
+        const gate = assertAccountantConfirmedForContract(parsedBooking || {});
+        if (!gate.ok) {
+          return NextResponse.json(
+            { error: gate.error, message: 'Accountant must confirm payment before contract operations.' },
+            { status: 403 }
+          );
+        }
+      }
+
+      const now = new Date().toISOString();
+      const nextContract = { ...current, ...patch, id, bookingId, updatedAt: now };
+      await upsertContractStorageRow({
+        contractId: id,
+        bookingId,
+        payload: nextContract as Record<string, unknown>,
+      });
+      if (bookingId) {
+        await syncContractIntoBookingStorage(
+          bookingId,
+          id,
+          nextContract as Record<string, unknown>,
+          String(nextContract.status || nextStatus)
+        );
+      }
+      return NextResponse.json(nextContract);
+    }
+
     const rows = await prisma.bookingStorage.findMany({ orderBy: { updatedAt: 'desc' } });
     for (const r of rows) {
-      const parsed = safeParse(r.data);
+      const parsed = parseBookingStorageRow(r.data);
       if (!parsed) continue;
-      const contract = extractContract(parsed, id);
+      const contract = extractContractFromBooking(parsed, id);
       if (!contract) continue;
 
       const isNewContract = !parsed.contractId && !parsed.contractData;
@@ -70,19 +116,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
 
       const now = new Date().toISOString();
-      const nextContract = { ...contract, ...patch, id, bookingId: contract.bookingId, updatedAt: now };
-      const nextBooking = {
-        ...parsed,
+      const bookingId = String(parsed.id || r.bookingId || contract.bookingId || '').trim();
+      const nextContract = { ...contract, ...patch, id, bookingId, updatedAt: now };
+      await upsertContractStorageRow({
         contractId: id,
-        contractStage: String(nextContract.status || parsed.contractStage || 'DRAFT'),
-        contractData: nextContract,
-        updatedAt: now,
-      };
-
-      await prisma.bookingStorage.update({
-        where: { bookingId: String(parsed.id || r.bookingId) },
-        data: { data: JSON.stringify(nextBooking), updatedAt: new Date() },
+        bookingId,
+        payload: nextContract as Record<string, unknown>,
       });
+      await syncContractIntoBookingStorage(
+        bookingId,
+        id,
+        nextContract as Record<string, unknown>,
+        String(nextContract.status || nextStatus)
+      );
       return NextResponse.json(nextContract);
     }
 

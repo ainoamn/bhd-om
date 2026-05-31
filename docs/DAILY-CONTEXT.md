@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 2) — ContractStorage + أمان HTTP + CI
+
+- **ContractStorage:** جدول Prisma مستقل للعقود مع فهرسة `propertyId/status/contractKind`؛ `/api/contracts` يقرأ/يكتب من الجدول مع dual-write إلى BookingStorage؛ backfill تدريجي.
+- **أمان:** HSTS + CSP + Referrer-Policy + Permissions-Policy في `next.config.ts` (الإنتاج).
+- **CI:** `.github/workflows/e2e-api.yml` لتشغيل `test:e2e:api` بعد البناء.
+- **اختبار:** `contracts GET requires authentication` في `api-booking-guards.spec.ts`.
+
 ### جلسة 2026-05-31 (تابع) — فلاتر DB للحجوزات + NEXTAUTH_SECRET + رفع
 
 - **BookingStorage:** أعمدة مفهرسة `propertyId`, `status`, `bookingType`, `emailNorm` + فلاتر `GET /api/bookings?propertyId=&status=&type=` + backfill تدريجي في `after()`.
