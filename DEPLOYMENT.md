@@ -71,7 +71,7 @@ npx prisma db seed
 
 **مهم:** بعد إضافة أو تعديل أي متغير بيئة في Vercel يجب تنفيذ **Redeploy** (إعادة النشر) حتى تُحمَّل القيم الجديدة. من **Deployments** → اختر آخر نشر → **⋮** → **Redeploy**.
 
-للتحقق من أن المتغيرات مُحمَّلة على السيرفر: افتح `https://www.bhd-om.com/api/check-env` — إن ظهر «NEXTAUTH_SECRET: غير معرّف» فالمتغير غير مضاف أو النشر الحالي تم قبل إضافته (نفّذ Redeploy).
+للتحقق من أن المتغيرات مُحمَّلة على السيرفر: افتح `https://www.bhd-om.com/api/check-env` — يعرض حالة `NEXTAUTH_SECRET` و `DATABASE_URL` و `PAYMENT_PROVIDER` و `THAWANI_PRODUCTION_READY` (بدون قيم الأسرار). من `/admin/data` بطاقة **بوابة الدفع** و **legacy** تعرض checklist كامل. راجع `docs/PRODUCTION-CHECKLIST.md`.
 
 ---
 

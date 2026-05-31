@@ -57,7 +57,7 @@ import {
   type ContactLinkedBooking,
   type ContactLinkedContract,
 } from '@/lib/data/contactLinks';
-import { syncBookingContactsToAddressBook, type PropertyBooking } from '@/lib/data/bookings';
+import { type PropertyBooking } from '@/lib/data/bookings';
 import type { RentalContract } from '@/lib/data/contracts';
 import TranslateField from '@/components/admin/TranslateField';
 import OmanContactAddressFields from '@/components/admin/OmanContactAddressFields';
@@ -212,6 +212,7 @@ export default function AdminAddressBookPage() {
   const [syncResult, setSyncResult] = useState<{ added: number; updated: number } | null>(null);
   const [syncFromUsersResult, setSyncFromUsersResult] = useState<number | null>(null);
   const [syncingFromUsers, setSyncingFromUsers] = useState(false);
+  const [syncingFromBookings, setSyncingFromBookings] = useState(false);
   const [userCreateMsg, setUserCreateMsg] = useState<string | null>(null);
   const [createAccountsResult, setCreateAccountsResult] = useState<{ created: number; linked: number; failed?: number; noAction?: boolean } | null>(null);
   const [creatingAccounts, setCreatingAccounts] = useState(false);
@@ -395,12 +396,26 @@ export default function AdminAddressBookPage() {
     }
   }, [isEmbedAdd, embedCategory, mounted]);
 
-  const handleSyncFromBookings = () => {
-    const result = syncBookingContactsToAddressBook();
-    rewriteLocalAddressBookDeduped();
-    loadDataFromLocal();
-    setSyncResult(result);
-    setTimeout(() => setSyncResult(null), 4000);
+  const handleSyncFromBookings = async () => {
+    setSyncingFromBookings(true);
+    try {
+      const res = await fetch('/api/admin/address-book/sync-from-bookings', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error('Failed');
+      const payload = (await res.json()) as { added?: number; updated?: number };
+      setSyncResult({ added: payload.added ?? 0, updated: payload.updated ?? 0 });
+      refreshAddressBookFromServer();
+      emitAddressBookUpdated();
+      setTimeout(() => setSyncResult(null), 4000);
+    } catch {
+      setSyncResult({ added: 0, updated: 0 });
+      setTimeout(() => setSyncResult(null), 4000);
+    } finally {
+      setSyncingFromBookings(false);
+    }
   };
 
   const handleSyncFromUsers = async () => {
@@ -1404,11 +1419,18 @@ export default function AdminAddressBookPage() {
             </button>
             <button
               type="button"
-              onClick={handleSyncFromBookings}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print"
+              onClick={() => void handleSyncFromBookings()}
+              disabled={syncingFromBookings}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
             >
               <span>🔄</span>
-              {locale === 'ar' ? 'تحديث من الحجوزات' : 'Sync from Bookings'}
+              {syncingFromBookings
+                ? locale === 'ar'
+                  ? 'جاري...'
+                  : 'Syncing...'
+                : locale === 'ar'
+                  ? 'تحديث من الحجوزات'
+                  : 'Sync from Bookings'}
             </button>
             <button
               type="button"

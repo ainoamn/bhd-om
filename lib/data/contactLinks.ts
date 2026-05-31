@@ -9,7 +9,7 @@ import {
   contractDataMatchesLandlord,
   type LandlordMatchContext,
 } from './ownerLandlordMatch';
-import { getAllBookings, type PropertyBooking } from './bookings';
+import { type PropertyBooking } from './bookings';
 import type { RentalContract } from './contracts';
 import { searchDocuments } from './accounting';
 import type { AccountingDocument } from './accounting';
@@ -68,41 +68,9 @@ function isContractEnded(c: RentalContract): boolean {
   }
 }
 
-/** الحجوزات المرتبطة بجهة الاتصال (مطابقة الهاتف أو البريد) */
-export function getContactLinkedBookings(contact: Contact): ContactLinkedBooking[] {
-  const list = getAllBookings();
-  const cPhone = normalizePhoneForComparison(contact.phone || '');
-  const cEmail = normEmail(contact.email || '');
-  const matches = list.filter((b) => {
-    const bPhone = normalizePhoneForComparison(b.phone || '');
-    const matchPhone = cPhone.length >= 6 && bPhone.length >= 6 && cPhone === bPhone;
-    const matchEmail = cEmail.length >= 3 && normEmail(b.email) === cEmail;
-    return matchPhone || matchEmail;
-  });
-  const overrides = getPropertyDataOverrides();
-  return matches.map((b) => {
-    const prop = getPropertyById(b.propertyId, overrides);
-    const unitPart = b.unitKey && prop ? getUnitDisplayFromProperty(prop, b.unitKey, true) : null;
-    const unitDisplay = unitPart ? `${b.propertyTitleAr} - ${unitPart}` : b.propertyTitleAr;
-    const docs = typeof window !== 'undefined' ? searchDocuments({ bookingId: b.id }) : [];
-    const hasFinancialClaims = docs.some((d) => d.status === 'PENDING' || d.status === 'DRAFT');
-    return {
-      id: b.id,
-      bookingId: b.id,
-      date: b.createdAt,
-      propertyId: b.propertyId,
-      propertyTitleAr: b.propertyTitleAr,
-      propertyTitleEn: b.propertyTitleEn,
-      unitKey: b.unitKey,
-      unitDisplay,
-      status: b.status,
-      contractId: b.contractId,
-      hasFinancialClaims,
-      cardLast4: b.cardLast4,
-      cardExpiry: b.cardExpiry,
-      cardholderName: b.cardholderName,
-    };
-  });
+/** @deprecated استخدم getContactLinkedBookingsFromServerBookings — لا fallback محلي */
+export function getContactLinkedBookings(_contact: Contact): ContactLinkedBooking[] {
+  return [];
 }
 
 /** ربط الحجوزات من قائمة خادم جاهزة (server-first) */

@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 25) — production-readiness + sync address-book من الحجوزات (server)
+
+- **`GET /api/admin/production-readiness`:** Thawani + legacy في طلب واحد — `/admin/data` يستخدمه
+- **`POST /api/admin/address-book/sync-from-bookings`:** مزامنة من BookingStorage بدون localStorage
+- **`admin/address-book`:** زر «تحديث من الحجوزات» → API الخادم + refresh
+- **`getContactLinkedBookings`:** deprecated — لا fallback محلي
+- **E2E:** guards لـ production-readiness و sync-from-bookings → 401
+
 ### جلسة 2026-05-31 (تابع 24) — عقود server-first + إصلاح CI critical job
 
 - **`fetchContractsFromServer`:** يرجع نتيجة API فقط (بدون fallback `getStored()`)

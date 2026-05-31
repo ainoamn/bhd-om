@@ -66,22 +66,16 @@ export default function AdminDataPage() {
   const [legacyPurgeConfirm, setLegacyPurgeConfirm] = useState(false);
   const [paymentGw, setPaymentGw] = useState<PaymentGatewayStatus | null>(null);
 
-  const loadLegacyStatus = useCallback(async () => {
+  const loadProductionReadiness = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/legacy-booking-settings', { cache: 'no-store', credentials: 'include' });
+      const res = await fetch('/api/admin/production-readiness', { cache: 'no-store', credentials: 'include' });
       if (!res.ok) return;
-      const data = (await res.json()) as LegacyBookingSettingsStatus;
-      setLegacyStatus(data);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const loadPaymentGatewayStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/payment-gateway', { cache: 'no-store', credentials: 'include' });
-      if (!res.ok) return;
-      setPaymentGw((await res.json()) as PaymentGatewayStatus);
+      const data = (await res.json()) as {
+        payment?: PaymentGatewayStatus;
+        legacy?: LegacyBookingSettingsStatus;
+      };
+      if (data.payment) setPaymentGw(data.payment);
+      if (data.legacy) setLegacyStatus(data.legacy);
     } catch {
       /* ignore */
     }
@@ -90,9 +84,8 @@ export default function AdminDataPage() {
   useEffect(() => {
     if (status !== 'authenticated') return;
     if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') return;
-    void loadLegacyStatus();
-    void loadPaymentGatewayStatus();
-  }, [status, userRole, loadLegacyStatus, loadPaymentGatewayStatus]);
+    void loadProductionReadiness();
+  }, [status, userRole, loadProductionReadiness]);
 
   const handleLegacyBackfill = async () => {
     setLegacyBusy(true);
@@ -694,7 +687,7 @@ export default function AdminDataPage() {
               <button
                 type="button"
                 disabled={legacyBusy}
-                onClick={() => void loadLegacyStatus()}
+                onClick={() => void loadProductionReadiness()}
                 className="px-5 py-2.5 rounded-xl font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:opacity-50 transition-colors"
               >
                 {ar ? 'تحديث الحالة' : 'Refresh status'}

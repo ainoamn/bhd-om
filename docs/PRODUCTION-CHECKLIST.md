@@ -5,7 +5,7 @@
 | الرابط | الغرض |
 |--------|--------|
 | `https://www.bhd-om.com/api/check-env` | NEXTAUTH، DB، Thawani (بدون أسرار) |
-| `/admin/data` (ADMIN) | checklist Thawani + legacy migration |
+| `/admin/data` (ADMIN) | checklist Thawani + legacy migration (`GET /api/admin/production-readiness`) |
 | [Vercel Deployments](https://vercel.com/bhdom89-8158s-projects/bhd-om/deployments) | Build ناجح |
 | [GitHub Actions](https://github.com/ainoamn/bhd-om/actions) | E2E API guards |
 
