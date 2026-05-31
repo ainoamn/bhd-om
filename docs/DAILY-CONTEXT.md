@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 26) — استيراد CSV دفتر العناوين من الخادم
+
+- **`lib/addressBook/parseContactsCsv.ts`:** parser مشترك
+- **`POST /api/admin/address-book/import-csv`:** upsert إلى DB مع منع التكرار
+- **`admin/address-book`:** استيراد CSV → API + refresh (لا `loadDataFromLocal`)
+- **E2E:** guard import-csv → 401
+
 ### جلسة 2026-05-31 (تابع 25) — production-readiness + sync address-book من الحجوزات (server)
 
 - **`GET /api/admin/production-readiness`:** Thawani + legacy في طلب واحد — `/admin/data` يستخدمه

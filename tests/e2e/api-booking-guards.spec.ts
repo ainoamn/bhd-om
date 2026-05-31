@@ -105,6 +105,13 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('address-book import-csv POST requires authentication', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/admin/address-book/import-csv`, {
+      data: { csv: 'name,phone\nTest,96890000000' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('check-env returns safe production hints without secrets', async ({ request }) => {
     const res = await request.get(`${baseURL}/api/check-env`);
     expect(res.status()).toBe(200);

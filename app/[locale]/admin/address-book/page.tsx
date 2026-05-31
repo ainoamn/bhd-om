@@ -16,7 +16,6 @@ import {
   archiveContact,
   restoreContact,
   exportContactsToCsv,
-  importContactsFromCsv,
   getContactDisplayName,
   getContactLocalizedField,
   getContactById,
@@ -208,6 +207,7 @@ export default function AdminAddressBookPage() {
   const [serverContracts, setServerContracts] = useState<RentalContract[]>([]);
   const [serverDocuments, setServerDocuments] = useState<AccountingDocument[]>([]);
   const [importResult, setImportResult] = useState<number | null>(null);
+  const [importingCsv, setImportingCsv] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [syncResult, setSyncResult] = useState<{ added: number; updated: number } | null>(null);
   const [syncFromUsersResult, setSyncFromUsersResult] = useState<number | null>(null);
@@ -1377,23 +1377,44 @@ export default function AdminAddressBookPage() {
               <span>➕</span>
               {locale === 'ar' ? 'مستخدم جديد' : 'New user'}
             </Link>
-            <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer">
+            <label
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer ${importingCsv ? 'opacity-60 pointer-events-none' : ''}`}
+            >
               <span>📤</span>
-              {t('importCsv')}
+              {importingCsv ? (locale === 'ar' ? 'جاري الاستيراد...' : 'Importing...') : t('importCsv')}
               <input
                 type="file"
                 accept=".csv"
                 className="hidden"
+                disabled={importingCsv}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (!f) return;
                   const r = new FileReader();
                   r.onload = () => {
-                    const text = r.result as string;
-                    const n = importContactsFromCsv(text);
-                    setImportResult(n);
-                    loadDataFromLocal();
-                    setTimeout(() => setImportResult(null), 3000);
+                    void (async () => {
+                      const text = r.result as string;
+                      setImportingCsv(true);
+                      try {
+                        const res = await fetch('/api/admin/address-book/import-csv', {
+                          method: 'POST',
+                          credentials: 'include',
+                          cache: 'no-store',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ csv: text }),
+                        });
+                        const data = (await res.json()) as { imported?: number; error?: string };
+                        if (!res.ok) throw new Error(data.error || 'Import failed');
+                        setImportResult(data.imported ?? 0);
+                        refreshAddressBookFromServer();
+                        emitAddressBookUpdated();
+                      } catch {
+                        setImportResult(0);
+                      } finally {
+                        setImportingCsv(false);
+                        setTimeout(() => setImportResult(null), 4000);
+                      }
+                    })();
                   };
                   r.readAsText(f, 'UTF-8');
                   e.target.value = '';
