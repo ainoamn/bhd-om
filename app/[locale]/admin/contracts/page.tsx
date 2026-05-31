@@ -9,6 +9,7 @@ import {
   createContract,
   approveContractByAdmin,
   fetchContractsFromServer,
+  fetchContractByIdFromServer,
   bookingHasServerContract,
   type RentalContract,
   type ContractStatus,
@@ -303,9 +304,20 @@ export default function AdminContractsPage() {
     window.location.href = `/${locale}/admin/contracts/${contract.id}`;
   };
 
-  const handleApproveByAdmin = (id: string) => {
-    approveContractByAdmin(id, sessionToContractActor(session));
-    loadData();
+  const handleApproveByAdmin = async (id: string) => {
+    await fetchContractByIdFromServer(id);
+    const updated = approveContractByAdmin(id, sessionToContractActor(session));
+    if (!updated) {
+      alert(
+        ar
+          ? 'تعذّر الاعتماد — تأكد من اكتمال بيانات العقد أو افتح صفحة العقد للمراجعة.'
+          : 'Could not approve — complete contract data or open the contract page.'
+      );
+      return;
+    }
+    const list = await fetchContractsFromServer();
+    setApiContracts(list);
+    loadData(bookings, list);
   };
 
   const filteredContracts = contracts.filter((c) => {
@@ -541,10 +553,10 @@ export default function AdminContractsPage() {
                         <Link href={`/${locale}/admin/contracts/${c.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">
                           {ar ? 'عرض / تعديل' : 'View / Edit'}
                         </Link>
-                        {c.status === 'DRAFT' && c.source === 'local' && canApproveContract && (
+                        {c.status === 'DRAFT' && canApproveContract && (
                           <button
                             type="button"
-                            onClick={() => handleApproveByAdmin(c.id)}
+                            onClick={() => void handleApproveByAdmin(c.id)}
                             className="text-sm font-medium text-emerald-600 hover:underline"
                           >
                             {ar ? 'اعتماد' : 'Approve'}

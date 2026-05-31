@@ -380,14 +380,12 @@ export async function fetchContractsFromServer(opts?: {
     qs.set('propertyId', String(opts.propertyId));
   }
   const res = await fetch(`/api/contracts?${qs.toString()}`, { cache: 'no-store', credentials: 'include' });
-  const list = res.ok ? ((await res.json()) as RentalContract[]) : [];
-  if (Array.isArray(list) && list.length > 0) {
-    mergeContractsFromServer(list);
-    didHydrateContractsFromServer = true;
-    return list;
-  }
-  if (opts?.propertyId != null) return [];
-  return getStored();
+  if (!res.ok) return [];
+  const list = (await res.json()) as RentalContract[];
+  if (!Array.isArray(list)) return [];
+  if (list.length > 0) mergeContractsFromServer(list);
+  didHydrateContractsFromServer = true;
+  return list;
 }
 
 /** انتظار hydrate من الخادم — استدعِه عند فتح صفحات العقود */

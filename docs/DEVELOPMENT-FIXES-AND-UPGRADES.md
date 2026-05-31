@@ -353,7 +353,7 @@
 ### أولوية عالية
 - ~~جدول Prisma مستقل للعقود (`ContractStorage`)~~ — **2026-05-31:** `ContractStorage` + `/api/contracts` + backfill من BookingStorage.
 - ~~جدول Prisma مستقل لمستندات الحجز (`BookingDocumentStorage`)~~ — **2026-05-31:** صف لكل مستند + backfill من `booking_documents_settings`.
-- إكمال فصل واجهة العقود نهائياً عن `localStorage` — **2026-05-31:** `resolveContractFromBooking`؛ صفحات admin/bookings/contracts/my-bookings + `contracts/[id]` server-first؛ `updateContract` ما زال يحدّث cache للكتابة ثم sync للخادم.
+- إكمال فصل واجهة العقود نهائياً عن `localStorage` — **2026-05-31:** `resolveContractFromBooking`؛ صفحات admin/bookings/contracts/my-bookings + `contracts/[id]` server-first؛ `updateContract` → PATCH؛ `fetchContractsFromServer` لا fallback محلي؛ اعتماد من قائمة admin/contracts يعمل على عقود الخادم.
 - ~~توحيد مسار مستندات الحجز بحيث يكون مصدره الخادم بالكامل~~ — **2026-05-31:** `BookingDocumentStorage` + API paginated + backfill legacy.
 - ~~بوابة دفع حقيقية بدل المحاكاة في `/book`.~~ — **2026-05-31:** `paymentGateway.ts` + `/api/bookings/payment/initiate` (mock؛ Thawani عند `THAWANI_*`).
 
@@ -380,7 +380,7 @@
 ### CI — E2E
 
 - **`e2e-api`:** Postgres 16 service container على الـ runner + `DATABASE_URL` ثابت للـ CI (لا يعتمد على Secrets للإنتاج) + `prisma migrate deploy` قبل البناء.
-- **`e2e-critical`:** يعمل عند وجود `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` (job `if` عبر `env`) + `prisma db seed` بعد migrate.
+- **`e2e-critical`:** يعمل عند وجود `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` (`if: secrets`) + `prisma db seed` بعد migrate.
 - **اختبار التصفير:** يتطلب `E2E_ALLOW_DB_RESET=true` — لا يُشغَّل في CI افتراضياً؛ بعد التصفير يتحقق من إعادة التوجيه لـ login من `my-bookings` و `my-account`.
 - **مراجعة بوابة الدفع:** `GET /api/admin/payment-gateway` (ADMIN) — provider، webhook، success/cancel URLs.
 

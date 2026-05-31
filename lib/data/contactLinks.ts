@@ -10,7 +10,7 @@ import {
   type LandlordMatchContext,
 } from './ownerLandlordMatch';
 import { getAllBookings, type PropertyBooking } from './bookings';
-import { getAllContracts, type RentalContract } from './contracts';
+import type { RentalContract } from './contracts';
 import { searchDocuments } from './accounting';
 import type { AccountingDocument } from './accounting';
 import { getPropertyById, getPropertyDataOverrides } from './properties';
@@ -235,9 +235,9 @@ export function getContactLinkedContractsFromServer(
   return out;
 }
 
-/** العقود المرتبطة بجهة الاتصال (مستأجر أو مالك - مطابقة الهاتف أو البريد) */
-export function getContactLinkedContracts(contact: Contact): ContactLinkedContract[] {
-  return getContactLinkedContractsFromServerContracts(contact, getAllContracts());
+/** @deprecated استخدم getContactLinkedContractsFromServer — لا fallback محلي */
+export function getContactLinkedContracts(_contact: Contact): ContactLinkedContract[] {
+  return [];
 }
 
 /** ربط العقود من بيانات الحجوزات القادمة من الخادم (contractData داخل booking) */

@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 24) — عقود server-first + إصلاح CI critical job
+
+- **`fetchContractsFromServer`:** يرجع نتيجة API فقط (بدون fallback `getStored()`)
+- **`admin/contracts`:** اعتماد المسودة من القائمة لعقود الخادم (`fetchContractByIdFromServer` + PATCH)
+- **`getContactLinkedContracts`:** deprecated — لا fallback محلي
+- **CI:** `e2e-critical` job `if` عبر `secrets` بدل `env`
+
 ### جلسة 2026-05-31 (تابع 23) — جاهزية إنتاج Thawani + check-env موسّع
 
 - **`getPaymentGatewayStatus`:** checklist، `productionReady`، `webhookUrl`، مفاتيح Thawani (بدون قيم)
