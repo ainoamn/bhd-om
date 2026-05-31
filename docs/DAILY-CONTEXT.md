@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 30) — E2E مصادق لـ address-book + إصلاح requireAuth
+
+- **`tests/e2e/api-address-book-auth.spec.ts`:** POST create/archive، import-csv، merge-duplicates (بعد login)
+- **CI `e2e-api`:** `prisma db seed` قبل الاختبارات؛ `SEED_ADMIN_CREDENTIALS` في CI
+- **`requireAuth`:** نفس بدائل كوكي JWT مثل `getAuthSubFromRequest` + fallback `getServerSession`
+- **`check-env` E2E:** PAYMENT_PROVIDER اختياري
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 29) — create/update/archive دفتر العناوين server-only (ADMIN)
 
 - **`lib/client/addressBookServerApi.ts`:** `saveContactToServer`, `buildNewContactForServer`, `applyContactUpdateOnServer`, `setContactArchivedOnServer`

@@ -44,6 +44,9 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
 
+      - name: Seed database for authenticated API tests
+        run: npx prisma db seed
+
       - name: Build application
         run: npm run build
 

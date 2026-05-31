@@ -2,12 +2,18 @@ import type { Page } from '@playwright/test';
 
 export type E2ECredentials = { email: string; password: string };
 
+/** بيانات المدير من seed (`prisma db seed`) — للـ CI ومحلي */
+export const SEED_ADMIN_CREDENTIALS: E2ECredentials = {
+  email: 'admin@bhd-om.com',
+  password: 'admin123',
+};
+
 export function resolveE2EAdminCredentials(): E2ECredentials | null {
   const email = (process.env.E2E_ADMIN_EMAIL || '').trim();
   const password = (process.env.E2E_ADMIN_PASSWORD || '').trim();
   if (email && password) return { email, password };
-  if (process.env.CI) return null;
-  return { email: 'admin@bhd-om.com', password: 'admin123' };
+  if (process.env.CI) return SEED_ADMIN_CREDENTIALS;
+  return SEED_ADMIN_CREDENTIALS;
 }
 
 export async function loginWithCredentials(

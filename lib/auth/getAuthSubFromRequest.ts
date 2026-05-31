@@ -1,6 +1,5 @@
 /**
- * يستخرج معرف المستخدم (sub) من طلب API — بنفس بدائل الكوكي المستخدمة في المحاسبة
- * حتى يعمل getToken عندما يفشل الاستدعاء المباشر مع NextRequest في App Router.
+ * يستخرج JWT / معرف المستخدم من طلب API — بدائل الكوكي لـ App Router و Playwright E2E
  */
 
 import { NextRequest } from 'next/server';
@@ -31,54 +30,51 @@ function tokenUserId(token: Awaited<ReturnType<typeof getToken>>): string | null
   return id || null;
 }
 
-export async function getAuthSubFromRequest(req: NextRequest): Promise<string | null> {
-  /** في App Router أحياناً يقرأ JWT من `headers().get('cookie')` أوضح من كائن NextRequest وحده */
+async function readTokenFromCookieHeader(cookieHeader: string) {
+  const reqFromCookie = { headers: new Headers({ cookie: cookieHeader }) } as NextRequest;
+  return getToken({ req: reqFromCookie, secret: getAuthSecret() });
+}
+
+/** JWT من الطلب — يُستخدم في requireAuth و getAuthSubFromRequest */
+export async function getAuthTokenFromRequest(
+  req: NextRequest
+): Promise<Awaited<ReturnType<typeof getToken>>> {
   try {
     const headerList = await headers();
     const cookieHeader = headerList.get('cookie');
     if (cookieHeader && cookieHeader.length > 0) {
-      const reqFromCookie = {
-        headers: new Headers({ cookie: cookieHeader }),
-      } as NextRequest;
-      const tokenFromHeader = await getToken({
-        req: reqFromCookie,
-        secret: getAuthSecret(),
-      });
-      const fromHeader = tokenUserId(tokenFromHeader);
-      if (fromHeader) return fromHeader;
+      const tokenFromHeader = await readTokenFromCookieHeader(cookieHeader);
+      if (tokenFromHeader) return tokenFromHeader;
     }
   } catch {
-    /* خارج سياق الطلب (نادر) */
+    /* خارج سياق الطلب */
   }
 
-  let token = await getToken({
-    req,
-    secret: getAuthSecret(),
-  });
-  const fromToken = tokenUserId(token);
-  if (fromToken) return fromToken;
+  let token = await getToken({ req, secret: getAuthSecret() });
+  if (token) return token;
 
   const fromRequest = getSessionCookie(req);
   if (fromRequest) {
-    const reqWithCookie = {
-      headers: new Headers({ cookie: `${fromRequest.name}=${fromRequest.value}` }),
-    } as NextRequest;
-    token = await getToken({ req: reqWithCookie, secret: getAuthSecret() });
-    const id = tokenUserId(token);
-    if (id) return id;
+    token = await readTokenFromCookieHeader(`${fromRequest.name}=${fromRequest.value}`);
+    if (token) return token;
   }
 
   const cookieStore = await cookies();
   for (const name of SESSION_COOKIE_NAMES) {
     const sessionCookie = cookieStore.get(name);
     if (sessionCookie?.value) {
-      const cookieHeader = `${sessionCookie.name}=${sessionCookie.value}`;
-      const reqWithCookie = { headers: new Headers({ cookie: cookieHeader }) } as NextRequest;
-      token = await getToken({ req: reqWithCookie, secret: getAuthSecret() });
-      const id = tokenUserId(token);
-      if (id) return id;
+      token = await readTokenFromCookieHeader(`${sessionCookie.name}=${sessionCookie.value}`);
+      if (token) return token;
     }
   }
+
+  return null;
+}
+
+export async function getAuthSubFromRequest(req: NextRequest): Promise<string | null> {
+  const token = await getAuthTokenFromRequest(req);
+  const fromToken = tokenUserId(token);
+  if (fromToken) return fromToken;
 
   const session = await getServerSession(authOptions);
   const id = (session?.user as { id?: string } | undefined)?.id;
@@ -86,3 +82,5 @@ export async function getAuthSubFromRequest(req: NextRequest): Promise<string | 
 
   return null;
 }
+
+export { tokenUserId };

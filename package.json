@@ -21,10 +21,10 @@
     "start": "next start",
     "lint": "eslint .",
     "test:e2e": "playwright test",
-    "test:e2e:api": "playwright test tests/e2e/api-booking-guards.spec.ts",
+    "test:e2e:api": "playwright test tests/e2e/api-booking-guards.spec.ts tests/e2e/api-address-book-auth.spec.ts",
     "test:e2e:critical": "playwright test tests/e2e/critical-flows.spec.ts tests/e2e/booking-happy-path.spec.ts",
     "test:e2e:happy": "playwright test tests/e2e/booking-happy-path.spec.ts",
-    "test:e2e:verify": "playwright test tests/e2e/api-booking-guards.spec.ts tests/e2e/booking-happy-path.spec.ts tests/e2e/critical-flows.spec.ts tests/e2e/public-pages.spec.ts",
+    "test:e2e:verify": "playwright test tests/e2e/api-booking-guards.spec.ts tests/e2e/api-address-book-auth.spec.ts tests/e2e/booking-happy-path.spec.ts tests/e2e/critical-flows.spec.ts tests/e2e/public-pages.spec.ts",
     "test:e2e:perf": "playwright test tests/e2e/perf-navigation.spec.ts"
   },
   "prisma": {
