@@ -36,8 +36,6 @@ import {
   findContactsByCivilIdOrName,
   findContactsBySerialPrefix,
   getAllPersonalContacts,
-  findDuplicateContactGroups,
-  mergeDuplicateContacts,
   normalizePhoneForComparison,
   type Contact,
   type ContactCategory,
@@ -46,6 +44,7 @@ import {
   type ContactType,
   type AuthorizedRepresentative,
 } from '@/lib/data/addressBook';
+import { findDuplicateContactGroupsFromList } from '@/lib/addressBook/contactDuplicates';
 import {
   deriveContactCategoriesFromLinks,
   getContactLinkedBookingDocumentsFromServerBookings,
@@ -217,6 +216,7 @@ export default function AdminAddressBookPage() {
   const [createAccountsResult, setCreateAccountsResult] = useState<{ created: number; linked: number; failed?: number; noAction?: boolean } | null>(null);
   const [creatingAccounts, setCreatingAccounts] = useState(false);
   const [mergeResult, setMergeResult] = useState<number | null>(null);
+  const [mergingDuplicates, setMergingDuplicates] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   /** لا نستدعي API قبل أن يكون كائن الجلسة جاهزاً — يمنع 401 ورسالة الخطأ الحمراء رغم ظهور «مدير النظام» */
   const addressBookSessionReady =
@@ -353,14 +353,6 @@ export default function AdminAddressBookPage() {
   const triggerRepSearch = (repIdx: number) => {
     if ((form.authorizedRepresentatives[repIdx] as { contactId?: string })?.contactId) return;
     setRepSearchTarget(repIdx);
-  };
-
-  /** إعادة ملء الجدول من localStorage بعد عمليات محضّرة محلياً (استيراد CSV، دمج تكرار، مزامنة من الحجوزات). */
-  const loadDataFromLocal = () => {
-    const all = getAllContacts(showArchived);
-    const dashboardType = dashboardTypeForAddressBookFilter(userRole);
-    const filtered = dashboardType ? filterContactsByRolePermissions(all, dashboardType) : all;
-    setContacts(filtered);
   };
 
   /** إشعار من تبويب آخر أو من emit بعد الحفظ — إعادة جلب مؤجلة لتجنّب تعارض الطلبات */
@@ -552,16 +544,26 @@ export default function AdminAddressBookPage() {
     }
   };
 
-  const duplicateGroups = findDuplicateContactGroups();
-  const handleMergeDuplicates = () => {
-    let merged = 0;
-    for (const group of duplicateGroups) {
-      const result = mergeDuplicateContacts(group.map((c) => c.id));
-      if (result) merged += group.length - 1;
+  const duplicateGroups = findDuplicateContactGroupsFromList(contacts);
+  const handleMergeDuplicates = async () => {
+    setMergingDuplicates(true);
+    try {
+      const res = await fetch('/api/admin/address-book/merge-duplicates', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const data = (await res.json()) as { merged?: number; error?: string };
+      if (!res.ok) throw new Error(data.error || 'Merge failed');
+      setMergeResult(data.merged ?? 0);
+      refreshAddressBookFromServer();
+      emitAddressBookUpdated();
+    } catch {
+      setMergeResult(0);
+    } finally {
+      setMergingDuplicates(false);
+      setTimeout(() => setMergeResult(null), 4000);
     }
-    loadDataFromLocal();
-    setMergeResult(merged);
-    setTimeout(() => setMergeResult(null), 4000);
   };
 
   const searched = searchContacts(search, showArchived, contacts);
@@ -1479,11 +1481,16 @@ export default function AdminAddressBookPage() {
             {duplicateGroups.length > 0 && (
               <button
                 type="button"
-                onClick={handleMergeDuplicates}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all no-print"
+                onClick={() => void handleMergeDuplicates()}
+                disabled={mergingDuplicates}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all no-print disabled:opacity-60"
               >
                 <span>🔗</span>
-                {t('mergeDuplicates')} ({duplicateGroups.length})
+                {mergingDuplicates
+                  ? locale === 'ar'
+                    ? 'جاري الدمج...'
+                    : 'Merging...'
+                  : `${t('mergeDuplicates')} (${duplicateGroups.length})`}
               </button>
             )}
             <button

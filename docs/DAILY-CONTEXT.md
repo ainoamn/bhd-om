@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 27) — دمج تكرار دفتر العناوين من الخادم
+
+- **`lib/addressBook/contactDuplicates.ts`:** find groups + merge core
+- **`GET/POST /api/admin/address-book/merge-duplicates`:** summary + دمج كل المجموعات في DB
+- **`admin/address-book`:** كشف التكرار من `contacts` (خادم)؛ الدمج عبر API + refresh
+- إزالة **`loadDataFromLocal`** من صفحة address-book
+
 ### جلسة 2026-05-31 (تابع 26) — استيراد CSV دفتر العناوين من الخادم
 
 - **`lib/addressBook/parseContactsCsv.ts`:** parser مشترك

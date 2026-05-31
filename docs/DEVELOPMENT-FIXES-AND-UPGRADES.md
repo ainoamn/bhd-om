@@ -358,7 +358,7 @@
 - ~~بوابة دفع حقيقية بدل المحاكاة في `/book`.~~ — **2026-05-31:** `paymentGateway.ts` + `/api/bookings/payment/initiate` (mock؛ Thawani عند `THAWANI_*`).
 
 ### أولوية متوسطة
-- تقليل الـ fallback المحلي في `address-book` أكثر — **2026-05-31:** sync-from-bookings + import-csv من API؛ CSV parser مشترك.
+- تقليل الـ fallback المحلي في `address-book` أكثر — **2026-05-31:** sync-from-bookings + import-csv + merge-duplicates من API؛ CSV/duplicate core مشترك.
 - إضافة اختبارات تكامل لمسارات:
   - `/api/bookings` — **401 guards** في `api-booking-guards.spec.ts`
   - `/api/user/linked-contact` — **401 GET/PATCH** (2026-05-31)

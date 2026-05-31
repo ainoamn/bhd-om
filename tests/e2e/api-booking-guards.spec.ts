@@ -112,6 +112,16 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('address-book merge-duplicates GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/admin/address-book/merge-duplicates`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('address-book merge-duplicates POST requires authentication', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/admin/address-book/merge-duplicates`);
+    expect(res.status()).toBe(401);
+  });
+
   test('check-env returns safe production hints without secrets', async ({ request }) => {
     const res = await request.get(`${baseURL}/api/check-env`);
     expect(res.status()).toBe(200);
