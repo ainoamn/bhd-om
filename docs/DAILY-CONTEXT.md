@@ -14,9 +14,7 @@
 - **E2E:** `POST ensure-address-book` (إنشاء مستخدم + idempotent + linked-contact) في `api-address-book-auth.spec.ts`
 - **E2E guard:** `ensure-address-book` → 401 بدون مصادقة في `api-booking-guards.spec.ts`
 - **`admin/contracts/[id]`:** مزامنة بيانات المالك إلى دفتر العناوين عبر `saveContactToServer` بدل `updateContact` المحلي
-- **`npm run build`** ✅
-
-### جلسة 2026-05-31 (تابع 34) — admin/users server-first لدفتر العناوين
+- **`npm run build`** ✅ — commit `55b7435`
 
 - **`admin/users`:** إزالة `syncContactsFromUsers`/`createContact`/`getAllContacts` — أعلام «في دفتر العناوين» من `GET /api/address-book?limit=500`
 - **`refreshAddressBookFlagsFromServer`:** عند تحميل المستخدمين + حدث `ADDRESS_BOOK_UPDATED_EVENT`
