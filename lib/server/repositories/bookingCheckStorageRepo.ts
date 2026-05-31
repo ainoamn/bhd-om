@@ -150,10 +150,28 @@ export async function backfillBookingCheckStorageFromAppSettingBatch(limit = 100
   return updated;
 }
 
+/** ترحيل كامل من legacy حتى نفاد البيانات غير المنسوخة */
+export async function backfillAllBookingCheckStorageFromLegacy(): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const n = await backfillBookingCheckStorageFromAppSettingBatch(500);
+    total += n;
+    if (n === 0) break;
+  }
+  return total;
+}
+
+let legacyChecksBackfillDone = false;
+
 export async function ensureBookingCheckStorageBackfilled(): Promise<void> {
+  if (legacyChecksBackfillDone) return;
   const count = await prisma.bookingCheckStorage.count();
-  if (count > 0) return;
-  await backfillBookingCheckStorageFromAppSettingBatch(500);
+  if (count === 0) {
+    await backfillAllBookingCheckStorageFromLegacy();
+  } else {
+    await backfillBookingCheckStorageFromAppSettingBatch(500);
+  }
+  legacyChecksBackfillDone = true;
 }
 
 export async function listAllBookingChecksEntriesFromDb(opts?: {
@@ -177,27 +195,9 @@ export async function getChecksForBookingFromDb(bookingId: string): Promise<Book
     unlimited: false,
     filters: { bookingId },
   });
-  if (rows.length > 0) {
-    return rows
-      .map((row) => parseBookingCheckStorageData(row))
-      .filter((c): c is BookingCheckEntry => c !== null);
-  }
-
-  const legacy = await getJsonSetting<unknown>(LEGACY_KEY, []);
-  if (!Array.isArray(legacy)) return [];
-  const found = (legacy as ChecksStoreEntry[]).find((e) => e.bookingId === bookingId);
-  if (!found?.checks?.length) return [];
-
-  for (const check of found.checks) {
-    const checkTypeId = String(check?.checkTypeId || '').trim();
-    if (!checkTypeId) continue;
-    await upsertBookingCheckStorageRow({
-      bookingId,
-      checkTypeId,
-      payload: check as unknown as Record<string, unknown>,
-    });
-  }
-  return found.checks;
+  return rows
+    .map((row) => parseBookingCheckStorageData(row))
+    .filter((c): c is BookingCheckEntry => c !== null);
 }
 
 export async function saveChecksForBookingToDb(

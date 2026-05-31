@@ -17,3 +17,12 @@ export async function upsertJsonSetting(key: string, value: unknown): Promise<vo
     update: { value: JSON.stringify(value) },
   });
 }
+
+export async function deleteJsonSetting(key: string): Promise<boolean> {
+  try {
+    await prisma.appSetting.delete({ where: { key } });
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 16) — تنظيف legacy booking settings
+
+- **`legacyBookingSettingsCleanup.ts`:** status + backfill كامل + verify + purge لمفاتيح AppSetting.
+- **`POST/GET /api/admin/legacy-booking-settings`:** `backfill` | `purge` (confirm `PURGE-LEGACY-BOOKING-SETTINGS`).
+- **Repos:** `backfillAll*` + ensure ذكي؛ إزالة قراءة legacy في المسار الساخن.
+- **`deleteJsonSetting`** في appSettingsRepo.
+- **Script:** `npm run db:backfill-legacy-booking-settings`.
+- **E2E:** guards لـ admin legacy-booking-settings → 401.
+
 ### جلسة 2026-05-31 (تابع 15) — E2E happy-path: حجز mock → public contract
 
 - **`tests/e2e/booking-happy-path.spec.ts`:** login → mock payment/initiate → POST booking → public-contract-access GET/PATCH → contract-terms page.

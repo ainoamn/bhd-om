@@ -71,6 +71,18 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('legacy booking settings admin GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/admin/legacy-booking-settings`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('legacy booking settings admin POST requires authentication', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/admin/legacy-booking-settings`, {
+      data: { action: 'backfill' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('public upload PATCH rejects missing fields', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-upload-access`, {
       data: { action: 'upload', bookingId: 'BKG-TEST' },

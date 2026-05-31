@@ -126,10 +126,28 @@ export async function backfillBookingDocumentStorageFromAppSettingBatch(limit = 
   return updated;
 }
 
+/** ترحيل كامل من legacy حتى نفاد البيانات غير المنسوخة */
+export async function backfillAllBookingDocumentStorageFromLegacy(): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const n = await backfillBookingDocumentStorageFromAppSettingBatch(500);
+    total += n;
+    if (n === 0) break;
+  }
+  return total;
+}
+
+let legacyDocumentsBackfillDone = false;
+
 export async function ensureBookingDocumentStorageBackfilled(): Promise<void> {
+  if (legacyDocumentsBackfillDone) return;
   const count = await prisma.bookingDocumentStorage.count();
-  if (count > 0) return;
-  await backfillBookingDocumentStorageFromAppSettingBatch(500);
+  if (count === 0) {
+    await backfillAllBookingDocumentStorageFromLegacy();
+  } else {
+    await backfillBookingDocumentStorageFromAppSettingBatch(500);
+  }
+  legacyDocumentsBackfillDone = true;
 }
 
 export async function listBookingDocumentsFromDb(opts?: {
@@ -150,18 +168,7 @@ export async function listBookingDocumentsFromDb(opts?: {
 export async function getBookingDocumentFromDb(documentId: string): Promise<BookingDocument | null> {
   await ensureBookingDocumentStorageBackfilled();
   const row = await getBookingDocumentStorageById(documentId);
-  if (!row) {
-    const legacy = await getJsonSetting<unknown>(LEGACY_KEY, []);
-    if (!Array.isArray(legacy)) return null;
-    const found = (legacy as BookingDocument[]).find((d) => d.id === documentId);
-    if (!found) return null;
-    await upsertBookingDocumentStorageRow({
-      documentId: found.id,
-      bookingId: found.bookingId,
-      payload: found as unknown as Record<string, unknown>,
-    });
-    return found;
-  }
+  if (!row) return null;
   return rowToBookingDocument(row);
 }
 
