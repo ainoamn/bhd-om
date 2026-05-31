@@ -15,9 +15,7 @@
 - **`admin/data`:** بطاقة هجرات DB، نسخ webhook URL، تأكيد نصي `PURGE-LEGACY-BOOKING-SETTINGS`، رابط `/api/check-env`
 - **`ContactFormModal`:** يستخدم `fetchAddressBookListFromServer`؛ `DUPLICATE_PHONE` في `mapServerCode`
 - **تنظيف:** إزالة `contactsFromLocalForDisplay` الميت من `useAdminAddressBookContacts`
-- **`npm run build`** ✅
-
-### جلسة 2026-05-31 (تابع 36) — ContactFormModal server-first
+- **`npm run build`** ✅ — commit `9e49add`
 
 - **`ContactFormModal`:** إزالة `createContact`/`updateContact` — الحفظ عبر `saveContactToServer` فقط
 - **التكرار:** `findDuplicateContactFieldsInList` على قائمة من `GET /api/address-book` (أو `existingContacts`)
