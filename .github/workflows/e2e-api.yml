@@ -23,6 +23,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Build application
         run: npm run build
         env:
@@ -38,7 +43,10 @@ jobs:
 
   e2e-critical:
     runs-on: ubuntu-latest
-    if: ${{ secrets.E2E_ADMIN_EMAIL != '' && secrets.E2E_ADMIN_PASSWORD != '' }}
+    env:
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+    if: env.E2E_ADMIN_EMAIL != '' && env.E2E_ADMIN_PASSWORD != ''
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +61,11 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Build application
         run: npm run build
         env:
@@ -60,7 +73,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run critical flow tests
-        run: npx playwright test tests/e2e/critical-flows.spec.ts
+        run: npm run test:e2e:critical
         env:
           CI: true
           NEXTAUTH_SECRET: ci-test-secret-not-for-production

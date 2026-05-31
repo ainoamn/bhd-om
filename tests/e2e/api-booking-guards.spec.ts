@@ -88,6 +88,35 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('thawani webhook rejects missing session_id', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/webhooks/thawani`, {
+      data: { event_type: 'checkout.completed' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('linked-contact GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/user/linked-contact`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('linked-contact PATCH requires authentication', async ({ request }) => {
+    const res = await request.patch(`${baseURL}/api/user/linked-contact`, {
+      data: { firstName: 'Test' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('me accounting-documents GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/me/accounting-documents`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('address-book GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/address-book?limit=1&offset=0`);
+    expect(res.status()).toBe(401);
+  });
+
   test('debug-auth is blocked in production', async ({ request }) => {
     test.skip(process.env.NODE_ENV !== 'production', 'Production-only assertion');
     const res = await request.get(`${baseURL}/api/debug-auth`);

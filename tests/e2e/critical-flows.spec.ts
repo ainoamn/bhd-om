@@ -31,7 +31,10 @@ async function loginWithCreds(
 
 test.describe('Critical DB-first flows', () => {
   test('reset flow logs out deleted session user', async ({ page }) => {
-    test.skip(!hasCreds, 'Missing E2E credentials env vars');
+    test.skip(
+      !hasCreds || process.env.E2E_ALLOW_DB_RESET !== 'true',
+      'Set E2E_ALLOW_DB_RESET=true to run destructive DB reset test'
+    );
 
     await loginAsAdmin(page);
     await page.goto('/ar/admin/data');

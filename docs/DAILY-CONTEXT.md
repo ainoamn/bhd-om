@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 9) — CI + guards API + أمان E2E
+
+- **CI:** `prisma migrate deploy` قبل build؛ إصلاح شرط `e2e-critical` عبر `env`.
+- **E2E:** guards لـ linked-contact، accounting-documents، address-book، thawani session_id.
+- **أمان:** اختبار تصفير DB يتطلب `E2E_ALLOW_DB_RESET=true`.
+- **`npm run test:e2e:critical`** + توثيق `.env.example`.
+
 ### جلسة 2026-05-31 (تابع 8) — BookingDocumentStorage + تحسين بحث الحجز
 
 - **Prisma:** جدول `BookingDocumentStorage` (صف لكل مستند) + migration `20260531120000`.

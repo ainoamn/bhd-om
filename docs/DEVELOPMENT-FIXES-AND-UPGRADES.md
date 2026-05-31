@@ -360,9 +360,9 @@
 ### أولوية متوسطة
 - تقليل الـ fallback المحلي في `address-book` أكثر (الإبقاء فقط للحالات الطارئة).
 - إضافة اختبارات تكامل لمسارات:
-  - `/api/bookings`
-  - `/api/user/linked-contact`
-  - `/api/me/accounting-documents`
+  - `/api/bookings` — **401 guards** في `api-booking-guards.spec.ts`
+  - `/api/user/linked-contact` — **401 GET/PATCH** (2026-05-31)
+  - `/api/me/accounting-documents` — **401 GET** (2026-05-31)
 
 ### جودة واستدامة
 - إضافة E2E لسيناريو:
@@ -379,8 +379,9 @@
 
 ### CI — E2E
 
-- **`e2e-api`:** يعمل دائماً (يتطلب `DATABASE_URL` في Secrets).
-- **`e2e-critical`:** يعمل عند وجود `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` في GitHub Secrets.
+- **`e2e-api`:** يعمل دائماً (يتطلب `DATABASE_URL` في Secrets) + `prisma migrate deploy` قبل البناء.
+- **`e2e-critical`:** يعمل عند وجود `E2E_ADMIN_EMAIL` + `E2E_ADMIN_PASSWORD` (job `if` عبر `env`).
+- **اختبار التصفير:** يتطلب `E2E_ALLOW_DB_RESET=true` — لا يُشغَّل في CI افتراضياً.
 
 ## دفعة RBAC الحالية (تقارب مع متطلبات Kimi مع الحفاظ على التوافق)
 
