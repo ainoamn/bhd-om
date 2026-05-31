@@ -17,6 +17,8 @@
 - **`AddUserModal`:** يعتمد على `create-from-contact` الذي يضمن الصف على الخادم
 - **`npm run build`** ✅ — commit `1cd98ef`
 
+### جلسة 2026-05-31 (تابع 33) — contract-terms server-first لجهة الاتصال
+
 - **`contract-terms`:** إزالة `updateContact`/`ensureContactFromBooking` — الحفظ عبر `persistPublicContractContact` (public-contract-access)
 - **`resolveContactIdForBooking`:** `booking.contactId` → محلي للقراءة → `newContactId()`
 - **`publicContractContactSync`:** دعم `companyData` (مفوضين الشركة)
