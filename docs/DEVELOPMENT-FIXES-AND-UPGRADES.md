@@ -358,7 +358,7 @@
 - ~~بوابة دفع حقيقية بدل المحاكاة في `/book`.~~ — **2026-05-31:** `paymentGateway.ts` + `/api/bookings/payment/initiate` (mock؛ Thawani عند `THAWANI_*`).
 
 ### أولوية متوسطة
-- تقليل الـ fallback المحلي في `address-book` — **2026-05-31:** عمليات bulk من API؛ العرض من الخادم فقط؛ archive/restore/create-accounts بدون `getAllContacts`.
+- تقليل الـ fallback المحلي في `address-book` — **2026-05-31:** عمليات bulk من API؛ العرض من الخادم فقط؛ archive/restore/create-accounts بدون `getAllContacts`. **تابع 29:** create/update/archive عبر `lib/client/addressBookServerApi.ts` — لا كتابة localStorage قبل الخادم للمدير.
 - إضافة اختبارات تكامل لمسارات:
   - `/api/bookings` — **401 guards** في `api-booking-guards.spec.ts`
   - `/api/user/linked-contact` — **401 GET/PATCH** (2026-05-31)

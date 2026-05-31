@@ -10,10 +10,6 @@ import {
   searchContacts,
   getRepDisplayName,
   buildRepNameFromParts,
-  createContact,
-  updateContact,
-  archiveContact,
-  restoreContact,
   exportContactsToCsv,
   getContactDisplayName,
   getContactLocalizedField,
@@ -31,7 +27,7 @@ import {
   validatePassportExpiry,
   contactAddressHasUsableContent,
   rewriteLocalAddressBookDeduped,
-  findDuplicateContactFields,
+  findDuplicateContactFieldsInList,
   findContactsByCivilIdOrName,
   findContactsBySerialPrefix,
   getAllPersonalContacts,
@@ -68,6 +64,13 @@ import { normalizeDateForInput } from '@/lib/utils/dateFormat';
 import { filterContactsByRolePermissions } from '@/lib/data/contactCategoryPermissions';
 import { ROLE_TO_DASHBOARD_TYPE } from '@/lib/config/dashboardRoles';
 import { useAdminAddressBookContacts } from '@/lib/hooks/useAdminAddressBookContacts';
+import {
+  AddressBookSaveError,
+  applyContactUpdateOnServer,
+  buildNewContactForServer,
+  saveContactToServer,
+  setContactArchivedOnServer,
+} from '@/lib/client/addressBookServerApi';
 
 /** فقط CLIENT/OWNER يُصفّيان حسب التصنيف؛ المدير وباقي الأدوار يرون القائمة كاملة */
 function dashboardTypeForAddressBookFilter(role: string | undefined) {
@@ -230,6 +233,8 @@ export default function AdminAddressBookPage() {
     userRole,
     showArchived,
   });
+
+  const contactById = (id: string) => contacts.find((c) => c.id === id);
 
   const [localSyncBannerDismissed, setLocalSyncBannerDismissed] = useState(false);
   useEffect(() => {
@@ -490,8 +495,13 @@ export default function AdminAddressBookPage() {
         const existingByPhone = normPhone.length >= 6 ? userByPhone.get(normPhone) : undefined;
         const existing = existingByEmail || existingByPhone;
         if (existing) {
-          updateContact(c.id, { userId: existing.id });
-          linked++;
+          const merged = applyContactUpdateOnServer(c, { userId: existing.id });
+          try {
+            await saveContactToServer(merged);
+            linked++;
+          } catch {
+            failed++;
+          }
           continue;
         }
         let displayName = c.contactType === 'COMPANY' && c.companyData?.companyNameAr
@@ -520,8 +530,17 @@ export default function AdminAddressBookPage() {
           });
           const data = await apiRes.json().catch(() => ({}));
           if (apiRes.ok && data.userId) {
-            updateContact(c.id, { userId: data.userId });
-            created++;
+            const merged = applyContactUpdateOnServer(c, {
+              userId: data.userId,
+              ...(data.serialNumber ? { serialNumber: data.serialNumber as string } : {}),
+            });
+            try {
+              await saveContactToServer(merged);
+              created++;
+            } catch {
+              failed++;
+              continue;
+            }
             const createdEmail = (data.email || '').toLowerCase().trim();
             if (createdEmail && !createdEmail.includes('@nologin.bhd')) userByEmail.set(createdEmail, { id: data.userId });
             const createdPhone = fullPhone ? normalizePhoneForComparison(fullPhone) : '';
@@ -796,7 +815,15 @@ export default function AdminAddressBookPage() {
         if (!r.civilId?.trim()) errors[`rep_${i}_civilId`] = t('fieldRequired');
         const repContactId = (r as { contactId?: string }).contactId;
         if (!repContactId) {
-          const repDups = findDuplicateContactFields('', r.civilId?.trim(), r.passportNumber?.trim(), undefined, undefined, editingId ? [editingId] : undefined);
+          const repDups = findDuplicateContactFieldsInList(
+            contacts,
+            '',
+            r.civilId?.trim(),
+            r.passportNumber?.trim(),
+            undefined,
+            undefined,
+            editingId ? [editingId] : undefined
+          );
           if (repDups.civilId) errors[`rep_${i}_civilId`] = t('duplicateCivilId');
           if (repDups.passportNumber) errors[`rep_${i}_passportNumber`] = t('duplicatePassportNumber');
         }
@@ -820,7 +847,8 @@ export default function AdminAddressBookPage() {
       if (form.passportExpiry?.trim() && !validatePassportExpiry(form.passportExpiry).valid) errors.passportExpiry = t('passportExpiryMinDays');
     }
 
-    const dups = findDuplicateContactFields(
+    const dups = findDuplicateContactFieldsInList(
+      contacts,
       fullPhone,
       form.civilId?.trim(),
       form.passportNumber?.trim(),
@@ -911,36 +939,20 @@ export default function AdminAddressBookPage() {
 
     try {
     if (editingId) {
-      updateContact(editingId, payload);
-      const updated = getContactById(editingId);
-      if (updated) {
-        try {
-          await fetch('/api/address-book', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(updated),
-          });
-        } catch {
-          // المزامنة مع الخادم قد تفشل
-        }
-      }
+      const current = contactById(editingId);
+      if (!current) return;
+      const updated = applyContactUpdateOnServer(current, payload);
+      await saveContactToServer(updated);
       setShowModal(false);
       setFormErrors({});
       refreshAddressBookFromServer();
       emitAddressBookUpdated();
     } else {
-        const createdContact = createContact(payload as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>);
-        try {
-          await fetch('/api/address-book', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(createdContact),
-          });
-        } catch {
-          // المزامنة مع الخادم قد تفشل
-        }
+        const createdContact = buildNewContactForServer(
+          payload as Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>,
+          contacts
+        );
+        await saveContactToServer(createdContact);
         let creds: { email?: string; tempPassword: string; serialNumber?: string } | null = null;
         try {
           const displayName = isCompany ? form.companyNameAr.trim() : [form.firstName, form.secondName, form.thirdName, form.familyName].filter(Boolean).join(' ');
@@ -963,23 +975,11 @@ export default function AdminAddressBookPage() {
               serialNumber: data.serialNumber,
             };
             if (data.userId) {
-              updateContact(createdContact.id, {
+              const relinked = applyContactUpdateOnServer(createdContact, {
                 userId: data.userId,
                 ...(data.serialNumber ? { serialNumber: data.serialNumber as string } : {}),
               });
-              const relinked = getContactById(createdContact.id);
-              if (relinked) {
-                try {
-                  await fetch('/api/address-book', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(relinked),
-                  });
-                } catch {
-                  /* ignore */
-                }
-              }
+              await saveContactToServer(relinked);
             }
           } else if (!res.ok && data.error) {
             setUserCreateMsg(data.error);
@@ -999,11 +999,17 @@ export default function AdminAddressBookPage() {
         if (creds) setGeneratedCreds(creds);
     }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg === 'DUPLICATE_PHONE') setFormErrors((e) => ({ ...e, phone: t('duplicatePhone') }));
-      else if (msg === 'DUPLICATE_CIVIL_ID') setFormErrors((e) => ({ ...e, civilId: t('duplicateCivilId'), authorizedRepresentatives: isCompany ? t('duplicateCivilId') : '' }));
-      else if (msg === 'DUPLICATE_PASSPORT') setFormErrors((e) => ({ ...e, passportNumber: t('duplicatePassportNumber'), authorizedRepresentatives: isCompany ? t('duplicatePassportNumber') : '' }));
-      else if (msg === 'DUPLICATE_COMMERCIAL_REGISTRATION') setFormErrors((e) => ({ ...e, commercialRegistrationNumber: t('duplicateCommercialRegistration') }));
+      const code =
+        err instanceof AddressBookSaveError
+          ? err.code
+          : err instanceof Error
+            ? err.message
+            : '';
+      if (code === 'DUPLICATE_PHONE') setFormErrors((e) => ({ ...e, phone: t('duplicatePhone') }));
+      else if (code === 'DUPLICATE_CIVIL_ID') setFormErrors((e) => ({ ...e, civilId: t('duplicateCivilId'), authorizedRepresentatives: isCompany ? t('duplicateCivilId') : '' }));
+      else if (code === 'DUPLICATE_PASSPORT') setFormErrors((e) => ({ ...e, passportNumber: t('duplicatePassportNumber'), authorizedRepresentatives: isCompany ? t('duplicatePassportNumber') : '' }));
+      else if (code === 'DUPLICATE_COMMERCIAL_REGISTRATION') setFormErrors((e) => ({ ...e, commercialRegistrationNumber: t('duplicateCommercialRegistration') }));
+      else if (code === 'DUPLICATE_SERIAL') setFormErrors((e) => ({ ...e, serialNumber: locale === 'ar' ? 'الرقم المتسلسل مستخدم مسبقاً' : 'Serial number already in use' }));
     }
   };
 
@@ -1181,26 +1187,36 @@ export default function AdminAddressBookPage() {
     if (w) { w.document.write(html); w.document.close(); }
   };
 
-  const handleArchive = (id: string) => {
-    const c = getContactById(id);
+  const handleArchive = async (id: string) => {
+    const c = contactById(id);
     if (!c) return;
     const { linked } = isContactLinkedFromServer(c, serverBookings, serverContracts, serverDocuments);
     if (linked) return;
-    archiveContact(id);
+    try {
+      await saveContactToServer(setContactArchivedOnServer(c, true));
+    } catch {
+      return;
+    }
     setDeleteId(null);
     refreshAddressBookFromServer();
     emitAddressBookUpdated();
   };
 
-  const handleRestore = (id: string) => {
-    restoreContact(id);
+  const handleRestore = async (id: string) => {
+    const c = contactById(id);
+    if (!c) return;
+    try {
+      await saveContactToServer(setContactArchivedOnServer(c, false));
+    } catch {
+      return;
+    }
     refreshAddressBookFromServer();
     emitAddressBookUpdated();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
-    const c = getContactById(deleteId);
+    const c = contactById(deleteId);
     if (!c) return;
     const { linked } = isContactLinkedFromServer(c, serverBookings, serverContracts, serverDocuments);
     if (linked) {
@@ -1208,7 +1224,7 @@ export default function AdminAddressBookPage() {
       return;
     }
     try {
-      archiveContact(deleteId);
+      await saveContactToServer(setContactArchivedOnServer(c, true));
       setDeleteId(null);
       refreshAddressBookFromServer();
       emitAddressBookUpdated();

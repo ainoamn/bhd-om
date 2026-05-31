@@ -75,10 +75,11 @@ npm run db:backfill-legacy-booking-settings
 | sync من المستخدمين | `POST /api/admin/address-book/bulk-ensure-from-users` |
 | استيراد CSV | `POST /api/admin/address-book/import-csv` |
 | دمج التكرارات | `POST /api/admin/address-book/merge-duplicates` |
+| إنشاء/تعديل/أرشفة | `POST /api/address-book` (من لوحة الإدارة — server-first) |
 
 ---
 
-## 6. CI محلي
+## 7. CI محلي
 
 ```bash
 npm run build

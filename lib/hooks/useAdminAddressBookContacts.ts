@@ -147,18 +147,16 @@ export function useAdminAddressBookContacts(opts: {
           if (prismaCode) setPrismaErrorCode(prismaCode);
           else setPrismaErrorCode(null);
           if (isAdminLike(userRole) || userRole === undefined) {
-            const local = contactsFromLocalForDisplay(userRole, showArchived);
-            setContacts(local);
             if (res.status === 401) {
-              setError(local.length > 0 ? 'unauthorized_local' : 'unauthorized');
+              setError('unauthorized');
             } else if (schemaNotDeployed) {
               setError('fetch_failed_schema');
             } else if (prismaKnown) {
               setError('fetch_failed_prisma');
             } else if (serverDbUnavailable) {
-              setError(local.length > 0 ? 'fetch_failed_db_local' : 'fetch_failed_db');
+              setError('fetch_failed_db');
             } else {
-              setError(local.length > 0 ? 'fetch_failed_local' : 'fetch_failed');
+              setError('fetch_failed');
             }
           } else {
             try {
@@ -211,9 +209,7 @@ export function useAdminAddressBookContacts(opts: {
         if ((e as Error).name === 'AbortError') return;
         if (myId !== requestIdRef.current) return;
         if (isAdminLike(userRole) || userRole === undefined) {
-          const local = contactsFromLocalForDisplay(userRole, showArchived);
-          setContacts(local);
-          setError(local.length > 0 ? 'network_local' : 'network');
+          setError('network');
         } else {
           setError('network');
           if (!initialFetchCompletedRef.current) {

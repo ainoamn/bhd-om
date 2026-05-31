@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 29) — create/update/archive دفتر العناوين server-only (ADMIN)
+
+- **`lib/client/addressBookServerApi.ts`:** `saveContactToServer`, `buildNewContactForServer`, `applyContactUpdateOnServer`, `setContactArchivedOnServer`
+- **`admin/address-book`:** إنشاء/تعديل/أرشفة/استعادة عبر `POST /api/address-book` فقط — بدون `createContact`/`updateContact`/`archiveContact`
+- **`findDuplicateContactFieldsInList`:** التحقق من التكرار ضمن قائمة الخادم
+- **`useAdminAddressBookContacts`:** المدير لا يعود للعرض من localStorage عند فشل الجلب
+- **`npm run build`** ✅ — commit `…`
+
 ### جلسة 2026-05-31 (تابع 28) — address-book: إزالة getAllContacts من العرض
 
 - **archive/restore/delete:** دائماً `refreshAddressBookFromServer` + `emitAddressBookUpdated`

@@ -654,15 +654,18 @@ export function clearAddressBookLocalStorage(): void {
   }
 }
 
-function generateId() {
+export function newContactId() {
   return `CNT-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/** توليد سيريل نبر للجهة: CNT-{CategoryCode}-{Year}-{Seq}-S{n} */
-function generateContactSerialNumber(category: ContactCategory): string {
+function generateId() {
+  return newContactId();
+}
+
+/** توليد سيريل نبر للجهة من قائمة موجودة (خادم أو محلي) */
+export function generateContactSerialNumberFromList(category: ContactCategory, list: Contact[]): string {
   const year = new Date().getFullYear();
   const code = CATEGORY_SERIAL_CODES[category] ?? 'O';
-  const list = getStored();
   const sameYearSameCat = list.filter((c) => {
     const cYear = c.createdAt ? new Date(c.createdAt).getFullYear() : year;
     const cCat = c.category ?? 'OTHER';
@@ -670,6 +673,11 @@ function generateContactSerialNumber(category: ContactCategory): string {
   });
   const seq = sameYearSameCat.length + 1;
   return `CNT-${code}-${year}-${String(seq).padStart(4, '0')}-S${seq}`;
+}
+
+/** توليد سيريل نبر للجهة: CNT-{CategoryCode}-{Year}-{Seq}-S{n} */
+function generateContactSerialNumber(category: ContactCategory): string {
+  return generateContactSerialNumberFromList(category, getStored());
 }
 
 /** تعيين سيريل نبر للجهات القديمة التي لا تملكه - مرتبة حسب تاريخ الإنشاء */
@@ -1357,17 +1365,16 @@ export function normalizePhoneForComparison(phone: string): string {
   return digits;
 }
 
-/** التحقق من تكرار الهاتف أو الرقم المدني أو رقم الجواز أو السجل التجاري - يُستثنى جهة الاتصال الحالية عند التعديل */
-export function findDuplicateContactFields(
+/** التحقق من تكرار الهاتف أو الرقم المدني أو رقم الجواز أو السجل التجاري ضمن قائمة معيّنة */
+export function findDuplicateContactFieldsInList(
+  list: Contact[],
   phone: string,
   civilId?: string,
   passportNumber?: string,
   excludeContactId?: string,
   commercialRegistrationNumber?: string,
-  /** جهات إضافية للاستثناء (مثلاً الشركة عند إنشاء مفوض بالتوقيع) */
   excludeContactIds?: string[]
 ): { phone?: Contact; civilId?: Contact; passportNumber?: Contact; commercialRegistration?: Contact } {
-  const list = getStored();
   const normPhone = normalizePhoneForComparison(phone || '');
   const normCivilId = (civilId || '').replace(/\D/g, '').trim();
   const normPassport = (passportNumber || '').trim().toUpperCase();
@@ -1385,6 +1392,27 @@ export function findDuplicateContactFields(
     if (normCr.length >= 4 && (c.companyData?.commercialRegistrationNumber || '').replace(/\D/g, '').trim() === normCr) result.commercialRegistration = c;
   }
   return result;
+}
+
+/** التحقق من تكرار الهاتف أو الرقم المدني أو رقم الجواز أو السجل التجاري - يُستثنى جهة الاتصال الحالية عند التعديل */
+export function findDuplicateContactFields(
+  phone: string,
+  civilId?: string,
+  passportNumber?: string,
+  excludeContactId?: string,
+  commercialRegistrationNumber?: string,
+  /** جهات إضافية للاستثناء (مثلاً الشركة عند إنشاء مفوض بالتوقيع) */
+  excludeContactIds?: string[]
+): { phone?: Contact; civilId?: Contact; passportNumber?: Contact; commercialRegistration?: Contact } {
+  return findDuplicateContactFieldsInList(
+    getStored(),
+    phone,
+    civilId,
+    passportNumber,
+    excludeContactId,
+    commercialRegistrationNumber,
+    excludeContactIds
+  );
 }
 
 /** البحث عن جهة اتصال للحجز: بالهاتف (الرئيسي أو هاتف المفوض) أو الرقم المدني أو رقم السجل التجاري */
