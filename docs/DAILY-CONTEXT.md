@@ -15,7 +15,7 @@
 - **`admin/address-book`:** إنشاء/تعديل/أرشفة/استعادة عبر `POST /api/address-book` فقط — بدون `createContact`/`updateContact`/`archiveContact`
 - **`findDuplicateContactFieldsInList`:** التحقق من التكرار ضمن قائمة الخادم
 - **`useAdminAddressBookContacts`:** المدير لا يعود للعرض من localStorage عند فشل الجلب
-- **`npm run build`** ✅ — commit `…`
+- **`npm run build`** ✅ — commit `1f9b75a`
 
 ### جلسة 2026-05-31 (تابع 28) — address-book: إزالة getAllContacts من العرض
 
