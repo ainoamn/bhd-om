@@ -15,7 +15,7 @@
 - **`resolveContactIdForBooking`:** `booking.contactId` → محلي للقراءة → `newContactId()`
 - **`publicContractContactSync`:** دعم `companyData` (مفوضين الشركة)
 - **`persistPublicContractContact`:** يرجع `{ contactId, contact }` + cache محلي بعد النجاح
-- **`npm run build`** ✅
+- **`npm run build`** ✅ — commit `7803a7e`
 
 ### جلسة 2026-05-31 (تابع 32) — صفحة الحجز server-first لجهة الاتصال
 
