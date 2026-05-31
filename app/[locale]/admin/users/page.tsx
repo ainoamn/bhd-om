@@ -6,13 +6,10 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
-  getAllContacts,
-  createContact,
-  syncContactsFromUsers,
-  syncContactToAddressBookApi,
+  mergeServerContactIntoLocalStorage,
+  type Contact,
 } from '@/lib/data/addressBook';
 import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
-import { parsePhoneToCountryAndNumber } from '@/lib/data/countryDialCodes';
 import { isValidUserSerialLike, safeUserSerialForDisplay, shortenUserSerial } from '@/lib/utils/serialNumber';
 import UserBarcode from '@/components/admin/UserBarcode';
 
@@ -35,16 +32,6 @@ interface UserRow {
   createdAt: string;
   plan?: PlanInfo | null;
   subscriptionEndAt?: string | null;
-}
-
-/** ينتظر إطاري رسم قبل تشغيل مزامنة ثقيلة على الخيط الرئيسي — حتى يظهر جدول الأسماء قبل أي عمل طويل */
-function scheduleAfterNextPaint(cb: () => void) {
-  if (typeof window === 'undefined') return;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      setTimeout(cb, 0);
-    });
-  });
 }
 
 const roleLabels: Record<string, string> = {
@@ -105,33 +92,7 @@ function AddUserModal({
         setError(data.error || (locale === 'ar' ? 'فشل الإنشاء' : 'Create failed'));
         return;
       }
-      if (data.userId) {
-        const nameParts = name.trim().split(/\s+/).filter(Boolean);
-        const fullPhone = (phone || '').replace(/\D/g, '');
-        const { code } = parsePhoneToCountryAndNumber(phone || '968');
-        const ph = fullPhone.length >= 8
-          ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
-          : `968${String(Date.now()).slice(-7)}`;
-        const created = createContact(
-          {
-            contactType: 'PERSONAL',
-            firstName: nameParts[0] || name.trim(),
-            familyName: nameParts.length > 1 ? nameParts[nameParts.length - 1]! : nameParts[0] || '',
-            secondName: nameParts.length > 3 ? nameParts[1] : undefined,
-            thirdName: nameParts.length > 4 ? nameParts[2] : undefined,
-            nationality: 'عماني',
-            gender: 'MALE',
-            email: data.email && !data.email.includes('@nologin.bhd') ? data.email : undefined,
-            phone: ph,
-            category: category === 'LANDLORD' ? 'LANDLORD' : 'CLIENT',
-            address: { fullAddress: '—', fullAddressEn: '—' },
-            userId: data.userId,
-          } as Parameters<typeof createContact>[0],
-          { userSerialNumber: data.serialNumber || undefined }
-        );
-        await syncContactToAddressBookApi(created);
-        emitAddressBookUpdated();
-      }
+      emitAddressBookUpdated();
       onSuccess({
         serialNumber: data.serialNumber || '',
         email: data.email || '',
@@ -270,6 +231,26 @@ export default function UsersAdminPage() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [addedUserCreds, setAddedUserCreds] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
 
+  const refreshAddressBookFlagsFromServer = useCallback(async () => {
+    try {
+      const res = await fetch('/api/address-book?limit=500', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+      setContacts(
+        data.map((c: Contact) => ({
+          email: (c.email || '').toLowerCase(),
+          userId: String(c.linkedUserId || c.userId || '').trim() || undefined,
+        }))
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     if (searchParams.get('addUser') !== '1') return;
     setShowAddUser(true);
@@ -376,31 +357,14 @@ export default function UsersAdminPage() {
       let usersList = Array.isArray(data) ? data : [];
       // لا نلجأ لمسار احتياطي هنا حتى لا تظهر بيانات/أرقام غير متسقة في لوحة الإدارة
       setUsers(usersList);
-      /** مزامنة دفتر العناوين في الخلفية — بدون تنبيه عند التحميل (كان يظهر قبل الأسماء لأن العمل يحجب الرسم) */
-      if (usersList.length > 0) {
-        const list = usersList;
-        const runSync = () => {
-          try {
-            syncContactsFromUsers(list);
-          } catch {
-            /* ignore */
-          }
-        };
-        scheduleAfterNextPaint(() => {
-          if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-            window.requestIdleCallback(runSync, { timeout: 4000 });
-          } else {
-            setTimeout(runSync, 0);
-          }
-        });
-      }
+      void refreshAddressBookFlagsFromServer();
     } catch {
       setLoadError(locale === 'ar' ? 'تعذر الاتصال بالخادم' : 'Network error');
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [locale, buildFallbackUsers]);
+  }, [locale, buildFallbackUsers, refreshAddressBookFlagsFromServer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -418,23 +382,7 @@ export default function UsersAdminPage() {
       const data = await res.json();
       const usersList = Array.isArray(data) ? data : [];
       setUsers(usersList);
-      if (usersList.length > 0) {
-        const list = usersList;
-        const runSync = () => {
-          try {
-            syncContactsFromUsers(list);
-          } catch {
-            /* ignore */
-          }
-        };
-        scheduleAfterNextPaint(() => {
-          if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-            window.requestIdleCallback(runSync, { timeout: 4000 });
-          } else {
-            setTimeout(runSync, 0);
-          }
-        });
-      }
+      void refreshAddressBookFlagsFromServer();
     } catch {
       setUsers([]);
     }
@@ -487,24 +435,12 @@ export default function UsersAdminPage() {
   };
 
   useEffect(() => {
-    const list = getAllContacts(true);
-    setContacts(list.map((c) => ({
-      email: (c.email || '').toLowerCase(),
-      userId: (c as { userId?: string }).userId,
-    })));
-  }, [users]);
-
-  useEffect(() => {
-    const refreshAddrFlags = () => {
-      const list = getAllContacts(true);
-      setContacts(list.map((c) => ({
-        email: (c.email || '').toLowerCase(),
-        userId: (c as { userId?: string }).userId,
-      })));
+    const onAddressBookUpdated = () => {
+      void refreshAddressBookFlagsFromServer();
     };
-    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, refreshAddrFlags);
-    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, refreshAddrFlags);
-  }, []);
+    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddressBookUpdated);
+    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddressBookUpdated);
+  }, [refreshAddressBookFlagsFromServer]);
 
   const filteredUsers = users.filter((u) => {
     const q = search.trim().toLowerCase();
@@ -534,37 +470,24 @@ export default function UsersAdminPage() {
     }
     setAddingId(user.id);
     try {
-      const nameParts = (user.name || '').trim().split(/\s+/);
-      const firstName = nameParts[0] || user.name || '';
-      const familyName = nameParts.length > 1 ? nameParts.slice(-1)[0] : '';
-      const secondName = nameParts.length > 3 ? nameParts[1] : undefined;
-      const thirdName = nameParts.length > 4 ? nameParts[2] : undefined;
-      const fullPhone = (user.phone || '').replace(/\D/g, '');
-      const { code } = parsePhoneToCountryAndNumber(user.phone || '968');
-      const phone = fullPhone.length >= 8
-        ? (fullPhone.startsWith(code) ? fullPhone : code + fullPhone.replace(/^0+/, ''))
-        : `968${String(Date.now()).slice(-7)}`; // placeholder when no phone
-
-      const created = createContact(
-        {
-          contactType: 'PERSONAL',
-          firstName,
-          secondName,
-          thirdName,
-          familyName: familyName || firstName,
-          nationality: 'عماني',
-          gender: 'MALE',
-          email: user.email?.includes('@nologin.bhd') ? undefined : user.email,
-          phone,
-          category: user.role === 'OWNER' ? 'LANDLORD' : 'CLIENT',
-          address: { fullAddress: '—', fullAddressEn: '—' },
-          userId: user.id,
-        } as Parameters<typeof createContact>[0],
-        { userSerialNumber: user.serialNumber }
-      );
-      await syncContactToAddressBookApi(created);
+      const res = await fetch(`/api/admin/users/${user.id}/ensure-address-book`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string; detail?: string; id?: string } | null;
+      if (!res.ok) {
+        const msg = typeof data?.error === 'string' ? data.error : '';
+        const detail = typeof data?.detail === 'string' && data.detail.trim() ? data.detail.trim() : '';
+        const base = msg || (locale === 'ar' ? 'فشل الإضافة' : 'Failed');
+        setSyncMsg(detail ? `${base} — ${detail}` : base);
+        setTimeout(() => setSyncMsg(null), 3500);
+        return;
+      }
+      if (data && typeof data === 'object' && typeof data.id === 'string' && data.id.trim()) {
+        mergeServerContactIntoLocalStorage(data as Contact);
+      }
       emitAddressBookUpdated();
-      setContacts((prev) => [...prev, { email: user.email.toLowerCase(), userId: user.id }]);
+      await refreshAddressBookFlagsFromServer();
       setSyncMsg(locale === 'ar' ? 'تمت الإضافة لدفتر العناوين' : 'Added to address book');
       setTimeout(() => setSyncMsg(null), 2500);
     } catch {

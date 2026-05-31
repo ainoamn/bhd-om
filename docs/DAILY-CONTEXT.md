@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 34) — admin/users server-first لدفتر العناوين
+
+- **`admin/users`:** إزالة `syncContactsFromUsers`/`createContact`/`getAllContacts` — أعلام «في دفتر العناوين» من `GET /api/address-book?limit=500`
+- **`refreshAddressBookFlagsFromServer`:** عند تحميل المستخدمين + حدث `ADDRESS_BOOK_UPDATED_EVENT`
+- **`handleAddToAddressBook`:** `POST /api/admin/users/[id]/ensure-address-book` (مثل صفحة المستخدم الفردية)
+- **`AddUserModal`:** يعتمد على `create-from-contact` الذي يضمن الصف على الخادم
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 33) — contract-terms server-first لجهة الاتصال
 
 - **`contract-terms`:** إزالة `updateContact`/`ensureContactFromBooking` — الحفظ عبر `persistPublicContractContact` (public-contract-access)
