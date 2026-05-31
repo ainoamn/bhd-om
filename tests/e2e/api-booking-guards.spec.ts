@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { e2eBrowserHeaders } from './helpers/auth';
 
 const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000';
 
@@ -118,6 +119,7 @@ test.describe('API guards — booking & contract path', () => {
 
   test('public contract access PATCH rejects missing fields', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-contract-access`, {
+      headers: e2eBrowserHeaders(),
       data: { action: 'saveChecks', bookingId: 'BKG-TEST' },
     });
     expect([400, 404]).toContain(res.status());
@@ -125,6 +127,7 @@ test.describe('API guards — booking & contract path', () => {
 
   test('public contract access PATCH updateBooking returns 404 for unknown booking', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-contract-access`, {
+      headers: e2eBrowserHeaders(),
       data: {
         action: 'updateBooking',
         bookingId: 'BKG-NO-SUCH',
@@ -137,6 +140,7 @@ test.describe('API guards — booking & contract path', () => {
 
   test('public contract access PATCH syncContact returns 404 for unknown booking', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-contract-access`, {
+      headers: e2eBrowserHeaders(),
       data: {
         action: 'syncContact',
         bookingId: 'BKG-NO-SUCH',

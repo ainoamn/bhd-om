@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 15) — E2E happy-path: حجز mock → public contract
+
+- **`tests/e2e/booking-happy-path.spec.ts`:** login → mock payment/initiate → POST booking → public-contract-access GET/PATCH → contract-terms page.
+- **`tests/e2e/helpers/auth.ts`:** بيانات دخول E2E + `buildE2EBookingIdentity`.
+- **`paymentGateway`:** قبول `PAY-*` بدون Thawani في أي بيئة (mock/CI).
+- **`npm run test:e2e:happy`**؛ happy-path مُضمَّن في `test:e2e:critical`.
+- **`.env.example`:** `E2E_PROPERTY_ID`.
+
 ### جلسة 2026-05-31 (تابع 14) — مزامنة جهة الاتصال للخادم من contract-terms
 
 - **`syncPublicContractContact`** + **`publicContractContactSync.ts`:** upsert في `AddressBookContact` بعد تحقق email/phone/civilId؛ ربط `contactId` بالحجز.
