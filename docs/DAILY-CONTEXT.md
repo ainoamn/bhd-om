@@ -14,7 +14,7 @@
 - **`ContactFormModal`:** إزالة `createContact`/`updateContact` — الحفظ عبر `saveContactToServer` فقط
 - **التكرار:** `findDuplicateContactFieldsInList` على قائمة من `GET /api/address-book` (أو `existingContacts`)
 - **التعديل:** تحميل الجهة من localStorage أو قائمة الخادم؛ `applyContactUpdateOnServer` + `mergeServerContactIntoLocalStorage`
-- **`npm run build`** ✅
+- **`npm run build`** ✅ — commit `965c371`
 
 ### جلسة 2026-05-31 (تابع 35) — E2E ensure-address-book + عقود server-first (مالك)
 
