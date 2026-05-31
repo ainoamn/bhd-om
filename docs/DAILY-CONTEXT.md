@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 18) — تحقق شامل + إصلاح E2E
+
+- **Build:** `npm run build` ✅
+- **E2E:** api guards 27/27 (2 skipped) ✅ | happy-path 2/2 ✅ | critical 5/5 (1 skipped reset) ✅ | public-pages 4/4 ✅
+- **إصلاحات:** `e2eBrowserHeaders` لـ public-upload PATCH؛ critical-flows يستخدم `loginWithCredentials` + fallback seed admin
+- **اختبار جديد:** legacy booking settings GET للأدمن في critical-flows
+- **`npm run test:e2e:verify`** — حزمة التحقق السريع
+- **Script backfill legacy:** يعمل (`fullyMigrated: true` محلياً؛ مفاتيح legacy فارغة لكن موجودة — جاهزة للـ purge من `/admin/data`)
+
 ### جلسة 2026-05-31 (تابع 17) — واجهة admin/data لـ legacy + mock payment complete
 
 - **`/admin/data`:** بطاقة ترحيل/حذف legacy (مستندات + شيكات) مع عرض الحالة.
