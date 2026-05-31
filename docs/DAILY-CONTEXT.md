@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 20) — إكمال server-first للعقود في صفحات الإدارة
+
+- **`resolveContractFromBooking` + `bookingHasServerContract`** في `lib/data/contracts.ts`.
+- **`contracts/[id]`:** تحميل/إعادة تحميل من `fetchContractByIdFromServer` فقط؛ `applyContractToState`؛ بدون `getContractById`.
+- **`admin/bookings`، `admin/contracts`، `my-bookings`، `BookingDocumentsPanel`:** العقد من حقول الحجز على الخادم.
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 19) — CI Postgres + server-first contracts + Thawani review API
 
 - **CI:** `e2e-api.yml` — Postgres 16 service container؛ لا اعتماد على `DATABASE_URL` secret — commit `ec602d8`.

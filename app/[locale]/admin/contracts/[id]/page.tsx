@@ -6,7 +6,6 @@ import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
-  getContractById,
   updateContract,
   fetchContractByIdFromServer,
   mergeContractsFromServer,
@@ -216,16 +215,50 @@ export default function ContractDetailPage() {
   useEffect(() => setMounted(true), []);
   useEffect(() => { setAdminEditMode(false); }, [contract?.status, id]);
 
+  const applyContractToState = useCallback((c: RentalContract) => {
+    setContract(c);
+    let otherFees = c.otherFees ?? [];
+    if (otherFees.length === 0 && c.otherFeesDescription && (c.otherFeesAmount ?? 0) > 0) {
+      otherFees = [{ description: c.otherFeesDescription, amount: c.otherFeesAmount ?? 0 }];
+    }
+    const hasOtherFees = c.hasOtherFees || otherFees.length > 0;
+    const migratedPayments = (c.salePayments ?? []).map((p: unknown) => {
+      const row = p as { documentRef?: string; documentUrl?: string };
+      if (row && typeof row === 'object' && row.documentRef && !row.documentUrl) {
+        const { documentRef, ...rest } = row as { documentRef: string } & Record<string, unknown>;
+        return { ...rest, documentUrl: String(documentRef) };
+      }
+      return p;
+    }) as RentalContract['salePayments'];
+    setForm({
+      ...c,
+      salePayments: migratedPayments && migratedPayments.length > 0 ? migratedPayments : undefined,
+      otherFees: otherFees.length > 0 ? otherFees : undefined,
+      hasOtherFees,
+    });
+    const stored = getChecksByContract(c.id);
+    const hasRent = stored.some((x) => x.checkTypeId === 'RENT_CHEQUE');
+    setRentChecksCreated(hasRent);
+    if (c.status !== 'ADMIN_APPROVED') setAdminEditMode(false);
+  }, []);
+
+  const loadContract = useCallback(async () => {
+    const row = await fetchContractByIdFromServer(String(id));
+    if (row) applyContractToState(row);
+    else setContract(null);
+  }, [id, applyContractToState]);
+
   useEffect(() => {
     let cancelled = false;
     void fetchContractByIdFromServer(String(id)).then((row) => {
-      if (cancelled || !row) return;
-      loadContract();
+      if (cancelled) return;
+      if (row) applyContractToState(row);
+      else setContract(null);
     });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, applyContractToState]);
 
   // مزامنة حية لطلبات التوقيع/الصور من السيرفر حتى تظهر للمراجعة على أجهزة أخرى
   useEffect(() => {
@@ -288,35 +321,8 @@ export default function ContractDetailPage() {
     return { client, owner };
   }, [contract?.bookingId, bookingPollTick, getBooking]);
 
-  const loadContract = useCallback(() => {
-    const c = getContractById(id);
-    setContract(c ?? null);
-    if (c) {
-      // ترحيل رسوم أخرى من النسخة القديمة (وصف/مبلغ واحد) إلى مصفوفة
-      let otherFees = c.otherFees ?? [];
-      if (otherFees.length === 0 && c.otherFeesDescription && (c.otherFeesAmount ?? 0) > 0) {
-        otherFees = [{ description: c.otherFeesDescription, amount: c.otherFeesAmount ?? 0 }];
-      }
-      const hasOtherFees = c.hasOtherFees || otherFees.length > 0;
-      const migratedPayments = (c.salePayments ?? []).map((p: any) => {
-        // ترحيل "documentRef" القديم إلى documentUrl
-        if (p && typeof p === 'object' && p.documentRef && !p.documentUrl) {
-          const { documentRef, ...rest } = p;
-          return { ...rest, documentUrl: String(documentRef) };
-        }
-        return p;
-      });
-      setForm({
-        ...c,
-        salePayments: migratedPayments.length > 0 ? migratedPayments : undefined,
-        otherFees: otherFees.length > 0 ? otherFees : undefined,
-        hasOtherFees,
-      });
-    }
-  }, [id]);
-
   const syncFromContacts = useCallback(() => {
-    const c = getContractById(id);
+    const c = contract;
     if (!c) return;
     let updated = { ...c };
     if (c.bookingId) {
@@ -373,8 +379,8 @@ export default function ContractDetailPage() {
     }
     setForm(updated);
     updateContract(id, updated);
-    loadContract();
-  }, [id, locale, loadContract, getBooking]);
+    void loadContract();
+  }, [contract, id, locale, loadContract, getBooking]);
 
   const syncContractStageToBookingAndServer = useCallback(async (updatedContract: RentalContract) => {
     if (!updatedContract.bookingId) return;
@@ -480,22 +486,9 @@ export default function ContractDetailPage() {
     syncContractStageToBookingAndServer(contract).catch(() => {});
   }, [contract?.id, contract?.bookingId, contract?.status, syncContractStageToBookingAndServer]);
 
-  useEffect(() => {
-    const c = getContractById(id);
-    setContract(c ?? null);
-    if (c) {
-      setForm({ ...c });
-      syncFromContacts();
-      const stored = getChecksByContract(c.id);
-      const hasRent = stored.some((x) => x.checkTypeId === 'RENT_CHEQUE');
-      setRentChecksCreated(hasRent);
-      if (c.status !== 'ADMIN_APPROVED') setAdminEditMode(false);
-    }
-  }, [id, loadContract, syncFromContacts]);
-
   /** المزامنة من الحجز إلى العقد: عند اعتماد جميع المستندات والشيكات، نسخ بيانات الشيكات ورقم الحساب وبيانات مالك الشيكات إلى العقد */
   useEffect(() => {
-    const c = getContractById(id);
+    const c = contract;
     if (!c?.bookingId || !c.id) return;
     if (!areAllRequiredDocumentsApproved(c.bookingId) || !areAllChecksApproved(c.bookingId)) return;
     const bookingChecks = getChecksByBooking(c.bookingId);
@@ -531,8 +524,8 @@ export default function ContractDetailPage() {
       rentChecksBankBranch: first?.bankBranch ?? '',
     };
     updateContract(c.id, rentChecksUpdate);
-    loadContract();
-  }, [id, loadContract]);
+    void loadContract();
+  }, [contract, loadContract]);
 
   /** هل بيانات الشيكات ومالك الشيكات مأخوذة من مستندات المستأجر المرفوعة؟ (بعد المزامنة) */
   const fieldsFromTenantDocs = !!(contract?.bookingId && areAllRequiredDocumentsApproved(contract.bookingId) && (getChecksByBooking(contract.bookingId).length === 0 || areAllChecksApproved(contract.bookingId)));
@@ -989,7 +982,7 @@ export default function ContractDetailPage() {
       brokerEmail: form.brokerEmail,
       brokerCivilId: form.brokerCivilId,
     });
-    const updated = _updated ?? getContractById(id);
+    const updated = _updated ?? contract;
     // مزامنة بيانات المالك من العقد إلى دفتر العناوين (جهة المالك المرتبطة بالعقار) حتى تظهر مكتملة عند المزامنة التالية
     if (updated && (form.landlordEmail?.trim() || form.landlordCivilId?.trim() || form.landlordPhone?.trim())) {
       const lcId = getPropertyLandlordContactId(updated.propertyId);
@@ -1096,7 +1089,7 @@ export default function ContractDetailPage() {
     // تقليل INP: نفصل العمل الثقيل عن حدث النقر
     setTimeout(() => {
       try {
-        const c = getContractById(id);
+        const c = contract;
         if (!c) return;
         if (!isContractDataComplete(c)) {
           const missing = getContractMissingFields(c, ar);

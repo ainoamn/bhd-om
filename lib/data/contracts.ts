@@ -4,7 +4,7 @@
  */
 
 import { updateProperty, updatePropertyUnit } from './properties';
-import { updateBookingStatus } from './bookings';
+import { updateBookingStatus, type PropertyBooking } from './bookings';
 import { setContactCategoryForBooking, isOmaniNationality } from './addressBook';
 
 export type ContractStatus =
@@ -438,6 +438,54 @@ export function getContractsByProperty(propertyId: number): RentalContract[] {
 
 export function getContractByBooking(bookingId: string): RentalContract | undefined {
   return getStored().find((c) => c.bookingId === bookingId);
+}
+
+/** استنتاج العقد من حقول الحجز على الخادم (contractId / contractStage / contractData) */
+export function resolveContractFromBooking(b: PropertyBooking): RentalContract | undefined {
+  const contractId = String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim();
+  const cd = ((b as PropertyBooking & { contractData?: Partial<RentalContract> }).contractData ||
+    {}) as Partial<RentalContract>;
+  if (!contractId && !Object.keys(cd).length) return undefined;
+  const rawStage = String(
+    (b as PropertyBooking & { contractStage?: unknown }).contractStage || cd.status || 'DRAFT'
+  );
+  const status: ContractStatus =
+    rawStage === 'ADMIN_APPROVED' ||
+    rawStage === 'TENANT_APPROVED' ||
+    rawStage === 'LANDLORD_APPROVED' ||
+    rawStage === 'APPROVED' ||
+    rawStage === 'CANCELLED'
+      ? (rawStage as ContractStatus)
+      : 'DRAFT';
+  const kind = (cd.propertyContractKind ?? cd.contractType ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
+  return {
+    ...cd,
+    id: contractId || String(cd.id || `booking-contract-${b.id}`),
+    bookingId: b.id,
+    propertyId: Number(b.propertyId),
+    unitKey: b.unitKey ? String(b.unitKey) : cd.unitKey,
+    propertyTitleAr: String(b.propertyTitleAr || cd.propertyTitleAr || ''),
+    propertyTitleEn: String(b.propertyTitleEn || cd.propertyTitleEn || ''),
+    tenantName: String(cd.tenantName || b.name || ''),
+    tenantPhone: String(cd.tenantPhone || b.phone || ''),
+    tenantEmail: String(cd.tenantEmail || b.email || ''),
+    landlordName: String(cd.landlordName || ''),
+    startDate: String(cd.startDate || b.createdAt || ''),
+    endDate: String(cd.endDate || b.createdAt || ''),
+    monthlyRent: Number(cd.monthlyRent ?? b.priceAtBooking ?? 0),
+    status,
+    propertyContractKind: kind,
+    createdAt: String(cd.createdAt || b.createdAt || new Date().toISOString()),
+    updatedAt: String(cd.updatedAt || b.createdAt || new Date().toISOString()),
+  } as RentalContract;
+}
+
+/** هل للحجز عقد على الخادم؟ */
+export function bookingHasServerContract(b: PropertyBooking): boolean {
+  return (
+    !!String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim() ||
+    !!((b as PropertyBooking & { contractData?: unknown }).contractData)
+  );
 }
 
 /** هل يوجد عقد نافذ للوحدة؟ (معتمد أو قيد الاعتماد) */

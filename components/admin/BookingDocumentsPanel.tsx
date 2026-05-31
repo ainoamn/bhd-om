@@ -18,7 +18,7 @@ import {
 import { getPropertyBookingTerms, getContractTypeTerms, getRequiredDocTypesForBooking, CHECK_TYPES } from '@/lib/data/bookingTerms';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
 import { getChecksByBooking, approveCheck, rejectCheck } from '@/lib/data/bookingChecks';
-import { getContractByBooking } from '@/lib/data/contracts';
+import { resolveContractFromBooking } from '@/lib/data/contracts';
 import { openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
 import { getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
 import { findContactByPhoneOrEmail, getContactById, getContactDisplayFull, getRepDisplayName, searchContacts, getAllContacts, isCompanyContact, isOmaniNationality, type Contact, type AuthorizedRepresentative } from '@/lib/data/addressBook';
@@ -56,7 +56,7 @@ function getDocumentInfoFields(
 ): { labelAr: string; labelEn: string; value: string }[] {
   const row = (la: string, le: string, v: string) => ({ labelAr: la, labelEn: le, value: v || '—' });
   const firstCheque = getChecksByBooking(booking.id)[0];
-  const contract = getContractByBooking(booking.id);
+  const contract = resolveContractFromBooking(booking);
   const companyName = firstCheque?.companyName ?? contract?.rentChecksCompanyName ?? '';
   const companyRegNumber = firstCheque?.companyRegNumber ?? contract?.rentChecksCompanyRegNumber ?? '';
   const signatoryName = firstCheque?.authorizedRep ?? contract?.rentChecksAuthorizedRep ?? '';

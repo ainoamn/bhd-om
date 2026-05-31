@@ -7,7 +7,7 @@ import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBo
 import { fetchPaginatedList } from '@/lib/api/fetchPaginatedList';
 import ListPagination from '@/components/admin/ListPagination';
 import { getPropertyById, getPropertyDataOverrides, getUnitSerialNumber, properties } from '@/lib/data/properties';
-import { getContractByBooking, hasActiveContractForUnit, type RentalContract } from '@/lib/data/contracts';
+import { resolveContractFromBooking, hasActiveContractForUnit, type RentalContract } from '@/lib/data/contracts';
 import { areAllRequiredDocumentsApproved, getDocumentsByBooking, hasDocumentsNeedingConfirmation, ensureBookingDocumentsHydrated } from '@/lib/data/bookingDocuments';
 import { migrateLegacyBookingIdentityDocumentsForBookings } from '@/lib/data/migrateBookingIdentityDocs';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
@@ -258,7 +258,7 @@ export default function AdminBookingsPage() {
         endDate: String(cd.endDate || ''),
       } as Pick<RentalContract, 'id' | 'status' | 'monthlyRent' | 'annualRent' | 'startDate' | 'endDate'>;
     }
-    return getContractByBooking(b.id);
+    return resolveContractFromBooking(b);
   };
   const getApprovedContractForBooking = (b: PropertyBooking) => {
     const c = getContractForBooking(b);

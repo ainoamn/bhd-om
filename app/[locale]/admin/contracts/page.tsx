@@ -6,10 +6,10 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
-  getContractByBooking,
   createContract,
   approveContractByAdmin,
   fetchContractsFromServer,
+  bookingHasServerContract,
   type RentalContract,
   type ContractStatus,
 } from '@/lib/data/contracts';
@@ -146,7 +146,7 @@ export default function AdminContractsPage() {
     const createFrom = searchParams?.get('createFrom');
     if (!createFrom || !mounted) return;
     const b = bookings.find((x) => x.id === createFrom);
-    if (!b || b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || getContractByBooking(b.id)) return;
+    if (!b || b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || bookingHasServerContract(b)) return;
     if (!isPropertyExtraDataComplete(b.propertyId)) {
       const msgAr = 'يجب إكمال البيانات الإضافية للمبنى أولاً قبل إنشاء عقد الإيجار.\n\nاضغط موافق للانتقال إلى صفحة إكمال البيانات.';
       const msgEn = 'You must complete the additional building data before creating a rental contract.\n\nClick OK to go to the data completion page.';
@@ -229,7 +229,7 @@ export default function AdminContractsPage() {
     const hasServerContract =
       !!String((b as PropertyBooking & { contractId?: unknown }).contractId || '').trim() ||
       !!((b as PropertyBooking & { contractData?: unknown }).contractData);
-    if (b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || hasServerContract || getContractByBooking(b.id)) return false;
+    if (b.type !== 'BOOKING' || b.status !== 'CONFIRMED' || hasServerContract || bookingHasServerContract(b)) return false;
     return getPropertyKind(b.propertyId) === contractKind;
   });
 

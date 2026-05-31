@@ -15,7 +15,7 @@ import { ADDRESS_BOOK_UPDATED_EVENT } from '@/lib/utils/addressBookEvents';
 import { useEffectiveUser } from '@/lib/contexts/ImpersonationContext';
 import { type PropertyBooking } from '@/lib/data/bookings';
 import { inferBookingContractStage } from '@/lib/data/bookingContractStage';
-import { getContractByBooking, hasContractForUnit } from '@/lib/data/contracts';
+import { resolveContractFromBooking, bookingHasServerContract, hasContractForUnit } from '@/lib/data/contracts';
 import { hasDocumentsNeedingConfirmation, areAllRequiredDocumentsApproved } from '@/lib/data/bookingDocuments';
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getPropertyById, getPropertyDataOverrides } from '@/lib/data/properties';
@@ -70,8 +70,10 @@ function needsToCompleteContractData(
   const id = linked.id;
   const effectiveStatus = fullBooking?.status ?? linked.status;
   if (effectiveStatus === 'CANCELLED' || effectiveStatus === 'RENTED' || effectiveStatus === 'SOLD') return false;
-  const hasContract = hasContractForUnit(linked.propertyId, linked.unitKey);
-  const c = getContractByBooking(id);
+  const hasContract =
+    (fullBooking && bookingHasServerContract(fullBooking)) ||
+    hasContractForUnit(linked.propertyId, linked.unitKey);
+  const c = fullBooking ? resolveContractFromBooking(fullBooking) : undefined;
   if (hasContract && c && c.status === 'APPROVED') return false;
   const docsNeedConfirmation = hasDocumentsNeedingConfirmation(id);
   const allDocsApproved = areAllRequiredDocumentsApproved(id);
@@ -102,8 +104,10 @@ function getBookingStatusDisplay(
   if (effectiveStatus === 'RENTED') return { main: ar ? 'مؤجر (عقد نافذ)' : 'Rented (Active contract)' };
   if (effectiveStatus === 'SOLD') return { main: ar ? STATUS_LABELS.SOLD.ar : STATUS_LABELS.SOLD.en };
 
-  const hasContract = hasContractForUnit(linked.propertyId, linked.unitKey);
-  const c = getContractByBooking(id);
+  const hasContract =
+    (fullBooking && bookingHasServerContract(fullBooking)) ||
+    hasContractForUnit(linked.propertyId, linked.unitKey);
+  const c = fullBooking ? resolveContractFromBooking(fullBooking) : undefined;
 
   if (hasContract && c) {
     const kind = (c.propertyContractKind ?? 'RENT') as 'RENT' | 'SALE' | 'INVESTMENT';
@@ -454,7 +458,7 @@ export default function MyBookingsPage() {
                   /** بعد تأكيد الدفع: صفحة رفع/اعتماد المستندات أولاً إن وُجدت متطلبات، ثم مراجعة العقد */
                   const postPaymentPrimaryUrl =
                     docsNeedWork && propertyIdForUrls > 0 ? uploadDocumentsUrl : contractReviewUrl;
-                  const c = getContractByBooking(b.id) as RentalContract | undefined;
+                  const c = full ? (resolveContractFromBooking(full) as RentalContract | undefined) : undefined;
                   const dataOverridesRow = getPropertyDataOverrides();
                   const propRow = getPropertyById(b.propertyId, dataOverridesRow) as { type?: 'RENT' | 'SALE' | 'INVESTMENT' } | null;
                   const kind = (c?.propertyContractKind ??
