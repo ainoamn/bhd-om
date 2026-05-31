@@ -168,4 +168,53 @@ test.describe('Booking happy path (mock payment → server → public contract)'
     const bundle = (await bundleRes.json()) as { bookings?: { paymentConfirmed?: boolean }[] };
     expect(bundle.bookings?.[0]?.paymentConfirmed).toBe(true);
   });
+
+  test('payment success page confirms mock session and redirects to receipt', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD (or run locally with seeded admin)');
+
+    await loginWithCredentials(page, creds!);
+
+    const ts = Date.now();
+    const identity = buildE2EBookingIdentity(ts);
+    const propertyId = Number(process.env.E2E_PROPERTY_ID || 1);
+    const depositAmount = 50;
+
+    const pendingBooking = {
+      id: identity.bookingId,
+      propertyId,
+      unitKey: identity.unitKey,
+      propertyTitleAr: 'عقار E2E success page',
+      propertyTitleEn: 'E2E Success Page Property',
+      name: 'مستأجر E2E Success',
+      email: identity.email,
+      phone: identity.phone,
+      type: 'BOOKING',
+      status: 'PENDING',
+      priceAtBooking: depositAmount,
+    };
+
+    const payRes = await page.request.post('/api/bookings/payment/initiate', {
+      data: {
+        amount: depositAmount,
+        propertyId,
+        unitKey: identity.unitKey,
+        payerEmail: identity.email,
+        payerName: 'E2E Success Tenant',
+        bookingType: 'BOOKING',
+        locale: 'ar',
+        pendingBooking,
+      },
+    });
+    expect(payRes.ok()).toBeTruthy();
+    const payData = (await payRes.json()) as { paymentReferenceNo?: string };
+    const sessionId = payData.paymentReferenceNo || '';
+    expect(sessionId).toMatch(/^PAY-/);
+
+    await page.goto(`/ar/payment/success?session_id=${encodeURIComponent(sessionId)}`);
+    await expect(page.getByText(/تم الدفع بنجاح|Payment successful/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page).toHaveURL(new RegExp(`/properties/${propertyId}/receipt\\?booking=`), {
+      timeout: 20_000,
+    });
+  });
 });

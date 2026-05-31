@@ -22,7 +22,7 @@ import {
   type BookingDocument,
 } from '@/lib/data/bookingDocuments';
 import { updateBooking, getBookingDisplayName, type PropertyBooking } from '@/lib/data/bookings';
-import { getContractByBooking, type RentalContract } from '@/lib/data/contracts';
+import type { RentalContract } from '@/lib/data/contracts';
 import { getBankAccountById } from '@/lib/data/bankAccounts';
 import { findContactByPhoneOrEmail, updateContact, ensureContactFromBooking, isOmaniNationality, isCompanyContact, getContactDisplayName, getContactLocalizedField, getRepDisplayName, contactAddressHasUsableContent } from '@/lib/data/addressBook';
 import { getAllNationalityValues } from '@/lib/data/nationalities';
@@ -250,7 +250,7 @@ export default function ContractTermsPage() {
     : (contractTypeTerms.requiredChecksForIndividuals ?? contractTypeTerms.requiredChecks ?? []);
 
   const contractFromBooking = booking?.contractData as Partial<RentalContract> | undefined;
-  const contract = contractFromBooking ? (contractFromBooking as RentalContract) : (bookingId ? getContractByBooking(bookingId) : undefined);
+  const contract = contractFromBooking ? (contractFromBooking as RentalContract) : undefined;
   const bookingChecksList = bookingId ? getChecksByBooking(bookingId) : [];
   /** شيكات مزامنة من العقد لها أولوية؛ وإلا نستخدم شيكات شروط العقار */
   const effectiveRequiredChecks = bookingChecksList.length > 0

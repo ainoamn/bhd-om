@@ -83,6 +83,11 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('payment gateway status GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/admin/payment-gateway`);
+    expect(res.status()).toBe(401);
+  });
+
   test('public upload PATCH rejects missing fields', async ({ request }) => {
     const res = await request.patch(`${baseURL}/api/bookings/public-upload-access`, {
       headers: e2eBrowserHeaders(),

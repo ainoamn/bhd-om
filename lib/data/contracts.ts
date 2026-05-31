@@ -404,7 +404,7 @@ export async function fetchContractByIdFromServer(id: string): Promise<RentalCon
       cache: 'no-store',
       credentials: 'include',
     });
-    if (!res.ok) return getContractById(id);
+    if (!res.ok) return undefined;
     const row = (await res.json()) as RentalContract;
     if (row?.id) {
       mergeContractsFromServer([row]);
@@ -414,7 +414,7 @@ export async function fetchContractByIdFromServer(id: string): Promise<RentalCon
   } catch {
     /* ignore */
   }
-  return getContractById(id);
+  return undefined;
 }
 
 export function syncAllContractsToServer(): number {

@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 19) — CI Postgres + server-first contracts + Thawani review API
+
+- **CI:** `e2e-api.yml` — Postgres 16 service container؛ لا اعتماد على `DATABASE_URL` secret — commit `ec602d8`.
+- **server-first:** `my-contracts` يجلب `/api/bookings` لكل المستخدمين؛ `contract-review` و `contract-terms` بدون fallback `getContractById`/`getContractByBooking`؛ `fetchContractByIdFromServer` بدون fallback محلي.
+- **Thawani:** `GET /api/admin/payment-gateway` لمراجعة provider/webhook/URLs.
+- **E2E:** payment success page → receipt؛ reset flow يتحقق من `my-bookings`/`my-account` بعد التصفير.
+- **Docs:** `DEVELOPMENT-FIXES-AND-UPGRADES.md` + `.env.example` محدّثان.
+
 ### جلسة 2026-05-31 (تابع 18) — تحقق شامل + إصلاح E2E
 
 - **Build:** `npm run build` ✅

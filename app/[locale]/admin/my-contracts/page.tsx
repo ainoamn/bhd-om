@@ -66,7 +66,7 @@ export default function MyContractsPage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role !== 'OWNER') return;
+    if (!user?.id) return;
     let alive = true;
     fetch('/api/bookings', { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
@@ -74,11 +74,14 @@ export default function MyContractsPage() {
         if (!alive) return;
         if (Array.isArray(list)) setServerBookings(list);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!alive) return;
+        setServerBookings([]);
+      });
     return () => {
       alive = false;
     };
-  }, [user?.role]);
+  }, [user?.id]);
 
   const landlordCtx = useMemo(
     () => ({

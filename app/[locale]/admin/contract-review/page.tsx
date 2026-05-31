@@ -8,7 +8,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getPropertyById, getPropertyDataOverrides, type Property } from '@/lib/data/properties';
 import type { PropertyBooking } from '@/lib/data/bookings';
 import type { CheckInfo, ContractApprovalActor, RentalContract } from '@/lib/data/contracts';
-import { getContractByBooking, getContractById, ensureContractsHydrated, fetchContractByIdFromServer } from '@/lib/data/contracts';
+import { ensureContractsHydrated, fetchContractByIdFromServer } from '@/lib/data/contracts';
 import { getContractReviewDisplayStage } from '@/lib/data/bookingContractStage';
 import { isAdminRoleForContractFinalize } from '@/lib/data/bookingContractLabels';
 
@@ -601,15 +601,11 @@ export default function ContractReviewPage() {
       const contractId = booking.contractId ? String(booking.contractId) : '';
       if (contractId) {
         const fromServer = await fetchContractByIdFromServer(contractId);
-        if (!cancelled && fromServer) {
-          setLocalSnapshot(fromServer);
-          return;
+        if (!cancelled) {
+          setLocalSnapshot(fromServer ?? null);
         }
-      }
-      if (!cancelled) {
-        const byId = contractId ? getContractById(contractId) : undefined;
-        const byBooking = getContractByBooking(booking.id);
-        setLocalSnapshot((byId || byBooking) ?? null);
+      } else if (!cancelled) {
+        setLocalSnapshot(null);
       }
     })();
     return () => {

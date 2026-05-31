@@ -35,6 +35,21 @@ function resolveProvider(): PaymentProvider {
   return 'mock';
 }
 
+/** حالة بوابة الدفع — للمراجعة من لوحة الإدارة */
+export function getPaymentGatewayStatus() {
+  const provider = resolveProvider();
+  const siteBase = (process.env.NEXTAUTH_URL || '').replace(/\/$/, '');
+  return {
+    provider,
+    thawaniConfigured: provider === 'thawani',
+    webhookSecretSet: !!(process.env.THAWANI_WEBHOOK_SECRET || '').trim(),
+    webhookPath: '/api/webhooks/thawani',
+    successUrl: process.env.THAWANI_SUCCESS_URL || (siteBase ? `${siteBase}/ar/payment/success` : ''),
+    cancelUrl: process.env.THAWANI_CANCEL_URL || (siteBase ? `${siteBase}/ar/payment/cancel` : ''),
+    nextAuthUrlSet: !!siteBase,
+  };
+}
+
 function generateMockReference(): string {
   return `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 }

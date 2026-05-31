@@ -28,6 +28,11 @@ test.describe('Critical DB-first flows', () => {
     await page.getByRole('button', { name: /تأكيد تصفير الخادم|confirm server reset/i }).click();
 
     await expect(page).toHaveURL(/\/(ar|en)\/login|\/login/i);
+
+    await page.goto('/ar/admin/my-bookings');
+    await expect(page).toHaveURL(/\/(ar|en)\/login|\/login/i);
+    await page.goto('/ar/admin/my-account');
+    await expect(page).toHaveURL(/\/(ar|en)\/login|\/login/i);
   });
 
   test('admin bookings and contracts pages load', async ({ page }) => {
