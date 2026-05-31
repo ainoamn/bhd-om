@@ -8,6 +8,7 @@ import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import {
   getContractById,
   updateContract,
+  fetchContractByIdFromServer,
   mergeContractsFromServer,
   approveContractByAdmin,
   approveContractByTenant,
@@ -217,14 +218,10 @@ export default function ContractDetailPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/contracts/${id}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row: RentalContract | null) => {
-        if (cancelled || !row || typeof row !== 'object' || !('id' in row)) return;
-        mergeContractsFromServer([row as RentalContract]);
-        loadContract();
-      })
-      .catch(() => {});
+    void fetchContractByIdFromServer(String(id)).then((row) => {
+      if (cancelled || !row) return;
+      loadContract();
+    });
     return () => {
       cancelled = true;
     };

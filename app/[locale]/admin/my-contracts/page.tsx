@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { getLandlordContractsFromServerBookings } from '@/lib/data/contactLinks';
+import { fetchContractsFromServer } from '@/lib/data/contracts';
 import type { PropertyBooking } from '@/lib/data/bookings';
 
 export default function MyContractsPage() {
@@ -59,6 +60,10 @@ export default function MyContractsPage() {
       alive = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    void fetchContractsFromServer();
+  }, []);
 
   useEffect(() => {
     if (user?.role !== 'OWNER') return;

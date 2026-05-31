@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 5) — hydrate العقود من الخادم في الصفحات
+
+- **`ensureContractsHydrated`** + **`fetchContractByIdFromServer`** في `lib/data/contracts.ts`.
+- **contract-review** و **contracts/[id]** و **my-contracts**: جلب من API بدل الاعتماد على الذاكرة المحلية فقط.
+- **`.env.example`:** متغيرات Thawani + E2E.
+
 ### جلسة 2026-05-31 (تابع 4) — Thawani redirect + webhook + إكمال الدفع
 
 - **PaymentPendingStorage** + `persistBookingPayload` + `completePendingPayment`.

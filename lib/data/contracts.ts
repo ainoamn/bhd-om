@@ -385,6 +385,38 @@ export async function fetchContractsFromServer(opts?: {
   return getStored();
 }
 
+/** انتظار hydrate من الخادم — استدعِه عند فتح صفحات العقود */
+export async function ensureContractsHydrated(opts?: {
+  limit?: number;
+  offset?: number;
+}): Promise<RentalContract[]> {
+  if (didHydrateContractsFromServer && !hydrateContractsInProgress) {
+    return getStored();
+  }
+  return fetchContractsFromServer(opts);
+}
+
+/** جلب عقد واحد من الخادم ودمجه في الذاكرة المؤقتة */
+export async function fetchContractByIdFromServer(id: string): Promise<RentalContract | undefined> {
+  if (typeof window === 'undefined' || !id.trim()) return undefined;
+  try {
+    const res = await fetch(`/api/contracts/${encodeURIComponent(id)}`, {
+      cache: 'no-store',
+      credentials: 'include',
+    });
+    if (!res.ok) return getContractById(id);
+    const row = (await res.json()) as RentalContract;
+    if (row?.id) {
+      mergeContractsFromServer([row]);
+      didHydrateContractsFromServer = true;
+      return row;
+    }
+  } catch {
+    /* ignore */
+  }
+  return getContractById(id);
+}
+
 export function syncAllContractsToServer(): number {
   const all = getStored();
   let queued = 0;
