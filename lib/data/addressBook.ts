@@ -898,8 +898,11 @@ function findContactByRepPhone(phone: string): Contact | undefined {
   });
 }
 
-/** مزامنة المستخدمين من قاعدة البيانات إلى دفتر العناوين - إضافة جهات اتصال للمستخدمين دون تطابق
- * يدعم المستخدمين بالبريد العادي أو @nologin.bhd أو بالهاتف فقط */
+/**
+ * @deprecated استخدم POST /api/admin/address-book/bulk-ensure-from-users أو ensure-address-book لكل مستخدم — لا تستدعِ من الواجهة.
+ * مزامنة المستخدمين من قاعدة البيانات إلى دفتر العناوين - إضافة جهات اتصال للمستخدمين دون تطابق
+ * يدعم المستخدمين بالبريد العادي أو @nologin.bhd أو بالهاتف فقط
+ */
 export function syncContactsFromUsers(
   users: Array<{ id: string; email: string; name: string; phone?: string | null; serialNumber?: string }>
 ): { added: number } {

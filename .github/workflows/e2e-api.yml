@@ -75,9 +75,8 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bhd_om
       NEXTAUTH_SECRET: ci-test-secret-not-for-production
       NEXTAUTH_URL: http://localhost:3000
-      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
-      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
-    if: ${{ secrets.E2E_ADMIN_EMAIL != '' && secrets.E2E_ADMIN_PASSWORD != '' }}
+      E2E_ADMIN_EMAIL: admin@bhd-om.com
+      E2E_ADMIN_PASSWORD: admin123
     steps:
       - uses: actions/checkout@v4
 

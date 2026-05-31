@@ -9,7 +9,8 @@ import {
   mergeServerContactIntoLocalStorage,
   type Contact,
 } from '@/lib/data/addressBook';
-import { ADDRESS_BOOK_UPDATED_EVENT, emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
+import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
+import { emitAddressBookUpdated } from '@/lib/utils/addressBookEvents';
 import { isValidUserSerialLike, safeUserSerialForDisplay, shortenUserSerial } from '@/lib/utils/serialNumber';
 import UserBarcode from '@/components/admin/UserBarcode';
 
@@ -222,7 +223,7 @@ export default function UsersAdminPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<string>('ALL');
-  const [contacts, setContacts] = useState<{ email: string; userId?: string }[]>([]);
+  const { contacts: addressBookContacts, refresh: refreshAddressBookFlags } = useServerAddressBookContacts();
   const [addingId, setAddingId] = useState<string | null>(null);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [editUser, setEditUser] = useState<UserRow | null>(null);
@@ -230,26 +231,6 @@ export default function UsersAdminPage() {
   const [resetResult, setResetResult] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
   const [addedUserCreds, setAddedUserCreds] = useState<{ serialNumber: string; email: string; generatedPassword: string } | null>(null);
-
-  const refreshAddressBookFlagsFromServer = useCallback(async () => {
-    try {
-      const res = await fetch('/api/address-book?limit=500', {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!Array.isArray(data)) return;
-      setContacts(
-        data.map((c: Contact) => ({
-          email: (c.email || '').toLowerCase(),
-          userId: String(c.linkedUserId || c.userId || '').trim() || undefined,
-        }))
-      );
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   useEffect(() => {
     if (searchParams.get('addUser') !== '1') return;
@@ -357,14 +338,14 @@ export default function UsersAdminPage() {
       let usersList = Array.isArray(data) ? data : [];
       // لا نلجأ لمسار احتياطي هنا حتى لا تظهر بيانات/أرقام غير متسقة في لوحة الإدارة
       setUsers(usersList);
-      void refreshAddressBookFlagsFromServer();
+      void refreshAddressBookFlags();
     } catch {
       setLoadError(locale === 'ar' ? 'تعذر الاتصال بالخادم' : 'Network error');
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [locale, buildFallbackUsers, refreshAddressBookFlagsFromServer]);
+  }, [locale, buildFallbackUsers, refreshAddressBookFlags]);
 
   useEffect(() => {
     let cancelled = false;
@@ -382,7 +363,7 @@ export default function UsersAdminPage() {
       const data = await res.json();
       const usersList = Array.isArray(data) ? data : [];
       setUsers(usersList);
-      void refreshAddressBookFlagsFromServer();
+      void refreshAddressBookFlags();
     } catch {
       setUsers([]);
     }
@@ -434,13 +415,12 @@ export default function UsersAdminPage() {
     refreshUsers();
   };
 
-  useEffect(() => {
-    const onAddressBookUpdated = () => {
-      void refreshAddressBookFlagsFromServer();
-    };
-    window.addEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddressBookUpdated);
-    return () => window.removeEventListener(ADDRESS_BOOK_UPDATED_EVENT, onAddressBookUpdated);
-  }, [refreshAddressBookFlagsFromServer]);
+  const isInAddressBook = (user: { email: string; id: string }) =>
+    addressBookContacts.some(
+      (c) =>
+        (c.email || '').toLowerCase() === user.email.toLowerCase() ||
+        String(c.linkedUserId || c.userId || '').trim() === user.id
+    );
 
   const filteredUsers = users.filter((u) => {
     const q = search.trim().toLowerCase();
@@ -458,9 +438,6 @@ export default function UsersAdminPage() {
     clients: users.filter((u) => u.role === 'CLIENT').length,
     owners: users.filter((u) => u.role === 'OWNER').length,
   };
-
-  const isInAddressBook = (user: { email: string; id: string }) =>
-    contacts.some((c) => c.email === user.email.toLowerCase() || c.userId === user.id);
 
   const handleAddToAddressBook = async (user: UserRow) => {
     if (isInAddressBook(user)) {
@@ -487,7 +464,7 @@ export default function UsersAdminPage() {
         mergeServerContactIntoLocalStorage(data as Contact);
       }
       emitAddressBookUpdated();
-      await refreshAddressBookFlagsFromServer();
+      await refreshAddressBookFlags();
       setSyncMsg(locale === 'ar' ? 'تمت الإضافة لدفتر العناوين' : 'Added to address book');
       setTimeout(() => setSyncMsg(null), 2500);
     } catch {

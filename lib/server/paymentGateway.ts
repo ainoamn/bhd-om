@@ -10,6 +10,8 @@ export type PaymentInitInput = {
   payerName: string;
   bookingType: 'BOOKING' | 'VIEWING';
   locale?: string;
+  /** معرف الحجز المعلّق — يُمرَّر إلى Thawani metadata و client_reference_id */
+  bookingId?: string;
 };
 
 export type PaymentInitSuccess = {
@@ -119,32 +121,41 @@ async function initiateThawaniPayment(input: PaymentInitInput): Promise<PaymentI
     process.env.THAWANI_SUCCESS_URL || `${siteBase}/${locale}/payment/success`;
   const cancelUrl =
     process.env.THAWANI_CANCEL_URL || `${siteBase}/${locale}/payment/cancel`;
+  const bookingRef = (input.bookingId || '').trim();
+  const clientRef = bookingRef || `BHD-${input.propertyId}-${Date.now()}`;
 
   try {
+    const body: Record<string, unknown> = {
+      client_reference_id: clientRef,
+      mode: 'payment',
+      products: [
+        {
+          name: input.bookingType === 'BOOKING' ? 'Property booking deposit' : 'Property viewing',
+          quantity: 1,
+          unit_amount: Math.round(input.amount * 1000),
+        },
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        propertyId: String(input.propertyId),
+        unitKey: input.unitKey || '',
+        payerEmail: input.payerEmail,
+        bookingId: bookingRef,
+        bookingType: input.bookingType,
+      },
+    };
+    if (input.payerEmail?.includes('@')) {
+      body.customer_email = input.payerEmail.trim();
+    }
+
     const res = await fetch(`${baseUrl}/checkout/session`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'thawani-api-key': secret,
       },
-      body: JSON.stringify({
-        client_reference_id: `BHD-${input.propertyId}-${Date.now()}`,
-        mode: 'payment',
-        products: [
-          {
-            name: input.bookingType === 'BOOKING' ? 'Property booking deposit' : 'Property viewing',
-            quantity: 1,
-            unit_amount: Math.round(input.amount * 1000),
-          },
-        ],
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          propertyId: String(input.propertyId),
-          unitKey: input.unitKey || '',
-          payerEmail: input.payerEmail,
-        },
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {

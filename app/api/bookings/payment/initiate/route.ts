@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
       payerName,
       bookingType,
       locale,
+      bookingId:
+        typeof pendingBooking?.id === 'string' ? String(pendingBooking.id).trim() : undefined,
     });
 
     if (!result.ok) {

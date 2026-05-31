@@ -6,6 +6,15 @@ import {
   resolveE2EAdminCredentials,
 } from './helpers/auth';
 
+const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000';
+
+function thawaniWebhookHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const secret = (process.env.THAWANI_WEBHOOK_SECRET || '').trim();
+  if (secret) headers['x-webhook-secret'] = secret;
+  return headers;
+}
+
 test.describe('Booking happy path (mock payment → server → public contract)', () => {
   test('creates paid booking and updates via public contract access', async ({ page }) => {
     const creds = resolveE2EAdminCredentials();
@@ -216,5 +225,71 @@ test.describe('Booking happy path (mock payment → server → public contract)'
     await expect(page).toHaveURL(new RegExp(`/properties/${propertyId}/receipt\\?booking=`), {
       timeout: 20_000,
     });
+  });
+
+  test('thawani webhook completes pending payment and creates booking', async ({ page, request }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD (or run locally with seeded admin)');
+
+    await loginWithCredentials(page, creds!);
+
+    const ts = Date.now();
+    const identity = buildE2EBookingIdentity(ts);
+    const propertyId = Number(process.env.E2E_PROPERTY_ID || 1);
+    const depositAmount = 50;
+
+    const pendingBooking = {
+      id: identity.bookingId,
+      propertyId,
+      unitKey: identity.unitKey,
+      propertyTitleAr: 'عقار E2E webhook',
+      propertyTitleEn: 'E2E Webhook Property',
+      name: 'مستأجر E2E Webhook',
+      email: identity.email,
+      phone: identity.phone,
+      type: 'BOOKING',
+      status: 'PENDING',
+      priceAtBooking: depositAmount,
+    };
+
+    const payRes = await page.request.post('/api/bookings/payment/initiate', {
+      data: {
+        amount: depositAmount,
+        propertyId,
+        unitKey: identity.unitKey,
+        payerEmail: identity.email,
+        payerName: 'E2E Webhook Tenant',
+        bookingType: 'BOOKING',
+        locale: 'ar',
+        pendingBooking,
+      },
+    });
+    expect(payRes.ok()).toBeTruthy();
+    const payData = (await payRes.json()) as { paymentReferenceNo?: string };
+    const sessionId = payData.paymentReferenceNo || '';
+    expect(sessionId).toMatch(/^PAY-/);
+
+    const webhookRes = await request.post(`${baseURL}/api/webhooks/thawani`, {
+      data: {
+        event_type: 'checkout.completed',
+        data: { session_id: sessionId },
+      },
+      headers: thawaniWebhookHeaders(),
+    });
+    expect(webhookRes.ok()).toBeTruthy();
+    const webhookBody = (await webhookRes.json()) as { ok?: boolean; bookingId?: string };
+    expect(webhookBody.ok).toBe(true);
+    expect(webhookBody.bookingId).toBe(identity.bookingId);
+
+    const bundleQs = new URLSearchParams({
+      bookingId: identity.bookingId,
+      email: identity.email,
+    });
+    const bundleRes = await page.request.get(
+      `/api/bookings/public-contract-access?${bundleQs.toString()}`
+    );
+    expect(bundleRes.ok()).toBeTruthy();
+    const bundle = (await bundleRes.json()) as { bookings?: { paymentConfirmed?: boolean }[] };
+    expect(bundle.bookings?.[0]?.paymentConfirmed).toBe(true);
   });
 });

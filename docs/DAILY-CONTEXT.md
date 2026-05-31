@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 38) — Thawani metadata + E2E webhook + CI critical
+
+- **Thawani:** `bookingId` في metadata و `client_reference_id` + `customer_email` من `payment/initiate`
+- **E2E:** webhook يكمل `PAY-` pending session؛ `production-readiness` + legacy backfill للمدير
+- **CI:** `e2e-critical` يعمل دائماً مع seed admin (بدون GitHub secrets)
+- **`admin/users`:** `useServerAddressBookContacts` بدل fetch مكرر
+- **`syncContactsFromUsers`:** `@deprecated`
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 37) — server-first للقوائم + جاهزية إنتاج admin/data
 
 - **`useServerAddressBookContacts`:** hook مشترك + `fetchAddressBookListFromServer` — حجوزات، عقود (وسيط)، محاسبة، بيانات إضافية

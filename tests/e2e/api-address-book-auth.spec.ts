@@ -136,6 +136,28 @@ test.describe('API — address book (authenticated admin)', () => {
     const contactAgain = (await ensureAgain.json()) as Contact;
     expect(contactAgain.id).toBe(contact.id);
   });
+
+  test('GET production-readiness returns payment and legacy status for admin', async ({ page }) => {
+    const res = await page.request.get('/api/admin/production-readiness');
+    expect(res.ok()).toBeTruthy();
+    const body = (await res.json()) as {
+      payment?: { provider?: string; webhookUrl?: string };
+      legacy?: { fullyMigrated?: boolean };
+      checkEnvPath?: string;
+    };
+    expect(body.payment?.provider).toMatch(/mock|thawani/);
+    expect(typeof body.legacy?.fullyMigrated).toBe('boolean');
+    expect(body.checkEnvPath).toBe('/api/check-env');
+  });
+
+  test('POST legacy-booking-settings backfill runs for admin', async ({ page }) => {
+    const res = await page.request.post('/api/admin/legacy-booking-settings', {
+      data: { action: 'backfill' },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = (await res.json()) as { status?: { tableDocumentCount?: number } };
+    expect(body.status).toBeTruthy();
+  });
 });
 
 test.describe('API — linked-contact (authenticated user)', () => {
