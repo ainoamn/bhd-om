@@ -33,7 +33,8 @@ import {
   calcRentBaseForFees,
   calcOtherTax,
 } from '@/lib/contractCalculations';
-import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, getAllContacts, isOmaniNationality, isCompanyContact, updateContact, type Contact } from '@/lib/data/addressBook';
+import { findContactByPhoneOrEmail, getContactById, getContactDisplayName, getAllContacts, isOmaniNationality, isCompanyContact, type Contact } from '@/lib/data/addressBook';
+import { applyContactUpdateOnServer, saveContactToServer } from '@/lib/client/addressBookServerApi';
 import ContactFormModal from '@/components/admin/ContactFormModal';
 import { mergeBookingsFromServer, updateBooking, type PropertyBooking } from '@/lib/data/bookings';
 import { getPropertyLandlordContactId } from '@/lib/data/propertyLandlords';
@@ -996,7 +997,27 @@ export default function ContractDetailPage() {
           if (form.landlordCivilIdExpiry?.trim()) payload.civilIdExpiry = form.landlordCivilIdExpiry.trim();
           if (form.landlordPassportNumber?.trim()) payload.passportNumber = form.landlordPassportNumber.trim();
           if (form.landlordPassportExpiry?.trim()) payload.passportExpiry = form.landlordPassportExpiry.trim();
-          if (Object.keys(payload).length > 0) updateContact(lcId, payload);
+          if (Object.keys(payload).length > 0) {
+            void (async () => {
+              try {
+                let lc = getContactById(lcId);
+                if (!lc) {
+                  const res = await fetch('/api/address-book?limit=500', {
+                    credentials: 'include',
+                    cache: 'no-store',
+                  });
+                  if (res.ok) {
+                    const list = (await res.json()) as Contact[];
+                    lc = list.find((c) => c.id === lcId);
+                  }
+                }
+                if (!lc) return;
+                await saveContactToServer(applyContactUpdateOnServer(lc, payload));
+              } catch {
+                /* ignore */
+              }
+            })();
+          }
         }
       }
     }

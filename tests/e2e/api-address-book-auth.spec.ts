@@ -101,6 +101,41 @@ test.describe('API — address book (authenticated admin)', () => {
     const merged = (await mergeRes.json()) as { merged?: number };
     expect((merged.merged ?? 0)).toBeGreaterThan(0);
   });
+
+  test('POST ensure-address-book ensures row for user created from contact', async ({ page }) => {
+    const suffix = String(Date.now());
+    const phone = `9686${suffix.slice(-7).padStart(7, '0')}`;
+    const email = `e2e-ensure-${suffix}@example.test`;
+
+    const createRes = await page.request.post('/api/admin/users/create-from-contact', {
+      data: {
+        name: `E2E Ensure ${suffix}`,
+        email,
+        phone,
+        category: 'CLIENT',
+      },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const created = (await createRes.json()) as { userId?: string };
+    const userId = String(created.userId || '').trim();
+    expect(userId.length).toBeGreaterThan(4);
+
+    const ensureRes = await page.request.post(`/api/admin/users/${userId}/ensure-address-book`);
+    expect(ensureRes.ok()).toBeTruthy();
+    const contact = (await ensureRes.json()) as Contact;
+    expect(typeof contact.id).toBe('string');
+    expect(String(contact.linkedUserId || contact.userId || '')).toBe(userId);
+
+    const linkedRes = await page.request.get(`/api/admin/users/${userId}/linked-contact`);
+    expect(linkedRes.ok()).toBeTruthy();
+    const linked = (await linkedRes.json()) as Contact;
+    expect(linked.id).toBe(contact.id);
+
+    const ensureAgain = await page.request.post(`/api/admin/users/${userId}/ensure-address-book`);
+    expect(ensureAgain.ok()).toBeTruthy();
+    const contactAgain = (await ensureAgain.json()) as Contact;
+    expect(contactAgain.id).toBe(contact.id);
+  });
 });
 
 test.describe('API — linked-contact (authenticated user)', () => {
