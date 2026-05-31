@@ -13,7 +13,9 @@
 
 - **`properties/[id]/book`:** تحميل من `fetchLinkedContactFromServer`؛ حفظ نافذة «إكمال البيانات» عبر `patchLinkedContactOnServer` (بدون `createContact`/`updateContact`)
 - **`lib/client/addressBookServerApi.ts`:** `fetchLinkedContactFromServer` + `patchLinkedContactOnServer`
-- **`npm run build`** ✅ — commit `59f5a1c` — «حسابي» server-first + E2E linked-contact
+- **`npm run build`** ✅ — commit `59f5a1c`
+
+### جلسة 2026-05-31 (تابع 31) — «حسابي» server-first + E2E linked-contact
 
 - **`admin/my-account`:** إزالة fallback `findContactByUserId`؛ العرض من `GET /api/user/linked-contact` فقط + بيانات الجلسة عند الفشل
 - **بانر تحذير** عند فشل تحميل الخادم
