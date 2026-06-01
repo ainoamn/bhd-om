@@ -852,6 +852,29 @@ export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 
   };
 }
 
+/** VAT return summary for Oman (5% standard) — from documents in date range */
+export async function getVatReportFromDb(fromDate: string, toDate: string) {
+  const { buildVatReportFromDocuments } = await import('../reports/vatReport');
+  const rows = await prisma.accountingDocument.findMany({
+    where: {
+      date: { gte: new Date(fromDate), lte: new Date(toDate) },
+      status: { not: 'CANCELLED' },
+    },
+    orderBy: [{ date: 'asc' }, { serialNumber: 'asc' }],
+  });
+  const docs = rows.map((r) => ({
+    id: r.id,
+    serialNumber: r.serialNumber,
+    type: r.type,
+    date: r.date.toISOString().slice(0, 10),
+    status: r.status,
+    vatAmount: r.vatAmount,
+    totalAmount: r.totalAmount,
+    netAmount: r.netAmount,
+  }));
+  return buildVatReportFromDocuments(docs, fromDate, toDate);
+}
+
 /** جلب بيانات المحاسبة للصفحة — paginated bootstrap for scale */
 export async function getAccountingDataForPage(filters?: {
   fromDate?: string;

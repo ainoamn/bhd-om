@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { downloadCsv } from '@/lib/utils/csvExport';
 
-type ReportView = 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger';
+type ReportView = 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat';
 
 interface ReportExportButtonsProps {
   reportView: ReportView;
@@ -36,6 +36,7 @@ export default function ReportExportButtons({
     cashflow: ar ? 'التدفق النقدي' : 'Cash Flow',
     bankStatement: ar ? 'كشف الحساب البنكي' : 'Bank Statement',
     propertyLedger: ar ? 'كشف العقار' : 'Property Ledger',
+    vat: ar ? 'إقرار VAT' : 'VAT Return',
   }[reportView];
 
   const filename = `${reportLabel}_${reportFrom}_${reportTo}`.replace(/\s+/g, '_');

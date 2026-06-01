@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (53) — Phase 1 محاسبة: VAT + AI Copilot + تحميل المزيد
+
+- **تقرير VAT:** `lib/accounting/reports/vatReport.ts` + `GET /api/accounting/reports?report=vat` + تبويب «إقرار ضريبة القيمة المضافة»
+- **AI Copilot v1:** `suggestEntryEngine.ts` + `POST /api/accounting/ai/suggest-entry` — اقتراح قيد كامل من الوصف (موافقة بشرية)
+- **تحميل المزيد:** أزرار pagination في تبويبي القيود والمستندات (50 دفعة، DB)
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (52) — Phase 0 محاسبة: DB موحّد + سرعة + إجراءات سريعة
 
 - **مصدر بيانات واحد:** صفحات journal/accounts/reports → redirect إلى `/admin/accounting?tab=...` (إلغاء localStorage المنفصل)

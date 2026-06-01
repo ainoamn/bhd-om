@@ -68,6 +68,10 @@ import {
   fetchPeriods,
   fetchAuditLog,
   fetchForecast,
+  fetchJournalEntriesPage,
+  fetchDocumentsPage,
+  fetchVatReport,
+  suggestJournalEntry,
   createDocument as apiCreateDocument,
   createJournalEntry as apiCreateJournalEntry,
   lockPeriod as apiLockPeriod,
@@ -95,13 +99,14 @@ const DOC_TYPE_LABELS: Record<DocumentType, { ar: string; en: string }> = {
   OTHER: { ar: 'أخرى', en: 'Other' },
 };
 
-const REPORT_LABELS: Record<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger', { ar: string; en: string }> = {
+const REPORT_LABELS: Record<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat', { ar: string; en: string }> = {
   trial: { ar: 'ميزان المراجعة', en: 'Trial Balance' },
   income: { ar: 'قائمة الدخل', en: 'Income Statement (P&L)' },
   balance: { ar: 'الميزانية العمومية', en: 'Balance Sheet' },
   cashflow: { ar: 'التدفق النقدي', en: 'Cash Flow' },
   bankStatement: { ar: 'كشف الحساب البنكي', en: 'Bank Statement' },
   propertyLedger: { ar: 'كشف العقار / المستأجر', en: 'Property / Tenant Ledger' },
+  vat: { ar: 'إقرار ضريبة القيمة المضافة', en: 'VAT Return Summary' },
 };
 
 /** المبيعات - وحدات منفصلة */
@@ -211,7 +216,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
 
-  const setTab = (tab: TabId, action?: string, report?: 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger') => {
+  const setTab = (tab: TabId, action?: string, report?: 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat') => {
     setActiveTab(tab);
     const params = new URLSearchParams();
     params.set('tab', tab);
@@ -245,7 +250,13 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showAddCheque, setShowAddCheque] = useState(false);
   const [printDocument, setPrintDocument] = useState<AccountingDocument | null>(null);
-  const [reportView, setReportView] = useState<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger'>('trial');
+  const [reportView, setReportView] = useState<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat'>('trial');
+  const [vatReportData, setVatReportData] = useState<Awaited<ReturnType<typeof fetchVatReport>> | null>(null);
+  const [loadingVat, setLoadingVat] = useState(false);
+  const [loadingMoreJournal, setLoadingMoreJournal] = useState(false);
+  const [loadingMoreDocs, setLoadingMoreDocs] = useState(false);
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+  const [aiSuggestMsg, setAiSuggestMsg] = useState('');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
   const [reportPropertyId, setReportPropertyId] = useState<string>('');
   const [reportContactId, setReportContactId] = useState<string>('');
@@ -386,17 +397,91 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   useEffect(() => {
     const tab = (searchParams?.get('tab') || 'dashboard') as TabId;
     setActiveTab(tab);
-    const report = searchParams?.get('report') as 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | null;
-    if (tab === 'reports' && report && ['trial', 'income', 'balance', 'cashflow', 'bankStatement', 'propertyLedger'].includes(report)) {
+    const report = searchParams?.get('report') as 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | null;
+    if (tab === 'reports' && report && ['trial', 'income', 'balance', 'cashflow', 'bankStatement', 'propertyLedger', 'vat'].includes(report)) {
       setReportView(report);
     }
   }, [searchParams?.get('tab'), searchParams?.get('report')]);
+
+  const loadMoreJournal = async () => {
+    if (!useDb || loadingMoreJournal) return;
+    const total = dataMeta?.journalTotal ?? journalEntries.length;
+    if (journalEntries.length >= total) return;
+    setLoadingMoreJournal(true);
+    try {
+      const page = await fetchJournalEntriesPage({
+        fromDate: filterFromDate || undefined,
+        toDate: filterToDate || undefined,
+        limit: 50,
+        offset: journalEntries.length,
+      });
+      setJournalEntries((prev) => [...prev, ...(page.items as JournalEntry[])]);
+    } finally {
+      setLoadingMoreJournal(false);
+    }
+  };
+
+  const loadMoreDocuments = async () => {
+    if (!useDb || loadingMoreDocs) return;
+    const total = dataMeta?.documentsTotal ?? documents.length;
+    if (documents.length >= total) return;
+    setLoadingMoreDocs(true);
+    try {
+      const page = await fetchDocumentsPage({
+        fromDate: filterFromDate || undefined,
+        toDate: filterToDate || undefined,
+        type: filterDocType || undefined,
+        limit: 50,
+        offset: documents.length,
+      });
+      setDocuments((prev) => [...prev, ...(page.items as AccountingDocument[])]);
+    } finally {
+      setLoadingMoreDocs(false);
+    }
+  };
+
+  const handleAiSuggestEntry = async () => {
+    const desc = journalForm.descriptionAr.trim();
+    if (!desc || !useDb) return;
+    setAiSuggestLoading(true);
+    setAiSuggestMsg('');
+    try {
+      const result = await suggestJournalEntry(desc);
+      setJournalForm({
+        ...journalForm,
+        descriptionAr: desc,
+        lines: result.lines.map((l) => ({
+          accountId: l.accountId,
+          debit: l.debit > 0 ? String(l.debit) : '',
+          credit: l.credit > 0 ? String(l.credit) : '',
+          desc: l.descriptionAr || desc,
+        })),
+      });
+      setAiSuggestMsg(ar ? result.explanationAr : result.explanationEn);
+    } catch (err) {
+      setAiSuggestMsg(err instanceof Error ? err.message : (ar ? 'تعذّر الاقتراح' : 'Suggest failed'));
+    } finally {
+      setAiSuggestLoading(false);
+    }
+  };
   useEffect(() => {
     if (reportView === 'bankStatement' && !selectedBankAccountId && typeof window !== 'undefined') {
       const active = bankAccounts.filter((b) => b.isActive);
       setSelectedBankAccountId(active.length > 0 ? active[0].id : 'CASH');
     }
   }, [reportView, bankAccounts]);
+  useEffect(() => {
+    if (!useDb || reportView !== 'vat' || activeTab !== 'reports') return;
+    const from = filterFromDate || new Date().getFullYear() + '-01-01';
+    const to = filterToDate || new Date().toISOString().slice(0, 10);
+    let cancelled = false;
+    setLoadingVat(true);
+    fetchVatReport({ fromDate: from, toDate: to })
+      .then((data) => { if (!cancelled) setVatReportData(data); })
+      .catch(() => { if (!cancelled) setVatReportData(null); })
+      .finally(() => { if (!cancelled) setLoadingVat(false); });
+    return () => { cancelled = true; };
+  }, [useDb, reportView, activeTab, filterFromDate, filterToDate]);
   useEffect(() => {
     if (actionFromUrl === 'add') {
       if (tabFromUrl === 'journal') setShowAddJournal(true);
@@ -1439,6 +1524,13 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               </table>
             </div>
           )}
+          {useDb && (dataMeta?.journalTotal ?? 0) > journalEntries.length && (
+            <div className="border-t border-gray-100 px-6 py-4 text-center">
+              <button type="button" onClick={loadMoreJournal} disabled={loadingMoreJournal} className="admin-btn-secondary text-sm !py-2">
+                {loadingMoreJournal ? (ar ? 'جاري التحميل...' : 'Loading...') : (ar ? `تحميل المزيد (${journalEntries.length}/${dataMeta?.journalTotal})` : `Load more (${journalEntries.length}/${dataMeta?.journalTotal})`)}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1571,6 +1663,13 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {useDb && (dataMeta?.documentsTotal ?? 0) > documents.length && (
+            <div className="border-t border-gray-100 px-6 py-4 text-center">
+              <button type="button" onClick={loadMoreDocuments} disabled={loadingMoreDocs} className="admin-btn-secondary text-sm !py-2">
+                {loadingMoreDocs ? (ar ? 'جاري التحميل...' : 'Loading...') : (ar ? `تحميل المزيد (${documents.length}/${dataMeta?.documentsTotal})` : `Load more (${documents.length}/${dataMeta?.documentsTotal})`)}
+              </button>
             </div>
           )}
         </div>
@@ -2088,6 +2187,19 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                       </button>
                     </p>
                   )}
+                  {useDb && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAiSuggestEntry}
+                        disabled={aiSuggestLoading || !journalForm.descriptionAr.trim()}
+                        className="text-xs font-semibold admin-btn-secondary !py-1.5 !px-3"
+                      >
+                        {aiSuggestLoading ? (ar ? 'جاري التحليل...' : 'Analyzing...') : (ar ? '✨ اقتراح قيد كامل بالذكاء' : '✨ AI suggest full entry')}
+                      </button>
+                      {aiSuggestMsg && <span className="text-xs text-gray-600">{aiSuggestMsg}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
@@ -2139,7 +2251,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       {activeTab === 'reports' && (
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
-            {(['trial', 'income', 'balance', 'cashflow', 'bankStatement', 'propertyLedger'] as const).map((r) => (
+            {(['trial', 'income', 'balance', 'vat', 'cashflow', 'bankStatement', 'propertyLedger'] as const).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -2383,6 +2495,65 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                       </tfoot>
                     </table>
                   </div>
+                </div>
+              )}
+              {reportView === 'vat' && (
+                <div className="space-y-6">
+                  {!useDb ? (
+                    <p className="text-amber-700 text-sm">{ar ? 'تقرير VAT متاح مع قاعدة البيانات فقط' : 'VAT report requires database mode'}</p>
+                  ) : loadingVat ? (
+                    <p className="text-gray-500">{ar ? 'جاري تحميل تقرير الضريبة...' : 'Loading VAT report...'}</p>
+                  ) : vatReportData ? (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="rounded-xl border p-4 bg-emerald-50/50">
+                          <p className="text-xs text-gray-600">{ar ? 'ضريبة المخرجات (مبيعات)' : 'Output VAT (sales)'}</p>
+                          <p className="text-xl font-bold text-emerald-800">{vatReportData.summary.vatOutput.toLocaleString()} ر.ع</p>
+                        </div>
+                        <div className="rounded-xl border p-4 bg-blue-50/50">
+                          <p className="text-xs text-gray-600">{ar ? 'ضريبة المدخلات (مشتريات)' : 'Input VAT (purchases)'}</p>
+                          <p className="text-xl font-bold text-blue-800">{vatReportData.summary.vatInput.toLocaleString()} ر.ع</p>
+                        </div>
+                        <div className="rounded-xl border p-4 bg-amber-50/50">
+                          <p className="text-xs text-gray-600">{ar ? 'صافي VAT مستحق' : 'Net VAT payable'}</p>
+                          <p className="text-xl font-bold text-amber-900">{vatReportData.summary.netVatPayable.toLocaleString()} ر.ع</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {ar
+                          ? `الفترة ${vatReportData.fromDate} — ${vatReportData.toDate} · نسبة قياسية ${(vatReportData.summary.standardRate * 100).toFixed(0)}%`
+                          : `Period ${vatReportData.fromDate} — ${vatReportData.toDate} · standard rate ${(vatReportData.summary.standardRate * 100).toFixed(0)}%`}
+                      </p>
+                      {vatReportData.lines.length > 0 ? (
+                        <table className="admin-table w-full">
+                          <thead>
+                            <tr>
+                              <th>{ar ? 'التاريخ' : 'Date'}</th>
+                              <th>{ar ? 'الرقم' : 'No.'}</th>
+                              <th>{ar ? 'النوع' : 'Type'}</th>
+                              <th>{ar ? 'الاتجاه' : 'Direction'}</th>
+                              <th className="text-right">{ar ? 'VAT' : 'VAT'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vatReportData.lines.map((row) => (
+                              <tr key={`${row.serialNumber}-${row.date}`}>
+                                <td>{row.date}</td>
+                                <td className="font-mono text-sm">{row.serialNumber}</td>
+                                <td>{row.type}</td>
+                                <td>{row.direction === 'OUTPUT' ? (ar ? 'مخرجات' : 'Output') : (ar ? 'مدخلات' : 'Input')}</td>
+                                <td className="text-right font-semibold">{row.vatAmount.toLocaleString()} ر.ع</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <p className="text-gray-500 text-center py-8">{ar ? 'لا توجد حركات VAT في هذه الفترة' : 'No VAT transactions in this period'}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-gray-500">{ar ? 'تعذّر تحميل التقرير' : 'Failed to load report'}</p>
+                  )}
                 </div>
               )}
               {reportView === 'cashflow' && (
