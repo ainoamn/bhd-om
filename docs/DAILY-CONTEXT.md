@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (58ب) — إصلاح خطأ المحاسبة: migrations + SSR resilient
+
+- **السبب:** 3 migrations معلّقة (`dueDate`, `journalEntryId`, `bankAccountId/contactId/documentId`) — Prisma يفشل عند SSR → «حدث خطأ»
+- **إصلاح:** `npx prisma migrate deploy` على Neon + `build` يشغّل migrate deploy تلقائياً
+- **SSR:** try/catch في `page.tsx` + بانر تحذير بدل crash كامل؛ `after()` آمن خارج request
+- **`AccountingInitialData`** → `lib/accounting/types/pageData.ts`
+- **رفع Git**
+
 ### جلسة 2026-06-01 (58) — Phase 6 محاسبة: استخراج التقارير + DB bank/property + E2E
 
 - **`AccountingReportsTab.tsx`:** استخراج تبويب التقارير (~620 سطر) من `AccountingSection`

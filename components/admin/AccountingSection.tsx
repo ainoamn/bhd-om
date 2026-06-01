@@ -70,6 +70,9 @@ import {
 import { REPORT_URL_IDS, type ReportViewId } from '@/lib/accounting/ui/reportLabels';
 import { DOC_TYPE_LABELS } from '@/lib/accounting/ui/documentLabels';
 import { useAccountingDbReports } from '@/lib/accounting/hooks/useAccountingDbReports';
+import type { AccountingInitialData } from '@/lib/accounting/types/pageData';
+
+export type { AccountingInitialData };
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, { ar: string; en: string }> = {
   ASSET: { ar: 'أصول', en: 'Assets' },
@@ -164,19 +167,6 @@ function BookingCancellationCompleteForm({ requestId, onComplete, ar }: { reques
     </div>
   );
 }
-
-export type AccountingInitialData = {
-  accounts?: ChartAccount[];
-  documents?: AccountingDocument[];
-  journalEntries?: JournalEntry[];
-  periods?: Array<{ id: string; code: string; startDate: string; endDate: string; isLocked: boolean }>;
-  meta?: {
-    documentsTotal?: number;
-    journalTotal?: number;
-    documentsTruncated?: boolean;
-    journalTruncated?: boolean;
-  };
-};
 
 export default function AccountingSection(props: { initialData?: AccountingInitialData }) {
   const { initialData } = props;

@@ -1271,19 +1271,23 @@ export async function getAccountingDataForPage(filters?: {
   documentsLimit?: number;
   journalLimit?: number;
 }) {
-  const { after } = await import('next/server');
-  after(async () => {
-    try {
-      await syncPaidBookingsToAccountingDb();
-    } catch {
-      /* مزامنة خلفية — لا نعطل الصفحة */
-    }
-    try {
-      await syncSubscriptionHistoryToAccountingDb();
-    } catch {
-      /* ignore */
-    }
-  });
+  try {
+    const { after } = await import('next/server');
+    after(async () => {
+      try {
+        await syncPaidBookingsToAccountingDb();
+      } catch {
+        /* مزامنة خلفية — لا نعطل الصفحة */
+      }
+      try {
+        await syncSubscriptionHistoryToAccountingDb();
+      } catch {
+        /* ignore */
+      }
+    });
+  } catch {
+    /* outside request scope — skip background sync */
+  }
   const docLimit = filters?.documentsLimit ?? ACCOUNTING_DEFAULT_PAGE_SIZE;
   const jrnLimit = filters?.journalLimit ?? ACCOUNTING_DEFAULT_PAGE_SIZE;
   const [accounts, docPage, jrnPage, periods] = await Promise.all([

@@ -3,13 +3,17 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import AccountingSection, { type AccountingInitialData } from '@/components/admin/AccountingSection';
+import AccountingSection from '@/components/admin/AccountingSection';
+import type { AccountingInitialData } from '@/lib/accounting/types/pageData';
 import AccountingHelpGuide from '@/components/admin/AccountingHelpGuide';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import Icon from '@/components/icons/Icon';
 
-export default function AdminAccountingClient(props: { initialData: AccountingInitialData }) {
-  const { initialData } = props;
+export default function AdminAccountingClient(props: {
+  initialData?: AccountingInitialData;
+  serverLoadError?: string;
+}) {
+  const { initialData, serverLoadError } = props;
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
@@ -46,6 +50,18 @@ export default function AdminAccountingClient(props: { initialData: AccountingIn
         }
         actionsClassName="admin-toolbar-group--end max-w-full"
       />
+
+      {serverLoadError && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+          <p className="font-semibold">{ar ? 'تعذّر تحميل بيانات المحاسبة من الخادم' : 'Could not load accounting data from server'}</p>
+          <p className="mt-1 text-xs text-amber-800">{serverLoadError}</p>
+          <p className="mt-2 text-xs text-amber-700">
+            {ar
+              ? 'سيتم محاولة التحميل من API. إن استمر الخطأ نفّذ migrations على قاعدة البيانات.'
+              : 'Retrying via API. If the error persists, apply database migrations on the server.'}
+          </p>
+        </div>
+      )}
 
       <AccountingSection initialData={initialData} />
 
