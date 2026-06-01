@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 46) — رفع المراحل 1–4 + E2E + migrations
+
+- **Migration:** `20260531150000_add_maintenance_requests` طُبّق على Neon (كان معلّقاً advisory lock)
+- **E2E:** `npm run test:e2e:verify` ✅ — 62 passed، 3 skipped (CI webServer)
+- **Git:** commit `69bb269` — `feat: complete user portal and admin dashboard phases 1-4` — **push `origin/master`** ✅
+- **ملاحظة للإنتاج:** `db:migrate:deploy` على Vercel/CI يطبّق notifications + maintenance تلقائياً
+
 ### جلسة 2026-05-31 (تابع 45) — المرحلة 4: polish + E2E
 
 - **`SiteContentHydrator`:** تحميل محتوى الموقع من `/api/settings/site-content` للصفحات العامة
