@@ -150,6 +150,27 @@ export async function fetchVatReport(params: { fromDate?: string; toDate?: strin
   }>(`${BASE}/reports?${sp}`);
 }
 
+export async function fetchAgingReport(params: { ledger?: 'ar' | 'ap'; asOfDate?: string; fromDate?: string; toDate?: string }) {
+  const sp = new URLSearchParams({ report: 'aging', ledger: params.ledger || 'ar' });
+  if (params.asOfDate) sp.set('asOfDate', params.asOfDate);
+  if (params.fromDate) sp.set('fromDate', params.fromDate);
+  if (params.toDate) sp.set('toDate', params.toDate);
+  return fetchJson<{
+    ledger: 'ar' | 'ap';
+    asOfDate: string;
+    totalOutstanding: number;
+    buckets: Array<{ bucket: string; bucketAr: string; amount: number; count: number }>;
+    lines: Array<{
+      serialNumber: string;
+      contactName?: string;
+      dueDate: string;
+      amount: number;
+      daysOverdue: number;
+      bucket: string;
+    }>;
+  }>(`${BASE}/reports?${sp}`);
+}
+
 export async function suggestJournalEntry(description: string, amount?: number) {
   return fetchJson<{
     lines: Array<{ accountId: string; debit: number; credit: number; descriptionAr?: string }>;

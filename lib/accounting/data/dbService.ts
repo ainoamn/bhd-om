@@ -875,6 +875,91 @@ export async function getVatReportFromDb(fromDate: string, toDate: string) {
   return buildVatReportFromDocuments(docs, fromDate, toDate);
 }
 
+/** AR/AP aging — open invoices or purchase invoices */
+export async function getAgingReportFromDb(ledger: 'ar' | 'ap', asOfDate: string) {
+  const { buildAgingReport } = await import('../reports/agingReport');
+  const types: AccountingDocType[] = ledger === 'ar' ? ['INVOICE'] : ['PURCHASE_INV'];
+  const rows = await prisma.accountingDocument.findMany({
+    where: {
+      type: { in: types },
+      status: { notIn: ['PAID', 'CANCELLED'] },
+      date: { lte: new Date(asOfDate) },
+    },
+    orderBy: [{ date: 'asc' }, { serialNumber: 'asc' }],
+  });
+  const docs = rows.map((r) => ({
+    id: r.id,
+    serialNumber: r.serialNumber,
+    type: r.type,
+    status: r.status,
+    date: r.date.toISOString().slice(0, 10),
+    dueDate: r.date.toISOString().slice(0, 10),
+    contactId: r.contactId,
+    totalAmount: r.totalAmount,
+    netAmount: r.netAmount,
+  }));
+  return buildAgingReport(docs, ledger, asOfDate);
+}
+
+/** Bank/cash ledger lines from journal for reconciliation */
+export async function getBankLedgerFromDb(params: {
+  mode: 'CASH' | 'BANK';
+  fromDate?: string;
+  toDate?: string;
+}) {
+  const { computeBookBalance } = await import('../reports/bankReconciliation');
+  await ensureAccountingAccounts();
+  const code = params.mode === 'CASH' ? '1000' : '1100';
+  const acc = await prisma.accountingAccount.findUnique({ where: { code } });
+  if (!acc) return { lines: [], bookBalance: 0, accountCode: code };
+
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (params.fromDate) dateFilter.gte = new Date(params.fromDate);
+  if (params.toDate) dateFilter.lte = new Date(params.toDate);
+
+  const entries = await prisma.accountingJournalEntry.findMany({
+    where: {
+      status: { in: ['APPROVED', 'POSTED'] },
+      ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
+      lines: { some: { accountId: acc.id } },
+    },
+    include: { lines: true },
+    orderBy: [{ date: 'asc' }, { serialNumber: 'asc' }],
+  });
+
+  const lines: Array<{
+    id: string;
+    date: string;
+    description: string;
+    debit: number;
+    credit: number;
+    reference?: string;
+    journalSerial?: string;
+  }> = [];
+
+  for (const entry of entries) {
+    for (const line of entry.lines) {
+      if (line.accountId !== acc.id) continue;
+      if (line.debit < 0.001 && line.credit < 0.001) continue;
+      lines.push({
+        id: `${entry.id}-${line.id}`,
+        date: entry.date.toISOString().slice(0, 10),
+        description: line.descriptionAr || entry.descriptionAr || entry.serialNumber,
+        debit: line.debit,
+        credit: line.credit,
+        reference: entry.reference ?? undefined,
+        journalSerial: entry.serialNumber,
+      });
+    }
+  }
+
+  return {
+    lines,
+    bookBalance: computeBookBalance(lines),
+    accountCode: code,
+  };
+}
+
 /** جلب بيانات المحاسبة للصفحة — paginated bootstrap for scale */
 export async function getAccountingDataForPage(filters?: {
   fromDate?: string;

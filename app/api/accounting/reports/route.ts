@@ -3,6 +3,7 @@ import {
   getJournalEntriesFromDb,
   getAccountsFromDb,
   getVatReportFromDb,
+  getAgingReportFromDb,
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 
@@ -20,11 +21,18 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('fromDate') || new Date().getFullYear() + '-01-01';
     const toDate = searchParams.get('toDate') || new Date().toISOString().slice(0, 10);
     const asOfDate = searchParams.get('asOfDate') || toDate;
-    const report = searchParams.get('report') || 'trial'; // trial | income | balance | vat
+    const report = searchParams.get('report') || 'trial'; // trial | income | balance | vat | aging
 
     if (report === 'vat') {
       const vatReport = await getVatReportFromDb(fromDate, toDate);
       return NextResponse.json(vatReport);
+    }
+
+    if (report === 'aging') {
+      const ledger = searchParams.get('ledger') === 'ap' ? 'ap' : 'ar';
+      const asOfDate = searchParams.get('asOfDate') || toDate;
+      const agingReport = await getAgingReportFromDb(ledger, asOfDate);
+      return NextResponse.json(agingReport);
     }
 
     const entries = await getJournalEntriesFromDb({ fromDate, toDate: asOfDate });

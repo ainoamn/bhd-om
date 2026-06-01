@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (54) — Phase 2 محاسبة: أعمار الذمم + مطابقة البنك
+
+- **AR/AP Aging:** `lib/accounting/reports/agingReport.ts` + `GET /api/accounting/reports?report=aging&ledger=ar|ap` + تبويب «أعمار الذمم» (`AccountingAgingPanel`)
+- **Bank Reconciliation:** `lib/accounting/reports/bankReconciliation.ts` + `GET/POST /api/accounting/bank-reconciliation` — مطابقة دفتر 1000/1100 مع كشف CSV + رصيد (`AccountingReconciliationPanel`)
+- **`dbService`:** `getAgingReportFromDb`, `getBankLedgerFromDb`
+- **`fetchAgingReport`** في API client
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (53) — Phase 1 محاسبة: VAT + AI Copilot + تحميل المزيد
 
 - **تقرير VAT:** `lib/accounting/reports/vatReport.ts` + `GET /api/accounting/reports?report=vat` + تبويب «إقرار ضريبة القيمة المضافة»
