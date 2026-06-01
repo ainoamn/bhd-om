@@ -13,10 +13,6 @@ import {
   getAccountBalance,
   getAccountLedger,
   getAccountLedgerWithBalance,
-  getTrialBalance,
-  getIncomeStatement,
-  getBalanceSheet,
-  getCashFlowStatement,
   createDocument,
   createJournalEntry,
   createAccount,
@@ -73,15 +69,13 @@ import {
   fetchForecast,
   fetchJournalEntriesPage,
   fetchDocumentsPage,
-  fetchVatReport,
-  fetchAgingReport,
-  fetchCashFlowReport,
-  fetchPeriodCompareReport,
   suggestJournalEntry,
   createDocument as apiCreateDocument,
   createJournalEntry as apiCreateJournalEntry,
   lockPeriod as apiLockPeriod,
 } from '@/lib/accounting/api/client';
+import { REPORT_LABELS, REPORT_TAB_ORDER, REPORT_URL_IDS, type ReportViewId } from '@/lib/accounting/ui/reportLabels';
+import { useAccountingDbReports } from '@/lib/accounting/hooks/useAccountingDbReports';
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, { ar: string; en: string }> = {
   ASSET: { ar: 'أصول', en: 'Assets' },
@@ -103,19 +97,6 @@ const DOC_TYPE_LABELS: Record<DocumentType, { ar: string; en: string }> = {
   PURCHASE_INV: { ar: 'فاتورة مشتريات', en: 'Purchase Invoice' },
   PURCHASE_ORDER: { ar: 'أمر شراء', en: 'Purchase Order' },
   OTHER: { ar: 'أخرى', en: 'Other' },
-};
-
-const REPORT_LABELS: Record<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare', { ar: string; en: string }> = {
-  trial: { ar: 'ميزان المراجعة', en: 'Trial Balance' },
-  income: { ar: 'قائمة الدخل', en: 'Income Statement (P&L)' },
-  balance: { ar: 'الميزانية العمومية', en: 'Balance Sheet' },
-  cashflow: { ar: 'التدفق النقدي', en: 'Cash Flow' },
-  bankStatement: { ar: 'كشف الحساب البنكي', en: 'Bank Statement' },
-  propertyLedger: { ar: 'كشف العقار / المستأجر', en: 'Property / Tenant Ledger' },
-  vat: { ar: 'إقرار ضريبة القيمة المضافة', en: 'VAT Return Summary' },
-  aging: { ar: 'أعمار الذمم', en: 'AR/AP Aging' },
-  reconciliation: { ar: 'مطابقة البنك', en: 'Bank Reconciliation' },
-  compare: { ar: 'مقارنة الفترات', en: 'Period Comparison' },
 };
 
 /** المبيعات - وحدات منفصلة */
@@ -225,7 +206,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
 
-  const setTab = (tab: TabId, action?: string, report?: 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare') => {
+  const setTab = (tab: TabId, action?: string, report?: ReportViewId) => {
     setActiveTab(tab);
     const params = new URLSearchParams();
     params.set('tab', tab);
@@ -260,16 +241,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [showAddCheque, setShowAddCheque] = useState(false);
   const [showInvoiceScan, setShowInvoiceScan] = useState(false);
   const [printDocument, setPrintDocument] = useState<AccountingDocument | null>(null);
-  const [reportView, setReportView] = useState<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare'>('trial');
-  const [vatReportData, setVatReportData] = useState<Awaited<ReturnType<typeof fetchVatReport>> | null>(null);
-  const [loadingVat, setLoadingVat] = useState(false);
+  const [reportView, setReportView] = useState<ReportViewId>('trial');
   const [agingLedger, setAgingLedger] = useState<'ar' | 'ap'>('ar');
-  const [agingReportData, setAgingReportData] = useState<Awaited<ReturnType<typeof fetchAgingReport>> | null>(null);
-  const [loadingAging, setLoadingAging] = useState(false);
-  const [cashFlowDb, setCashFlowDb] = useState<Awaited<ReturnType<typeof fetchCashFlowReport>> | null>(null);
-  const [loadingCashFlow, setLoadingCashFlow] = useState(false);
-  const [compareReportData, setCompareReportData] = useState<Awaited<ReturnType<typeof fetchPeriodCompareReport>> | null>(null);
-  const [loadingCompare, setLoadingCompare] = useState(false);
   const [loadingMoreJournal, setLoadingMoreJournal] = useState(false);
   const [loadingMoreDocs, setLoadingMoreDocs] = useState(false);
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
@@ -443,8 +416,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   useEffect(() => {
     const tab = (searchParams?.get('tab') || 'dashboard') as TabId;
     setActiveTab(tab);
-    const report = searchParams?.get('report') as 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare' | null;
-    if (tab === 'reports' && report && ['trial', 'income', 'balance', 'cashflow', 'bankStatement', 'propertyLedger', 'vat', 'aging', 'reconciliation', 'compare'].includes(report)) {
+    const report = searchParams?.get('report') as ReportViewId | null;
+    if (tab === 'reports' && report && REPORT_URL_IDS.includes(report)) {
       setReportView(report);
     }
   }, [searchParams?.get('tab'), searchParams?.get('report')]);
@@ -516,53 +489,6 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       setSelectedBankAccountId(active.length > 0 ? active[0].id : 'CASH');
     }
   }, [reportView, bankAccounts]);
-  useEffect(() => {
-    if (!useDb || reportView !== 'vat' || activeTab !== 'reports') return;
-    const from = filterFromDate || new Date().getFullYear() + '-01-01';
-    const to = filterToDate || new Date().toISOString().slice(0, 10);
-    let cancelled = false;
-    setLoadingVat(true);
-    fetchVatReport({ fromDate: from, toDate: to })
-      .then((data) => { if (!cancelled) setVatReportData(data); })
-      .catch(() => { if (!cancelled) setVatReportData(null); })
-      .finally(() => { if (!cancelled) setLoadingVat(false); });
-    return () => { cancelled = true; };
-  }, [useDb, reportView, activeTab, filterFromDate, filterToDate]);
-  useEffect(() => {
-    if (!useDb || reportView !== 'aging' || activeTab !== 'reports') return;
-    const asOf = filterToDate || new Date().toISOString().slice(0, 10);
-    let cancelled = false;
-    setLoadingAging(true);
-    fetchAgingReport({ ledger: agingLedger, asOfDate: asOf })
-      .then((data) => { if (!cancelled) setAgingReportData(data); })
-      .catch(() => { if (!cancelled) setAgingReportData(null); })
-      .finally(() => { if (!cancelled) setLoadingAging(false); });
-    return () => { cancelled = true; };
-  }, [useDb, reportView, activeTab, agingLedger, filterToDate]);
-  useEffect(() => {
-    if (!useDb || reportView !== 'cashflow' || activeTab !== 'reports') return;
-    const from = filterFromDate || new Date().getFullYear() + '-01-01';
-    const to = filterToDate || new Date().toISOString().slice(0, 10);
-    let cancelled = false;
-    setLoadingCashFlow(true);
-    fetchCashFlowReport({ fromDate: from, toDate: to })
-      .then((data) => { if (!cancelled) setCashFlowDb(data); })
-      .catch(() => { if (!cancelled) setCashFlowDb(null); })
-      .finally(() => { if (!cancelled) setLoadingCashFlow(false); });
-    return () => { cancelled = true; };
-  }, [useDb, reportView, activeTab, filterFromDate, filterToDate]);
-  useEffect(() => {
-    if (!useDb || reportView !== 'compare' || activeTab !== 'reports') return;
-    const from = filterFromDate || new Date().getFullYear() + '-01-01';
-    const to = filterToDate || new Date().toISOString().slice(0, 10);
-    let cancelled = false;
-    setLoadingCompare(true);
-    fetchPeriodCompareReport({ fromDate: from, toDate: to })
-      .then((data) => { if (!cancelled) setCompareReportData(data); })
-      .catch(() => { if (!cancelled) setCompareReportData(null); })
-      .finally(() => { if (!cancelled) setLoadingCompare(false); });
-    return () => { cancelled = true; };
-  }, [useDb, reportView, activeTab, filterFromDate, filterToDate]);
   useEffect(() => {
     if (actionFromUrl === 'add') {
       if (tabFromUrl === 'journal') setShowAddJournal(true);
@@ -789,10 +715,31 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     ? getAccountLedgerWithBalance(selectedAccountId, filterFromDate || undefined, filterToDate || undefined, entriesForReports, accountsForReports)
     : [];
 
-  const trialBalance = getTrialBalance(reportFrom, reportTo, entriesForReports, accountsForReports);
-  const incomeStatement = getIncomeStatement(reportFrom, reportTo, entriesForReports, accountsForReports);
-  const balanceSheet = getBalanceSheet(reportAsOf, entriesForReports, accountsForReports);
-  const cashFlow = getCashFlowStatement(reportFrom, reportTo, entriesForReports, accountsForReports);
+  const {
+    trialBalance,
+    incomeStatement,
+    balanceSheet,
+    cashFlow,
+    loadingCore,
+    vatReportData,
+    loadingVat,
+    agingReportData,
+    loadingAging,
+    cashFlowDb,
+    loadingCashFlow,
+    compareReportData,
+    loadingCompare,
+  } = useAccountingDbReports({
+    useDb,
+    activeTab,
+    reportView,
+    reportFrom,
+    reportTo,
+    reportAsOf,
+    agingLedger,
+    journalEntries,
+    accounts,
+  });
 
   const aiSuggestedAccount = useMemo(() => {
     const text = (journalForm.descriptionAr + ' ' + (journalForm.descriptionEn || '')).toLowerCase();
@@ -2333,7 +2280,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       {activeTab === 'reports' && (
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
-            {(['trial', 'income', 'balance', 'compare', 'vat', 'aging', 'reconciliation', 'cashflow', 'bankStatement', 'propertyLedger'] as const).map((r) => (
+            {REPORT_TAB_ORDER.map((r) => (
               <button
                 key={r}
                 type="button"
@@ -2432,6 +2379,9 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             <div className="p-6">
               {reportView === 'trial' && (
                 <div className="overflow-x-auto">
+                  {useDb && loadingCore ? (
+                    <p className="text-gray-500 py-8 text-center">{ar ? 'جاري تحميل ميزان المراجعة...' : 'Loading trial balance...'}</p>
+                  ) : (
                   <table className="admin-table w-full">
                     <thead>
                       <tr>
@@ -2459,10 +2409,15 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                       </tr>
                     </tfoot>
                   </table>
+                  )}
                 </div>
               )}
               {reportView === 'income' && (
                 <div className="space-y-6 max-w-2xl">
+                  {useDb && loadingCore ? (
+                    <p className="text-gray-500 py-8">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+                  ) : (
+                  <>
                   <div>
                     <h5 className="font-semibold text-emerald-700 mb-2">{ar ? 'الإيرادات' : 'Revenue'}</h5>
                     <table className="admin-table w-full">
@@ -2508,10 +2463,16 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                       {ar ? 'صافي الدخل' : 'Net Income'}: {incomeStatement.netIncome.toLocaleString()} ر.ع
                     </p>
                   </div>
+                  </>
+                  )}
                 </div>
               )}
               {reportView === 'balance' && (
                 <div className="space-y-6 max-w-2xl">
+                  {useDb && loadingCore ? (
+                    <p className="text-gray-500 py-8">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+                  ) : (
+                  <>
                   <div>
                     <h5 className="font-semibold text-blue-700 mb-2">{ar ? 'الأصول' : 'Assets'}</h5>
                     <table className="admin-table w-full">
@@ -2579,6 +2540,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                       </tfoot>
                     </table>
                   </div>
+                  </>
+                  )}
                 </div>
               )}
               {reportView === 'vat' && (

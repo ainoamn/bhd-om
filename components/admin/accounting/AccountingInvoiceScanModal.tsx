@@ -64,6 +64,8 @@ export default function AccountingInvoiceScanModal(props: {
         } else {
           setOcrStatus(ar ? 'لم يُستخرج نص — الصق يدوياً' : 'No text extracted — paste manually');
         }
+      } else if (file.name.toLowerCase().endsWith('.pdf')) {
+        setOcrStatus(ar ? 'PDF — انقر «مسح» لاستخراج النص من الخادم' : 'PDF — click Scan for server text extraction');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload error');
@@ -120,11 +122,11 @@ export default function AccountingInvoiceScanModal(props: {
               : 'Extracted data is not saved until you review and click Save on the document form.'}
           </p>
           <div>
-            <label className="block text-sm font-semibold mb-1">{ar ? 'رفع صورة (OCR تلقائي)' : 'Upload image (auto OCR)'}</label>
+            <label className="block text-sm font-semibold mb-1">{ar ? 'رفع صورة/PDF (OCR)' : 'Upload image/PDF (OCR)'}</label>
             <input
               ref={fileRef}
               type="file"
-              accept=".jpg,.jpeg,.png,.webp"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
               className="admin-input w-full"
               onChange={(e) => {
                 const f = e.target.files?.[0];

@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (57) — Phase 5 محاسبة: تقارير DB + PDF OCR + backfill
+
+- **`useAccountingDbReports`:** hook موحّد — trial/income/balance من API عند DB + fallback محلي
+- **`reportLabels.ts`:** تسميات وتبويبات التقارير منفصلة عن `AccountingSection`
+- **PDF OCR:** `pdf-parse` + `pdfTextExtract.ts` — استخراج نص PDF من `/uploads/accounting/` في scan-invoice API
+- **Backfill:** `scripts/backfill-accounting-journal-links.ts` + `npm run db:backfill-accounting-journal-links`
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (56) — Phase 4 محاسبة: ربط القيود + OCR + تقارير متقدمة
 
 - **ربط DB:** `journalEntryId` على المستند + `documentId`/`bankAccountId`/`contactId` على القيد — migration `20260601170000_accounting_journal_links`
