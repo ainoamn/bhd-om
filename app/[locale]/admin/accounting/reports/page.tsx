@@ -99,7 +99,7 @@ export default function FinancialReportsPage() {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B6F47] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 admin-accent-border mx-auto"></div>
           <p className="text-gray-500 mt-4">{ar ? 'جاري تحميل التقارير...' : 'Loading reports...'}</p>
         </div>
       </div>
@@ -112,11 +112,11 @@ export default function FinancialReportsPage() {
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-lg border-b border-gray-200/60 shadow-lg">
         <div className="flex items-center justify-between px-8 py-5 max-w-[1800px] mx-auto">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#8B6F47] to-[#A68B5B] rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-[color:var(--admin-primary)] to-[#A68B5B] rounded-xl flex items-center justify-center shadow-lg">
               <Icon name="chartBar" className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#8B6F47] to-[#A68B5B] bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-[color:var(--admin-primary)] to-[#A68B5B] bg-clip-text text-transparent">
                 {ar ? 'التقارير المالية' : 'Financial Reports'}
               </h1>
               <p className="text-sm text-gray-600 mt-1 font-medium">
@@ -128,7 +128,7 @@ export default function FinancialReportsPage() {
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
             >
               <option value="2025">2025</option>
               <option value="2024">2024</option>
@@ -170,7 +170,7 @@ export default function FinancialReportsPage() {
                 onClick={() => setSelectedReport(report.id as any)}
                 className={`p-6 rounded-xl border-2 transition-all duration-200 ${
                   selectedReport === report.id
-                    ? 'border-[#8B6F47] bg-[#8B6F47]/5'
+                    ? 'admin-accent-border admin-accent-bg-soft'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
               >

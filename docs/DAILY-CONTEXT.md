@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 51) — توحيد تصميم كل صفحات اللوحة الفرعية
+
+- **`admin-subpages`:** class على `admin-main-inner` — inputs، جداول، بطاقات، dark mode تلقائي
+- **استبدال `#8B6F47`** في عشرات ملفات admin/components → `admin-accent-*` و CSS variables
+- **المحاسبة:** إزالة header أزرق/بنفسجي من `AdminAccountingClient` → `AdminPageHeader` + أزرار موحّدة
+- **`accounting.module.css`:** tokens + dark mode داخل `.admin-root`
+- **`AdminSubpageShell`:** غلاف اختياري للصفحات الفرعية
+- **`npm run build`** ✅ — **لم يُرفع Git بعد**
+
 ### جلسة 2026-05-31 (تابع 50) — إعادة تصميم لوحة الرئيسية + مساعد ذكي
 
 - **`AdminHomeDashboard`:** لوحة إدارة جديدة — Hero، KPIs، أولويات، نشاط، إجراءات سريعة، جاهزية

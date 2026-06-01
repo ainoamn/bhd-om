@@ -73,7 +73,7 @@ export default function AccountingWelcome() {
     <div className="space-y-8">
       {/* Welcome Header */}
       <div className="text-center py-12">
-        <div className="w-20 h-20 bg-gradient-to-br from-[#8B6F47] to-[#A68B5B] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+        <div className="w-20 h-20 bg-gradient-to-br from-[color:var(--admin-primary)] to-[#A68B5B] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
           <Icon name="chartBar" className="h-10 w-10 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
@@ -104,7 +104,7 @@ export default function AccountingWelcome() {
                 <div className={`w-12 h-12 bg-gradient-to-br ${action.color} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                   <Icon name={action.icon as any} className="h-6 w-6 text-white" />
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-[#8B6F47] transition-colors">
+                <h3 className="font-semibold text-gray-900 mb-2 group-hover:admin-accent-text transition-colors">
                   {action.title}
                 </h3>
                 <p className="text-sm text-gray-600">
@@ -125,7 +125,7 @@ export default function AccountingWelcome() {
           {features.map((feature, index) => (
             <div key={index} className="text-center">
               <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 shadow-md border border-gray-200/60">
-                <Icon name={feature.icon as any} className="h-8 w-8 text-[#8B6F47]" />
+                <Icon name={feature.icon as any} className="h-8 w-8 admin-accent-text" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-2">
                 {feature.title}
@@ -139,7 +139,7 @@ export default function AccountingWelcome() {
       </div>
 
       {/* Getting Started */}
-      <div className="bg-gradient-to-r from-[#8B6F47]/5 to-[#A68B5B]/5 rounded-2xl border border-[#8B6F47]/20 p-8">
+      <div className="bg-gradient-to-r from-[color:var(--admin-primary)]/5 to-[#A68B5B]/5 rounded-2xl border admin-accent-border/20 p-8">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             {ar ? 'كيفية البدء؟' : 'How to Get Started?'}

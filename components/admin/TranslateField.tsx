@@ -70,7 +70,7 @@ export default function TranslateField({
 
   const isDark = variant === 'dark';
   const baseInputClass = isDark
-    ? 'w-full px-5 py-3.5 rounded-xl border border-white/20 bg-white/5 text-white placeholder:text-white focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] outline-none'
+    ? 'w-full px-5 py-3.5 rounded-xl border border-white/20 bg-white/5 text-white placeholder:text-white focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:admin-accent-border outline-none'
     : 'admin-input w-full';
   const InputComponent = multiline ? 'textarea' : 'input';
   const inputProps = multiline
@@ -90,7 +90,7 @@ export default function TranslateField({
             type="button"
             onClick={handleTranslate}
             disabled={translating || !hasSource}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'bg-[#8B6F47]/30 text-white hover:bg-[#8B6F47]/50' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${isDark ? 'admin-btn-primary/30 text-white hover:admin-accent-bg-soft0' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
             title={btnLabel}
           >
             {translating ? (

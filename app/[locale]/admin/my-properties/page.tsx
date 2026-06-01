@@ -118,7 +118,7 @@ export default function MyPropertiesPage() {
               <Link
                 key={p?.id}
                 href={`/${locale}/properties/${p?.id}`}
-                className="block p-4 rounded-xl border border-gray-200 hover:border-[#8B6F47]/30 hover:bg-[#8B6F47]/5 transition-all"
+                className="block p-4 rounded-xl border border-gray-200 hover:admin-accent-border/30 hover:admin-accent-bg-soft transition-all"
               >
                 <p className="font-semibold text-gray-900">{locale === 'ar' ? p?.titleAr : p?.titleEn || p?.titleAr}</p>
                 <p className="text-sm text-gray-500 mt-1">{(p as { serialNumber?: string }).serialNumber}</p>

@@ -1364,3 +1364,155 @@
 .admin-root[data-admin-theme='dark'] .admin-dash-priority-badge {
   color: #fcd34d;
 }
+
+/* ===== Sub-pages — تنسيق موحّد لكل صفحات اللوحة الفرعية ===== */
+.admin-subpages {
+  --admin-subpage-radius: 1rem;
+}
+.admin-page-content {
+  width: 100%;
+  min-width: 0;
+}
+.admin-subpages .admin-page-content {
+  animation: adminSubpageIn 0.35s ease-out;
+}
+@keyframes adminSubpageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* حقول غير موحّدة بعد — تطبيق admin-input تلقائياً */
+.admin-subpages input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='file']):not([type='button']):not([type='submit']):not([type='range']):not([class*='admin-']),
+.admin-subpages select:not([class*='admin-']),
+.admin-subpages textarea:not([class*='admin-']) {
+  width: 100%;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.admin-subpages input:not([type='checkbox']):not([type='radio']):not([type='hidden']):focus,
+.admin-subpages select:not([class*='admin-']):focus,
+.admin-subpages textarea:not([class*='admin-']):focus {
+  outline: none;
+  border-color: var(--admin-primary);
+  box-shadow: 0 0 0 2px var(--admin-focus-ring);
+}
+
+/* جداول عامة داخل اللوحة */
+.admin-subpages table:not([class*='admin-table']) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.admin-subpages table:not([class*='admin-table']) thead th {
+  padding: 0.625rem 0.875rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-text-muted);
+  background: var(--admin-surface-muted);
+  border-bottom: 1px solid var(--admin-border);
+}
+.admin-subpages table:not([class*='admin-table']) tbody td {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  color: var(--admin-text);
+}
+.admin-subpages table:not([class*='admin-table']) tbody tr:hover td {
+  background: rgb(var(--admin-primary-rgb) / 0.04);
+}
+
+/* بطاقات Tailwind الشائعة → مظهر admin-card */
+.admin-subpages .rounded-2xl.border.border-gray-200,
+.admin-subpages .rounded-xl.border.border-gray-200,
+.admin-subpages .rounded-2xl.border.border-gray-200\/80 {
+  border-color: var(--admin-border) !important;
+  background: var(--admin-surface);
+  box-shadow: var(--admin-shadow-sm);
+}
+
+/* أزرار legacy بخلفية brand */
+.admin-subpages .bg-\[\#8B6F47\],
+.admin-subpages [class*='bg-[#8B6F47]'] {
+  background-color: var(--admin-primary) !important;
+  color: #fff !important;
+}
+.admin-subpages .hover\:bg-\[\#6B5535\]:hover,
+.admin-subpages [class*='hover:bg-[#6B5535]']:hover {
+  background-color: var(--admin-primary-hover) !important;
+}
+
+/* روابط brand legacy */
+.admin-subpages .text-\[\#8B6F47\],
+.admin-subpages [class*='text-[#8B6F47]'] {
+  color: var(--admin-primary) !important;
+}
+.admin-subpages a.text-primary,
+.admin-subpages .admin-accent-text {
+  color: var(--admin-primary);
+}
+.admin-subpages a.text-primary:hover,
+.admin-subpages .admin-accent-text:hover {
+  color: var(--admin-primary-hover);
+}
+
+/* شريط أدوات فرعي */
+.admin-subpages .admin-toolbar-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* محاسبة — module CSS داخل admin-root */
+.admin-root .hero {
+  background: var(--admin-gradient-primary);
+  border-radius: 1.25rem;
+  padding: 1.5rem 1.75rem;
+  color: #fff;
+}
+.admin-root[data-admin-theme='dark'] .statCard,
+.admin-root[data-admin-theme='dark'] .contentCard,
+.admin-root[data-admin-theme='dark'] .filterBar {
+  background: var(--admin-surface) !important;
+  border-color: var(--admin-border) !important;
+}
+.admin-root[data-admin-theme='dark'] .statCardValue,
+.admin-root[data-admin-theme='dark'] .contentCardTitle,
+.admin-root[data-admin-theme='dark'] .modalTitle {
+  color: var(--admin-text) !important;
+}
+.admin-root[data-admin-theme='dark'] .dataTable th {
+  background: var(--admin-surface-muted) !important;
+  color: var(--admin-text-muted) !important;
+}
+.admin-root[data-admin-theme='dark'] .dataTable td {
+  color: var(--admin-text-muted) !important;
+  border-color: var(--admin-border-subtle) !important;
+}
+.admin-root[data-admin-theme='dark'] .tabNav {
+  background: var(--admin-surface-muted) !important;
+  border-color: var(--admin-border) !important;
+}
+.admin-root[data-admin-theme='dark'] .tabBtn {
+  color: var(--admin-text-muted) !important;
+}
+.admin-root[data-admin-theme='dark'] .tabBtnActive {
+  background: var(--admin-primary) !important;
+  color: #fff !important;
+}
+.admin-root[data-admin-theme='dark'] .filterInput {
+  background: var(--admin-surface) !important;
+  border-color: var(--admin-border) !important;
+  color: var(--admin-text) !important;
+}
+.admin-root[data-admin-theme='dark'] .modalContent {
+  background: var(--admin-surface) !important;
+}

@@ -87,9 +87,9 @@ export default function AccountingHelpGuide({ locale, onClose }: Props) {
         className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#8B6F47]/10 to-transparent">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[color:var(--admin-primary)]/10 to-transparent">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <Icon name="information" className="h-5 w-5 text-[#8B6F47]" />
+            <Icon name="information" className="h-5 w-5 admin-accent-text" />
             {ar ? 'دليل الاستخدام' : 'User Guide'}
           </h2>
           <button
@@ -109,13 +109,13 @@ export default function AccountingHelpGuide({ locale, onClose }: Props) {
                 key={i}
                 className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
                   step === i
-                    ? 'border-[#8B6F47] bg-[#8B6F47]/5'
+                    ? 'admin-accent-border admin-accent-bg-soft'
                     : 'border-gray-100 hover:border-gray-200'
                 }`}
                 onClick={() => setStep(i)}
               >
                 <div className="flex items-start gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#8B6F47] text-white text-sm font-bold">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full admin-btn-primary text-white text-sm font-bold">
                     {i + 1}
                   </span>
                   <div>
@@ -138,7 +138,7 @@ export default function AccountingHelpGuide({ locale, onClose }: Props) {
                 type="button"
                 onClick={() => setStep(i)}
                 className={`h-2 rounded-full transition-all ${
-                  step === i ? 'w-6 bg-[#8B6F47]' : 'w-2 bg-gray-300 hover:bg-gray-400'
+                  step === i ? 'w-6 admin-btn-primary' : 'w-2 bg-gray-300 hover:bg-gray-400'
                 }`}
                 aria-label={`${ar ? 'الخطوة' : 'Step'} ${i + 1}`}
               />
@@ -147,7 +147,7 @@ export default function AccountingHelpGuide({ locale, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors"
+            className="px-5 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-colors"
           >
             {ar ? 'فهمت' : 'Got it'}
           </button>

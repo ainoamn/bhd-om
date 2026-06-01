@@ -110,7 +110,7 @@ function EditUserModal({
           <button
             type="button"
             onClick={() => onSave({ name, email, phone: phone || null, role })}
-            className="flex-1 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+            className="flex-1 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
           >
             {locale === 'ar' ? 'حفظ' : 'Save'}
           </button>
@@ -346,7 +346,7 @@ export default function UserDetailPage() {
         <div className="p-12 text-center">
           <div className="w-20 h-20 rounded-2xl bg-amber-100 flex items-center justify-center text-4xl mx-auto mb-4">🔐</div>
           <p className="text-gray-700 font-medium text-lg">{ar ? 'يجب تسجيل الدخول كمدير لعرض صفحة المستخدم' : 'You must be logged in as Admin to view this page'}</p>
-          <Link href={`/${locale}/login`} className="inline-block mt-4 px-6 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
+          <Link href={`/${locale}/login`} className="inline-block mt-4 px-6 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90">
             {ar ? 'صفحة تسجيل الدخول' : 'Login page'}
           </Link>
         </div>
@@ -360,7 +360,7 @@ export default function UserDetailPage() {
         <div className="p-12 text-center">
           <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-4xl mx-auto mb-4">👤</div>
           <p className="text-gray-700 font-medium text-lg">{ar ? 'المستخدم غير موجود' : 'User not found'}</p>
-          <Link href={`/${locale}/admin/users`} className="inline-block mt-4 px-6 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20">
+          <Link href={`/${locale}/admin/users`} className="inline-block mt-4 px-6 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20">
             {ar ? '← العودة لقائمة المستخدمين' : '← Back to users'}
           </Link>
         </div>
@@ -410,7 +410,7 @@ export default function UserDetailPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{t('username')}</p>
-              <p className="font-mono text-[#8B6F47] font-medium" title={user.serialNumber || undefined}>
+              <p className="font-mono admin-accent-text font-medium" title={user.serialNumber || undefined}>
                 {shortenUserSerial(user.serialNumber)}
               </p>
               {user.serialNumber && (
@@ -426,7 +426,7 @@ export default function UserDetailPage() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{t('email')}</p>
               {user.email && !user.email.includes('@nologin.bhd') ? (
-                <a href={`mailto:${user.email}`} className="text-[#8B6F47] hover:underline break-all">{user.email}</a>
+                <a href={`mailto:${user.email}`} className="admin-accent-text hover:underline break-all">{user.email}</a>
               ) : (
                 <span className="text-gray-400 text-sm">{ar ? 'دخول بالرقم فقط' : 'Login by ID only'}</span>
               )}
@@ -434,7 +434,7 @@ export default function UserDetailPage() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{t('phone')}</p>
               {user.phone ? (
-                <a href={`tel:${user.phone}`} className="text-[#8B6F47] hover:underline">{user.phone}</a>
+                <a href={`tel:${user.phone}`} className="admin-accent-text hover:underline">{user.phone}</a>
               ) : (
                 <span className="text-gray-400">—</span>
               )}
@@ -453,14 +453,14 @@ export default function UserDetailPage() {
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{ar ? 'الباقة' : 'Plan'}</p>
               {user.plan ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-[#8B6F47]">{ar ? user.plan.nameAr : user.plan.nameEn}</span>
+                  <span className="font-medium admin-accent-text">{ar ? user.plan.nameAr : user.plan.nameEn}</span>
                   <span className="text-gray-500 text-sm">({user.plan.priceMonthly} {user.plan.currency})</span>
                   {user.subscriptionEndAt && (
                     <span className="text-xs text-gray-500">— {ar ? 'ينتهي' : 'ends'} {formatDate(user.subscriptionEndAt)}</span>
                   )}
                   <Link
                     href={`/${locale}/admin/subscriptions`}
-                    className="text-xs text-[#8B6F47] hover:underline font-medium"
+                    className="text-xs admin-accent-text hover:underline font-medium"
                   >
                     {ar ? 'تعديل الباقة' : 'Change plan'}
                   </Link>
@@ -470,7 +470,7 @@ export default function UserDetailPage() {
                   <span className="text-gray-400 text-sm">{ar ? 'لا توجد باقة معينة' : 'No plan assigned'}</span>
                   <Link
                     href={`/${locale}/admin/subscriptions`}
-                    className="text-sm text-[#8B6F47] hover:underline font-medium"
+                    className="text-sm admin-accent-text hover:underline font-medium"
                   >
                     {ar ? 'تعيين باقة' : 'Assign plan'}
                   </Link>
@@ -483,7 +483,7 @@ export default function UserDetailPage() {
             <button
               type="button"
               onClick={() => setEditUser(user)}
-              className="px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors"
+              className="px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-colors"
             >
               {ar ? 'تعديل' : 'Edit'}
             </button>
@@ -508,7 +508,7 @@ export default function UserDetailPage() {
                 type="button"
                 onClick={handleAddToAddressBook}
                 disabled={addingToAddressBook}
-                className="px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 disabled:opacity-50 transition-colors"
+                className="px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 disabled:opacity-50 transition-colors"
               >
                 {addingToAddressBook ? (ar ? 'جاري...' : 'Adding...') : (ar ? 'إضافة لدفتر العناوين' : 'Add to Address Book')}
               </button>
@@ -527,7 +527,7 @@ export default function UserDetailPage() {
       {/* بيانات دفتر العناوين - تُعرض دائماً */}
       <div className="admin-card overflow-hidden">
         <div className="p-6 border-b border-gray-200 bg-gray-50/50">
-          <h2 className="text-lg font-bold text-[#8B6F47]">
+          <h2 className="text-lg font-bold admin-accent-text">
             {ar ? 'سجل دفتر العناوين' : 'Address Book Record'}
           </h2>
           <p className="text-sm text-gray-600 mt-0.5">
@@ -584,12 +584,12 @@ export default function UserDetailPage() {
                   )}
                   <div>
                     <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{tAddr('phone')}</p>
-                    <a href={`tel:${contact.phone}`} className="text-[#8B6F47] hover:underline">{contact.phone || '—'}</a>
+                    <a href={`tel:${contact.phone}`} className="admin-accent-text hover:underline">{contact.phone || '—'}</a>
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{tAddr('email')}</p>
                     {contact.email ? (
-                      <a href={`mailto:${contact.email}`} className="text-[#8B6F47] hover:underline break-all">{contact.email}</a>
+                      <a href={`mailto:${contact.email}`} className="admin-accent-text hover:underline break-all">{contact.email}</a>
                     ) : (
                       <span className="text-gray-400">—</span>
                     )}
@@ -668,19 +668,19 @@ export default function UserDetailPage() {
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{tAddr('email')}</p>
                   {contact.email ? (
-                    <a href={`mailto:${contact.email}`} className="text-[#8B6F47] hover:underline break-all">{contact.email}</a>
+                    <a href={`mailto:${contact.email}`} className="admin-accent-text hover:underline break-all">{contact.email}</a>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{tAddr('phone')}</p>
-                  <a href={`tel:${contact.phone}`} className="text-[#8B6F47] hover:underline">{contact.phone || '—'}</a>
+                  <a href={`tel:${contact.phone}`} className="admin-accent-text hover:underline">{contact.phone || '—'}</a>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{tAddr('phoneAlt')}</p>
                   {contact.phoneSecondary ? (
-                    <a href={`tel:${contact.phoneSecondary}`} className="text-[#8B6F47] hover:underline">{contact.phoneSecondary}</a>
+                    <a href={`tel:${contact.phoneSecondary}`} className="admin-accent-text hover:underline">{contact.phoneSecondary}</a>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}
@@ -758,7 +758,7 @@ export default function UserDetailPage() {
             <div className="pt-4 border-t border-gray-200">
               <Link
                 href={`/${locale}/admin/address-book`}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 transition-colors"
               >
                 <Icon name="archive" className="w-4 h-4" />
                 {ar ? 'فتح دفتر العناوين' : 'Open Address Book'}
@@ -774,7 +774,7 @@ export default function UserDetailPage() {
                   type="button"
                   onClick={handleAddToAddressBook}
                   disabled={addingToAddressBook}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 disabled:opacity-50 transition-colors"
                 >
                   <Icon name="plus" className="w-4 h-4" />
                   {addingToAddressBook ? (ar ? 'جاري الإضافة...' : 'Adding...') : (ar ? 'إضافة لدفتر العناوين' : 'Add to Address Book')}
@@ -845,7 +845,7 @@ export default function UserDetailPage() {
             <button
               type="button"
               onClick={() => { setResetResult(null); setResetPasswordUser(null); }}
-              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
             >
               {ar ? 'إغلاق' : 'Close'}
             </button>

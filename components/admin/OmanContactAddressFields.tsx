@@ -147,8 +147,8 @@ export default function OmanContactAddressFields({
 
   return (
     <div className={`space-y-4 rounded-2xl border-2 border-gray-100 bg-gray-50/80 p-5 ${sectionClassName}`.trim()}>
-      <h4 className="text-sm font-bold text-[#8B6F47] flex items-center gap-2 pb-2 border-b border-gray-200 m-0">
-        <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center text-base" aria-hidden>
+      <h4 className="text-sm font-bold admin-accent-text flex items-center gap-2 pb-2 border-b border-gray-200 m-0">
+        <span className="w-8 h-8 rounded-lg admin-accent-bg-soft flex items-center justify-center text-base" aria-hidden>
           📍
         </span>
         {ar ? 'العنوان (سلطنة عمان — نفس بيانات العقارات)' : 'Address (Oman — same data as properties)'}

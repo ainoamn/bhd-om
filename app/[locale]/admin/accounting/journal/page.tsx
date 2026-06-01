@@ -118,7 +118,7 @@ export default function JournalEntriesPage() {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B6F47] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 admin-accent-border mx-auto"></div>
           <p className="text-gray-500 mt-4">{ar ? 'جاري تحميل القيود...' : 'Loading entries...'}</p>
         </div>
       </div>
@@ -131,11 +131,11 @@ export default function JournalEntriesPage() {
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-lg border-b border-gray-200/60 shadow-lg">
         <div className="flex items-center justify-between px-8 py-5 max-w-[1800px] mx-auto">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#8B6F47] to-[#A68B5B] rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-[color:var(--admin-primary)] to-[#A68B5B] rounded-xl flex items-center justify-center shadow-lg">
               <Icon name="documentText" className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#8B6F47] to-[#A68B5B] bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-[color:var(--admin-primary)] to-[#A68B5B] bg-clip-text text-transparent">
                 {ar ? 'قيود اليومية' : 'Journal Entries'}
               </h1>
               <p className="text-sm text-gray-600 mt-1 font-medium">
@@ -147,7 +147,7 @@ export default function JournalEntriesPage() {
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
             >
               <option value="2025">2025</option>
               <option value="2024">2024</option>
@@ -155,7 +155,7 @@ export default function JournalEntriesPage() {
             </select>
             <button
               onClick={() => setShowNewEntry(true)}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#8B6F47] to-[#A68B5B] text-white hover:from-[#8B6F47]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold text-sm shadow-lg"
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[color:var(--admin-primary)] to-[#A68B5B] text-white hover:from-[color:var(--admin-primary)]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold text-sm shadow-lg"
             >
               <Icon name="plus" className="h-5 w-5" />
               {ar ? 'قيد جديد' : 'New Entry'}
@@ -224,7 +224,7 @@ export default function JournalEntriesPage() {
                         <p className="text-lg font-medium">{ar ? 'لا توجد قيود' : 'No entries found'}</p>
                         <button
                           onClick={() => setShowNewEntry(true)}
-                          className="px-6 py-3 bg-[#8B6F47] text-white rounded-xl hover:bg-[#8B6F47]/90 transition-colors font-semibold"
+                          className="px-6 py-3 admin-btn-primary text-white rounded-xl hover:admin-btn-primary/90 transition-colors font-semibold"
                         >
                           {ar ? 'إنشاء أول قيد' : 'Create first entry'}
                         </button>
@@ -242,7 +242,7 @@ export default function JournalEntriesPage() {
       {showNewEntry && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-[#8B6F47]/5 to-white">
+            <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-[color:var(--admin-primary)]/5 to-white">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-gray-900">
                   {ar ? 'قيد يومي جديد' : 'New Journal Entry'}
@@ -266,7 +266,7 @@ export default function JournalEntriesPage() {
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                     required
                   />
                 </div>
@@ -278,7 +278,7 @@ export default function JournalEntriesPage() {
                     type="text"
                     value={formData.descriptionAr}
                     onChange={(e) => setFormData(prev => ({ ...prev, descriptionAr: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                     required
                   />
                 </div>
@@ -292,7 +292,7 @@ export default function JournalEntriesPage() {
                   <button
                     type="button"
                     onClick={addLine}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#8B6F47] text-white rounded-lg hover:bg-[#8B6F47]/90 transition-colors text-sm font-medium"
+                    className="flex items-center gap-2 px-4 py-2 admin-btn-primary text-white rounded-lg hover:admin-btn-primary/90 transition-colors text-sm font-medium"
                   >
                     <Icon name="plus" className="h-4 w-4" />
                     {ar ? 'إضافة بند' : 'Add Line'}
@@ -309,7 +309,7 @@ export default function JournalEntriesPage() {
                         <select
                           value={line.accountId}
                           onChange={(e) => updateLine(index, 'accountId', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                           required
                         >
                           <option value="">{ar ? 'اختر الحساب' : 'Select account'}</option>
@@ -329,7 +329,7 @@ export default function JournalEntriesPage() {
                           step="0.01"
                           value={line.debit}
                           onChange={(e) => updateLine(index, 'debit', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -341,7 +341,7 @@ export default function JournalEntriesPage() {
                           step="0.01"
                           value={line.credit}
                           onChange={(e) => updateLine(index, 'credit', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -352,7 +352,7 @@ export default function JournalEntriesPage() {
                           type="text"
                           value={line.descriptionAr}
                           onChange={(e) => updateLine(index, 'descriptionAr', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                         />
                       </div>
                       <div className="flex items-end">
@@ -381,7 +381,7 @@ export default function JournalEntriesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-8 py-3 bg-gradient-to-r from-[#8B6F47] to-[#A68B5B] text-white rounded-lg hover:from-[#8B6F47]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold shadow-lg"
+                  className="px-8 py-3 bg-gradient-to-r from-[color:var(--admin-primary)] to-[#A68B5B] text-white rounded-lg hover:from-[color:var(--admin-primary)]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold shadow-lg"
                 >
                   {ar ? 'حفظ القيد' : 'Save Entry'}
                 </button>

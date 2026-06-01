@@ -1004,7 +1004,7 @@ export default function MyAccountPage() {
                                 { labelAr: 'تاريخ الانتهاء', labelEn: 'End', value: new Date(h.endAt).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { dateStyle: 'long' }) },
                                 { labelAr: 'المبلغ المدفوع', labelEn: 'Amount paid', value: h.amountPaid != null ? `${Number(h.amountPaid).toLocaleString('en-US')} OMR` : '—' },
                               ])}
-                              className="text-[#8B6F47] hover:underline inline-flex items-center gap-1"
+                              className="admin-accent-text hover:underline inline-flex items-center gap-1"
                             >
                               <Icon name="printer" className="w-4 h-4" />
                               {ar ? 'طباعة الإيصال' : 'Print receipt'}
@@ -1022,7 +1022,7 @@ export default function MyAccountPage() {
           )}
           {isAdmin && (
             <p className="text-sm text-gray-500 pt-2">
-              <Link href={`/${locale}/admin/subscriptions`} className="text-[#8B6F47] hover:underline">{ar ? 'إدارة الاشتراكات من لوحة الإدارة' : 'Manage subscriptions from admin'}</Link>
+              <Link href={`/${locale}/admin/subscriptions`} className="admin-accent-text hover:underline">{ar ? 'إدارة الاشتراكات من لوحة الإدارة' : 'Manage subscriptions from admin'}</Link>
             </p>
           )}
         </div>

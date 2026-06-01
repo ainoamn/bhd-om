@@ -82,7 +82,7 @@ function SectionCard({
   compact?: boolean;
 }) {
   const accents = {
-    primary: 'border-[#8B6F47]/20 bg-[#8B6F47]/5',
+    primary: 'admin-accent-border/20 admin-accent-bg-soft',
     amber: 'border-amber-200/80 bg-amber-50/50',
     emerald: 'border-emerald-200/80 bg-emerald-50/30',
     blue: 'border-blue-200/80 bg-blue-50/30',
@@ -90,7 +90,7 @@ function SectionCard({
   return (
     <div className={`admin-card ${allowOverflow ? 'overflow-visible' : 'overflow-hidden'} ${accents[accent]} ${compact ? 'p-4' : ''}`}>
       <div className={`admin-card-header flex items-start gap-3 ${compact ? 'pb-2' : ''}`}>
-        <div className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl bg-[#8B6F47]/10 flex items-center justify-center flex-shrink-0`}>
+        <div className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl admin-accent-bg-soft flex items-center justify-center flex-shrink-0`}>
           <Icon name={icon} className={compact ? 'w-4 h-4' : 'w-5 h-5'} />
         </div>
         <div>
@@ -433,8 +433,8 @@ export default function PropertyExtraDataForm({
                           onClick={() => setLandlordCategoryFilter(f)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                             landlordCategoryFilter === f
-                              ? 'bg-[#8B6F47] text-white'
-                              : 'bg-white border border-gray-200 text-gray-600 hover:border-[#8B6F47]/50'
+                              ? 'admin-btn-primary text-white'
+                              : 'bg-white border border-gray-200 text-gray-600 hover:admin-accent-border/50'
                           }`}
                         >
                           {f === 'all' ? (ar ? 'الكل' : 'All') : f === 'LANDLORD' ? (ar ? 'مالك' : 'Landlord') : (ar ? 'عميل' : 'Client')}
@@ -475,7 +475,7 @@ export default function PropertyExtraDataForm({
                                 setLandlordSearch('');
                                 setLandlordDropdownOpen(false);
                               }}
-                              className={`w-full text-right px-4 py-2.5 hover:bg-[#8B6F47]/10 transition-colors flex items-center gap-2 ${landlordContactId === c.id ? 'bg-[#8B6F47]/15 text-[#8B6F47] font-semibold' : ''}`}
+                              className={`w-full text-right px-4 py-2.5 hover:admin-accent-bg-soft transition-colors flex items-center gap-2 ${landlordContactId === c.id ? 'admin-btn-primary/15 admin-accent-text font-semibold' : ''}`}
                             >
                               <span className="flex-1 min-w-0 text-right">
                                 <span className="block font-medium truncate">{getContactDisplayFull(c, locale)}</span>
@@ -486,7 +486,7 @@ export default function PropertyExtraDataForm({
                                 )}
                               </span>
                               {c.category === 'LANDLORD' && (
-                                <span className="flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-[#8B6F47]/15 text-[#8B6F47]">
+                                <span className="flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium admin-btn-primary/15 admin-accent-text">
                                   {ar ? 'مالك' : 'Landlord'}
                                 </span>
                               )}
@@ -502,7 +502,7 @@ export default function PropertyExtraDataForm({
                           setShowAddLandlordModal(true);
                           setLandlordDropdownOpen(false);
                         }}
-                        className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-[#8B6F47] hover:bg-[#8B6F47]/10 rounded-lg transition-colors"
+                        className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium admin-accent-text hover:admin-accent-bg-soft rounded-lg transition-colors"
                       >
                         <Icon name="plus" className="w-4 h-4" />
                         {ar ? 'إضافة جهة اتصال جديدة' : 'Add New Contact'}
@@ -531,7 +531,7 @@ export default function PropertyExtraDataForm({
         {showAddLandlordModal && (
           <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddLandlordModal(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-[#8B6F47]/5">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 admin-accent-bg-soft">
                 <h3 className="font-bold text-gray-900">{ar ? 'إضافة جهة اتصال — شخصي أو شركة' : 'Add contact — Personal or Company'}</h3>
                 <button type="button" onClick={() => setShowAddLandlordModal(false)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label={ar ? 'إغلاق' : 'Close'}>
                   <Icon name="x" className="w-5 h-5" />

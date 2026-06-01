@@ -45,7 +45,7 @@ export default function AccountingFilter({
         className="w-full px-4 py-3 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors"
       >
         <span className="font-semibold text-gray-800 flex items-center gap-2">
-          <Icon name="funnel" className="w-5 h-5 text-[#8B6F47]" />
+          <Icon name="funnel" className="w-5 h-5 admin-accent-text" />
           {ar ? 'فلترة متقدمة' : 'Advanced Filter'}
         </span>
         {resultCount != null && (

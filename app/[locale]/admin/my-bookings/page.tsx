@@ -412,7 +412,7 @@ export default function MyBookingsPage() {
         {bookings.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-gray-500">{locale === 'ar' ? 'لا توجد حجوزات' : 'No bookings'}</p>
-            <Link href={`/${locale}/properties`} className="inline-block mt-4 text-[#8B6F47] font-medium hover:underline">
+            <Link href={`/${locale}/properties`} className="inline-block mt-4 admin-accent-text font-medium hover:underline">
               {locale === 'ar' ? 'تصفح العقارات' : 'Browse properties'}
             </Link>
           </div>
@@ -528,7 +528,7 @@ export default function MyBookingsPage() {
                             <Link
                               prefetch={true}
                               href={paymentOrAccountantConfirmedRow ? postPaymentPrimaryUrl : contractTermsUrl}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium admin-btn-primary text-white hover:opacity-90 transition-colors"
                             >
                               {(() => {
                                 const dataOverrides = getPropertyDataOverrides();

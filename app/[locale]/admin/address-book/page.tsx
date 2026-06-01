@@ -1451,7 +1451,7 @@ export default function AdminAddressBookPage() {
               type="button"
               onClick={() => void handleSyncFromBookings()}
               disabled={syncingFromBookings}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all no-print disabled:opacity-60"
             >
               <span>🔄</span>
               {syncingFromBookings
@@ -1466,7 +1466,7 @@ export default function AdminAddressBookPage() {
               type="button"
               onClick={handleSyncFromUsers}
               disabled={syncingFromUsers}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all no-print disabled:opacity-60"
             >
               <span>👤</span>
               {syncingFromUsers ? (locale === 'ar' ? 'جاري...' : 'Syncing...') : tUsers('syncFromUsers')}
@@ -1479,7 +1479,7 @@ export default function AdminAddressBookPage() {
                 if (!creatingAccounts) handleCreateAccountsForContacts();
               }}
               disabled={creatingAccounts}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all no-print disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all no-print disabled:opacity-60 cursor-pointer"
               title={locale === 'ar' ? 'إنشاء حسابات للموجودين بدون حسابات' : 'Create accounts for contacts without user accounts'}
             >
               <span>🔐</span>
@@ -1503,7 +1503,7 @@ export default function AdminAddressBookPage() {
             <button
               type="button"
               onClick={openAdd}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-sm no-print"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white admin-btn-primary hover:opacity-90 transition-all shadow-sm no-print"
             >
               <span>➕</span>
               {t('addContact')}
@@ -1600,7 +1600,7 @@ export default function AdminAddressBookPage() {
             <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center text-2xl mx-auto mb-3">📇</div>
             <p className="text-gray-500 font-medium text-sm">{t('noContacts')}</p>
             <p className="text-gray-400 text-xs mt-1">{t('noContactsHint')}</p>
-            <button type="button" onClick={openAdd} className="mt-3 text-[#8B6F47] text-sm font-semibold hover:underline">
+            <button type="button" onClick={openAdd} className="mt-3 admin-accent-text text-sm font-semibold hover:underline">
               {t('addContact')}
             </button>
           </div>
@@ -1629,7 +1629,7 @@ export default function AdminAddressBookPage() {
                       <button
                         type="button"
                         onClick={() => openEdit(c)}
-                        className="font-mono text-xs text-[#8B6F47] font-medium whitespace-nowrap hover:underline cursor-pointer"
+                        className="font-mono text-xs admin-accent-text font-medium whitespace-nowrap hover:underline cursor-pointer"
                         title={locale === 'ar' ? 'عرض بيانات الجهة' : 'View contact details'}
                       >
                         {c.serialNumber || '—'}
@@ -1650,12 +1650,12 @@ export default function AdminAddressBookPage() {
                           {(c as { userId?: string }).userId && (
                             <UserBarcode userId={(c as { userId: string }).userId} locale={locale} size={24} className="shrink-0" />
                           )}
-                          <div className="font-semibold text-xs text-gray-900 hover:text-[#8B6F47] hover:underline cursor-pointer break-words leading-snug" title={getContactDisplayName(c, locale)}>
+                          <div className="font-semibold text-xs text-gray-900 hover:admin-accent-text hover:underline cursor-pointer break-words leading-snug" title={getContactDisplayName(c, locale)}>
                             {getContactDisplayName(c, locale)}
                           </div>
                         </div>
                         {isAuthorizedRepresentative(c) && getLinkedCompanyName(c, locale) && (
-                          <div className="text-[10px] text-[#8B6F47] break-words mt-0.5" title={getLinkedCompanyName(c, locale)}>
+                          <div className="text-[10px] admin-accent-text break-words mt-0.5" title={getLinkedCompanyName(c, locale)}>
                             {getLinkedCompanyName(c, locale)}
                           </div>
                         )}
@@ -1665,7 +1665,7 @@ export default function AdminAddressBookPage() {
                     <td className="px-2 py-1.5 text-gray-700 text-xs whitespace-nowrap align-top">{c.nationality || '—'}</td>
                     <td className="px-2 py-1.5 align-top">
                       <div className="flex flex-col gap-0.5">
-                        <a href={`tel:${c.phone}`} className="text-[#8B6F47] hover:underline text-xs whitespace-nowrap">{c.phone}</a>
+                        <a href={`tel:${c.phone}`} className="admin-accent-text hover:underline text-xs whitespace-nowrap">{c.phone}</a>
                         {c.phoneSecondary && (
                           <a href={`tel:${c.phoneSecondary}`} className="text-xs text-gray-500 hover:underline whitespace-nowrap">{c.phoneSecondary}</a>
                         )}
@@ -1676,7 +1676,7 @@ export default function AdminAddressBookPage() {
                     </td>
                     <td className="px-2 py-1.5 cell-email align-top min-w-[10rem]">
                       {c.email ? (
-                        <a href={`mailto:${c.email}`} className="text-[#8B6F47] hover:underline text-xs break-all" title={c.email}>
+                        <a href={`mailto:${c.email}`} className="admin-accent-text hover:underline text-xs break-all" title={c.email}>
                           {c.email}
                         </a>
                       ) : (
@@ -1744,7 +1744,7 @@ export default function AdminAddressBookPage() {
                       {c.linkedPropertyId != null ? (
                         <Link
                           href={`/${locale}/admin/properties/${c.linkedPropertyId}`}
-                          className="text-xs text-[#8B6F47] hover:underline font-medium cursor-pointer break-words leading-snug"
+                          className="text-xs admin-accent-text hover:underline font-medium cursor-pointer break-words leading-snug"
                           title={locale === 'ar' ? `عرض العقار: ${c.linkedUnitDisplay || ''}` : `View property: ${c.linkedUnitDisplay || ''}`}
                         >
                           {c.linkedUnitDisplay || '—'}
@@ -1769,7 +1769,7 @@ export default function AdminAddressBookPage() {
                         </a>
                         {c.email && <a href={`mailto:${c.email}`} className="p-1.5 rounded hover:bg-gray-100 text-blue-600" title={t('email')}>✉️</a>}
                         <button type="button" onClick={() => handlePrintContact(c)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title={t('printForm')}>🖨️</button>
-                        <button type="button" onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-gray-100 text-[#8B6F47] text-xs font-medium">{t('edit')}</button>
+                        <button type="button" onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-gray-100 admin-accent-text text-xs font-medium">{t('edit')}</button>
                         {c.archived ? (
                           <button type="button" onClick={() => handleRestore(c.id)} className="p-1.5 rounded hover:bg-gray-100 text-emerald-600 text-xs font-medium">{t('restore')}</button>
                         ) : isContactLinkedFromServer(c, serverBookings, serverContracts, serverDocuments).linked ? (
@@ -1803,19 +1803,19 @@ export default function AdminAddressBookPage() {
                   <button
                     type="button"
                     onClick={() => selectContactTypeAndOpenForm('PERSONAL')}
-                    className="group p-8 rounded-2xl border-2 border-gray-200 hover:border-[#8B6F47] hover:bg-[#8B6F47]/5 transition-all duration-200 text-center"
+                    className="group p-8 rounded-2xl border-2 border-gray-200 hover:admin-accent-border hover:admin-accent-bg-soft transition-all duration-200 text-center"
                   >
-                    <div className="w-16 h-16 rounded-2xl bg-gray-100 group-hover:bg-[#8B6F47]/10 flex items-center justify-center text-3xl mx-auto mb-4 transition-colors">👤</div>
-                    <div className="font-bold text-gray-900 group-hover:text-[#8B6F47] text-lg">{t('contactTypePersonal')}</div>
+                    <div className="w-16 h-16 rounded-2xl bg-gray-100 group-hover:admin-accent-bg-soft flex items-center justify-center text-3xl mx-auto mb-4 transition-colors">👤</div>
+                    <div className="font-bold text-gray-900 group-hover:admin-accent-text text-lg">{t('contactTypePersonal')}</div>
                     <p className="text-gray-500 text-sm mt-1">{locale === 'ar' ? 'فرد - ذكر أو أنثى' : 'Individual - Male or Female'}</p>
                   </button>
                   <button
                     type="button"
                     onClick={() => selectContactTypeAndOpenForm('COMPANY')}
-                    className="group p-8 rounded-2xl border-2 border-gray-200 hover:border-[#8B6F47] hover:bg-[#8B6F47]/5 transition-all duration-200 text-center"
+                    className="group p-8 rounded-2xl border-2 border-gray-200 hover:admin-accent-border hover:admin-accent-bg-soft transition-all duration-200 text-center"
                   >
-                    <div className="w-16 h-16 rounded-2xl bg-gray-100 group-hover:bg-[#8B6F47]/10 flex items-center justify-center text-3xl mx-auto mb-4 transition-colors">🏢</div>
-                    <div className="font-bold text-gray-900 group-hover:text-[#8B6F47] text-lg">{t('contactTypeCompany')}</div>
+                    <div className="w-16 h-16 rounded-2xl bg-gray-100 group-hover:admin-accent-bg-soft flex items-center justify-center text-3xl mx-auto mb-4 transition-colors">🏢</div>
+                    <div className="font-bold text-gray-900 group-hover:admin-accent-text text-lg">{t('contactTypeCompany')}</div>
                     <p className="text-gray-500 text-sm mt-1">{locale === 'ar' ? 'شركة - مع المفوضين بالتوقيع' : 'Company - With authorized representatives'}</p>
                   </button>
                 </div>
@@ -1828,13 +1828,13 @@ export default function AdminAddressBookPage() {
             {/* خطوة النموذج */}
             {modalStep === 'form' && (
               <>
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4 bg-gradient-to-r from-[#8B6F47]/5 to-transparent">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between gap-4 bg-gradient-to-r from-[color:var(--admin-primary)]/5 to-transparent">
               <div className="flex items-center gap-3">
                 {!editingId && (
                   <button
                     type="button"
                     onClick={goBackToChoose}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-[#8B6F47] transition-all text-sm font-medium"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:admin-accent-text transition-all text-sm font-medium"
                     title={locale === 'ar' ? 'الرجوع لاختيار النوع' : 'Back to choose type'}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={locale === 'ar' ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} /></svg>
@@ -1872,8 +1872,8 @@ export default function AdminAddressBookPage() {
               {form.contactType === 'PERSONAL' && (
               <>
               <div className="p-5 rounded-2xl bg-gray-50/80 border border-gray-100 space-y-5">
-                <h4 className="text-sm font-bold text-[#8B6F47] flex items-center gap-2 pb-2 border-b border-gray-200">
-                  <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center text-base">👤</span>
+                <h4 className="text-sm font-bold admin-accent-text flex items-center gap-2 pb-2 border-b border-gray-200">
+                  <span className="w-8 h-8 rounded-lg admin-accent-bg-soft flex items-center justify-center text-base">👤</span>
                   {locale === 'ar' ? 'البيانات الشخصية' : 'Personal Information'}
                 </h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -2117,7 +2117,7 @@ export default function AdminAddressBookPage() {
                   <button
                     type="button"
                     onClick={() => setForm({ ...form, authorizedRepresentatives: [...form.authorizedRepresentatives, { ...emptyRep(), phoneCountryCode: '968' }] })}
-                    className="text-sm font-semibold text-[#8B6F47] hover:underline"
+                    className="text-sm font-semibold admin-accent-text hover:underline"
                   >
                     + {t('addAuthorizedRep')}
                   </button>
@@ -2152,7 +2152,7 @@ export default function AdminAddressBookPage() {
                           <button
                             type="button"
                             onClick={() => setRepDropdownOpen(repDropdownOpen === idx ? null : idx)}
-                            className="self-end mb-1 px-3 py-2 rounded-lg text-sm font-medium bg-[#8B6F47]/15 text-[#8B6F47] hover:bg-[#8B6F47]/25 border border-[#8B6F47]/30"
+                            className="self-end mb-1 px-3 py-2 rounded-lg text-sm font-medium admin-btn-primary/15 admin-accent-text hover:admin-btn-primary/25 border admin-accent-border/30"
                           >
                             {locale === 'ar' ? 'اختيار من القائمة' : 'Select from list'}
                           </button>
@@ -2206,7 +2206,7 @@ export default function AdminAddressBookPage() {
                                   }}
                                   className="w-full text-right p-3 hover:bg-amber-50 border-b border-gray-100 last:border-0 text-sm"
                                 >
-                                  <span className="font-mono font-semibold text-[#8B6F47] block">{c.serialNumber || '—'}</span>
+                                  <span className="font-mono font-semibold admin-accent-text block">{c.serialNumber || '—'}</span>
                                   <span className="text-gray-700">{getContactDisplayName(c, locale)}</span>
                                   <span className="block text-xs text-gray-500">{c.civilId || c.passportNumber || c.phone}</span>
                                 </button>
@@ -2397,19 +2397,19 @@ export default function AdminAddressBookPage() {
                           {getCompaniesForRep(contact.id).length > 0 ? (
                             getCompaniesForRep(contact.id).map((co) => (
                               <p key={co.id}>
-                                <button type="button" onClick={() => openEdit(getContactById(co.id)!)} className="font-medium text-[#8B6F47] hover:underline text-right">
+                                <button type="button" onClick={() => openEdit(getContactById(co.id)!)} className="font-medium admin-accent-text hover:underline text-right">
                                   {(locale === 'en' && co.nameEn?.trim()) ? co.nameEn : co.nameAr}
                                   {co.position && ` (${co.position})`}
                                 </button>
                               </p>
                             ))
                           ) : getLinkedCompanyName(contact, locale) ? (
-                            <p><span className="font-medium text-[#8B6F47]">{getLinkedCompanyName(contact, locale)}</span></p>
+                            <p><span className="font-medium admin-accent-text">{getLinkedCompanyName(contact, locale)}</span></p>
                           ) : null}
                           {contact.linkedPropertyId != null && (
                             <p>
                               <span className="text-gray-600">{t('linkedPropertyFromCompany')}: </span>
-                              <Link href={`/${locale}/admin/properties/${contact.linkedPropertyId}`} className="text-[#8B6F47] hover:underline font-medium">
+                              <Link href={`/${locale}/admin/properties/${contact.linkedPropertyId}`} className="admin-accent-text hover:underline font-medium">
                                 {contact.linkedUnitDisplay || (locale === 'ar' ? 'عرض العقار' : 'View property')}
                               </Link>
                             </p>
@@ -2429,7 +2429,7 @@ export default function AdminAddressBookPage() {
                               <span>{locale === 'ar' ? '→' : '→'}</span>
                               <span>{t(CATEGORY_KEYS[h.from] as 'categoryClient')}</span>
                               <span>{locale === 'ar' ? 'إلى' : 'to'}</span>
-                              <span className="font-semibold text-[#8B6F47]">{t(CATEGORY_KEYS[h.to] as 'categoryClient')}</span>
+                              <span className="font-semibold admin-accent-text">{t(CATEGORY_KEYS[h.to] as 'categoryClient')}</span>
                             </li>
                           ))}
                         </ul>
@@ -2448,7 +2448,7 @@ export default function AdminAddressBookPage() {
                                 <span>{fmtDate(b.date)}</span>
                                 <span>|</span>
                                 <span className="font-semibold">{t('propertyNumber')}:</span>
-                                <Link href={`/${locale}/admin/properties/${b.propertyId}`} className="text-[#8B6F47] hover:underline">
+                                <Link href={`/${locale}/admin/properties/${b.propertyId}`} className="admin-accent-text hover:underline">
                                   {locale === 'ar' ? b.propertyTitleAr : b.propertyTitleEn} {b.unitDisplay && `- ${b.unitDisplay}`}
                                 </Link>
                               </div>
@@ -2473,7 +2473,7 @@ export default function AdminAddressBookPage() {
                                 {linkedDocs.filter((d) => d.fileUrl).map((d) => (
                                   <div key={d.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-gray-100 text-sm">
                                     <span className="text-gray-700 truncate">{locale === 'ar' ? d.labelAr : d.labelEn}{d.unitDisplay ? ` - ${d.unitDisplay}` : ''}</span>
-                                    <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] hover:underline shrink-0 text-xs font-medium">
+                                    <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="admin-accent-text hover:underline shrink-0 text-xs font-medium">
                                       {d.fileName || (locale === 'ar' ? 'عرض' : 'View')}
                                     </a>
                                   </div>
@@ -2485,7 +2485,7 @@ export default function AdminAddressBookPage() {
                             <div key={c.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-sm">
                               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-700">
                                 <span>{t('bookingDate')}: {fmtDate(c.date)}</span>
-                                <span>{t('propertyNumber')}: <Link href={`/${locale}/admin/properties/${c.propertyId}`} className="text-[#8B6F47] hover:underline">{locale === 'ar' ? c.propertyTitleAr : c.propertyTitleEn}</Link></span>
+                                <span>{t('propertyNumber')}: <Link href={`/${locale}/admin/properties/${c.propertyId}`} className="admin-accent-text hover:underline">{locale === 'ar' ? c.propertyTitleAr : c.propertyTitleEn}</Link></span>
                                 <span>{t('landlord')}: {c.landlordName}</span>
                                 <span>{t('startDate')}: {fmtDate(c.startDate)}</span>
                                 <span>{t('endDate')}: {fmtDate(c.endDate)}</span>
@@ -2510,7 +2510,7 @@ export default function AdminAddressBookPage() {
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
                   {t('cancel')}
                 </button>
-                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
+                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90">
                   {editingId ? t('save') : t('add')}
                 </button>
               </div>
@@ -2531,10 +2531,10 @@ export default function AdminAddressBookPage() {
                 <h3 className="text-lg font-bold text-gray-900">{tUsers('userCreated')}</h3>
                 <p className="text-sm text-gray-600">{tUsers('generatedPasswordHint')}</p>
                 <div className="flex flex-wrap gap-3 mt-2">
-                  <Link href={`/${locale}/admin/users`} className="text-sm font-semibold text-[#8B6F47] hover:underline">
+                  <Link href={`/${locale}/admin/users`} className="text-sm font-semibold admin-accent-text hover:underline">
                     {locale === 'ar' ? '→ قائمة المستخدمين' : '→ Users list'}
                   </Link>
-                  <Link href={`/${locale}/login`} className="text-sm font-semibold text-[#8B6F47] hover:underline">
+                  <Link href={`/${locale}/login`} className="text-sm font-semibold admin-accent-text hover:underline">
                     {tUsers('loginLink')}
                   </Link>
                 </div>
@@ -2583,7 +2583,7 @@ export default function AdminAddressBookPage() {
             <button
               type="button"
               onClick={() => setGeneratedCreds(null)}
-              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
             >
               {locale === 'ar' ? 'إغلاق' : 'Close'}
             </button>

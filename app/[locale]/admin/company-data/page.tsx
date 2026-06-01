@@ -339,7 +339,7 @@ export default function AdminCompanyDataPage() {
           <button
             type="button"
             onClick={handleSave}
-            className="px-6 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+            className="px-6 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
           >
             {saved ? (ar ? '✓ تم الحفظ' : '✓ Saved') : (ar ? 'حفظ' : 'Save')}
           </button>

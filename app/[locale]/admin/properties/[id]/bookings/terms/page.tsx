@@ -265,9 +265,9 @@ export default function BookingTermsPage() {
       <div className={`transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
         <Link
           href={`/${locale}/admin/properties/${id}/bookings`}
-          className="inline-flex items-center gap-2 text-[#8B6F47] hover:text-[#6B5535] font-semibold mb-4 transition-colors"
+          className="inline-flex items-center gap-2 admin-accent-text hover:admin-accent-text font-semibold mb-4 transition-colors"
         >
-          <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center">←</span>
+          <span className="w-8 h-8 rounded-lg admin-accent-bg-soft flex items-center justify-center">←</span>
           {ar ? 'العودة للحجوزات' : 'Back to Bookings'}
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -282,7 +282,7 @@ export default function BookingTermsPage() {
               href={`/${locale}/properties/${id}/contract-terms`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all"
             >
               <span>🔗</span>
               {ar ? 'عرض شروط توثيق العقد للمستأجر' : 'View Contract Terms (Tenant)'}
@@ -291,7 +291,7 @@ export default function BookingTermsPage() {
               href={`/${locale}/properties/${id}/book`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
             >
               <span>🔗</span>
               {ar ? 'عرض صفحة الحجز' : 'View Booking Page'}
@@ -321,9 +321,9 @@ export default function BookingTermsPage() {
       {/* Tab: شروط الحجز */}
       {activeTab === 'booking' && (
         <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden transition-all">
-          <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[#8B6F47]/5 via-amber-50/50 to-transparent">
+          <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[color:var(--admin-primary)]/5 via-amber-50/50 to-transparent">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#8B6F47]/10 flex items-center justify-center text-2xl flex-shrink-0">📋</div>
+              <div className="w-12 h-12 rounded-2xl admin-accent-bg-soft flex items-center justify-center text-2xl flex-shrink-0">📋</div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">{ar ? 'شروط الحجز' : 'Booking Terms'}</h2>
                 <p className="text-sm text-gray-500 mt-0.5">{ar ? 'ستظهر هذه الشروط للمستأجر في صفحة الحجز.' : 'These terms will be shown to the tenant on the booking page.'}</p>
@@ -334,27 +334,27 @@ export default function BookingTermsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? 'شروط الحجز (عربي)' : 'Booking Terms (Arabic)'}</label>
-                <textarea value={terms.bookingTermsAr} onChange={(e) => setTerms({ ...terms, bookingTermsAr: e.target.value })} rows={5} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900 resize-none" placeholder={ar ? 'مثال: مبلغ الحجز لا يقل عن إيجار شهر واحد...' : 'e.g. Booking deposit is at least one month\'s rent...'} />
+                <textarea value={terms.bookingTermsAr} onChange={(e) => setTerms({ ...terms, bookingTermsAr: e.target.value })} rows={5} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none transition-all text-gray-900 resize-none" placeholder={ar ? 'مثال: مبلغ الحجز لا يقل عن إيجار شهر واحد...' : 'e.g. Booking deposit is at least one month\'s rent...'} />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? 'شروط الحجز (إنجليزي)' : 'Booking Terms (English)'}</label>
-                <textarea value={terms.bookingTermsEn} onChange={(e) => setTerms({ ...terms, bookingTermsEn: e.target.value })} rows={5} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900 resize-none" placeholder="e.g. Booking deposit is at least one month's rent..." />
+                <textarea value={terms.bookingTermsEn} onChange={(e) => setTerms({ ...terms, bookingTermsEn: e.target.value })} rows={5} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none transition-all text-gray-900 resize-none" placeholder="e.g. Booking deposit is at least one month's rent..." />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? 'ملاحظة مبلغ العربون (عربي)' : 'Deposit Note (Arabic)'}</label>
-                <input type="text" value={terms.bookingDepositNoteAr} onChange={(e) => setTerms({ ...terms, bookingDepositNoteAr: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900" placeholder={ar ? 'مثال: مبلغ لا يقل عن إيجار شهر واحد' : 'e.g. At least one month\'s rent'} />
+                <input type="text" value={terms.bookingDepositNoteAr} onChange={(e) => setTerms({ ...terms, bookingDepositNoteAr: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none transition-all text-gray-900" placeholder={ar ? 'مثال: مبلغ لا يقل عن إيجار شهر واحد' : 'e.g. At least one month\'s rent'} />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? 'ملاحظة مبلغ العربون (إنجليزي)' : 'Deposit Note (English)'}</label>
-                <input type="text" value={terms.bookingDepositNoteEn} onChange={(e) => setTerms({ ...terms, bookingDepositNoteEn: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900" placeholder="e.g. At least one month's rent" />
+                <input type="text" value={terms.bookingDepositNoteEn} onChange={(e) => setTerms({ ...terms, bookingDepositNoteEn: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none transition-all text-gray-900" placeholder="e.g. At least one month's rent" />
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-end gap-6 p-6 rounded-2xl bg-gradient-to-r from-[#8B6F47]/5 to-amber-50/30 border border-[#8B6F47]/20">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-6 p-6 rounded-2xl bg-gradient-to-r from-[color:var(--admin-primary)]/5 to-amber-50/30 border admin-accent-border/20">
               <div className="flex-1">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? 'قيمة الحجز (ر.ع)' : 'Booking Deposit Amount (OMR)'}</label>
-                <input type="number" min={0} step={0.01} value={terms.bookingDepositAmount ?? ''} onChange={(e) => { const v = e.target.value; setTerms({ ...terms, bookingDepositAmount: v === '' ? undefined : parseFloat(v) || 0 }); }} className="w-full max-w-xs px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900" placeholder={ar ? 'مثال: 150' : 'e.g. 150'} />
+                <input type="number" min={0} step={0.01} value={terms.bookingDepositAmount ?? ''} onChange={(e) => { const v = e.target.value; setTerms({ ...terms, bookingDepositAmount: v === '' ? undefined : parseFloat(v) || 0 }); }} className="w-full max-w-xs px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none transition-all text-gray-900" placeholder={ar ? 'مثال: 150' : 'e.g. 150'} />
                 <p className="text-sm text-gray-500 mt-1.5">{ar ? 'عند استيفاء هذا المبلغ من العميل، يتم حجز المبلغ تلقائياً.' : 'When the client pays this amount, the deposit is automatically reserved.'}</p>
               </div>
             </div>
@@ -365,9 +365,9 @@ export default function BookingTermsPage() {
       {/* Tab: شروط توثيق العقد */}
       {activeTab === 'contract' && (
         <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden transition-all">
-          <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[#8B6F47]/5 via-amber-50/50 to-transparent">
+          <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[color:var(--admin-primary)]/5 via-amber-50/50 to-transparent">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#8B6F47]/10 flex items-center justify-center text-2xl flex-shrink-0">📄</div>
+              <div className="w-12 h-12 rounded-2xl admin-accent-bg-soft flex items-center justify-center text-2xl flex-shrink-0">📄</div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">{ar ? 'شروط توثيق العقد' : 'Contract Documentation Terms'}</h2>
                 <p className="text-sm text-gray-500 mt-0.5">{ar ? 'حدد الشروط والمستندات المطلوبة حسب نوع العقد (بيع، إيجار، استثمار).' : 'Specify terms and documents required per contract type (sale, rent, investment).'}</p>
@@ -384,7 +384,7 @@ export default function BookingTermsPage() {
                     key={ct.id}
                     type="button"
                     onClick={() => setActiveContractType(ct.id)}
-                    className={`px-4 py-2.5 rounded-lg font-semibold transition-all ${activeContractType === ct.id ? 'bg-[#8B6F47] text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                    className={`px-4 py-2.5 rounded-lg font-semibold transition-all ${activeContractType === ct.id ? 'admin-btn-primary text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                   >
                     {ar ? ct.labelAr : ct.labelEn}
                   </button>
@@ -397,11 +397,11 @@ export default function BookingTermsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? `شروط توثيق العقد - ${CONTRACT_TYPES.find((c) => c.id === activeContractType)?.labelAr} (عربي)` : `Contract Doc Terms - ${CONTRACT_TYPES.find((c) => c.id === activeContractType)?.labelEn} (Arabic)`}</label>
-                <textarea value={getContractTypeTermsAr()} onChange={(e) => setContractTypeTermsAr(e.target.value)} rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900 resize-none" placeholder={ar ? 'مثال: يُطلب من المستأجر إرفاق المستندات التالية...' : 'e.g. Tenant must provide the following documents...'} />
+                <textarea value={getContractTypeTermsAr()} onChange={(e) => setContractTypeTermsAr(e.target.value)} rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none transition-all text-gray-900 resize-none" placeholder={ar ? 'مثال: يُطلب من المستأجر إرفاق المستندات التالية...' : 'e.g. Tenant must provide the following documents...'} />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? `شروط توثيق العقد - ${CONTRACT_TYPES.find((c) => c.id === activeContractType)?.labelAr} (إنجليزي)` : `Contract Doc Terms - ${CONTRACT_TYPES.find((c) => c.id === activeContractType)?.labelEn} (English)`}</label>
-                <textarea value={getContractTypeTermsEn()} onChange={(e) => setContractTypeTermsEn(e.target.value)} rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none transition-all text-gray-900 resize-none" placeholder="e.g. Tenant must provide the following documents..." />
+                <textarea value={getContractTypeTermsEn()} onChange={(e) => setContractTypeTermsEn(e.target.value)} rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none transition-all text-gray-900 resize-none" placeholder="e.g. Tenant must provide the following documents..." />
               </div>
             </div>
             <div className="p-5 rounded-2xl border-2 border-amber-200 bg-amber-50/30">
@@ -410,11 +410,11 @@ export default function BookingTermsPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الدخول (عربي)' : 'Entry notice (Arabic)'}</label>
-                  <textarea value={getEntryNoticeAr()} onChange={(e) => setEntryNotice(e.target.value, getEntryNoticeEn())} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder={ar ? 'مثال: مطلوب تحديث البيانات' : 'e.g. Update required'} />
+                  <textarea value={getEntryNoticeAr()} onChange={(e) => setEntryNotice(e.target.value, getEntryNoticeEn())} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none text-gray-900 resize-none" placeholder={ar ? 'مثال: مطلوب تحديث البيانات' : 'e.g. Update required'} />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الدخول (إنجليزي)' : 'Entry notice (English)'}</label>
-                  <textarea value={getEntryNoticeEn()} onChange={(e) => setEntryNotice(getEntryNoticeAr(), e.target.value)} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder="e.g. Update required" />
+                  <textarea value={getEntryNoticeEn()} onChange={(e) => setEntryNotice(getEntryNoticeAr(), e.target.value)} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none text-gray-900 resize-none" placeholder="e.g. Update required" />
                 </div>
               </div>
             </div>
@@ -424,11 +424,11 @@ export default function BookingTermsPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الاكتمال (عربي)' : 'Completion note (Arabic)'}</label>
-                  <textarea value={getCompletionNoteAr()} onChange={(e) => setCompletionNote(e.target.value, getCompletionNoteEn())} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder={ar ? 'مثال: سنتواصل معكم قريباً' : 'e.g. We will contact you soon'} />
+                  <textarea value={getCompletionNoteAr()} onChange={(e) => setCompletionNote(e.target.value, getCompletionNoteEn())} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none text-gray-900 resize-none" placeholder={ar ? 'مثال: سنتواصل معكم قريباً' : 'e.g. We will contact you soon'} />
             </div>
             <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ملاحظة الاكتمال (إنجليزي)' : 'Completion note (English)'}</label>
-                  <textarea value={getCompletionNoteEn()} onChange={(e) => setCompletionNote(getCompletionNoteAr(), e.target.value)} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 resize-none" placeholder="e.g. We will contact you soon" />
+                  <textarea value={getCompletionNoteEn()} onChange={(e) => setCompletionNote(getCompletionNoteAr(), e.target.value)} rows={2} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none text-gray-900 resize-none" placeholder="e.g. We will contact you soon" />
                 </div>
               </div>
             </div>
@@ -445,7 +445,7 @@ export default function BookingTermsPage() {
                     <div key={doc.id} className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 bg-white">
                     <span className="text-sm font-medium text-gray-900">{ar ? doc.labelAr : doc.labelEn}</span>
                     <div className="flex gap-2">
-                        <button type="button" onClick={() => setDocRequirementForIndividuals(doc.id, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocRequiredForIndividuals(doc.id) ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
+                        <button type="button" onClick={() => setDocRequirementForIndividuals(doc.id, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocRequiredForIndividuals(doc.id) ? 'admin-btn-primary text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
                         {ar ? 'مطلوب' : 'Required'}
                       </button>
                         <button type="button" onClick={() => setDocRequirementForIndividuals(doc.id, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocOptionalForIndividuals(doc.id) ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
@@ -458,10 +458,10 @@ export default function BookingTermsPage() {
                   </div>
                 ))}
                   {getCurrentRequiredDocTypesForIndividuals().filter((r) => isCustomDoc(r.docTypeId)).map((r) => (
-                  <div key={r.docTypeId} className="flex items-center gap-2 p-3 rounded-xl border border-[#8B6F47]/30 bg-amber-50/50">
+                  <div key={r.docTypeId} className="flex items-center gap-2 p-3 rounded-xl border admin-accent-border/30 bg-amber-50/50">
                     <span className="text-sm font-medium text-gray-900">{ar ? (r.labelAr || r.labelEn) : (r.labelEn || r.labelAr)}</span>
                     <div className="flex gap-2">
-                        <button type="button" onClick={() => setDocRequirementForIndividuals(r.docTypeId, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${r.isRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setDocRequirementForIndividuals(r.docTypeId, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${r.isRequired ? 'admin-btn-primary text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
                         <button type="button" onClick={() => setDocRequirementForIndividuals(r.docTypeId, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${!r.isRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
                         <button type="button" onClick={() => removeDocRequirementForIndividuals(r.docTypeId)} className="text-xs text-red-600 hover:underline">{ar ? 'إزالة' : 'Remove'}</button>
                       </div>
@@ -470,21 +470,21 @@ export default function BookingTermsPage() {
                 </div>
                 <div className="mt-4">
                   {showAddCustomFor === 'individuals' ? (
-                    <div className="p-4 rounded-2xl border border-[#8B6F47]/30 bg-white space-y-4">
+                    <div className="p-4 rounded-2xl border admin-accent-border/30 bg-white space-y-4">
                       <h4 className="font-semibold text-gray-900">{ar ? 'إضافة مستند آخر (أفراد)' : 'Add custom document (Individuals)'}</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input type="text" value={customLabelAr} onChange={(e) => setCustomLabelAr(e.target.value)} placeholder={ar ? 'اسم المستند (عربي)' : 'Document name (Arabic)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
-                        <input type="text" value={customLabelEn} onChange={(e) => setCustomLabelEn(e.target.value)} placeholder={ar ? 'اسم المستند (إنجليزي)' : 'Document name (English)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
+                        <input type="text" value={customLabelAr} onChange={(e) => setCustomLabelAr(e.target.value)} placeholder={ar ? 'اسم المستند (عربي)' : 'Document name (Arabic)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none" />
+                        <input type="text" value={customLabelEn} onChange={(e) => setCustomLabelEn(e.target.value)} placeholder={ar ? 'اسم المستند (إنجليزي)' : 'Document name (English)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none" />
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
-                        <button type="button" onClick={() => setCustomIsRequired(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${customIsRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setCustomIsRequired(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${customIsRequired ? 'admin-btn-primary text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
                         <button type="button" onClick={() => setCustomIsRequired(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!customIsRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
-                        <button type="button" onClick={() => { if (customLabelAr.trim() || customLabelEn.trim()) { addCustomDocumentForIndividuals(customLabelAr.trim() || customLabelEn.trim(), customLabelEn.trim() || customLabelAr.trim(), customIsRequired); setCustomLabelAr(''); setCustomLabelEn(''); setShowAddCustomFor(null); } }} className="px-4 py-2 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535]">{ar ? 'إضافة' : 'Add'}</button>
+                        <button type="button" onClick={() => { if (customLabelAr.trim() || customLabelEn.trim()) { addCustomDocumentForIndividuals(customLabelAr.trim() || customLabelEn.trim(), customLabelEn.trim() || customLabelAr.trim(), customIsRequired); setCustomLabelAr(''); setCustomLabelEn(''); setShowAddCustomFor(null); } }} className="px-4 py-2 rounded-xl font-semibold admin-btn-primary text-white hover:opacity-90">{ar ? 'إضافة' : 'Add'}</button>
                         <button type="button" onClick={() => { setShowAddCustomFor(null); setCustomLabelAr(''); setCustomLabelEn(''); }} className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-500">{ar ? 'إلغاء' : 'Cancel'}</button>
                       </div>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => setShowAddCustomFor('individuals')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all">
+                    <button type="button" onClick={() => setShowAddCustomFor('individuals')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all">
                       <span>+</span> {ar ? 'إضافة مستند آخر' : 'Add custom document'}
                     </button>
                   )}
@@ -506,7 +506,7 @@ export default function BookingTermsPage() {
                     <div key={doc.id} className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 bg-white">
                       <span className="text-sm font-medium text-gray-900">{ar ? doc.labelAr : doc.labelEn}</span>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => setDocRequirementForCompanies(doc.id, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocRequiredForCompanies(doc.id) ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
+                        <button type="button" onClick={() => setDocRequirementForCompanies(doc.id, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocRequiredForCompanies(doc.id) ? 'admin-btn-primary text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
                         {ar ? 'مطلوب' : 'Required'}
                       </button>
                         <button type="button" onClick={() => setDocRequirementForCompanies(doc.id, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${isDocOptionalForCompanies(doc.id) ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
@@ -519,10 +519,10 @@ export default function BookingTermsPage() {
                     </div>
                   ))}
                   {getCurrentRequiredDocTypesForCompanies().filter((r) => isCustomDoc(r.docTypeId)).map((r) => (
-                    <div key={r.docTypeId} className="flex items-center gap-2 p-3 rounded-xl border border-[#8B6F47]/30 bg-amber-50/50">
+                    <div key={r.docTypeId} className="flex items-center gap-2 p-3 rounded-xl border admin-accent-border/30 bg-amber-50/50">
                       <span className="text-sm font-medium text-gray-900">{ar ? (r.labelAr || r.labelEn) : (r.labelEn || r.labelAr)}</span>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => setDocRequirementForCompanies(r.docTypeId, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${r.isRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setDocRequirementForCompanies(r.docTypeId, true)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${r.isRequired ? 'admin-btn-primary text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
                         <button type="button" onClick={() => setDocRequirementForCompanies(r.docTypeId, false)} className={`px-3 py-1 rounded-lg text-xs font-semibold ${!r.isRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
                         <button type="button" onClick={() => removeDocRequirementForCompanies(r.docTypeId)} className="text-xs text-red-600 hover:underline">{ar ? 'إزالة' : 'Remove'}</button>
                     </div>
@@ -531,21 +531,21 @@ export default function BookingTermsPage() {
               </div>
               <div className="mt-4">
                   {showAddCustomFor === 'companies' ? (
-                    <div className="p-4 rounded-2xl border border-[#8B6F47]/30 bg-white space-y-4">
+                    <div className="p-4 rounded-2xl border admin-accent-border/30 bg-white space-y-4">
                       <h4 className="font-semibold text-gray-900">{ar ? 'إضافة مستند آخر (شركات)' : 'Add custom document (Companies)'}</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input type="text" value={customLabelAr} onChange={(e) => setCustomLabelAr(e.target.value)} placeholder={ar ? 'اسم المستند (عربي)' : 'Document name (Arabic)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
-                        <input type="text" value={customLabelEn} onChange={(e) => setCustomLabelEn(e.target.value)} placeholder={ar ? 'اسم المستند (إنجليزي)' : 'Document name (English)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none" />
+                        <input type="text" value={customLabelAr} onChange={(e) => setCustomLabelAr(e.target.value)} placeholder={ar ? 'اسم المستند (عربي)' : 'Document name (Arabic)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none" />
+                        <input type="text" value={customLabelEn} onChange={(e) => setCustomLabelEn(e.target.value)} placeholder={ar ? 'اسم المستند (إنجليزي)' : 'Document name (English)'} className="px-4 py-2 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none" />
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                        <button type="button" onClick={() => setCustomIsRequired(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${customIsRequired ? 'bg-[#8B6F47] text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
+                        <button type="button" onClick={() => setCustomIsRequired(true)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${customIsRequired ? 'admin-btn-primary text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'مطلوب' : 'Required'}</button>
                         <button type="button" onClick={() => setCustomIsRequired(false)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${!customIsRequired ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>{ar ? 'اختياري' : 'Optional'}</button>
-                        <button type="button" onClick={() => { if (customLabelAr.trim() || customLabelEn.trim()) { addCustomDocumentForCompanies(customLabelAr.trim() || customLabelEn.trim(), customLabelEn.trim() || customLabelAr.trim(), customIsRequired); setCustomLabelAr(''); setCustomLabelEn(''); setShowAddCustomFor(null); } }} className="px-4 py-2 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535]">{ar ? 'إضافة' : 'Add'}</button>
+                        <button type="button" onClick={() => { if (customLabelAr.trim() || customLabelEn.trim()) { addCustomDocumentForCompanies(customLabelAr.trim() || customLabelEn.trim(), customLabelEn.trim() || customLabelAr.trim(), customIsRequired); setCustomLabelAr(''); setCustomLabelEn(''); setShowAddCustomFor(null); } }} className="px-4 py-2 rounded-xl font-semibold admin-btn-primary text-white hover:opacity-90">{ar ? 'إضافة' : 'Add'}</button>
                         <button type="button" onClick={() => { setShowAddCustomFor(null); setCustomLabelAr(''); setCustomLabelEn(''); }} className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-500">{ar ? 'إلغاء' : 'Cancel'}</button>
                       </div>
                   </div>
                 ) : (
-                    <button type="button" onClick={() => setShowAddCustomFor('companies')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all">
+                    <button type="button" onClick={() => setShowAddCustomFor('companies')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all">
                       <span>+</span> {ar ? 'إضافة مستند آخر' : 'Add custom document'}
                   </button>
                 )}
@@ -562,7 +562,7 @@ export default function BookingTermsPage() {
           type="button"
           onClick={handleSaveTerms}
           disabled={termsSaving}
-          className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-bold text-white bg-[#8B6F47] hover:bg-[#6B5535] disabled:opacity-70 transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
+          className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-bold text-white admin-btn-primary hover:opacity-90 disabled:opacity-70 transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
         >
           {termsSaving ? (
             <>

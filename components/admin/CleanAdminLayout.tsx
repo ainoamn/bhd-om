@@ -470,12 +470,12 @@ export default function CleanAdminLayout({ children }: { children: React.ReactNo
         .nav-link.active {
           background: rgba(255, 255, 255, 0.15);
           color: white;
-          border-right: 3px solid #8B6F47;
+          border-right: 3px solid var(--admin-primary);
         }
 
         [dir="rtl"] .nav-link.active {
           border-right: none;
-          border-left: 3px solid #8B6F47;
+          border-left: 3px solid var(--admin-primary);
         }
 
         .nav-text {
@@ -664,7 +664,7 @@ export default function CleanAdminLayout({ children }: { children: React.ReactNo
         }
 
         .user-menu-btn:hover {
-          border-color: #8B6F47;
+          border-color: var(--admin-primary);
         }
 
         .page-content {

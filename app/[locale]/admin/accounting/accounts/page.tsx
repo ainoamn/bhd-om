@@ -164,7 +164,7 @@ export default function ChartOfAccountsPage() {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B6F47] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 admin-accent-border mx-auto"></div>
           <p className="text-gray-500 mt-4">{ar ? 'جاري تحميل الحسابات...' : 'Loading accounts...'}</p>
         </div>
       </div>
@@ -177,11 +177,11 @@ export default function ChartOfAccountsPage() {
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-lg border-b border-gray-200/60 shadow-lg">
         <div className="flex items-center justify-between px-8 py-5 max-w-[1800px] mx-auto">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#8B6F47] to-[#A68B5B] rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-[color:var(--admin-primary)] to-[#A68B5B] rounded-xl flex items-center justify-center shadow-lg">
               <Icon name="folder" className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#8B6F47] to-[#A68B5B] bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-[color:var(--admin-primary)] to-[#A68B5B] bg-clip-text text-transparent">
                 {ar ? 'دليل الحسابات' : 'Chart of Accounts'}
               </h1>
               <p className="text-sm text-gray-600 mt-1 font-medium">
@@ -196,13 +196,13 @@ export default function ChartOfAccountsPage() {
                 placeholder={ar ? 'بحث في الحسابات...' : 'Search accounts...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent w-64"
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent w-64"
               />
               <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             </div>
             <button
               onClick={() => setShowNewAccount(true)}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#8B6F47] to-[#A68B5B] text-white hover:from-[#8B6F47]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold text-sm shadow-lg"
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[color:var(--admin-primary)] to-[#A68B5B] text-white hover:from-[color:var(--admin-primary)]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold text-sm shadow-lg"
             >
               <Icon name="plus" className="h-5 w-5" />
               {ar ? 'حساب جديد' : 'New Account'}
@@ -259,7 +259,7 @@ export default function ChartOfAccountsPage() {
                 </p>
                 <button
                   onClick={() => setShowNewAccount(true)}
-                  className="px-6 py-3 bg-[#8B6F47] text-white rounded-xl hover:bg-[#8B6F47]/90 transition-colors font-semibold"
+                  className="px-6 py-3 admin-btn-primary text-white rounded-xl hover:admin-btn-primary/90 transition-colors font-semibold"
                 >
                   {ar ? 'إنشاء أول حساب' : 'Create first account'}
                 </button>
@@ -269,7 +269,7 @@ export default function ChartOfAccountsPage() {
                 {filteredAccounts.map((account) => (
                   <div
                     key={account.id}
-                    className="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200/60 p-6 hover:shadow-lg transition-all duration-200 hover:border-[#8B6F47]/30"
+                    className="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200/60 p-6 hover:shadow-lg transition-all duration-200 hover:admin-accent-border/30"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
@@ -348,7 +348,7 @@ export default function ChartOfAccountsPage() {
       {showNewAccount && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-[#8B6F47]/5 to-white">
+            <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-[color:var(--admin-primary)]/5 to-white">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-gray-900">
                   {editingAccount ? (ar ? 'تعديل الحساب' : 'Edit Account') : (ar ? 'حساب جديد' : 'New Account')}
@@ -375,7 +375,7 @@ export default function ChartOfAccountsPage() {
                     type="text"
                     value={formData.code}
                     onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                     required
                   />
                 </div>
@@ -386,7 +386,7 @@ export default function ChartOfAccountsPage() {
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as any }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                     required
                   >
                     <option value="ASSET">{ar ? 'أصل' : 'Asset'}</option>
@@ -404,7 +404,7 @@ export default function ChartOfAccountsPage() {
                     type="text"
                     value={formData.nameAr}
                     onChange={(e) => setFormData(prev => ({ ...prev, nameAr: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                     required
                   />
                 </div>
@@ -416,7 +416,7 @@ export default function ChartOfAccountsPage() {
                     type="text"
                     value={formData.nameEn}
                     onChange={(e) => setFormData(prev => ({ ...prev, nameEn: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -426,7 +426,7 @@ export default function ChartOfAccountsPage() {
                   <select
                     value={formData.parentId}
                     onChange={(e) => setFormData(prev => ({ ...prev, parentId: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                   >
                     <option value="">{ar ? 'لا يوجد' : 'None'}</option>
                     {accounts
@@ -446,7 +446,7 @@ export default function ChartOfAccountsPage() {
                     type="number"
                     value={formData.sortOrder}
                     onChange={(e) => setFormData(prev => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
                   />
                 </div>
                 <div className="flex items-center mt-6">
@@ -455,7 +455,7 @@ export default function ChartOfAccountsPage() {
                     id="isActive"
                     checked={formData.isActive}
                     onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                    className="w-4 h-4 text-[#8B6F47] border-gray-300 rounded focus:ring-[#8B6F47]"
+                    className="w-4 h-4 admin-accent-text border-gray-300 rounded focus:ring-[color:var(--admin-primary)]"
                   />
                   <label htmlFor="isActive" className="mr-2 text-sm font-medium text-gray-700">
                     {ar ? 'حساب نشط' : 'Active Account'}
@@ -476,7 +476,7 @@ export default function ChartOfAccountsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-8 py-3 bg-gradient-to-r from-[#8B6F47] to-[#A68B5B] text-white rounded-lg hover:from-[#8B6F47]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold shadow-lg"
+                  className="px-8 py-3 bg-gradient-to-r from-[color:var(--admin-primary)] to-[#A68B5B] text-white rounded-lg hover:from-[color:var(--admin-primary)]/90 hover:to-[#A68B5B]/90 transition-all duration-200 font-semibold shadow-lg"
                 >
                   {editingAccount ? (ar ? 'تحديث الحساب' : 'Update Account') : (ar ? 'إنشاء الحساب' : 'Create Account')}
                 </button>

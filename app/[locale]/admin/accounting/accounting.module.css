@@ -2,7 +2,7 @@
 
 /* Hero Header */
 .hero {
-  background: linear-gradient(135deg, #8B6F47 0%, #6B5535 50%, #5a4a2e 100%);
+  background: linear-gradient(135deg, var(--admin-primary, #8b6f47) 0%, var(--admin-primary-hover, #6b5535) 50%, #5a4a2e 100%);
   border-radius: 1.5rem;
   padding: 2rem 2.5rem;
   color: white;
@@ -62,8 +62,8 @@
 }
 .tabBtnActive {
   color: white;
-  background: #8B6F47;
-  box-shadow: 0 2px 8px rgba(139, 111, 71, 0.35);
+  background: var(--admin-primary, #8b6f47);
+  box-shadow: 0 2px 8px rgb(var(--admin-primary-rgb, 139 111 71) / 0.35);
 }
 
 /* Stat Cards */
@@ -99,7 +99,7 @@
 }
 .statCardPositive { color: #059669; }
 .statCardNegative { color: #dc2626; }
-.statCardAccent { color: #8B6F47; }
+.statCardAccent { color: var(--admin-primary, #8b6f47); }
 
 /* Filter Bar */
 .filterBar {
@@ -135,8 +135,8 @@
 }
 .filterInput:focus {
   outline: none;
-  border-color: #8B6F47;
-  box-shadow: 0 0 0 3px rgba(139, 111, 71, 0.15);
+  border-color: var(--admin-primary, #8b6f47);
+  box-shadow: 0 0 0 3px rgb(var(--admin-primary-rgb, 139 111 71) / 0.15);
 }
 
 /* Content Card */
@@ -172,14 +172,14 @@
   border-radius: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  background: #8B6F47;
+  background: var(--admin-primary, #8b6f47);
   color: white;
   border: none;
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
 }
 .btnPrimary:hover {
-  background: #6B5535;
+  background: var(--admin-primary-hover, #6b5535);
 }
 .btnPrimary:active { transform: scale(0.98); }
 .btnSecondary {

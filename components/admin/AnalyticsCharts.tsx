@@ -245,7 +245,7 @@ export default function AnalyticsCharts() {
         <AdminPageHeader title={ar ? 'التحليلات' : 'Analytics'} subtitle={ar ? 'تحليلات وإحصائيات متقدمة' : 'Advanced analytics and statistics'} />
         <div className="flex items-center justify-center h-64 admin-card rounded-2xl">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-2 border-[#8B6F47] border-t-transparent mx-auto mb-3" />
+            <div className="animate-spin rounded-full h-10 w-10 border-2 admin-accent-border border-t-transparent mx-auto mb-3" />
             <p className="text-gray-600">{ar ? 'جاري تحميل التحليلات...' : 'Loading analytics...'}</p>
           </div>
         </div>
@@ -266,7 +266,7 @@ export default function AnalyticsCharts() {
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value as '7d' | '30d' | '90d' | '1y')}
-            className="px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900 bg-white"
+            className="px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:admin-accent-border text-gray-900 bg-white"
           >
             <option value="7d">{ar ? 'آخر 7 أيام' : 'Last 7 days'}</option>
             <option value="30d">{ar ? 'آخر 30 يوم' : 'Last 30 days'}</option>
@@ -286,7 +286,7 @@ export default function AnalyticsCharts() {
                 onClick={() => setSelectedChart(tab.id)}
                 className={`py-3 px-4 rounded-xl font-medium text-sm transition-colors ${
                   selectedChart === tab.id
-                    ? 'bg-[#8B6F47] text-white shadow-sm'
+                    ? 'admin-btn-primary text-white shadow-sm'
                     : 'text-gray-600 hover:bg-gray-200/70 hover:text-gray-900'
                 }`}
               >
@@ -306,10 +306,10 @@ export default function AnalyticsCharts() {
 
       {/* Predictions Panel */}
       {predictions.length > 0 && (
-        <div className="admin-card p-6 rounded-2xl bg-[#8B6F47]/5 border-[#8B6F47]/20">
+        <div className="admin-card p-6 rounded-2xl admin-accent-bg-soft admin-accent-border/20">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center">
-              <Icon name="sparkles" className="w-5 h-5 text-[#8B6F47]" />
+            <span className="w-10 h-10 rounded-xl admin-accent-bg-soft flex items-center justify-center">
+              <Icon name="sparkles" className="w-5 h-5 admin-accent-text" />
             </span>
             {ar ? 'التنبؤات الذكية' : 'Smart predictions'}
           </h3>

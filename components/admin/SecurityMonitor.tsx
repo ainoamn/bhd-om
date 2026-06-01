@@ -191,8 +191,8 @@ export default function SecurityMonitor() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="admin-card p-4">
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center">
-              <Icon name="shieldCheck" className="w-5 h-5 text-[#8B6F47]" />
+            <span className="w-10 h-10 rounded-xl admin-accent-bg-soft flex items-center justify-center">
+              <Icon name="shieldCheck" className="w-5 h-5 admin-accent-text" />
             </span>
             <div>
               <p className="text-sm text-gray-600">{ar ? 'إجمالي الأحداث' : 'Total events'}</p>
@@ -242,14 +242,14 @@ export default function SecurityMonitor() {
       <div className="admin-card p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center">
-              <Icon name="shieldCheck" className="w-5 h-5 text-[#8B6F47]" />
+            <span className="w-10 h-10 rounded-xl admin-accent-bg-soft flex items-center justify-center">
+              <Icon name="shieldCheck" className="w-5 h-5 admin-accent-text" />
             </span>
             {ar ? 'تنبيهات الأمان' : 'Security alerts'}
           </h3>
           <button
             onClick={handleCleanup}
-            className="px-4 py-2 rounded-xl font-semibold bg-white border-2 border-[#8B6F47] text-[#8B6F47] hover:bg-[#8B6F47]/5 transition-colors text-sm"
+            className="px-4 py-2 rounded-xl font-semibold bg-white border-2 admin-accent-border admin-accent-text hover:admin-accent-bg-soft transition-colors text-sm"
           >
             {ar ? 'تنظيف البيانات' : 'Clean data'}
           </button>
@@ -293,8 +293,8 @@ export default function SecurityMonitor() {
       {/* Password Strength Tester */}
       <div className="admin-card p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center">
-            <Icon name="cog" className="w-5 h-5 text-[#8B6F47]" />
+          <span className="w-10 h-10 rounded-xl admin-accent-bg-soft flex items-center justify-center">
+            <Icon name="cog" className="w-5 h-5 admin-accent-text" />
           </span>
           {ar ? 'اختبار قوة كلمة المرور' : 'Password strength test'}
         </h3>
@@ -303,7 +303,7 @@ export default function SecurityMonitor() {
           <input
             type="password"
             placeholder={ar ? 'أدخل كلمة مرور لاختبار قوتها' : 'Enter a password to test its strength'}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:admin-accent-border text-gray-900"
             onChange={(e) => handleTestPassword(e.target.value)}
           />
           
@@ -317,33 +317,33 @@ export default function SecurityMonitor() {
       </div>
 
       {/* Security Recommendations */}
-      <div className="admin-card p-6 bg-[#8B6F47]/5 border-[#8B6F47]/20">
+      <div className="admin-card p-6 admin-accent-bg-soft admin-accent-border/20">
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center">
-            <Icon name="information" className="w-5 h-5 text-[#8B6F47]" />
+          <span className="w-10 h-10 rounded-xl admin-accent-bg-soft flex items-center justify-center">
+            <Icon name="information" className="w-5 h-5 admin-accent-text" />
           </span>
           {ar ? 'توصيات الأمان' : 'Security recommendations'}
         </h3>
         
         <div className="space-y-3 text-gray-700">
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'قم بتفعيل المصادقة الثنائية (2FA) لجميع الحسابات الإدارية' : 'Enable two-factor authentication (2FA) for all admin accounts'}</p>
           </div>
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'استخدم كلمات مرور قوية وفريدة لكل حساب' : 'Use strong, unique passwords for each account'}</p>
           </div>
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'قم بتحديث كلمات المرور بانتظام (كل 90 يوم)' : 'Update passwords regularly (every 90 days)'}</p>
           </div>
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'راقب سجلات الأمان بانتظام للكشف عن الأنشطة المشبوهة' : 'Monitor security logs regularly for suspicious activity'}</p>
           </div>
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'احتفظ بنسخ احتياطية منتظمة للبيانات الحساسة' : 'Keep regular backups of sensitive data'}</p>
           </div>
         </div>

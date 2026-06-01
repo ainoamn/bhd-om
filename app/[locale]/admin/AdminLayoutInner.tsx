@@ -387,7 +387,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           <Link
             href={loginUrl}
             className="inline-block px-8 py-3 rounded-xl font-semibold text-white transition-colors"
-            style={{ background: 'linear-gradient(135deg, #8B6F47 0%, #6B5535 100%)' }}
+            style={{ background: 'linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-hover) 100%)' }}
           >
             {locale === 'ar' ? 'تسجيل الدخول' : 'Sign in'}
           </Link>
@@ -683,7 +683,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           </div>
           <AdminThemeToggle locale={locale} variant="pill" compact />
         </header>
-        <div className="admin-main-inner">{children}</div>
+        <div className="admin-main-inner admin-subpages">{children}</div>
       </main>
     </div>
   );

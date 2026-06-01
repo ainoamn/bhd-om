@@ -134,7 +134,7 @@ function AddUserModal({
             </select>
           </div>
           <div className="flex gap-3 mt-6">
-            <button type="submit" disabled={submitting} className="flex-1 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] disabled:opacity-50">
+            <button type="submit" disabled={submitting} className="flex-1 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 disabled:opacity-50">
               {submitting ? (locale === 'ar' ? 'جاري...' : 'Creating...') : (locale === 'ar' ? 'إضافة' : 'Add')}
             </button>
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
@@ -196,7 +196,7 @@ function EditUserModal({
           <button
             type="button"
             onClick={() => onSave({ name, email, phone: phone || null, role })}
-            className="flex-1 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+            className="flex-1 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
           >
             {locale === 'ar' ? 'حفظ' : 'Save'}
           </button>
@@ -556,7 +556,7 @@ export default function UsersAdminPage() {
             <button
               type="button"
               onClick={() => setShowAddUser(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white admin-btn-primary hover:opacity-90 transition-all"
             >
               <span>+</span>
               {t('addUser')}
@@ -564,7 +564,7 @@ export default function UsersAdminPage() {
             <Link
               href={`/${locale}/admin/address-book`}
               prefetch={true}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all"
             >
               <span>📇</span>
               {locale === 'ar' ? 'دفتر العناوين' : 'Address Book'}
@@ -625,7 +625,7 @@ export default function UsersAdminPage() {
             <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center text-2xl mx-auto mb-3">🔐</div>
             <p className="text-gray-700 font-medium text-sm">{locale === 'ar' ? 'يجب تسجيل الدخول كمدير لعرض قائمة المستخدمين' : 'You must be logged in as Admin to view the users list'}</p>
             <p className="text-gray-500 text-xs mt-2">{locale === 'ar' ? 'سجّل الخروج ثم ادخل بحساب المدير (admin@bhd-om.com)' : 'Sign out then log in with admin account (admin@bhd-om.com)'}</p>
-            <Link href={`/${locale}/login`} className="inline-block mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
+            <Link href={`/${locale}/login`} className="inline-block mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white admin-btn-primary hover:opacity-90">
               {locale === 'ar' ? 'صفحة تسجيل الدخول' : 'Login page'}
             </Link>
           </div>
@@ -649,7 +649,7 @@ export default function UsersAdminPage() {
                       <Link
                         href={`/${locale}/admin/users/${u.id}`}
                         prefetch={true}
-                        className="text-sm font-semibold text-gray-900 hover:text-[#8B6F47] hover:underline break-words leading-snug"
+                        className="text-sm font-semibold text-gray-900 hover:admin-accent-text hover:underline break-words leading-snug"
                       >
                         {u.name || '—'}
                       </Link>
@@ -670,7 +670,7 @@ export default function UsersAdminPage() {
                       <Link
                         href={`/${locale}/admin/users/${u.id}`}
                         prefetch
-                        className="text-[#8B6F47] hover:underline"
+                        className="admin-accent-text hover:underline"
                         title={
                           safeUserSerialForDisplay(u.serialNumber) !== '—'
                             ? `${shortenUserSerial(u.serialNumber)} · ${u.serialNumber}`
@@ -694,7 +694,7 @@ export default function UsersAdminPage() {
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('email')}</dt>
                     <dd className="mt-0.5 break-all text-gray-800 leading-snug">
                       {u.email && !u.email.includes('@nologin.bhd') ? (
-                        <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="text-[#8B6F47] hover:underline">
+                        <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="admin-accent-text hover:underline">
                           {u.email}
                         </Link>
                       ) : (
@@ -706,7 +706,7 @@ export default function UsersAdminPage() {
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('phone')}</dt>
                     <dd className="mt-0.5 break-all text-gray-800 leading-snug">
                       {u.phone ? (
-                        <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="text-[#8B6F47] hover:underline">
+                        <Link href={`/${locale}/admin/users/${u.id}`} prefetch className="admin-accent-text hover:underline">
                           {u.phone}
                         </Link>
                       ) : (
@@ -722,7 +722,7 @@ export default function UsersAdminPage() {
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{t('plan')}</dt>
                     <dd className="mt-0.5 break-words text-gray-800 leading-snug">
                       {u.plan ? (
-                        <Link href={`/${locale}/admin/subscriptions`} prefetch className="text-[#8B6F47] hover:underline font-medium">
+                        <Link href={`/${locale}/admin/subscriptions`} prefetch className="admin-accent-text hover:underline font-medium">
                           {locale === 'ar' ? u.plan.nameAr : u.plan.nameEn}
                         </Link>
                       ) : (
@@ -742,7 +742,7 @@ export default function UsersAdminPage() {
                   <button
                     type="button"
                     onClick={() => setEditUser(u)}
-                    className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#8B6F47] hover:bg-gray-50"
+                    className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold admin-accent-text hover:bg-gray-50"
                   >
                     {locale === 'ar' ? 'تعديل' : 'Edit'}
                   </button>
@@ -759,7 +759,7 @@ export default function UsersAdminPage() {
                       type="button"
                       onClick={() => handleAddToAddressBook(u)}
                       disabled={!!addingId}
-                      className="rounded-md border border-[#8B6F47]/30 bg-[#8B6F47]/5 px-2.5 py-1 text-[11px] font-semibold text-[#6B5535] hover:bg-[#8B6F47]/10 disabled:opacity-50"
+                      className="rounded-md border admin-accent-border/30 admin-accent-bg-soft px-2.5 py-1 text-[11px] font-semibold admin-accent-text hover:admin-accent-bg-soft disabled:opacity-50"
                     >
                       {addingId === u.id ? (locale === 'ar' ? 'جاري...' : 'Adding...') : (locale === 'ar' ? 'إضافة للدفتر' : 'Add to book')}
                     </button>
@@ -859,7 +859,7 @@ export default function UsersAdminPage() {
             <button
               type="button"
               onClick={() => setAddedUserCreds(null)}
-              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
             >
               {locale === 'ar' ? 'إغلاق' : 'Close'}
             </button>
@@ -919,7 +919,7 @@ export default function UsersAdminPage() {
             <button
               type="button"
               onClick={() => { setResetResult(null); setResetPasswordUser(null); }}
-              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
             >
               {locale === 'ar' ? 'إغلاق' : 'Close'}
             </button>

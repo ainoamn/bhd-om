@@ -479,12 +479,12 @@ export default function ModernAdminLayout({ children }: { children: React.ReactN
         .navigation-link.active {
           background: rgba(255, 255, 255, 0.15);
           color: white;
-          border-right: 3px solid #8B6F47;
+          border-right: 3px solid var(--admin-primary);
         }
 
         [dir="rtl"] .navigation-link.active {
           border-right: none;
-          border-left: 3px solid #8B6F47;
+          border-left: 3px solid var(--admin-primary);
         }
 
         .navigation-text {
@@ -677,7 +677,7 @@ export default function ModernAdminLayout({ children }: { children: React.ReactN
         }
 
         .user-menu-btn:hover {
-          border-color: #8B6F47;
+          border-color: var(--admin-primary);
         }
 
         .page-content {

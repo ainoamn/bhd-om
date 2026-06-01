@@ -126,7 +126,7 @@ export default function ProfessionalAccountingDashboard() {
     return (
       <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B6F47] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 admin-accent-border mx-auto"></div>
           <p className="text-gray-500 mt-4">{ar ? 'جاري تحميل البيانات المحاسبية...' : 'Loading accounting data...'}</p>
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function ProfessionalAccountingDashboard() {
         </p>
         <button
           onClick={() => window.location.href = `/${locale}/admin/accounting/journal`}
-          className="px-6 py-3 bg-[#8B6F47] text-white rounded-xl hover:bg-[#8B6F47]/90 transition-colors font-semibold"
+          className="px-6 py-3 admin-btn-primary text-white rounded-xl hover:admin-btn-primary/90 transition-colors font-semibold"
         >
           {ar ? 'إضافة قيود محاسبية' : 'Add Journal Entries'}
         </button>
@@ -169,7 +169,7 @@ export default function ProfessionalAccountingDashboard() {
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:border-transparent"
           >
             <option value="2025">2025</option>
             <option value="2024">2024</option>
@@ -300,10 +300,10 @@ export default function ProfessionalAccountingDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <a
           href={`/${locale}/admin/accounting/journal`}
-          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:border-[#8B6F47]/20 hover:bg-[#8B6F47]/5 transition-all duration-200 group"
+          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:admin-accent-border/20 hover:admin-accent-bg-soft transition-all duration-200 group"
         >
-          <div className="w-12 h-12 bg-[#8B6F47]/10 rounded-lg flex items-center justify-center group-hover:bg-[#8B6F47]/20 transition-colors">
-            <Icon name="documentText" className="h-6 w-6 text-[#8B6F47]" />
+          <div className="w-12 h-12 admin-accent-bg-soft rounded-lg flex items-center justify-center group-hover:admin-btn-primary/20 transition-colors">
+            <Icon name="documentText" className="h-6 w-6 admin-accent-text" />
           </div>
           <div>
             <div className="font-semibold text-gray-900">{ar ? 'قيود اليومية' : 'Journal Entries'}</div>
@@ -313,10 +313,10 @@ export default function ProfessionalAccountingDashboard() {
 
         <a
           href={`/${locale}/admin/accounting/reports`}
-          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:border-[#8B6F47]/20 hover:bg-[#8B6F47]/5 transition-all duration-200 group"
+          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:admin-accent-border/20 hover:admin-accent-bg-soft transition-all duration-200 group"
         >
-          <div className="w-12 h-12 bg-[#8B6F47]/10 rounded-lg flex items-center justify-center group-hover:bg-[#8B6F47]/20 transition-colors">
-            <Icon name="chartBar" className="h-6 w-6 text-[#8B6F47]" />
+          <div className="w-12 h-12 admin-accent-bg-soft rounded-lg flex items-center justify-center group-hover:admin-btn-primary/20 transition-colors">
+            <Icon name="chartBar" className="h-6 w-6 admin-accent-text" />
           </div>
           <div>
             <div className="font-semibold text-gray-900">{ar ? 'التقارير المالية' : 'Financial Reports'}</div>
@@ -326,10 +326,10 @@ export default function ProfessionalAccountingDashboard() {
 
         <a
           href={`/${locale}/admin/accounting/accounts`}
-          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:border-[#8B6F47]/20 hover:bg-[#8B6F47]/5 transition-all duration-200 group"
+          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:admin-accent-border/20 hover:admin-accent-bg-soft transition-all duration-200 group"
         >
-          <div className="w-12 h-12 bg-[#8B6F47]/10 rounded-lg flex items-center justify-center group-hover:bg-[#8B6F47]/20 transition-colors">
-            <Icon name="folder" className="h-6 w-6 text-[#8B6F47]" />
+          <div className="w-12 h-12 admin-accent-bg-soft rounded-lg flex items-center justify-center group-hover:admin-btn-primary/20 transition-colors">
+            <Icon name="folder" className="h-6 w-6 admin-accent-text" />
           </div>
           <div>
             <div className="font-semibold text-gray-900">{ar ? 'دليل الحسابات' : 'Chart of Accounts'}</div>
@@ -339,10 +339,10 @@ export default function ProfessionalAccountingDashboard() {
 
         <a
           href={`/${locale}/admin/accounting/trial-balance`}
-          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:border-[#8B6F47]/20 hover:bg-[#8B6F47]/5 transition-all duration-200 group"
+          className="flex items-center gap-4 p-6 bg-white rounded-xl border border-gray-200 hover:admin-accent-border/20 hover:admin-accent-bg-soft transition-all duration-200 group"
         >
-          <div className="w-12 h-12 bg-[#8B6F47]/10 rounded-lg flex items-center justify-center group-hover:bg-[#8B6F47]/20 transition-colors">
-            <Icon name="scale" className="h-6 w-6 text-[#8B6F47]" />
+          <div className="w-12 h-12 admin-accent-bg-soft rounded-lg flex items-center justify-center group-hover:admin-btn-primary/20 transition-colors">
+            <Icon name="scale" className="h-6 w-6 admin-accent-text" />
           </div>
           <div>
             <div className="font-semibold text-gray-900">{ar ? 'ميزان المراجعة' : 'Trial Balance'}</div>

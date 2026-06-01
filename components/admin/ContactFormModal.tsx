@@ -623,7 +623,7 @@ export default function ContactFormModal({
             <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
               {t('cancel')}
             </button>
-            <button type="submit" disabled={submitting} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] disabled:opacity-50">
+            <button type="submit" disabled={submitting} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 disabled:opacity-50">
               {submitting ? (locale === 'ar' ? 'جاري الحفظ...' : 'Saving...') : (editContactId ? t('save') : t('add'))}
             </button>
           </div>
@@ -634,11 +634,11 @@ export default function ContactFormModal({
       {/* نموذج الطباعة - يعرض البيانات المعبأة والفارغة - مستند رسمي A4 */}
       <div className="contact-form-modal-print-only w-full max-w-[210mm] mx-auto min-h-[297mm]" dir={locale === 'ar' ? 'rtl' : 'ltr'} style={{ boxSizing: 'border-box' }}>
         <div className="p-6">
-          <div className="border-b-2 border-[#8B6F47] pb-5 mb-6">
+          <div className="border-b-2 admin-accent-border pb-5 mb-6">
             <div className="flex items-center justify-center gap-5">
               <img src="/logo-bhd.png" alt="Logo" className="w-20 h-20 object-contain" />
               <div className="text-center">
-                <h2 className="text-2xl font-bold" style={{ color: '#8B6F47' }}>
+                <h2 className="text-2xl font-bold" style={{ color: 'var(--admin-primary)' }}>
                   {locale === 'ar' ? siteConfig.company.nameAr : siteConfig.company.nameEn}
                 </h2>
                 <p className="text-sm text-gray-600 font-medium">{siteConfig.company.legalName}</p>
@@ -650,8 +650,8 @@ export default function ContactFormModal({
           <table className="w-full border-collapse text-sm shadow-sm" style={{ border: '1px solid #9ca3af', borderRadius: '4px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f3f4f6' }}>
-                <th className="border border-gray-300 px-4 py-3 font-bold w-36" style={{ backgroundColor: '#8B6F47', color: 'white', borderColor: '#6B5535' }}>{t('printFieldLabel')}</th>
-                <th className="border border-gray-300 px-4 py-3 font-bold" style={{ backgroundColor: '#8B6F47', color: 'white', borderColor: '#6B5535' }}>{t('printDataLabel')}</th>
+                <th className="border border-gray-300 px-4 py-3 font-bold w-36" style={{ backgroundColor: 'var(--admin-primary)', color: 'white', borderColor: 'var(--admin-primary-hover)' }}>{t('printFieldLabel')}</th>
+                <th className="border border-gray-300 px-4 py-3 font-bold" style={{ backgroundColor: 'var(--admin-primary)', color: 'white', borderColor: 'var(--admin-primary-hover)' }}>{t('printDataLabel')}</th>
               </tr>
             </thead>
             <tbody>
@@ -684,7 +684,7 @@ export default function ContactFormModal({
           <p className="text-xs text-gray-500 mt-4">{t('requiredFieldsNote')}</p>
           <p className="text-xs text-gray-400 mt-1">{new Date().toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB')}</p>
 
-          <div className="border-t-2 border-[#8B6F47] mt-8 pt-6">
+          <div className="border-t-2 admin-accent-border mt-8 pt-6">
             <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
               <div>
                 <p className="font-semibold text-gray-900">{locale === 'ar' ? siteConfig.company.nameAr + ' ' + siteConfig.company.sloganAr : siteConfig.company.nameEn + ' ' + siteConfig.company.sloganEn}</p>

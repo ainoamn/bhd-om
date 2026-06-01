@@ -151,7 +151,7 @@ export default function PropertyBookingsPage() {
               if (v) window.location.href = `/${locale}/admin/properties/${v}/bookings`;
             }}
             value={id}
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] focus:admin-accent-border outline-none"
           >
             {properties.map((p: { id: number; titleAr?: string; titleEn?: string }) => (
               <option key={p.id} value={p.id}>
@@ -162,9 +162,9 @@ export default function PropertyBookingsPage() {
         </div>
         <Link
           href={`/${locale}/admin/properties`}
-          className="inline-flex items-center gap-2 text-[#8B6F47] hover:text-[#6B5535] font-semibold mb-4 transition-colors"
+          className="inline-flex items-center gap-2 admin-accent-text hover:admin-accent-text font-semibold mb-4 transition-colors"
         >
-          <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center">←</span>
+          <span className="w-8 h-8 rounded-lg admin-accent-bg-soft flex items-center justify-center">←</span>
           {ar ? 'العودة للعقارات' : 'Back to Properties'}
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -173,7 +173,7 @@ export default function PropertyBookingsPage() {
               {ar ? 'حجوزات العقار' : 'Property Bookings'}
             </h1>
             <p className="text-gray-500 mt-1 font-medium">{propertyTitle}</p>
-            <p className="text-sm font-mono text-[#8B6F47] mt-0.5">
+            <p className="text-sm font-mono admin-accent-text mt-0.5">
               {ar ? 'رقم العقار:' : 'Property:'} {propertySerial || '—'}
             </p>
           </div>
@@ -198,9 +198,9 @@ export default function PropertyBookingsPage() {
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ar ? 'ملغى' : 'Cancelled'}</p>
           <p className="text-2xl font-bold text-gray-600 mt-1">{stats.cancelled}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-[#8B6F47]/30 p-5 shadow-sm hover:shadow-md transition-shadow col-span-2 md:col-span-1">
-          <p className="text-xs font-semibold text-[#8B6F47] uppercase tracking-wider">{ar ? 'مدفوع' : 'Paid'}</p>
-          <p className="text-2xl font-bold text-[#8B6F47] mt-1">{stats.withPayment}</p>
+        <div className="bg-white rounded-2xl border admin-accent-border/30 p-5 shadow-sm hover:shadow-md transition-shadow col-span-2 md:col-span-1">
+          <p className="text-xs font-semibold admin-accent-text uppercase tracking-wider">{ar ? 'مدفوع' : 'Paid'}</p>
+          <p className="text-2xl font-bold admin-accent-text mt-1">{stats.withPayment}</p>
         </div>
       </div>
 
@@ -274,7 +274,7 @@ export default function PropertyBookingsPage() {
                           {isCompanyBooking(b) && <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{ar ? 'شركة' : 'Company'}</span>}
                         </div>
                           <div className="text-xs text-gray-500">{b.email}</div>
-                          <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] hover:underline font-medium">{b.phone}</a>
+                          <a href={`tel:${b.phone}`} className="text-sm admin-accent-text hover:underline font-medium">{b.phone}</a>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -293,14 +293,14 @@ export default function PropertyBookingsPage() {
                             return (
                               <div>
                                 <div className="text-gray-500">{ar ? 'عقار كامل' : 'Full property'}</div>
-                                {propertySerial && <div className="text-xs font-mono text-[#8B6F47] mt-0.5">{propertySerial}</div>}
+                                {propertySerial && <div className="text-xs font-mono admin-accent-text mt-0.5">{propertySerial}</div>}
                               </div>
                             );
                           }
                           return (
                             <div>
                               <div className="font-medium text-gray-900">{label}</div>
-                              <div className="text-xs font-mono text-[#8B6F47] mt-0.5">{serial || b.unitKey}</div>
+                              <div className="text-xs font-mono admin-accent-text mt-0.5">{serial || b.unitKey}</div>
                             </div>
                           );
                         })()}
@@ -376,7 +376,7 @@ export default function PropertyBookingsPage() {
                                       {ar ? 'بانتظار اعتماد العقد' : 'Pending contract approval'}
                                     </div>
                                   )}
-                                  <Link href={contractsHref} className="text-xs text-[#8B6F47] hover:underline block">
+                                  <Link href={contractsHref} className="text-xs admin-accent-text hover:underline block">
                                     {ar ? 'تعديل من صفحة العقود' : 'Edit from contracts page'}
                                   </Link>
                                 </>
@@ -441,7 +441,7 @@ export default function PropertyBookingsPage() {
                             <select
                               value={b.status}
                               onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
-                              className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+                              className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] focus:admin-accent-border outline-none"
                             >
                               <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
                               <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
@@ -459,7 +459,7 @@ export default function PropertyBookingsPage() {
                               <button
                                 type="button"
                                 onClick={() => setDocumentsPanelBooking(b)}
-                                className="relative inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-colors"
+                                className="relative inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-colors"
                               >
                                 <span>📄</span>
                                 {ar ? 'المستندات' : 'Documents'}
@@ -470,7 +470,7 @@ export default function PropertyBookingsPage() {
                               {canCreateContract(b) && (
                                 <Link
                                   href={`/${locale}/admin/contracts?createFrom=${b.id}`}
-                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors"
+                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-colors"
                                 >
                                   <span>📋</span>
                                   {ar ? 'إنشاء عقد' : 'Create Contract'}
@@ -503,7 +503,7 @@ export default function PropertyBookingsPage() {
                     <div>
                       <p className="font-bold text-gray-900">{getBookingDisplayName(b, locale)}</p>
                       <p className="text-sm text-gray-500">{b.email}</p>
-                      <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] font-semibold">{b.phone}</a>
+                      <a href={`tel:${b.phone}`} className="text-sm admin-accent-text font-semibold">{b.phone}</a>
                     </div>
                     <span
                       className={`px-3 py-1 rounded-lg text-xs font-semibold ${
@@ -520,13 +520,13 @@ export default function PropertyBookingsPage() {
                       return (
                         <span className="font-medium">
                           • {label}
-                          <span className="font-mono text-[#8B6F47]"> ({serial || b.unitKey})</span>
+                          <span className="font-mono admin-accent-text"> ({serial || b.unitKey})</span>
                         </span>
                       );
                     })() : (
                       <span className="font-medium">
                         • {ar ? 'عقار كامل' : 'Full property'}
-                        {propertySerial && <span className="font-mono text-[#8B6F47]"> ({propertySerial})</span>}
+                        {propertySerial && <span className="font-mono admin-accent-text"> ({propertySerial})</span>}
                       </span>
                     )}
                     {b.type === 'BOOKING' && (
@@ -572,7 +572,7 @@ export default function PropertyBookingsPage() {
                                   {approved.monthlyRent.toLocaleString()} ر.ع/شهر • {approved.annualRent.toLocaleString()} ر.ع/سنة
                                 </div>
                               )}
-                              <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block mt-1">
+                              <Link href={`/${locale}/admin/contracts`} className="text-xs admin-accent-text hover:underline block mt-1">
                                 {ar ? 'من العقود' : 'From contracts'}
                               </Link>
                             </>
@@ -615,7 +615,7 @@ export default function PropertyBookingsPage() {
                         <select
                           value={b.status}
                           onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
-                          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20"
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[color:var(--admin-focus-ring)]"
                         >
                           <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
                           <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
@@ -630,7 +630,7 @@ export default function PropertyBookingsPage() {
                         <button
                           type="button"
                           onClick={() => setDocumentsPanelBooking(b)}
-                          className="relative inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 border border-[#8B6F47]/30"
+                          className="relative inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft border admin-accent-border/30"
                         >
                           📄 {ar ? 'المستندات' : 'Documents'}
                           {hasDocumentsNeedingConfirmation(b.id) && (
@@ -640,7 +640,7 @@ export default function PropertyBookingsPage() {
                         {canCreateContract(b) && (
                           <Link
                             href={`/${locale}/admin/contracts?createFrom=${b.id}`}
-                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47]"
+                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary"
                           >
                             📋 {ar ? 'إنشاء عقد' : 'Create Contract'}
                           </Link>

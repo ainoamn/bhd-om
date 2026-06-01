@@ -39,15 +39,15 @@ export default function PropertyExtraDataPage() {
       {/* Header */}
       <div className="admin-page-header">
         <nav className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-          <Link href={`/${locale}/admin/properties`} className="hover:text-[#8B6F47] transition-colors">
+          <Link href={`/${locale}/admin/properties`} className="hover:admin-accent-text transition-colors">
             {ar ? 'العقارات' : 'Properties'}
           </Link>
           <span aria-hidden>/</span>
-          <Link href={`/${locale}/admin/properties/${id}`} className="hover:text-[#8B6F47] transition-colors truncate max-w-[200px]">
+          <Link href={`/${locale}/admin/properties/${id}`} className="hover:admin-accent-text transition-colors truncate max-w-[200px]">
             {(prop as { serialNumber?: string }).serialNumber}
           </Link>
           <span aria-hidden>/</span>
-          <span className="text-[#8B6F47] font-medium">{ar ? 'البيانات الإضافية' : 'Additional Data'}</span>
+          <span className="admin-accent-text font-medium">{ar ? 'البيانات الإضافية' : 'Additional Data'}</span>
         </nav>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -72,9 +72,9 @@ export default function PropertyExtraDataPage() {
       </div>
 
       {isMultiUnit && (
-        <div className="admin-card border-[#8B6F47]/30 bg-[#8B6F47]/5">
+        <div className="admin-card admin-accent-border/30 admin-accent-bg-soft">
           <div className="admin-card-body flex items-start gap-3">
-            <Icon name="information" className="w-6 h-6 text-[#8B6F47] flex-shrink-0 mt-0.5" />
+            <Icon name="information" className="w-6 h-6 admin-accent-text flex-shrink-0 mt-0.5" />
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">
                 {ar ? 'مبنى متعدد الوحدات' : 'Multi-Unit Building'}

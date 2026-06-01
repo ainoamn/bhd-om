@@ -117,8 +117,8 @@ export default function BackupManager() {
       {/* Backup Info */}
       <div className="admin-card p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center">
-            <Icon name="archive" className="w-5 h-5 text-[#8B6F47]" />
+          <span className="w-10 h-10 rounded-xl admin-accent-bg-soft flex items-center justify-center">
+            <Icon name="archive" className="w-5 h-5 admin-accent-text" />
           </span>
           {ar ? 'معلومات النسخ الاحتياطي' : 'Backup info'}
         </h3>
@@ -169,26 +169,26 @@ export default function BackupManager() {
           <button
             onClick={createBackup}
             disabled={isLoading}
-            className="px-5 py-3 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+            className="px-5 py-3 rounded-xl font-semibold admin-btn-primary text-white hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <Icon name="archive" className="w-4 h-4" />
             {isLoading ? (ar ? 'جاري الإنشاء...' : 'Creating...') : (ar ? 'إنشاء نسخة احتياطية' : 'Create backup')}
           </button>
           <button
             onClick={exportBackup}
-            className="px-5 py-3 rounded-xl font-semibold bg-white border-2 border-[#8B6F47] text-[#8B6F47] hover:bg-[#8B6F47]/5 transition-colors flex items-center justify-center gap-2"
+            className="px-5 py-3 rounded-xl font-semibold bg-white border-2 admin-accent-border admin-accent-text hover:admin-accent-bg-soft transition-colors flex items-center justify-center gap-2"
           >
             <Icon name="externalLink" className="w-4 h-4" />
             {ar ? 'تصدير نسخة احتياطية' : 'Export backup'}
           </button>
-          <label className="px-5 py-3 rounded-xl font-semibold bg-white border-2 border-gray-300 text-gray-700 hover:border-[#8B6F47] hover:bg-[#8B6F47]/5 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+          <label className="px-5 py-3 rounded-xl font-semibold bg-white border-2 border-gray-300 text-gray-700 hover:admin-accent-border hover:admin-accent-bg-soft transition-colors flex items-center justify-center gap-2 cursor-pointer">
             <Icon name="plus" className="w-4 h-4" />
             {ar ? 'استعادة نسخة احتياطية' : 'Restore backup'}
             <input type="file" accept=".json" onChange={importBackup} className="hidden" disabled={isLoading} />
           </label>
           <button
             onClick={validateData}
-            className="px-5 py-3 rounded-xl font-semibold bg-white border-2 border-gray-300 text-gray-700 hover:border-[#8B6F47] hover:bg-[#8B6F47]/5 transition-colors flex items-center justify-center gap-2"
+            className="px-5 py-3 rounded-xl font-semibold bg-white border-2 border-gray-300 text-gray-700 hover:admin-accent-border hover:admin-accent-bg-soft transition-colors flex items-center justify-center gap-2"
           >
             <Icon name="check" className="w-4 h-4" />
             {ar ? 'التحقق من البيانات' : 'Validate data'}
@@ -197,24 +197,24 @@ export default function BackupManager() {
       </div>
 
       {/* Instructions */}
-      <div className="admin-card p-6 bg-[#8B6F47]/5 border-[#8B6F47]/20">
+      <div className="admin-card p-6 admin-accent-bg-soft admin-accent-border/20">
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center">
-            <Icon name="information" className="w-5 h-5 text-[#8B6F47]" />
+          <span className="w-10 h-10 rounded-xl admin-accent-bg-soft flex items-center justify-center">
+            <Icon name="information" className="w-5 h-5 admin-accent-text" />
           </span>
           {ar ? 'تعليمات هامة' : 'Important notes'}
         </h3>
         <div className="space-y-3 text-gray-700">
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'يتم إنشاء نسخة احتياطية تلقائياً كل 5 دقائق للتحقق من سلامة البيانات' : 'Backups are created automatically every 5 minutes.'}</p>
           </div>
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'يتم تخزين النسخ في IndexedDB (أكثر استقراراً من localStorage)' : 'Backups are stored in IndexedDB.'}</p>
           </div>
           <div className="flex items-start gap-2">
-            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6F47]" />
+            <Icon name="check" className="w-4 h-4 mt-0.5 flex-shrink-0 admin-accent-text" />
             <p>{ar ? 'يفضل تصدير نسخة وحفظها في مكان آمن خارج المتصفح' : 'Export and save a copy outside the browser.'}</p>
           </div>
           <div className="flex items-start gap-2">

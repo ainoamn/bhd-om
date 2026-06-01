@@ -325,7 +325,7 @@ export default function AdminBookingsPage() {
                 const v = e.target.value;
                 if (v) window.location.href = `/${locale}/admin/properties/${v}/bookings`;
               }}
-              className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] focus:admin-accent-border outline-none"
               value=""
             >
               <option value="">{ar ? '— اختر عقار —' : '— Select property —'}</option>
@@ -342,9 +342,9 @@ export default function AdminBookingsPage() {
         </div>
         <Link
           href={`/${locale}/admin/properties`}
-          className="inline-flex items-center gap-2 text-[#8B6F47] hover:text-[#6B5535] font-semibold mb-4 transition-colors"
+          className="inline-flex items-center gap-2 admin-accent-text hover:admin-accent-text font-semibold mb-4 transition-colors"
         >
-          <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center">←</span>
+          <span className="w-8 h-8 rounded-lg admin-accent-bg-soft flex items-center justify-center">←</span>
           {ar ? 'العودة للعقارات' : 'Back to Properties'}
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -356,7 +356,7 @@ export default function AdminBookingsPage() {
               {selectedProp ? (ar ? selectedProp.titleAr : selectedProp.titleEn) : (ar ? 'جميع العقارات' : 'All Properties')}
             </p>
             {selectedProp && (
-              <p className="text-sm font-mono text-[#8B6F47] mt-0.5">
+              <p className="text-sm font-mono admin-accent-text mt-0.5">
                 {ar ? 'رقم العقار:' : 'Property:'} {(selectedProp as { serialNumber?: string })?.serialNumber || '—'}
               </p>
             )}
@@ -384,7 +384,7 @@ export default function AdminBookingsPage() {
                 </Link>
                 <Link
                   href={`/${locale}/admin/properties/${selectedPropId || propertyIds[0] || properties[0]?.id}/bookings/terms`}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-all"
                 >
                   <span>📋</span>
                   {ar ? 'الشروط' : 'Terms'}
@@ -393,7 +393,7 @@ export default function AdminBookingsPage() {
                   href={`/${locale}/properties/${selectedPropId || propertyIds[0] || properties[0]?.id}/book`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-all shadow-lg shadow-[#8B6F47]/20 hover:shadow-[#8B6F47]/30"
                 >
                   <span>🔗</span>
                   {ar ? 'عرض صفحة الحجز' : 'View Booking Page'}
@@ -421,9 +421,9 @@ export default function AdminBookingsPage() {
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{ar ? 'ملغى' : 'Cancelled'}</p>
           <p className="text-2xl font-bold text-gray-600 mt-1">{stats.cancelled}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-[#8B6F47]/30 p-5 shadow-sm hover:shadow-md transition-shadow col-span-2 md:col-span-1">
-          <p className="text-xs font-semibold text-[#8B6F47] uppercase tracking-wider">{ar ? 'مدفوع' : 'Paid'}</p>
-          <p className="text-2xl font-bold text-[#8B6F47] mt-1">{stats.withPayment}</p>
+        <div className="bg-white rounded-2xl border admin-accent-border/30 p-5 shadow-sm hover:shadow-md transition-shadow col-span-2 md:col-span-1">
+          <p className="text-xs font-semibold admin-accent-text uppercase tracking-wider">{ar ? 'مدفوع' : 'Paid'}</p>
+          <p className="text-2xl font-bold admin-accent-text mt-1">{stats.withPayment}</p>
         </div>
       </div>
 
@@ -450,7 +450,7 @@ export default function AdminBookingsPage() {
                 setContactDropdownOpen(false);
                 setManualForm({ propertyId: '', unitKey: '', contactId: '', message: '', paymentConfirmed: false, priceAtBooking: '', paymentMethod: '', paymentReferenceNo: '', paymentDate: '', bankAccountId: '' });
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-all shadow-sm"
             >
               <span>➕</span>
               {ar ? 'إضافة حجز يدوي' : 'Add Manual Booking'}
@@ -470,7 +470,7 @@ export default function AdminBookingsPage() {
             <select
               value={filterProperty}
               onChange={(e) => setFilterProperty(e.target.value)}
-              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none bg-white"
+              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] focus:admin-accent-border outline-none bg-white"
             >
               <option value="all">{ar ? 'كل العقارات' : 'All Properties'}</option>
               {propertyIds.map((pid) => {
@@ -516,12 +516,12 @@ export default function AdminBookingsPage() {
                     return (
                       <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
                         <td className="px-6 py-4">
-                          <span className="font-mono text-xs text-[#8B6F47] font-semibold" title={b.bookingSerial || b.id}>
+                          <span className="font-mono text-xs admin-accent-text font-semibold" title={b.bookingSerial || b.id}>
                             {b.bookingSerial || '—'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="text-[#8B6F47] hover:underline font-medium">
+                          <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="admin-accent-text hover:underline font-medium">
                             {prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}
                           </Link>
                         </td>
@@ -537,7 +537,7 @@ export default function AdminBookingsPage() {
                               {isCompanyBooking(b) && <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{ar ? 'شركة' : 'Company'}</span>}
                             </div>
                             <div className="text-xs text-gray-500">{b.email}</div>
-                            <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] hover:underline font-medium">{b.phone}</a>
+                            <a href={`tel:${b.phone}`} className="text-sm admin-accent-text hover:underline font-medium">{b.phone}</a>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -549,12 +549,12 @@ export default function AdminBookingsPage() {
                           {!b.unitKey ? (
                             <div>
                               <div className="text-gray-500">{ar ? 'عقار كامل' : 'Full property'}</div>
-                              {propSerial && <div className="text-xs font-mono text-[#8B6F47] mt-0.5">{propSerial}</div>}
+                              {propSerial && <div className="text-xs font-mono admin-accent-text mt-0.5">{propSerial}</div>}
                             </div>
                           ) : (
                             <div>
                               <div className="font-medium text-gray-900">{label}</div>
-                              <div className="text-xs font-mono text-[#8B6F47] mt-0.5">{serial || b.unitKey}</div>
+                              <div className="text-xs font-mono admin-accent-text mt-0.5">{serial || b.unitKey}</div>
                             </div>
                           )}
                         </td>
@@ -629,7 +629,7 @@ export default function AdminBookingsPage() {
                                         {approved.monthlyRent.toLocaleString()} ر.ع/شهر • {approved.annualRent.toLocaleString()} ر.ع/سنة • {new Date(approved.startDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')} — {new Date(approved.endDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}
                                       </div>
                                     )}
-                                    <Link href={contractsHref} className="text-xs text-[#8B6F47] hover:underline block">
+                                    <Link href={contractsHref} className="text-xs admin-accent-text hover:underline block">
                                       {ar ? 'تعديل من صفحة العقود' : 'Edit from contracts page'}
                                     </Link>
                                     {needsDocs && docUploadLink && (
@@ -710,7 +710,7 @@ export default function AdminBookingsPage() {
                               <select
                                 value={b.status}
                                 onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)}
-                                className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47] outline-none"
+                                className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] focus:admin-accent-border outline-none"
                               >
                                 <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
                                 <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
@@ -728,7 +728,7 @@ export default function AdminBookingsPage() {
                                 <button
                                   type="button"
                                   onClick={() => setDocumentsPanelBooking(b)}
-                                  className="relative inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-colors"
+                                  className="relative inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-colors"
                                 >
                                   <span>📄</span>
                                   {ar ? 'المستندات' : 'Documents'}
@@ -737,7 +737,7 @@ export default function AdminBookingsPage() {
                                   )}
                                 </button>
                                 {canCreateContract(b) && (
-                                  <Link href={`/${locale}/admin/contracts?createFrom=${b.id}`} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors">
+                                  <Link href={`/${locale}/admin/contracts?createFrom=${b.id}`} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-colors">
                                     <span>📋</span>
                                     {ar ? 'إنشاء عقد' : 'Create Contract'}
                                   </Link>
@@ -765,13 +765,13 @@ export default function AdminBookingsPage() {
                 return (
                   <div key={b.id} className="p-5 space-y-4">
                     {b.bookingSerial && (
-                      <p className="text-xs font-mono font-semibold text-[#8B6F47]">{ar ? 'رقم الحجز:' : 'Booking:'} {b.bookingSerial}</p>
+                      <p className="text-xs font-mono font-semibold admin-accent-text">{ar ? 'رقم الحجز:' : 'Booking:'} {b.bookingSerial}</p>
                     )}
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-bold text-gray-900">{getBookingDisplayName(b, locale)}</p>
                         <p className="text-sm text-gray-500">{b.email}</p>
-                        <a href={`tel:${b.phone}`} className="text-sm text-[#8B6F47] font-semibold">{b.phone}</a>
+                        <a href={`tel:${b.phone}`} className="text-sm admin-accent-text font-semibold">{b.phone}</a>
                       </div>
                       <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${b.type === 'BOOKING' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                         {ar ? TYPE_LABELS[b.type]?.ar : TYPE_LABELS[b.type]?.en}
@@ -779,13 +779,13 @@ export default function AdminBookingsPage() {
                     </div>
                     <div className="flex flex-wrap gap-2 text-sm text-gray-600">
                       <span>{new Date(b.createdAt).toLocaleString(ar ? 'ar-OM' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                      <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="text-[#8B6F47] font-medium">
+                      <Link href={`/${locale}/admin/properties/${b.propertyId}/bookings`} className="admin-accent-text font-medium">
                         {prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}
                       </Link>
                       {b.unitKey ? (
-                        <span className="font-medium">• {label}<span className="font-mono text-[#8B6F47]"> ({serial || b.unitKey})</span></span>
+                        <span className="font-medium">• {label}<span className="font-mono admin-accent-text"> ({serial || b.unitKey})</span></span>
                       ) : (
-                        <span className="font-medium">• {ar ? 'عقار كامل' : 'Full property'}{propSerial && <span className="font-mono text-[#8B6F47]"> ({propSerial})</span>}</span>
+                        <span className="font-medium">• {ar ? 'عقار كامل' : 'Full property'}{propSerial && <span className="font-mono admin-accent-text"> ({propSerial})</span>}</span>
                       )}
                       {b.type === 'BOOKING' && (
                         <span className={b.paymentConfirmed ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
@@ -830,7 +830,7 @@ export default function AdminBookingsPage() {
                                     📋 {ar ? 'اعتماد المستندات' : 'Approve documents'}
                                   </button>
                                 )}
-                                <Link href={`/${locale}/admin/contracts`} className="text-xs text-[#8B6F47] hover:underline block mt-1">{ar ? 'من العقود' : 'From contracts'}</Link>
+                                <Link href={`/${locale}/admin/contracts`} className="text-xs admin-accent-text hover:underline block mt-1">{ar ? 'من العقود' : 'From contracts'}</Link>
                                 {needsDocs && docUploadLink && (
                                   <div className="flex flex-wrap gap-1.5 mt-2">
                                     <button
@@ -889,7 +889,7 @@ export default function AdminBookingsPage() {
                         </div>
                       ) : (
                         <div className="flex-1 space-y-1">
-                          <select value={b.status} onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[#8B6F47]/20">
+                          <select value={b.status} onChange={(e) => handleStatusChange(b.id, e.target.value as BookingStatus)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold focus:ring-2 focus:ring-[color:var(--admin-focus-ring)]">
                             <option value="PENDING">{ar ? 'قيد الانتظار' : 'Pending'}</option>
                             <option value="CONFIRMED">{ar ? 'قيد انهاء الإجراءات' : 'Procedures in progress'}</option>
                             <option value="RENTED">{ar ? 'مؤجر' : 'Rented'}</option>
@@ -900,12 +900,12 @@ export default function AdminBookingsPage() {
                       )}
                       {b.type === 'BOOKING' && b.status === 'CONFIRMED' && !getContractForBooking(b) && (
                         <>
-                          <button type="button" onClick={() => setDocumentsPanelBooking(b)} className="relative inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 border border-[#8B6F47]/30">
+                          <button type="button" onClick={() => setDocumentsPanelBooking(b)} className="relative inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft border admin-accent-border/30">
                             📄 {ar ? 'المستندات' : 'Documents'}
                             {hasDocumentsNeedingConfirmation(b.id) && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] flex items-center justify-center font-bold">!</span>}
                           </button>
                           {canCreateContract(b) && (
-                            <Link href={`/${locale}/admin/contracts?createFrom=${b.id}`} className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47]">
+                            <Link href={`/${locale}/admin/contracts?createFrom=${b.id}`} className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary">
                               📋 {ar ? 'إنشاء عقد' : 'Create Contract'}
                             </Link>
                           )}
@@ -1114,7 +1114,7 @@ export default function AdminBookingsPage() {
                   <label className="block text-sm font-semibold text-gray-700">{ar ? 'العقار' : 'Property'}</label>
                   <Link
                     href={`/${locale}/admin/properties/new`}
-                    className="text-sm font-semibold text-[#8B6F47] hover:underline"
+                    className="text-sm font-semibold admin-accent-text hover:underline"
                   >
                     {ar ? '➕ إضافة عقار جديد' : '➕ Add new property'}
                   </Link>
@@ -1173,9 +1173,9 @@ export default function AdminBookingsPage() {
                               setPropertyDropdownOpen(false);
                               setUnitSearch('');
                             }}
-                            className="w-full text-right p-3 hover:bg-[#8B6F47]/10 border-b border-gray-100 last:border-0 transition-colors"
+                            className="w-full text-right p-3 hover:admin-accent-bg-soft border-b border-gray-100 last:border-0 transition-colors"
                           >
-                            <div className="text-sm font-semibold text-[#8B6F47]">{x.line1}</div>
+                            <div className="text-sm font-semibold admin-accent-text">{x.line1}</div>
                             <div className="text-sm text-gray-700">{x.line2}</div>
                             <div className="text-xs text-gray-500">{x.line3}</div>
                           </button>
@@ -1195,7 +1195,7 @@ export default function AdminBookingsPage() {
                 if (!isMulti) {
                   return (
                     <div className="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                      <div className="text-sm font-semibold text-[#8B6F47]">{[landNum, propNum].filter(Boolean).join(' - ') || '—'}</div>
+                      <div className="text-sm font-semibold admin-accent-text">{[landNum, propNum].filter(Boolean).join(' - ') || '—'}</div>
                       <div className="text-sm font-medium text-gray-800 mt-0.5">{propTypeLine || '—'}</div>
                       <div className="text-xs text-gray-500 mt-0.5">{locationLine || '—'}</div>
                     </div>
@@ -1221,7 +1221,7 @@ export default function AdminBookingsPage() {
                         <button
                           type="button"
                           onClick={() => setShowAddUnit(true)}
-                          className="text-sm font-semibold text-[#8B6F47] hover:underline"
+                          className="text-sm font-semibold admin-accent-text hover:underline"
                         >
                           {ar ? '➕ إضافة وحدة جديدة' : '➕ Add new unit'}
                         </button>
@@ -1268,9 +1268,9 @@ export default function AdminBookingsPage() {
                                     setUnitSearch('');
                                     setUnitDropdownOpen(false);
                                   }}
-                                  className="w-full text-right p-3 hover:bg-[#8B6F47]/10 border-b border-gray-100 last:border-0 transition-colors"
+                                  className="w-full text-right p-3 hover:admin-accent-bg-soft border-b border-gray-100 last:border-0 transition-colors"
                                 >
-                                  <div className="text-sm font-semibold text-[#8B6F47]">{u.optLabel}</div>
+                                  <div className="text-sm font-semibold admin-accent-text">{u.optLabel}</div>
                                 </button>
                               ))
                             );
@@ -1280,7 +1280,7 @@ export default function AdminBookingsPage() {
                     </div>
                     {(manualForm.unitKey || isMulti) && (
                       <div className="p-3 rounded-xl bg-gray-50 border border-gray-200">
-                        <div className="text-sm font-semibold text-[#8B6F47]">
+                        <div className="text-sm font-semibold admin-accent-text">
                           {(manualForm.unitKey
                             ? [landNum, propNum, `${unitTypePrefix(manualForm.unitKey)}${propNum}`]
                             : [landNum, propNum]
@@ -1327,7 +1327,7 @@ export default function AdminBookingsPage() {
                   <button
                     type="button"
                     onClick={() => setShowAddContact(true)}
-                    className="px-4 py-2.5 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30"
+                    className="px-4 py-2.5 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30"
                     title={ar ? 'إضافة جهة اتصال جديدة' : 'Add new contact'}
                   >
                     {ar ? '➕ إضافة' : '➕ Add'}
@@ -1351,9 +1351,9 @@ export default function AdminBookingsPage() {
                             setContactSearch('');
                             setContactDropdownOpen(false);
                           }}
-                          className="w-full text-right p-3 hover:bg-[#8B6F47]/10 border-b border-gray-100 last:border-0 transition-colors"
+                          className="w-full text-right p-3 hover:admin-accent-bg-soft border-b border-gray-100 last:border-0 transition-colors"
                         >
-                          <div className="text-sm font-semibold text-[#8B6F47]">{getContactDisplayName(c, locale)}</div>
+                          <div className="text-sm font-semibold admin-accent-text">{getContactDisplayName(c, locale)}</div>
                           <div className="text-xs text-gray-500">
                             {[c.phone, c.civilId].filter(Boolean).join(' • ')}
                             {c.email ? ` • ${c.email}` : ''}
@@ -1374,8 +1374,8 @@ export default function AdminBookingsPage() {
                 />
               </div>
               {/* قسم بيانات الدفع */}
-              <div className="p-4 rounded-xl border-2 border-[#8B6F47]/30 bg-[#8B6F47]/5 space-y-4">
-                <h4 className="text-sm font-bold text-[#8B6F47] border-b border-[#8B6F47]/30 pb-2">
+              <div className="p-4 rounded-xl border-2 admin-accent-border/30 admin-accent-bg-soft space-y-4">
+                <h4 className="text-sm font-bold admin-accent-text border-b admin-accent-border/30 pb-2">
                   {ar ? 'بيانات الدفع' : 'Payment details'}
                 </h4>
                 <div>
@@ -1418,7 +1418,7 @@ export default function AdminBookingsPage() {
                           href={`/${locale}/admin/bank-details`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm font-semibold text-[#8B6F47] hover:underline shrink-0"
+                          className="text-sm font-semibold admin-accent-text hover:underline shrink-0"
                         >
                           {ar ? '➕ إضافة حساب جديد' : '➕ Add new account'}
                         </Link>
@@ -1515,7 +1515,7 @@ export default function AdminBookingsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+                  className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
                 >
                   {editingBookingId ? (ar ? 'حفظ التعديلات' : 'Save Changes') : (ar ? 'إضافة الحجز' : 'Add Booking')}
                 </button>

@@ -399,7 +399,7 @@ export default function PropertiesAdminPage() {
                           <div className="flex items-center gap-2">
                             <PropertyBarcode propertyId={property.id} locale={locale} size={28} className="shrink-0" />
                             <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-semibold text-[#8B6F47]">
+                            <span className="text-sm font-semibold admin-accent-text">
                               {[
                                 (property as { landParcelNumber?: string }).landParcelNumber,
                                 (property as { propertyNumber?: string }).propertyNumber || (property as { serialNumber?: string }).serialNumber,
@@ -490,7 +490,7 @@ export default function PropertiesAdminPage() {
                         </td>
                         <td>
                           <div className="flex gap-2 items-center flex-wrap">
-                            <Link href={`/${locale}/admin/properties/${property.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">تعديل</Link>
+                            <Link href={`/${locale}/admin/properties/${property.id}`} className="text-sm font-medium admin-accent-text hover:underline">تعديل</Link>
                             <Link href={`/${locale}/admin/properties/${property.id}/extra-data`} className="text-sm font-medium text-blue-600 hover:underline">البيانات الإضافية</Link>
                             <Link href={`/${locale}/admin/properties/${property.id}/bookings`} className="text-sm font-medium text-violet-600 hover:underline">الحجوزات</Link>
                             <button className="text-sm font-medium text-red-600 hover:underline">حذف</button>
@@ -533,7 +533,7 @@ export default function PropertiesAdminPage() {
                                           <div className="flex items-center gap-2">
                                             <PropertyBarcode propertyId={property.id} unitKey={u.unitKey} locale={locale} size={28} className="shrink-0" />
                                             <div className="flex flex-col gap-0.5">
-                                            <span className="text-sm font-semibold text-[#8B6F47]">
+                                            <span className="text-sm font-semibold admin-accent-text">
                                               {unitTitleLine1 || unitSerial}
                                             </span>
                                             <span className="text-sm font-medium text-gray-800">

@@ -148,7 +148,7 @@ export default function DashboardSettingsPage() {
                   type="checkbox"
                   checked={enabled}
                   onChange={() => toggleSection(type, section as DashboardSectionKey)}
-                  className="w-4 h-4 rounded border-gray-300 text-[#8B6F47] focus:ring-[#8B6F47] cursor-pointer"
+                  className="w-4 h-4 rounded border-gray-300 admin-accent-text focus:ring-[color:var(--admin-primary)] cursor-pointer"
                 />
               </label>
             </td>
@@ -203,14 +203,14 @@ export default function DashboardSettingsPage() {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[1200px]">
               <thead>
-                <tr className="border-b-2 border-[#8B6F47] bg-gray-50">
+                <tr className="border-b-2 admin-accent-border bg-gray-50">
                   <th className="text-right py-3 px-4 font-bold text-gray-900 min-w-[220px]">
                     {t('permissionType')}
                   </th>
                   {ALL_DASHBOARD_TYPES.map((type) => (
                     <th
                       key={type}
-                      className="text-center py-2 px-2 font-bold text-[#8B6F47] bg-[#8B6F47]/5 text-xs align-top"
+                      className="text-center py-2 px-2 font-bold admin-accent-text admin-accent-bg-soft text-xs align-top"
                     >
                       <div className="flex flex-col items-center gap-1">
                         <span>{tAddr(DASHBOARD_TYPE_LABEL_KEYS[type])}</span>
@@ -257,7 +257,7 @@ export default function DashboardSettingsPage() {
                           <button
                             type="button"
                             onClick={() => toggleGroup(group.groupKey)}
-                            className="w-full flex items-center gap-2 py-3 px-4 font-bold text-[#8B6F47] bg-amber-50/50 hover:bg-amber-50 text-right transition-colors"
+                            className="w-full flex items-center gap-2 py-3 px-4 font-bold admin-accent-text bg-amber-50/50 hover:bg-amber-50 text-right transition-colors"
                           >
                             {isGroupExpanded ? (
                               <Icon name="chevronDown" className="w-4 h-4 shrink-0" />

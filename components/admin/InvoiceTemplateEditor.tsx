@@ -101,7 +101,7 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
           ${previewEl.innerHTML}
         </div>
         <div class="no-print" style="position:fixed;top:12px;right:12px;display:flex;gap:8px;">
-          <button onclick="window.print()" style="padding:8px 16px;background:#8B6F47;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">🖨️ ${ar ? 'طباعة' : 'Print'}</button>
+          <button onclick="window.print()" style="padding:8px 16px;background:var(--admin-primary);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">🖨️ ${ar ? 'طباعة' : 'Print'}</button>
           <button onclick="window.close()" style="padding:8px 16px;background:#6b7280;color:white;border:none;border-radius:8px;cursor:pointer;">${ar ? 'إغلاق' : 'Close'}</button>
         </div>
       </body>
@@ -176,7 +176,7 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
             <label className="block text-sm font-semibold text-gray-700 mb-2">{ar ? 'نمط القالب' : 'Template variant'}</label>
             <div className="flex flex-wrap gap-3">
               {(['classic', 'professional', 'modern', 'compact', 'bilingual'] as TemplateVariant[]).map((v) => (
-                <label key={v} className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${form.variant === v ? 'border-[#8B6F47] bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                <label key={v} className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${form.variant === v ? 'admin-accent-border bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <input
                     type="radio"
                     name="variant"
@@ -194,7 +194,7 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">{t('headerLayout')}</label>
             <div className="flex flex-wrap gap-3">
-              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${(form.headerLayout || 'left') === 'left' ? 'border-[#8B6F47] bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
+              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${(form.headerLayout || 'left') === 'left' ? 'admin-accent-border bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
                 <input
                   type="radio"
                   name="headerLayout"
@@ -204,7 +204,7 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
                 />
                 <span>{t('headerLayoutLeft')}</span>
               </label>
-              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${(form.headerLayout || 'left') === 'centered' ? 'border-[#8B6F47] bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
+              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${(form.headerLayout || 'left') === 'centered' ? 'admin-accent-border bg-amber-50' : 'border-gray-200 hover:border-gray-300'}`}>
                 <input
                   type="radio"
                   name="headerLayout"
@@ -419,7 +419,7 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={handleSave} className="px-6 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
+            <button type="button" onClick={handleSave} className="px-6 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90">
               {t('save')}
             </button>
             <button type="button" onClick={handlePreview} className="px-6 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200">
@@ -433,7 +433,7 @@ export default function InvoiceTemplateEditor({ templateType, locale }: InvoiceT
       <div className="admin-card">
         <div className="admin-card-header flex items-center justify-between">
           <h2 className="admin-card-title">{t('preview')}</h2>
-          <button type="button" onClick={handlePreview} className="text-sm px-4 py-2 rounded-lg font-medium text-[#8B6F47] bg-amber-50 hover:bg-amber-100">
+          <button type="button" onClick={handlePreview} className="text-sm px-4 py-2 rounded-lg font-medium admin-accent-text bg-amber-50 hover:bg-amber-100">
             👁 {t('preview')}
           </button>
         </div>

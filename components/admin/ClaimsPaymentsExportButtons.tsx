@@ -73,7 +73,7 @@ export default function ClaimsPaymentsExportButtons({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="text-sm font-semibold text-[#8B6F47] hover:underline flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#8B6F47]/30 bg-white hover:bg-amber-50"
+        className="text-sm font-semibold admin-accent-text hover:underline flex items-center gap-1 px-3 py-1.5 rounded-lg border admin-accent-border/30 bg-white hover:bg-amber-50"
       >
         📥 {ar ? 'تصدير' : 'Export'} ▾
       </button>

@@ -273,8 +273,8 @@ export default function InvoicePrint({ doc, contact, contactDisplayFallback, loc
           .document-template--bilingual table{font-size:0.95em;}
           .no-print{display:flex;gap:12px;margin-bottom:16px;padding:12px;background:#f3f4f6;border-radius:8px;flex-wrap:wrap;}
           .no-print button{padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;border:none;}
-          .btn-print{background:#8B6F47;color:white;}
-          .btn-print:hover{background:#6B5535;}
+          .btn-print{background:var(--admin-primary);color:white;}
+          .btn-print:hover{background:var(--admin-primary-hover);}
           .btn-close{background:#e5e7eb;color:#374151;}
           .btn-close:hover{background:#d1d5db;}
           .pdf-hint{font-size:12px;color:#6b7280;margin-top:8px;}
@@ -361,10 +361,10 @@ export default function InvoicePrint({ doc, contact, contactDisplayFallback, loc
               {ar ? 'إغلاق' : 'Close'}
             </button>
           )}
-          <button type="button" onClick={handlePrint} className="px-4 py-2 rounded-lg font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] flex items-center gap-1">
+          <button type="button" onClick={handlePrint} className="px-4 py-2 rounded-lg font-semibold text-white admin-btn-primary hover:opacity-90 flex items-center gap-1">
             🖨️ {ar ? 'طباعة' : 'Print'}
           </button>
-            <button type="button" onClick={handleDownloadPDF} className="px-4 py-2 rounded-lg font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 flex items-center gap-1">
+            <button type="button" onClick={handleDownloadPDF} className="px-4 py-2 rounded-lg font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 flex items-center gap-1">
               📄 {ar ? 'تنزيل PDF' : 'Download PDF'}
             </button>
           </div>

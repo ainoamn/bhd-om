@@ -185,7 +185,7 @@ export default function AdminBankDetailsPage() {
             <button
               type="button"
               onClick={openAdd}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-all shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90 transition-all shadow-sm"
             >
               <span>➕</span>
               {t('addAccount')}
@@ -224,9 +224,9 @@ export default function AdminBankDetailsPage() {
           <p className="text-xs font-semibold text-emerald-700 uppercase">{t('active')}</p>
           <p className="text-2xl font-bold text-emerald-700 mt-1">{stats.active}</p>
         </div>
-        <div className="admin-card p-5 border-[#8B6F47]/30 col-span-2">
-          <p className="text-xs font-semibold text-[#8B6F47] uppercase">{t('default')}</p>
-          <p className="text-lg font-bold text-[#8B6F47] mt-1">
+        <div className="admin-card p-5 admin-accent-border/30 col-span-2">
+          <p className="text-xs font-semibold admin-accent-text uppercase">{t('default')}</p>
+          <p className="text-lg font-bold admin-accent-text mt-1">
             {stats.default ? (ar ? stats.default.nameAr : stats.default.nameEn || stats.default.nameAr) : '—'}
           </p>
         </div>
@@ -249,7 +249,7 @@ export default function AdminBankDetailsPage() {
             <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center text-4xl mx-auto mb-4">🏦</div>
             <p className="text-gray-500 font-medium text-lg">{t('noAccounts')}</p>
             <p className="text-gray-400 text-sm mt-1">{t('noAccountsHint')}</p>
-            <button type="button" onClick={openAdd} className="mt-4 text-[#8B6F47] font-semibold hover:underline">
+            <button type="button" onClick={openAdd} className="mt-4 admin-accent-text font-semibold hover:underline">
               {t('addAccount')}
             </button>
           </div>
@@ -273,7 +273,7 @@ export default function AdminBankDetailsPage() {
                     <td>
                       <div className="font-semibold text-gray-900">{ar ? a.nameAr : a.nameEn || a.nameAr}</div>
                       {a.isDefault && (
-                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-semibold bg-[#8B6F47]/20 text-[#8B6F47]">
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-semibold admin-btn-primary/20 admin-accent-text">
                           {t('default')}
                         </span>
                       )}
@@ -318,12 +318,12 @@ export default function AdminBankDetailsPage() {
                           <button
                             type="button"
                             onClick={() => handleSetDefault(a.id)}
-                            className="text-sm font-medium text-[#8B6F47] hover:underline"
+                            className="text-sm font-medium admin-accent-text hover:underline"
                           >
                             {t('setAsDefault')}
                           </button>
                         )}
-                        <button type="button" onClick={() => openEdit(a)} className="text-sm font-medium text-[#8B6F47] hover:underline">
+                        <button type="button" onClick={() => openEdit(a)} className="text-sm font-medium admin-accent-text hover:underline">
                           {t('edit')}
                         </button>
                         <button type="button" onClick={() => setDeleteId(a.id)} className="text-sm font-medium text-red-600 hover:underline">
@@ -517,7 +517,7 @@ export default function AdminBankDetailsPage() {
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
                   {t('cancel')}
                 </button>
-                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
+                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90">
                   {editingId ? t('save') : t('add')}
                 </button>
               </div>

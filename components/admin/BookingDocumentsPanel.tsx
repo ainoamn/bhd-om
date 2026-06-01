@@ -42,7 +42,7 @@ function TranslateBtn({ source, onResult, target, ar }: { source: string; onResu
     }
   };
   return (
-    <button type="button" onClick={handle} disabled={loading} className="text-xs px-2 py-1 rounded-lg bg-[#8B6F47]/10 text-[#8B6F47] hover:bg-[#8B6F47]/20 font-medium">
+    <button type="button" onClick={handle} disabled={loading} className="text-xs px-2 py-1 rounded-lg admin-accent-bg-soft admin-accent-text hover:admin-btn-primary/20 font-medium">
       {loading ? '...' : (ar ? 'ترجمة من الآخر' : 'Translate')}
     </button>
   );
@@ -363,9 +363,9 @@ export default function BookingDocumentsPanel({
         className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[#8B6F47]/5 to-transparent flex items-center justify-between">
+        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[color:var(--admin-primary)]/5 to-transparent flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[#8B6F47]/10 flex items-center justify-center text-2xl">📄</div>
+            <div className="w-12 h-12 rounded-2xl admin-accent-bg-soft flex items-center justify-center text-2xl">📄</div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">{ar ? 'مستندات توثيق العقد' : 'Contract Documentation'}</h2>
               <p className="text-sm text-gray-500">{getBookingDisplayName(booking, locale)} — {booking.email}</p>
@@ -390,7 +390,7 @@ export default function BookingDocumentsPanel({
               <button
                 type="button"
                 onClick={handleCreateRequests}
-                className="px-6 py-3 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
+                className="px-6 py-3 rounded-xl font-semibold admin-btn-primary text-white hover:opacity-90 transition-colors"
               >
                 {ar ? 'إنشاء طلب المستندات' : 'Create Document Requests'}
               </button>
@@ -448,7 +448,7 @@ export default function BookingDocumentsPanel({
               </div>
 
               {requiredChecks.length > 0 && (
-                <div className="rounded-2xl border border-[#8B6F47]/30 bg-amber-50/30 p-4">
+                <div className="rounded-2xl border admin-accent-border/30 bg-amber-50/30 p-4">
                   <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <span className="text-lg">💳</span>
                     {ar ? 'اعتماد الشيكات - واحد تلو الآخر' : 'Approve cheques - one by one'}
@@ -468,7 +468,7 @@ export default function BookingDocumentsPanel({
                       const resubmittedAfterRejection = !!isRejected && !!cd?.updatedAt && !!cd?.rejectedAt && cd.updatedAt > cd.rejectedAt;
                       const canShowApprove = !isApproved && (!isRejected || resubmittedAfterRejection);
                       return (
-                        <div key={`${rc.checkTypeId}-${idx}`} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isRejected ? 'bg-red-50/60 border-red-300/40' : isApproved ? 'bg-emerald-50/60 border-emerald-300/40' : 'bg-white/60 border-[#8B6F47]/20'}`}>
+                        <div key={`${rc.checkTypeId}-${idx}`} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isRejected ? 'bg-red-50/60 border-red-300/40' : isApproved ? 'bg-emerald-50/60 border-emerald-300/40' : 'bg-white/60 admin-accent-border/20'}`}>
                           <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-start gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-gray-800">{title}</div>
@@ -506,12 +506,12 @@ export default function BookingDocumentsPanel({
                                 <button
                                   type="button"
                                   onClick={() => setZoomedImageUrl(cd.imageUrl ?? null)}
-                                  className="block focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:ring-offset-2 rounded-lg overflow-hidden"
+                                  className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:ring-offset-2 rounded-lg overflow-hidden"
                                 >
                                   <img
                                     src={cd.imageUrl}
                                     alt={ar ? 'صورة الشيك' : 'Cheque image'}
-                                    className="w-24 h-28 object-cover rounded-lg border-2 border-gray-200 hover:border-[#8B6F47] transition-colors cursor-zoom-in"
+                                    className="w-24 h-28 object-cover rounded-lg border-2 border-gray-200 hover:admin-accent-border transition-colors cursor-zoom-in"
                                   />
                                 </button>
                               </div>
@@ -600,7 +600,7 @@ export default function BookingDocumentsPanel({
                 <button
                   type="button"
                   onClick={() => { setShowAddDocumentModal(true); setAddDocLabelAr(''); setAddDocLabelEn(''); setAddDocDescAr(''); setAddDocDescEn(''); }}
-                  className="px-4 py-2.5 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
+                  className="px-4 py-2.5 rounded-xl font-semibold admin-btn-primary text-white hover:opacity-90 transition-colors"
                 >
                   + {ar ? 'إضافة مستند' : 'Add document'}
                 </button>
@@ -624,8 +624,8 @@ export default function BookingDocumentsPanel({
                           const contact = findContactByPhoneOrEmail(booking.phone, booking.email);
                           const fields = getDocumentInfoFields(d.docTypeId, booking, contact ?? null, ar ? d.labelAr : d.labelEn);
                           return (
-                            <div className="mt-2 p-2 rounded-lg bg-[#8B6F47]/5 border border-[#8B6F47]/20 text-xs">
-                              <span className="font-semibold text-[#8B6F47]">{ar ? 'للمقارنة:' : 'For comparison:'}</span>
+                            <div className="mt-2 p-2 rounded-lg admin-accent-bg-soft border admin-accent-border/20 text-xs">
+                              <span className="font-semibold admin-accent-text">{ar ? 'للمقارنة:' : 'For comparison:'}</span>
                               <div className="mt-1 space-y-0.5">
                                 {fields.map((f) => (
                                   <div key={f.labelAr}>
@@ -654,7 +654,7 @@ export default function BookingDocumentsPanel({
                           <button
                             type="button"
                             onClick={() => { setViewingDoc(d); setViewingFileIndex(0); }}
-                            className="text-sm text-[#8B6F47] hover:underline mt-1 block truncate max-w-[220px] text-right"
+                            className="text-sm admin-accent-text hover:underline mt-1 block truncate max-w-[220px] text-right"
                             title={ar ? 'عرض المستند' : 'View document'}
                           >
                             {getDocumentFiles(d).length > 1
@@ -666,7 +666,7 @@ export default function BookingDocumentsPanel({
                           {d.uploadedAt && (
                             <p className="text-gray-500">
                               {ar ? '📤 رُفع في' : '📤 Uploaded on'} <span className="font-medium">{formatDocumentTimestamp(d.uploadedAt, ar)}</span>
-                              {d.uploadedBy && (ar ? ' من قبل ' : ' by ')}<span className="text-[#8B6F47] font-semibold">{d.uploadedBy}</span>
+                              {d.uploadedBy && (ar ? ' من قبل ' : ' by ')}<span className="admin-accent-text font-semibold">{d.uploadedBy}</span>
                             </p>
                           )}
                           {d.status === 'APPROVED' && d.approvedAt && (
@@ -700,7 +700,7 @@ export default function BookingDocumentsPanel({
                           <button
                             type="button"
                             onClick={() => { setViewingDoc(d); setViewingFileIndex(0); }}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-[#8B6F47] bg-[#8B6F47]/10 hover:bg-[#8B6F47]/20 border border-[#8B6F47]/30 transition-colors"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold admin-accent-text admin-accent-bg-soft hover:admin-btn-primary/20 border admin-accent-border/30 transition-colors"
                           >
                             <span>👁</span>
                             {ar ? 'عرض المستند' : 'View document'}
@@ -739,7 +739,7 @@ export default function BookingDocumentsPanel({
                     <button
                       type="button"
                       onClick={handleProceedToContract}
-                      className="px-6 py-3 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors"
+                      className="px-6 py-3 rounded-xl font-semibold admin-btn-primary text-white hover:opacity-90 transition-colors"
                     >
                       {ar ? 'إنشاء عقد الإيجار' : 'Create Rental Contract'}
                     </button>
@@ -792,8 +792,8 @@ export default function BookingDocumentsPanel({
               const fields = getDocumentInfoFields(viewingDoc.docTypeId, booking, contact ?? null, ar ? viewingDoc.labelAr : viewingDoc.labelEn);
               const isCompareDoc = ['CHEQUE_OWNER_CR', 'CHEQUE_SIGNATORY_CARD', 'CHEQUE_OWNER_ID'].includes(viewingDoc.docTypeId);
               return (
-                <div className="px-4 py-3 bg-[#8B6F47]/5 border-b border-gray-100">
-                  <p className="text-xs font-bold text-[#8B6F47] uppercase tracking-wider mb-2">
+                <div className="px-4 py-3 admin-accent-bg-soft border-b border-gray-100">
+                  <p className="text-xs font-bold admin-accent-text uppercase tracking-wider mb-2">
                     {isCompareDoc ? (ar ? 'البيانات المسجلة للمقارنة مع المستند' : 'Registered Data - Compare with document') : (ar ? 'البيانات المسجلة' : 'Registered Data')}
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1 text-sm">
@@ -821,7 +821,7 @@ export default function BookingDocumentsPanel({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setViewingFileIndex((i) => (i - 1 + files.length) % files.length); }}
-                        className="flex-shrink-0 w-12 h-12 rounded-full bg-white shadow-lg border-2 border-gray-200 hover:bg-[#8B6F47] hover:text-white hover:border-[#8B6F47] flex items-center justify-center text-2xl font-bold text-gray-700 transition-colors z-10"
+                        className="flex-shrink-0 w-12 h-12 rounded-full bg-white shadow-lg border-2 border-gray-200 hover:admin-btn-primary hover:text-white hover:admin-accent-border flex items-center justify-center text-2xl font-bold text-gray-700 transition-colors z-10"
                         title={ar ? 'السابق' : 'Previous'}
                       >
                         ‹
@@ -838,7 +838,7 @@ export default function BookingDocumentsPanel({
                         <button
                           type="button"
                           onClick={() => setZoomedImageUrl(current.url)}
-                          className="flex items-center justify-center w-full cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:ring-offset-2 rounded-lg"
+                          className="flex items-center justify-center w-full cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:ring-offset-2 rounded-lg"
                           title={ar ? 'انقر للتكبير' : 'Click to zoom'}
                         >
                           <img
@@ -854,7 +854,7 @@ export default function BookingDocumentsPanel({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setViewingFileIndex((i) => (i + 1) % files.length); }}
-                        className="flex-shrink-0 w-12 h-12 rounded-full bg-white shadow-lg border-2 border-gray-200 hover:bg-[#8B6F47] hover:text-white hover:border-[#8B6F47] flex items-center justify-center text-2xl font-bold text-gray-700 transition-colors z-10"
+                        className="flex-shrink-0 w-12 h-12 rounded-full bg-white shadow-lg border-2 border-gray-200 hover:admin-btn-primary hover:text-white hover:admin-accent-border flex items-center justify-center text-2xl font-bold text-gray-700 transition-colors z-10"
                         title={ar ? 'التالي' : 'Next'}
                       >
                         ›
@@ -923,7 +923,7 @@ export default function BookingDocumentsPanel({
                               onChange={(e) => setRejectReasonAr(e.target.value)}
                               placeholder={ar ? 'أدخل سبب الرفض' : 'Enter rejection reason'}
                               rows={4}
-                              className="w-full px-4 py-3 text-base rounded-xl border-2 border-gray-300 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none resize-y min-h-[110px] bg-white"
+                              className="w-full px-4 py-3 text-base rounded-xl border-2 border-gray-300 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none resize-y min-h-[110px] bg-white"
                             />
                           </div>
                           <div className="space-y-2">
@@ -943,7 +943,7 @@ export default function BookingDocumentsPanel({
                               onChange={(e) => setRejectReasonEn(e.target.value)}
                               placeholder="Enter rejection reason"
                               rows={4}
-                              className="w-full px-4 py-3 text-base rounded-xl border-2 border-gray-300 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none resize-y min-h-[110px] bg-white"
+                              className="w-full px-4 py-3 text-base rounded-xl border-2 border-gray-300 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none resize-y min-h-[110px] bg-white"
                             />
                           </div>
                         </div>
@@ -1051,7 +1051,7 @@ export default function BookingDocumentsPanel({
                 value={addDocLabelAr}
                 onChange={(e) => setAddDocLabelAr(e.target.value)}
                 placeholder={ar ? 'مثال: كشف حساب بنكي' : 'e.g. Bank statement'}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-1 focus:ring-[#8B6F47]/30 outline-none"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-1 focus:ring-[color:var(--admin-primary)]/30 outline-none"
               />
             </div>
             <div>
@@ -1061,7 +1061,7 @@ export default function BookingDocumentsPanel({
                 value={addDocLabelEn}
                 onChange={(e) => setAddDocLabelEn(e.target.value)}
                 placeholder="e.g. Bank statement"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-1 focus:ring-[#8B6F47]/30 outline-none"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-1 focus:ring-[color:var(--admin-primary)]/30 outline-none"
               />
             </div>
             <div>
@@ -1071,7 +1071,7 @@ export default function BookingDocumentsPanel({
                 onChange={(e) => setAddDocDescAr(e.target.value)}
                 placeholder={ar ? 'شرح ما يرجى إرفاقه' : 'Describe what to upload'}
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-1 focus:ring-[#8B6F47]/30 outline-none resize-none"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-1 focus:ring-[color:var(--admin-primary)]/30 outline-none resize-none"
               />
             </div>
             <div>
@@ -1081,7 +1081,7 @@ export default function BookingDocumentsPanel({
                 onChange={(e) => setAddDocDescEn(e.target.value)}
                 placeholder="Describe what to upload"
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#8B6F47] focus:ring-1 focus:ring-[#8B6F47]/30 outline-none resize-none"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:admin-accent-border focus:ring-1 focus:ring-[color:var(--admin-primary)]/30 outline-none resize-none"
               />
             </div>
           </div>
@@ -1105,7 +1105,7 @@ export default function BookingDocumentsPanel({
                 refresh();
               }}
               disabled={!addDocLabelAr.trim() && !addDocLabelEn.trim()}
-              className="px-6 py-3 rounded-xl font-bold bg-[#8B6F47] text-white hover:bg-[#6B5535] disabled:opacity-50"
+              className="px-6 py-3 rounded-xl font-bold admin-btn-primary text-white hover:opacity-90 disabled:opacity-50"
             >
               {ar ? 'إضافة' : 'Add'}
             </button>
@@ -1259,7 +1259,7 @@ export default function BookingDocumentsPanel({
               <select
                 value={selectedLandlordId || ''}
                 onChange={(e) => setSelectedLandlordId(e.target.value || null)}
-                className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-gray-900 bg-white"
+                className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none text-gray-900 bg-white"
               >
                 <option value="">{ar ? '— اختر المالك —' : '— Select landlord —'}</option>
                 {(() => {
@@ -1278,7 +1278,7 @@ export default function BookingDocumentsPanel({
                 value={landlordSearch}
                 onChange={(e) => setLandlordSearch(e.target.value)}
                 placeholder={ar ? 'بحث...' : 'Search...'}
-                className="w-24 px-3 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20 outline-none text-sm"
+                className="w-24 px-3 py-2.5 rounded-xl border-2 border-gray-200 focus:admin-accent-border focus:ring-2 focus:ring-[color:var(--admin-focus-ring)] outline-none text-sm"
                 title={ar ? 'بحث بالاسم أو الهاتف' : 'Search by name or phone'}
               />
             </div>
@@ -1296,7 +1296,7 @@ export default function BookingDocumentsPanel({
               type="button"
               onClick={handleLandlordSetupSave}
               disabled={!selectedLandlordId}
-              className="flex-1 px-5 py-3 rounded-xl font-bold bg-[#8B6F47] text-white hover:bg-[#6B5535] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 px-5 py-3 rounded-xl font-bold admin-btn-primary text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {ar ? 'حفظ والمتابعة' : 'Save & Continue'}
             </button>

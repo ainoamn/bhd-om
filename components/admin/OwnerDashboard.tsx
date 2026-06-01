@@ -304,7 +304,7 @@ export default function OwnerDashboard() {
             <div className="admin-card">
               <div className="admin-card-header flex items-center justify-between">
                 <h2 className="admin-card-title">{tNav('myProperties')}</h2>
-                <Link href={`/${locale}/admin/my-properties`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+                <Link href={`/${locale}/admin/my-properties`} className="text-sm font-medium admin-accent-text hover:underline">
                   {locale === 'ar' ? 'عرض الكل' : 'View all'}
                 </Link>
               </div>
@@ -331,7 +331,7 @@ export default function OwnerDashboard() {
             <div className="admin-card">
               <div className="admin-card-header flex items-center justify-between">
                 <h2 className="admin-card-title">{tNav('myContracts')}</h2>
-                <Link href={`/${locale}/admin/my-contracts`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+                <Link href={`/${locale}/admin/my-contracts`} className="text-sm font-medium admin-accent-text hover:underline">
                   {locale === 'ar' ? 'عرض الكل' : 'View all'}
                 </Link>
               </div>
@@ -361,7 +361,7 @@ export default function OwnerDashboard() {
         <div className="admin-card mb-8">
           <div className="admin-card-header flex items-center justify-between">
             <h2 className="admin-card-title">{locale === 'ar' ? 'مهام توثيق العقود' : 'Contract verification tasks'}</h2>
-            <Link href={`/${locale}/admin/my-bookings`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+            <Link href={`/${locale}/admin/my-bookings`} className="text-sm font-medium admin-accent-text hover:underline">
               {locale === 'ar' ? 'عرض الحجوزات' : 'View bookings'}
             </Link>
           </div>
@@ -375,7 +375,7 @@ export default function OwnerDashboard() {
                   </div>
                   <Link
                     href={`/${locale}/sign/${encodeURIComponent(t.token)}`}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#8B6F47] px-4 py-2 text-sm font-bold text-white hover:bg-[#6B5535]"
+                    className="inline-flex items-center gap-2 rounded-xl admin-btn-primary px-4 py-2 text-sm font-bold text-white hover:opacity-90"
                   >
                     {locale === 'ar' ? 'فتح التوثيق' : 'Open signing'}
                   </Link>
@@ -399,7 +399,7 @@ export default function OwnerDashboard() {
             </p>
             <Link
               href={`/${locale}/admin/my-bookings`}
-              className="inline-flex items-center gap-2 font-semibold text-[#8B6F47] hover:underline"
+              className="inline-flex items-center gap-2 font-semibold admin-accent-text hover:underline"
             >
               {locale === 'ar' ? 'الانتقال إلى حجوزات ومهام العقود' : 'Go to bookings & contract tasks'}
             </Link>

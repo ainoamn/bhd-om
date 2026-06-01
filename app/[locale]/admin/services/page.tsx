@@ -160,7 +160,7 @@ export default function ServicesAdminPage() {
                     key={`${service.number}-${idx}`}
                     type="button"
                     onClick={() => setSelectedIdx(idx)}
-                    className={`w-full p-4 text-right transition-colors hover:bg-gray-50 ${selectedIdx === idx ? 'border-r-4 border-[#8B6F47] bg-[#8B6F47]/5' : ''}`}
+                    className={`w-full p-4 text-right transition-colors hover:bg-gray-50 ${selectedIdx === idx ? 'border-r-4 admin-accent-border admin-accent-bg-soft' : ''}`}
                   >
                     <div className="font-medium text-gray-900">{service.titleAr}</div>
                     <div className="mt-1 text-xs text-gray-500">{service.number}</div>

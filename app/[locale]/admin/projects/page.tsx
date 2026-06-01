@@ -92,7 +92,7 @@ export default function ProjectsAdminPage() {
       {loadError && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {loadError}
-          <button type="button" className="mr-2 font-semibold text-[#8B6F47] underline" onClick={() => void loadProjects()}>
+          <button type="button" className="mr-2 font-semibold admin-accent-text underline" onClick={() => void loadProjects()}>
             إعادة المحاولة
           </button>
         </div>
@@ -146,7 +146,7 @@ export default function ProjectsAdminPage() {
                   filtered.map((project) => (
                     <tr key={project.id}>
                       <td className="font-mono text-sm max-w-[14rem]">
-                        <span className="block break-all text-[#8B6F47] font-semibold" title={shortenProjectSerial(project.serialNumber)}>
+                        <span className="block break-all admin-accent-text font-semibold" title={shortenProjectSerial(project.serialNumber)}>
                           {project.serialNumber || '—'}
                         </span>
                       </td>
@@ -163,7 +163,7 @@ export default function ProjectsAdminPage() {
                           >
                             إضافة شيك
                           </Link>
-                          <Link href={`/${locale}/admin/projects/${project.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+                          <Link href={`/${locale}/admin/projects/${project.id}`} className="text-sm font-medium admin-accent-text hover:underline">
                             تعديل
                           </Link>
                           <button type="button" className="text-sm font-medium text-red-600 hover:underline">

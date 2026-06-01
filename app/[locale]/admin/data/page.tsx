@@ -429,11 +429,11 @@ export default function AdminDataPage() {
 
         {/* رمز الحماية الموحّد */}
                 {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
-          <div className="admin-card p-6 sm:p-8 border-2 border-[#8B6F47]/20 bg-gradient-to-br from-amber-50/80 to-white">
+          <div className="admin-card p-6 sm:p-8 border-2 admin-accent-border/20 bg-gradient-to-br from-amber-50/80 to-white">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <span className="w-10 h-10 rounded-xl bg-[#8B6F47]/15 flex items-center justify-center text-xl">🚀</span>
+                  <span className="w-10 h-10 rounded-xl admin-btn-primary/15 flex items-center justify-center text-xl">🚀</span>
                   {ar ? 'جاهزية الإنتاج' : 'Production readiness'}
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">
@@ -444,7 +444,7 @@ export default function AdminDataPage() {
                 type="button"
                 disabled={readinessLoading}
                 onClick={() => void loadProductionReadiness()}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5435] disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-xl text-sm font-semibold admin-btn-primary text-white hover:bg-[#6B5435] disabled:opacity-50 transition-colors"
               >
                 {readinessLoading ? (ar ? 'جاري التحديث…' : 'Refreshing…') : ar ? 'تحديث' : 'Refresh'}
               </button>
@@ -486,14 +486,14 @@ export default function AdminDataPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-1">
-              <a href="/api/check-env" target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] underline">
+              <a href="/api/check-env" target="_blank" rel="noopener noreferrer" className="admin-accent-text underline">
                 /api/check-env
               </a>
-              <a href="/api/check-db" target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] underline">
+              <a href="/api/check-db" target="_blank" rel="noopener noreferrer" className="admin-accent-text underline">
                 /api/check-db
               </a>
               {paymentGw?.webhookUrl && (
-                <button type="button" onClick={copyWebhookSetup} className="text-[#8B6F47] underline font-semibold">
+                <button type="button" onClick={copyWebhookSetup} className="admin-accent-text underline font-semibold">
                   {ar ? 'نسخ إعداد Webhook' : 'Copy webhook setup'}
                 </button>
               )}
@@ -724,7 +724,7 @@ export default function AdminDataPage() {
             )}
             <p className="mb-4 text-xs text-gray-500">
               {ar ? 'تحقق سريع:' : 'Quick check:'}{' '}
-              <a href="/api/check-env" target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] underline">
+              <a href="/api/check-env" target="_blank" rel="noopener noreferrer" className="admin-accent-text underline">
                 /api/check-env
               </a>
               {' · '}

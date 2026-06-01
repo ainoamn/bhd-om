@@ -395,7 +395,7 @@ export default function AdminContractsPage() {
 
       {/* حجوزات جاهزة لإنشاء عقد */}
       {confirmedBookingsWithoutContract.length > 0 && (
-        <div className="admin-card p-6 border-[#8B6F47]/30 bg-[#8B6F47]/5">
+        <div className="admin-card p-6 admin-accent-border/30 admin-accent-bg-soft">
           <h3 className="text-lg font-bold text-gray-900 mb-3">{ar ? 'حجوزات جاهزة لإنشاء عقد' : 'Bookings Ready for Contract'}</h3>
           <p className="text-sm text-gray-600 mb-4">
             {contractKind === 'SALE'
@@ -419,12 +419,12 @@ export default function AdminContractsPage() {
                     <span className="font-semibold text-gray-900">{getBookingDisplayName(b, locale)}</span>
                     <span className="text-gray-500 mx-2">•</span>
                     <span className="text-gray-600">{prop ? (ar ? prop.titleAr : prop.titleEn) : `#${b.propertyId}`}</span>
-                    {b.unitKey && <span className="text-sm text-[#8B6F47] mr-2">({b.unitKey})</span>}
+                    {b.unitKey && <span className="text-sm admin-accent-text mr-2">({b.unitKey})</span>}
                   </div>
                   <button
                     type="button"
                     onClick={() => handleCreateFromBooking(b.id)}
-                    className="px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+                    className="px-4 py-2 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90"
                   >
                     {ar ? 'إنشاء عقد' : 'Create Contract'}
                   </button>
@@ -515,7 +515,7 @@ export default function AdminContractsPage() {
                 {pagedContracts.map((c) => (
                   <tr key={c.id}>
                     <td>
-                      <span className="font-mono text-sm text-[#8B6F47]">{c.id.slice(0, 16)}...</span>
+                      <span className="font-mono text-sm admin-accent-text">{c.id.slice(0, 16)}...</span>
                     </td>
                     <td>
                       <div>
@@ -550,7 +550,7 @@ export default function AdminContractsPage() {
                     </td>
                     <td>
                       <div className="flex gap-2">
-                        <Link href={`/${locale}/admin/contracts/${c.id}`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+                        <Link href={`/${locale}/admin/contracts/${c.id}`} className="text-sm font-medium admin-accent-text hover:underline">
                           {ar ? 'عرض / تعديل' : 'View / Edit'}
                         </Link>
                         {c.status === 'DRAFT' && canApproveContract && (

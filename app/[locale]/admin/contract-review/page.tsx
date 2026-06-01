@@ -95,7 +95,7 @@ function ApprovalAuditCell({
   const name = [firstName, lastName].filter(Boolean).join(' ').trim();
   if (!atIso && !name && !serial) return null;
   return (
-    <div className="space-y-2 border-s-2 border-[#8B6F47]/25 ps-3">
+    <div className="space-y-2 border-s-2 admin-accent-border/25 ps-3">
       {atIso ? (
         <p className="text-sm leading-relaxed">
           <span className="font-medium text-stone-500">{ar ? 'التاريخ والوقت: ' : 'Date & time: '}</span>
@@ -208,7 +208,7 @@ function SaleFeesByPayerBreakdown({
       <h3 className="text-[12px] font-medium leading-snug text-stone-800 sm:text-[13px]">{ar ? 'تفصيل الرسوم حسب الدافع' : 'Fees split by payer'}</h3>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className={colClass}>
-          <p className="mb-3 border-b border-stone-100 pb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535] sm:text-sm">
+          <p className="mb-3 border-b border-stone-100 pb-2 text-xs font-bold uppercase tracking-wide admin-accent-text sm:text-sm">
             {ar ? 'على المشتري' : 'Buyer pays'}
           </p>
           {p.buyer.length > 0 ? (
@@ -224,7 +224,7 @@ function SaleFeesByPayerBreakdown({
           )}
         </div>
         <div className={colClass}>
-          <p className="mb-3 border-b border-stone-100 pb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535] sm:text-sm">
+          <p className="mb-3 border-b border-stone-100 pb-2 text-xs font-bold uppercase tracking-wide admin-accent-text sm:text-sm">
             {ar ? 'على البائع (المالك)' : 'Seller (owner) pays'}
           </p>
           {p.seller.length > 0 ? (
@@ -254,7 +254,7 @@ function SaleFeesByPayerBreakdown({
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border-2 border-[#8B6F47]/35 bg-gradient-to-br from-[#8B6F47]/[0.07] to-white p-3 sm:p-4">
+      <div className="overflow-hidden rounded-xl border-2 admin-accent-border/35 bg-gradient-to-br from-[color:var(--admin-primary)]/[0.07] to-white p-3 sm:p-4">
         <p className="mb-3 text-[12px] font-medium text-stone-800 sm:text-[13px]">{ar ? 'ملخص المجاميع' : 'Totals summary'}</p>
         <DataTable
           rows={[
@@ -329,7 +329,7 @@ function DataTable({ rows, caption }: { rows: DataRow[]; caption?: string }) {
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         <tbody className="divide-y divide-stone-100">
           {filtered.map((row, i) => (
-            <tr key={`${row.label}-${i}`} className="transition-colors hover:bg-[#8B6F47]/[0.04]">
+            <tr key={`${row.label}-${i}`} className="transition-colors hover:admin-btn-primary/[0.04]">
               <th
                 scope="row"
                 className="w-[min(42%,11rem)] max-w-[45%] align-top bg-stone-50 px-3 py-2.5 text-start text-[0.8125rem] font-medium leading-snug text-stone-600 sm:w-[min(38%,13rem)] sm:px-4 sm:py-3 sm:text-sm"
@@ -367,7 +367,7 @@ function DataTablePair({ rows, caption }: { rows: DataRow[]; caption?: string })
 function DataTableHead({ children }: { children: React.ReactNode }) {
   return (
     <thead>
-      <tr className="border-b border-stone-200 bg-gradient-to-l from-[#8B6F47]/14 to-stone-50">{children}</tr>
+      <tr className="border-b border-stone-200 bg-gradient-to-l from-[color:var(--admin-primary)]/14 to-stone-50">{children}</tr>
     </thead>
   );
 }
@@ -425,13 +425,13 @@ function buildPropertyDataRows(property: Property, ar: boolean): DataRow[] {
 function Section({ title, children, step }: { title: string; children: React.ReactNode; step?: number }) {
   return (
     <section className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-md ring-1 ring-stone-900/[0.04]">
-      <header className="flex items-center gap-3 border-b border-stone-200 bg-gradient-to-l from-[#8B6F47]/[0.1] via-[#C9A961]/[0.05] to-white px-4 py-3 sm:px-5 sm:py-3.5">
+      <header className="flex items-center gap-3 border-b border-stone-200 bg-gradient-to-l from-[color:var(--admin-primary)]/[0.1] via-[#C9A961]/[0.05] to-white px-4 py-3 sm:px-5 sm:py-3.5">
         {step != null ? (
-          <span className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#8B6F47] to-[#6B5535] px-2 text-[11px] font-bold text-white shadow sm:h-9 sm:min-w-[2.25rem] sm:text-xs">
+          <span className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[color:var(--admin-primary)] to-[color:var(--admin-primary-hover)] px-2 text-[11px] font-bold text-white shadow sm:h-9 sm:min-w-[2.25rem] sm:text-xs">
             {step}
           </span>
         ) : (
-          <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-[#8B6F47]" aria-hidden />
+          <span className="inline-flex h-2 w-2 shrink-0 rounded-full admin-btn-primary" aria-hidden />
         )}
         <h2 className="text-[14px] font-medium leading-snug text-stone-800 sm:text-[14px]">{title}</h2>
       </header>
@@ -460,7 +460,7 @@ function CollapsibleDetails({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-start [&::-webkit-details-marker]:hidden">
         <span className="min-w-0 flex-1 text-[14px] font-bold leading-snug text-stone-900">{title}</span>
         <svg
-          className="h-5 w-5 shrink-0 text-[#8B6F47] transition-transform group-open:rotate-180"
+          className="h-5 w-5 shrink-0 admin-accent-text transition-transform group-open:rotate-180"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -482,7 +482,7 @@ function KindBadge({ kind, ar }: { kind: ContractKind; ar: boolean }) {
     RENT: { ar: 'عقد إيجار', en: 'Rental' },
   };
   return (
-    <span className="inline-flex items-center rounded-full border border-[#8B6F47]/30 bg-[#8B6F47]/10 px-3 py-1 text-xs font-bold text-[#5c4a32]">
+    <span className="inline-flex items-center rounded-full border admin-accent-border/30 admin-accent-bg-soft px-3 py-1 text-xs font-bold text-[#5c4a32]">
       {ar ? map[kind].ar : map[kind].en}
     </span>
   );
@@ -879,7 +879,7 @@ export default function ContractReviewPage() {
             <p className="mt-2 text-sm leading-relaxed opacity-90">{error}</p>
             <Link
               href={`/${locale}/admin/my-bookings`}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#8B6F47] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#6B5535]"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl admin-btn-primary px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-90"
             >
               {ar ? 'العودة لحجوزاتي' : 'Back to my bookings'}
             </Link>
@@ -913,9 +913,9 @@ export default function ContractReviewPage() {
             </div>
 
             {property && (
-              <section className="overflow-hidden rounded-xl border border-[#8B6F47]/25 bg-gradient-to-br from-[#8B6F47]/[0.07] via-white to-[#C9A961]/[0.06] shadow-md ring-1 ring-[#8B6F47]/10">
-                <div className="flex items-center gap-3 border-b border-[#8B6F47]/20 bg-white/60 px-4 py-3 sm:px-5">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8B6F47]/12 text-[#6B5535] ring-1 ring-[#8B6F47]/20" aria-hidden>
+              <section className="overflow-hidden rounded-xl border admin-accent-border/25 bg-gradient-to-br from-[color:var(--admin-primary)]/[0.07] via-white to-[#C9A961]/[0.06] shadow-md ring-1 ring-[color:var(--admin-primary)]/10">
+                <div className="flex items-center gap-3 border-b admin-accent-border/20 bg-white/60 px-4 py-3 sm:px-5">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl admin-btn-primary/12 admin-accent-text ring-1 ring-[color:var(--admin-focus-ring)]" aria-hidden>
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
@@ -1043,7 +1043,7 @@ export default function ContractReviewPage() {
                           </DataTableHead>
                           <tbody className="divide-y divide-stone-100">
                             {c.salePayments.map((p, i) => (
-                              <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
+                              <tr key={i} className="hover:admin-btn-primary/[0.04]">
                                 <td className="px-4 py-3 font-mono font-semibold text-stone-800">{p.installmentNumber}</td>
                                 <td className="px-4 py-3 font-semibold tabular-nums text-stone-900">{omr(ar, p.amount)}</td>
                                 <td className="px-4 py-3 text-stone-700">{str(p.note) || '—'}</td>
@@ -1053,7 +1053,7 @@ export default function ContractReviewPage() {
                                       href={p.documentUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="font-semibold text-[#8B6F47] underline decoration-[#8B6F47]/40 underline-offset-2 hover:text-[#6B5535]"
+                                      className="font-semibold admin-accent-text underline decoration-[#8B6F47]/40 underline-offset-2 hover:admin-accent-text"
                                     >
                                       {ar ? 'فتح المستند' : 'Open'}
                                     </a>
@@ -1123,9 +1123,9 @@ export default function ContractReviewPage() {
 
             {kind !== 'SALE' && c?.checks && c.checks.length > 0 ? (
               <section className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-md ring-1 ring-stone-900/[0.04]">
-                <div className="flex items-center gap-3 border-b border-stone-200 bg-gradient-to-l from-[#8B6F47]/[0.1] via-[#C9A961]/[0.05] to-white px-4 py-3 sm:px-5 sm:py-3.5">
+                <div className="flex items-center gap-3 border-b border-stone-200 bg-gradient-to-l from-[color:var(--admin-primary)]/[0.1] via-[#C9A961]/[0.05] to-white px-4 py-3 sm:px-5 sm:py-3.5">
                   {sectionSteps.checks != null ? (
-                    <span className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#8B6F47] to-[#6B5535] px-2 text-[11px] font-bold text-white shadow sm:h-9 sm:min-w-[2.25rem] sm:text-xs">
+                    <span className="inline-flex h-8 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[color:var(--admin-primary)] to-[color:var(--admin-primary-hover)] px-2 text-[11px] font-bold text-white shadow sm:h-9 sm:min-w-[2.25rem] sm:text-xs">
                       {sectionSteps.checks}
                     </span>
                   ) : null}
@@ -1148,7 +1148,7 @@ export default function ContractReviewPage() {
                         </DataTableHead>
                         <tbody className="divide-y divide-stone-100">
                           {(c.checks as CheckInfo[]).map((ch, i) => (
-                            <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
+                            <tr key={i} className="hover:admin-btn-primary/[0.04]">
                               <td className="px-4 py-3 text-stone-800">{str(ch.type)}</td>
                               <td className="px-4 py-3 font-mono text-stone-900">{str(ch.checkNumber)}</td>
                               <td className="px-4 py-3 tabular-nums font-semibold">{omr(ar, ch.amount)}</td>
@@ -1205,7 +1205,7 @@ export default function ContractReviewPage() {
                   <div className="space-y-6">
                     {c?.otherFees && c.otherFees.length > 0 ? (
                       <div>
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535]">{ar ? 'رسوم أخرى' : 'Other fees'}</p>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide admin-accent-text">{ar ? 'رسوم أخرى' : 'Other fees'}</p>
                         <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
                           <table className="w-full border-collapse text-sm">
                             <DataTableHead>
@@ -1214,7 +1214,7 @@ export default function ContractReviewPage() {
                             </DataTableHead>
                             <tbody className="divide-y divide-stone-100">
                               {c.otherFees.map((f, i) => (
-                                <tr key={i} className="hover:bg-[#8B6F47]/[0.04]">
+                                <tr key={i} className="hover:admin-btn-primary/[0.04]">
                                   <td className="px-4 py-3 font-medium text-stone-800">{str(f.description)}</td>
                                   <td className="px-4 py-3 text-end tabular-nums font-semibold text-stone-900">{omr(ar, f.amount)}</td>
                                 </tr>
@@ -1226,7 +1226,7 @@ export default function ContractReviewPage() {
                     ) : null}
                     {c?.hasOtherTaxes ? (
                       <div>
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#6B5535]">{ar ? 'ضرائب أخرى' : 'Other taxes'}</p>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide admin-accent-text">{ar ? 'ضرائب أخرى' : 'Other taxes'}</p>
                         <DataTable
                           rows={[
                             { label: ar ? 'الاسم' : 'Name', value: str(c.otherTaxName) },
@@ -1530,7 +1530,7 @@ export default function ContractReviewPage() {
                         await createCorrectionRequest('OWNER');
                       }}
                       className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold shadow-sm transition ${
-                        correctionSaving || !(clientHasAllMedia && ownerHasAllMedia) ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-[#8B6F47] hover:bg-[#6B5535] text-white'
+                        correctionSaving || !(clientHasAllMedia && ownerHasAllMedia) ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'admin-btn-primary hover:opacity-90 text-white'
                       }`}
                     >
                       {ar ? 'تصحيح الجميع' : 'Correct both'}

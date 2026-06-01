@@ -57,8 +57,8 @@ export default function PhoneCountryCodeSelect({
   const listMaxH = size === 'sm' ? 'max-h-48' : 'max-h-64';
   const isDark = variant === 'dark';
   const btnClass = isDark
-    ? 'bg-white/5 border-white/10 text-white focus:ring-[#8B6F47]'
-    : 'bg-white border-gray-300 text-gray-800 focus:ring-[#8B6F47]';
+    ? 'bg-white/5 border-white/10 text-white focus:ring-[color:var(--admin-primary)]'
+    : 'bg-white border-gray-300 text-gray-800 focus:ring-[color:var(--admin-primary)]';
 
   return (
     <div ref={containerRef} className={`relative shrink-0 ${className}`}>
@@ -66,7 +66,7 @@ export default function PhoneCountryCodeSelect({
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`w-full min-w-[100px] flex items-center justify-between gap-1 border focus:ring-2 focus:border-[#8B6F47] outline-none ${inputClass} ${btnClass} ${selectClassName} ${disabled ? 'cursor-not-allowed opacity-80' : ''}`}
+        className={`w-full min-w-[100px] flex items-center justify-between gap-1 border focus:ring-2 focus:admin-accent-border outline-none ${inputClass} ${btnClass} ${selectClassName} ${disabled ? 'cursor-not-allowed opacity-80' : ''}`}
       >
         <span className="truncate">+{selected?.code || value || DEFAULT_DIAL_CODE}</span>
         <span className={`text-xs truncate max-w-[70px] ${isDark ? 'text-white/70' : 'text-gray-500'}`}>({((selected as CountryDialCode)?.[nameKey] || '').slice(0, 10)}{((selected as CountryDialCode)?.[nameKey] || '').length > 10 ? '…' : ''})</span>
@@ -93,7 +93,7 @@ export default function PhoneCountryCodeSelect({
                   setSearch('');
                   onBlur?.();
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex justify-between gap-2 ${c.code === value ? 'bg-amber-50 text-[#8B6F47] font-medium' : ''}`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex justify-between gap-2 ${c.code === value ? 'bg-amber-50 admin-accent-text font-medium' : ''}`}
               >
                 <span className="truncate">{(c as CountryDialCode)[nameKey]}</span>
                 <span className="text-gray-500 shrink-0">+{c.code}</span>

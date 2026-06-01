@@ -1327,7 +1327,7 @@ export default function ContractDetailPage() {
         <AdminPageHeader title={ar ? 'عقد الإيجار' : 'Rental Contract'} subtitle="" />
         <div className="admin-card p-16 text-center">
           <p className="text-gray-500">{ar ? 'العقد غير موجود' : 'Contract not found'}</p>
-          <Link href={`/${locale}/admin/contracts`} className="text-[#8B6F47] hover:underline mt-2 inline-block">
+          <Link href={`/${locale}/admin/contracts`} className="admin-accent-text hover:underline mt-2 inline-block">
             {ar ? 'العودة للعقود' : 'Back to contracts'}
           </Link>
         </div>
@@ -1365,9 +1365,9 @@ export default function ContractDetailPage() {
       <div className={`transition-all duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
         <Link
           href={`/${locale}/admin/contracts`}
-          className="inline-flex items-center gap-2 text-[#8B6F47] hover:text-[#6B5535] font-semibold mb-4"
+          className="inline-flex items-center gap-2 admin-accent-text hover:admin-accent-text font-semibold mb-4"
         >
-          <span className="w-8 h-8 rounded-lg bg-[#8B6F47]/10 flex items-center justify-center">←</span>
+          <span className="w-8 h-8 rounded-lg admin-accent-bg-soft flex items-center justify-center">←</span>
           {ar ? backLinkAr : backLinkEn}
         </Link>
         <AdminPageHeader
@@ -1399,7 +1399,7 @@ export default function ContractDetailPage() {
               >
                 {ar ? 'تحديث من دفتر العناوين' : 'Sync from address book'}
               </button>
-              <Link href={`/${locale}/admin/address-book`} className="px-4 py-2 text-sm font-semibold text-[#8B6F47] bg-amber-100 rounded-xl hover:bg-amber-200">
+              <Link href={`/${locale}/admin/address-book`} className="px-4 py-2 text-sm font-semibold admin-accent-text bg-amber-100 rounded-xl hover:bg-amber-200">
                 {ar ? 'فتح دفتر العناوين' : 'Open address book'}
               </Link>
             </div>
@@ -1433,7 +1433,7 @@ export default function ContractDetailPage() {
                 {ar ? `يجب على ${tenantWordAr} رفع المستندات وتعبئة بيانات الشيكات من صفحة شروط العقد، ثم اعتماد كل مستند وشيك من لوحة المستندات.` : `${tenantWordEn} must upload documents and fill cheque data from the contract terms page, then approve each document and cheque from the documents panel.`}
               </p>
               {contract.bookingId && (
-                <Link href={`/${locale}/admin/bookings?highlight=${contract.bookingId}`} className="inline-block mt-3 text-sm font-semibold text-[#8B6F47] hover:underline">
+                <Link href={`/${locale}/admin/bookings?highlight=${contract.bookingId}`} className="inline-block mt-3 text-sm font-semibold admin-accent-text hover:underline">
                   {ar ? '↗ الانتقال للحجوزات واعتماد المستندات' : '↗ Go to bookings to approve documents'}
                 </Link>
               )}
@@ -1697,7 +1697,7 @@ export default function ContractDetailPage() {
                       await requestCorrection('OWNER');
                     }}
                     className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
-                      correctionSaving ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'bg-[#8B6F47] hover:bg-[#6B5535] text-white'
+                      correctionSaving ? 'bg-stone-300 text-stone-600 cursor-not-allowed' : 'admin-btn-primary hover:opacity-90 text-white'
                     }`}
                   >
                     {ar ? 'تصحيح الجميع' : 'Correct both'}
@@ -1946,7 +1946,7 @@ export default function ContractDetailPage() {
                 </button>
               <Link
                 href={`/${locale}/admin/address-book`}
-                className="px-3 py-1.5 text-sm font-semibold text-[#8B6F47] hover:underline"
+                className="px-3 py-1.5 text-sm font-semibold admin-accent-text hover:underline"
               >
                 {ar ? 'دفتر العناوين' : 'Address book'}
               </Link>
@@ -2096,7 +2096,7 @@ export default function ContractDetailPage() {
                 <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'بيانات العقار والبيانات الإضافية' : 'Property & Extra Data'}</h3>
                 <div onClick={(e) => e.stopPropagation()}>
                   {contract?.propertyId && (
-                    <Link href={`/${locale}/admin/properties/${contract.propertyId}`} className="px-3 py-1.5 text-sm font-semibold text-[#8B6F47] hover:underline">
+                    <Link href={`/${locale}/admin/properties/${contract.propertyId}`} className="px-3 py-1.5 text-sm font-semibold admin-accent-text hover:underline">
                       {ar ? 'عرض العقار' : 'View property'}
                     </Link>
                   )}
@@ -2443,7 +2443,7 @@ export default function ContractDetailPage() {
               <span className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-600 font-bold">6</span>
               <h3 className="text-lg font-bold text-gray-900 flex-1">{ar ? 'شروط العقد' : 'Contract Terms'}</h3>
               <div onClick={(e) => e.stopPropagation()}>
-                <Link href={`/${locale}/admin/properties/${contract.propertyId}/bookings/terms`} className="px-3 py-1.5 text-sm font-semibold text-[#8B6F47] hover:underline">
+                <Link href={`/${locale}/admin/properties/${contract.propertyId}/bookings/terms`} className="px-3 py-1.5 text-sm font-semibold admin-accent-text hover:underline">
                   {ar ? 'عرض/تعديل الشروط' : 'View/Edit terms'}
                 </Link>
               </div>
@@ -3497,7 +3497,7 @@ export default function ContractDetailPage() {
                           {chequeImageUrl && (
                             <div className="flex-shrink-0">
                               <span className="text-xs text-gray-500 block mb-1">{ar ? 'صورة الشيك' : 'Cheque image'}</span>
-                              <button type="button" onClick={() => setZoomedImageUrl(chequeImageUrl)} className="block focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:ring-offset-2 rounded-lg overflow-hidden">
+                              <button type="button" onClick={() => setZoomedImageUrl(chequeImageUrl)} className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:ring-offset-2 rounded-lg overflow-hidden">
                                 <img src={chequeImageUrl} alt={ar ? 'صورة الشيك' : 'Cheque'} className="w-20 h-24 sm:w-24 sm:h-28 rounded-lg border border-gray-200 object-cover hover:opacity-90 cursor-zoom-in" />
                               </button>
                             </div>
@@ -3572,16 +3572,16 @@ export default function ContractDetailPage() {
                                   key={fi}
                                   type="button"
                                   onClick={() => setZoomedImageUrl(f.url)}
-                                  className="block focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:ring-offset-2 rounded-lg overflow-hidden"
+                                  className="block focus:outline-none focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:ring-offset-2 rounded-lg overflow-hidden"
                                 >
-                                  <img src={f.url} alt={f.name || (ar ? 'صورة المستند' : 'Document')} className="w-20 h-20 object-cover border border-gray-200 hover:border-[#8B6F47] transition-colors cursor-zoom-in" />
+                                  <img src={f.url} alt={f.name || (ar ? 'صورة المستند' : 'Document')} className="w-20 h-20 object-cover border border-gray-200 hover:admin-accent-border transition-colors cursor-zoom-in" />
                                 </button>
                               ) : (
                                 <button
                                   key={fi}
                                   type="button"
                                   onClick={() => setZoomedImageUrl(f.url)}
-                                  className="flex flex-col items-center justify-center w-20 h-20 rounded-lg border border-gray-200 bg-gray-100 hover:border-[#8B6F47] hover:bg-gray-200 transition-colors p-2 focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:ring-offset-2"
+                                  className="flex flex-col items-center justify-center w-20 h-20 rounded-lg border border-gray-200 bg-gray-100 hover:admin-accent-border hover:bg-gray-200 transition-colors p-2 focus:outline-none focus:ring-2 focus:ring-[color:var(--admin-primary)] focus:ring-offset-2"
                                 >
                                   <span className="text-2xl">📄</span>
                                   <span className="text-xs text-gray-600 truncate max-w-full">PDF</span>
@@ -3742,13 +3742,13 @@ export default function ContractDetailPage() {
 
           {/* ملخص مالي - للإيجار/الاستثمار فقط (عقد البيع له ملخصه في بند 5) */}
           {isRent && (
-          <div className="rounded-2xl border-2 border-[#8B6F47]/30 bg-gradient-to-r from-[#8B6F47]/10 to-[#8B6F47]/5 shadow-sm overflow-hidden">
-            <button type="button" onClick={() => toggleSection('summary')} className="w-full flex items-center gap-2 p-4 text-right hover:bg-[#8B6F47]/5 transition-colors">
+          <div className="rounded-2xl border-2 admin-accent-border/30 bg-gradient-to-r from-[color:var(--admin-primary)]/10 to-[#8B6F47]/5 shadow-sm overflow-hidden">
+            <button type="button" onClick={() => toggleSection('summary')} className="w-full flex items-center gap-2 p-4 text-right hover:admin-accent-bg-soft transition-colors">
               <h4 className="font-bold text-gray-900 flex-1">{ar ? 'ملخص مالي' : 'Financial Summary'}</h4>
-              <span className="text-[#8B6F47]">{openSections.summary ? '▼' : '▶'}</span>
+              <span className="admin-accent-text">{openSections.summary ? '▼' : '▶'}</span>
             </button>
             {openSections.summary && (
-            <div className="px-6 pb-6 pt-0 border-t border-[#8B6F47]/20">
+            <div className="px-6 pb-6 pt-0 border-t admin-accent-border/20">
             <div className="space-y-2 text-sm pt-4">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -3804,7 +3804,7 @@ export default function ContractDetailPage() {
               )}
               <div className="flex justify-between pt-2 border-t border-gray-300">
                 <span className="font-bold text-gray-900">{ar ? 'الإيجار السنوي:' : 'Annual rent:'}</span>
-                <span className="font-bold text-[#8B6F47]">{((form.monthlyRent ?? 0) * 12).toFixed(2)} ر.ع</span>
+                <span className="font-bold admin-accent-text">{((form.monthlyRent ?? 0) * 12).toFixed(2)} ر.ع</span>
               </div>
             </div>
             </div>
@@ -3876,7 +3876,7 @@ export default function ContractDetailPage() {
               <button
                 type="button"
                 onClick={() => { handleSave(); if (adminEditMode) setAdminEditMode(false); }}
-                className="px-6 py-3 rounded-xl font-bold text-white bg-[#8B6F47] hover:bg-[#6B5535]"
+                className="px-6 py-3 rounded-xl font-bold text-white admin-btn-primary hover:opacity-90"
               >
                 {ar ? 'حفظ التعديلات' : 'Save Changes'}
               </button>
@@ -3962,7 +3962,7 @@ export default function ContractDetailPage() {
               }}
               className={`px-5 py-2.5 rounded-xl font-semibold text-white ${
                 confirmAction === 'cancel' ? 'bg-red-600 hover:bg-red-700' :
-                confirmAction === 'final' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#8B6F47] hover:bg-[#6B5535]'
+                confirmAction === 'final' ? 'bg-emerald-600 hover:bg-emerald-700' : 'admin-btn-primary hover:opacity-90'
               }`}
             >
               {ar ? 'متابعة' : 'Continue'}

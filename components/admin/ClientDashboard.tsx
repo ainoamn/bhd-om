@@ -132,11 +132,11 @@ export default function ClientDashboard() {
                 href={item.href}
                 className={`flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 group ${
                   item.primary
-                    ? 'border-[#8B6F47]/30 bg-[#8B6F47]/5 hover:bg-[#8B6F47]/10 hover:border-[#8B6F47]/50'
+                    ? 'admin-accent-border/30 admin-accent-bg-soft hover:admin-accent-bg-soft hover:admin-accent-border/50'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${item.primary ? 'bg-[#8B6F47]/20 text-[#8B6F47]' : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'}`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${item.primary ? 'admin-btn-primary/20 admin-accent-text' : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'}`}>
                   <Icon name={item.icon} className="w-6 h-6" />
                 </div>
                 <span className={`font-medium ${item.primary ? 'text-gray-900' : 'text-gray-700'}`}>
@@ -257,7 +257,7 @@ export default function ClientDashboard() {
             <div className="admin-card">
               <div className="admin-card-header flex items-center justify-between">
                 <h2 className="admin-card-title">{tNav('myBookings')}</h2>
-                <Link href={`/${locale}/admin/my-bookings`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+                <Link href={`/${locale}/admin/my-bookings`} className="text-sm font-medium admin-accent-text hover:underline">
                   {locale === 'ar' ? 'عرض الكل' : 'View all'}
                 </Link>
               </div>
@@ -286,7 +286,7 @@ export default function ClientDashboard() {
             <div className="admin-card">
               <div className="admin-card-header flex items-center justify-between">
                 <h2 className="admin-card-title">{tNav('myContracts')}</h2>
-                <Link href={`/${locale}/admin/my-contracts`} className="text-sm font-medium text-[#8B6F47] hover:underline">
+                <Link href={`/${locale}/admin/my-contracts`} className="text-sm font-medium admin-accent-text hover:underline">
                   {locale === 'ar' ? 'عرض الكل' : 'View all'}
                 </Link>
               </div>

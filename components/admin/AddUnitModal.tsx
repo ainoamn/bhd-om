@@ -166,7 +166,7 @@ export default function AddUnitModal({
             <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
               {ar ? 'إلغاء' : 'Cancel'}
             </button>
-            <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">
+            <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white admin-btn-primary hover:opacity-90">
               {ar ? 'إضافة' : 'Add'}
             </button>
           </div>

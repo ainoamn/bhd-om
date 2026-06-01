@@ -91,7 +91,7 @@ export default function ContactCategoryPermissionsPage() {
           <div className="overflow-x-auto -mx-2 px-2">
           <table className="w-full border-collapse min-w-[1100px]">
             <thead>
-              <tr className="border-b-2 border-[#8B6F47]">
+              <tr className="border-b-2 admin-accent-border">
                 <th
                   className="text-right py-3 px-4 font-bold text-gray-900 bg-gray-50"
                   style={{ minWidth: ar ? 180 : 200 }}
@@ -101,7 +101,7 @@ export default function ContactCategoryPermissionsPage() {
                 {ALL_DASHBOARD_TYPES.map((type) => (
                   <th
                     key={type}
-                    className="text-center py-2 px-1 font-bold text-[#8B6F47] bg-[#8B6F47]/5 text-xs"
+                    className="text-center py-2 px-1 font-bold admin-accent-text admin-accent-bg-soft text-xs"
                   >
                     {t(CATEGORY_LABEL_KEYS[type])}
                   </th>
@@ -123,7 +123,7 @@ export default function ContactCategoryPermissionsPage() {
                             type="checkbox"
                             checked={enabled}
                             onChange={() => toggleCategory(type, category)}
-                            className="w-4 h-4 rounded border-gray-300 text-[#8B6F47] focus:ring-[#8B6F47] cursor-pointer"
+                            className="w-4 h-4 rounded border-gray-300 admin-accent-text focus:ring-[color:var(--admin-primary)] cursor-pointer"
                           />
                         </label>
                       </td>

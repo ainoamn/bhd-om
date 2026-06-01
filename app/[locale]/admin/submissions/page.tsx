@@ -101,11 +101,11 @@ export default function SubmissionsAdminPage() {
                     setSelected(item);
                     if (!item.isRead) void markRead(item.id, true);
                   }}
-                  className={`w-full p-4 text-right transition-colors hover:bg-gray-50 ${selected?.id === item.id ? 'bg-[#8B6F47]/5' : ''} ${!item.isRead ? 'font-semibold' : ''}`}
+                  className={`w-full p-4 text-right transition-colors hover:bg-gray-50 ${selected?.id === item.id ? 'admin-accent-bg-soft' : ''} ${!item.isRead ? 'font-semibold' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-gray-900">{item.name}</span>
-                    {!item.isRead && <span className="h-2 w-2 rounded-full bg-[#8B6F47]" />}
+                    {!item.isRead && <span className="h-2 w-2 rounded-full admin-btn-primary" />}
                   </div>
                   <div className="mt-1 text-sm text-gray-500">{item.email}</div>
                   <div className="mt-1 text-xs text-gray-400">
