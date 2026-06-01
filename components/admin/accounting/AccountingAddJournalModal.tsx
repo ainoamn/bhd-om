@@ -10,6 +10,8 @@ import {
 import { createJournalEntry as apiCreateJournalEntry, suggestJournalEntry } from '@/lib/accounting/api/client';
 import { resolveJournalAccountSuggestion } from '@/lib/accounting/ai/journalAccountSuggest';
 import type { JournalFormState } from '@/lib/accounting/types/formTypes';
+import { useAccountingFormDraft } from '@/lib/accounting/hooks/useAccountingFormDraft';
+import { ACCOUNTING_DRAFT_KEYS } from '@/lib/accounting/ui/draftKeys';
 import styles from '@/components/admin/accounting.module.css';
 
 export default function AccountingAddJournalModal(props: {
@@ -27,6 +29,7 @@ export default function AccountingAddJournalModal(props: {
 
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
   const [aiSuggestMsg, setAiSuggestMsg] = useState('');
+  const { clearFormDraft } = useAccountingFormDraft(ACCOUNTING_DRAFT_KEYS.journal, open, journalForm, setJournalForm);
 
   const aiSuggestedAccount = useMemo(
     () => resolveJournalAccountSuggestion(journalForm.descriptionAr, journalForm.descriptionEn, accounts),
@@ -64,6 +67,9 @@ export default function AccountingAddJournalModal(props: {
     <div className={styles.modalOverlay} onClick={onClose} data-testid="accounting-modal-journal">
       <div className={`${styles.modalContent} ${styles.modalContentWide}`} onClick={(e) => e.stopPropagation()}>
         <h3 className={styles.modalTitle}>{ar ? 'قيد يومية يدوي' : 'Manual journal entry'}</h3>
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          {ar ? 'البيانات المدخلة لن تظهر في النظام إلا بعد الحفظ — تُحفظ تلقائياً كمسودة.' : 'Entered data appears in the system only after save — auto-saved as draft.'}
+        </p>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -95,6 +101,7 @@ export default function AccountingAddJournalModal(props: {
                 createJournalEntry(entryData);
               }
               await onCreated();
+              clearFormDraft();
               onClose();
             } catch (err) {
               alert(err instanceof Error ? err.message : ar ? 'قيد غير متوازن' : 'Unbalanced entry');

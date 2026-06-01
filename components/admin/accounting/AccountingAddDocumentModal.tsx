@@ -15,6 +15,8 @@ import {
 import { createDocument as apiCreateDocument } from '@/lib/accounting/api/client';
 import { DOC_TYPE_LABELS } from '@/lib/accounting/ui/documentLabels';
 import type { AccountingDocFormState } from '@/lib/accounting/types/formTypes';
+import { useAccountingFormDraft } from '@/lib/accounting/hooks/useAccountingFormDraft';
+import { ACCOUNTING_DRAFT_KEYS } from '@/lib/accounting/ui/draftKeys';
 import type { Property } from '@/lib/data/properties';
 import styles from '@/components/admin/accounting.module.css';
 
@@ -60,6 +62,7 @@ export default function AccountingAddDocumentModal(props: {
 
   const filteredContacts = useMemo(() => searchContacts(contactSearchQuery), [contactSearchQuery]);
   const selectedContact = docForm.contactId ? contacts.find((c) => c.id === docForm.contactId) : null;
+  const { clearFormDraft } = useAccountingFormDraft(ACCOUNTING_DRAFT_KEYS.document, open, docForm, setDocForm);
 
   useEffect(() => {
     if (open) {
@@ -82,6 +85,9 @@ export default function AccountingAddDocumentModal(props: {
         <h3 className={styles.modalTitle}>
           {docForm.type === 'PURCHASE_INV' ? (ar ? 'فاتورة مشتريات' : 'Purchase Invoice') : docForm.type === 'PURCHASE_ORDER' ? (ar ? 'أمر شراء' : 'Purchase Order') : (ar ? 'إضافة مستند محاسبي' : 'Add accounting document')}
         </h3>
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          {ar ? 'البيانات المدخلة لن تظهر في النظام إلا بعد الحفظ — تُحفظ تلقائياً كمسودة.' : 'Entered data appears in the system only after save — auto-saved as draft.'}
+        </p>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -137,6 +143,7 @@ export default function AccountingAddDocumentModal(props: {
                 createDocument(docData);
               }
               await onCreated();
+              clearFormDraft();
               onClose();
             } catch (err) {
               alert(err instanceof Error ? err.message : ar ? 'فشل إنشاء المستند' : 'Failed to create document');

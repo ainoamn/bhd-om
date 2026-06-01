@@ -9,6 +9,8 @@ import {
 } from '@/lib/data/accounting';
 import { createDocument as apiCreateDocument } from '@/lib/accounting/api/client';
 import type { ChequeFormState } from '@/lib/accounting/types/formTypes';
+import { useAccountingFormDraft } from '@/lib/accounting/hooks/useAccountingFormDraft';
+import { ACCOUNTING_DRAFT_KEYS } from '@/lib/accounting/ui/draftKeys';
 import type { Property } from '@/lib/data/properties';
 import styles from '@/components/admin/accounting.module.css';
 
@@ -45,12 +47,17 @@ export default function AccountingAddChequeModal(props: {
     onCreated,
   } = props;
 
+  const { clearFormDraft } = useAccountingFormDraft(ACCOUNTING_DRAFT_KEYS.cheque, open, chequeForm, setChequeForm);
+
   if (!open) return null;
 
   return (
     <div className={styles.modalOverlay} onClick={onClose} data-testid="accounting-modal-cheque">
       <div className={`${styles.modalContent} ${styles.modalContentWide}`} onClick={(e) => e.stopPropagation()}>
         <h3 className={styles.modalTitle}>{ar ? 'إضافة شيك' : 'Add Cheque'}</h3>
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          {ar ? 'البيانات المدخلة لن تظهر في النظام إلا بعد الحفظ — تُحفظ تلقائياً كمسودة.' : 'Entered data appears in the system only after save — auto-saved as draft.'}
+        </p>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -86,6 +93,7 @@ export default function AccountingAddChequeModal(props: {
                 createDocument(docData);
               }
               await onCreated();
+              clearFormDraft();
               onClose();
             } catch (err) {
               alert(err instanceof Error ? err.message : ar ? 'فشل إنشاء الشيك' : 'Failed to create cheque');

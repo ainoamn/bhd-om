@@ -9,6 +9,16 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (64) — Phase 12 محاسبة: useAccountingHub + مسودات النماذج
+
+- **Hook:** `useAccountingHub.ts` — بيانات، فلاتر، فرز، تحميل، pagination، حجوزات معلّقة
+- **فلتر:** `AccountingHubFilterBar.tsx` — شريط الفلاتر المستخرج (`data-testid="accounting-hub-filters"`)
+- **مسودات:** `useAccountingFormDraft.ts` + `draftKeys.ts` — auto-save 800ms في modals المستند/القيد/الشيك/الحساب
+- **`DraftBanner`** في مركز المحاسبة + تنبيه داخل كل modal
+- **`clearDraft`** عند فتح preset من sales أو مسح فاتورة OCR
+- **`AccountingSection.tsx`:** ~690 سطر (كان ~954)
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (63) — Phase 11 محاسبة: modals مستند/قيد/شيك
 
 - **مودالات:** `AccountingAddDocumentModal`, `AccountingAddJournalModal`, `AccountingAddChequeModal`
