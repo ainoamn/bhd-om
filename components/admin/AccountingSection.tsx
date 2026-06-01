@@ -123,6 +123,40 @@ const PURCHASES_MODULES = [
   { id: 'po', labelAr: 'أوامر شراء', labelEn: 'Purchase Orders', icon: 'documentText' as const },
 ];
 
+function salesModuleDocType(id: string): DocumentType | null {
+  const map: Record<string, DocumentType> = {
+    quotes: 'QUOTE',
+    invoices: 'INVOICE',
+    receipts: 'RECEIPT',
+    scheduled: 'INVOICE',
+    'credit-notes': 'CREDIT_NOTE',
+    'cash-inv': 'INVOICE',
+    delivery: 'OTHER',
+    'api-inv': 'INVOICE',
+  };
+  return map[id] ?? null;
+}
+
+function purchasesModuleDocType(id: string): DocumentType | null {
+  const map: Record<string, DocumentType> = {
+    'purch-inv': 'PURCHASE_INV',
+    'supp-receipts': 'PAYMENT',
+    'cash-exp': 'PAYMENT',
+    'debit-notes': 'DEBIT_NOTE',
+    po: 'PURCHASE_ORDER',
+  };
+  return map[id] ?? null;
+}
+
+function salesModulePreset(id: string): { descriptionAr?: string; descriptionEn?: string } {
+  if (id === 'delivery') return { descriptionAr: 'إشعار تسليم', descriptionEn: 'Delivery note' };
+  if (id === 'scheduled') return { descriptionAr: 'فاتورة مجدولة', descriptionEn: 'Scheduled invoice' };
+  if (id === 'cash-inv') return { descriptionAr: 'فاتورة نقدية', descriptionEn: 'Cash invoice' };
+  if (id === 'api-inv') return { descriptionAr: 'فاتورة بيع API', descriptionEn: 'API sales invoice' };
+  if (id === 'credit-notes') return { descriptionAr: 'إشعار دائن', descriptionEn: 'Credit note' };
+  return {};
+}
+
 type TabId = 'dashboard' | 'sales' | 'purchases' | 'accounts' | 'journal' | 'documents' | 'reports' | 'claims' | 'cheques' | 'payments' | 'settings' | 'audit' | 'periods';
 
 function BookingCancellationCompleteForm({ requestId, onComplete, ar }: { requestId: string; onComplete: () => void; ar: boolean }) {
@@ -236,6 +270,35 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     attachments: [] as { url: string; name: string }[],
     items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }] as Array<{ descriptionAr: string; quantity: number; unitPrice: string; accountId: string }>,
   });
+
+  const openDocumentModule = (docType: DocumentType, preset?: { descriptionAr?: string; descriptionEn?: string }) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const useLineItems = ['INVOICE', 'QUOTE', 'PURCHASE_INV', 'PURCHASE_ORDER', 'CREDIT_NOTE', 'DEBIT_NOTE'].includes(docType);
+    setDocForm({
+      type: docType,
+      serialNumber: getNextDocumentSerial(docType),
+      amount: '',
+      contactId: '',
+      bankAccountId: '',
+      propertyId: '',
+      projectId: '',
+      descriptionAr: preset?.descriptionAr ?? '',
+      descriptionEn: preset?.descriptionEn ?? '',
+      date: today,
+      dueDate: today,
+      currency: 'OMR',
+      useLineItems,
+      vatRate: 0,
+      purchaseOrder: '',
+      reference: '',
+      branch: '',
+      attachments: [],
+      items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
+    });
+    setShowAddDocument(true);
+    setTab('documents');
+  };
+
   const [chequeForm, setChequeForm] = useState({
     chequeNumber: '',
     amount: '',
@@ -1073,27 +1136,14 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             <div className="p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {SALES_MODULES.map((m) => {
-                  const docType = m.id === 'invoices' ? 'INVOICE' : m.id === 'receipts' ? 'RECEIPT' : m.id === 'quotes' ? 'QUOTE' : null;
-                  const canOpen = docType && (m.id === 'invoices' || m.id === 'receipts' || m.id === 'quotes');
+                  const docType = salesModuleDocType(m.id);
+                  const canOpen = docType !== null;
+                  const preset = salesModulePreset(m.id);
                   return (
                   <button
                     key={m.id}
                     type="button"
-                    onClick={canOpen ? () => {
-                      const today = new Date().toISOString().slice(0, 10);
-                      const t = docType as DocumentType;
-                      setDocForm({
-                        ...docForm,
-                        type: t,
-                        serialNumber: getNextDocumentSerial(t),
-                        date: today,
-                        dueDate: today,
-                        useLineItems: true,
-                        items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
-                      });
-                      setShowAddDocument(true);
-                      setTab('documents');
-                    } : undefined}
+                    onClick={canOpen ? () => openDocumentModule(docType!, preset) : undefined}
                     className={`flex flex-col items-start gap-3 p-4 rounded-xl border-2 text-right group ${canOpen ? 'border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/50 cursor-pointer transition-all' : 'border-gray-100 bg-gray-50/50 cursor-default'}`}
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 group-hover:bg-emerald-200">
@@ -1124,39 +1174,13 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             <div className="p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {PURCHASES_MODULES.map((m) => {
-                  const purchDocType = m.id === 'purch-inv' ? 'PURCHASE_INV' : m.id === 'po' ? 'PURCHASE_ORDER' : null;
+                  const purchDocType = purchasesModuleDocType(m.id);
                   const canOpen = purchDocType !== null;
                   return (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={canOpen ? () => {
-                        const today = new Date().toISOString().slice(0, 10);
-                        const t = purchDocType as DocumentType;
-                        setDocForm({
-                          type: t,
-                          serialNumber: getNextDocumentSerial(t),
-                          amount: '',
-                          contactId: '',
-                          bankAccountId: '',
-                          propertyId: '',
-                          projectId: '',
-                          descriptionAr: '',
-                          descriptionEn: '',
-                          date: today,
-                          dueDate: today,
-                          currency: 'OMR',
-                          useLineItems: true,
-                          vatRate: 0,
-                          purchaseOrder: '',
-                          reference: '',
-                          branch: '',
-                          attachments: [],
-                          items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
-                        });
-                        setShowAddDocument(true);
-                        setTab('documents');
-                      } : undefined}
+                      onClick={canOpen ? () => openDocumentModule(purchDocType!) : undefined}
                       className={`flex flex-col items-start gap-3 p-4 rounded-xl border-2 text-right group ${canOpen ? 'border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer transition-all' : 'border-gray-100 bg-gray-50/50 cursor-default'}`}
                     >
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-200">
@@ -1568,7 +1592,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                   const useItems = ['INVOICE', 'QUOTE', 'PURCHASE_INV', 'PURCHASE_ORDER'].includes(t);
                   setDocForm({ ...docForm, type: t, useLineItems: docForm.useLineItems || useItems });
                 }} className="admin-select w-full">
-                  {(Object.keys(DOC_TYPE_LABELS) as DocumentType[]).filter((t) => ['INVOICE', 'RECEIPT', 'QUOTE', 'DEPOSIT', 'PAYMENT', 'PURCHASE_INV', 'PURCHASE_ORDER'].includes(t)).map((t) => (
+                  {(Object.keys(DOC_TYPE_LABELS) as DocumentType[]).filter((t) => ['INVOICE', 'RECEIPT', 'QUOTE', 'DEPOSIT', 'PAYMENT', 'CREDIT_NOTE', 'DEBIT_NOTE', 'OTHER', 'PURCHASE_INV', 'PURCHASE_ORDER'].includes(t)).map((t) => (
                     <option key={t} value={t}>{ar ? DOC_TYPE_LABELS[t].ar : DOC_TYPE_LABELS[t].en}</option>
                   ))}
                 </select>

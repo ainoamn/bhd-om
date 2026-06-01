@@ -128,12 +128,7 @@ export default function DocumentTemplatesPage() {
                   <div className="text-center py-12 text-gray-500">
                     <Icon name="documentText" className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                     <p className="font-medium">
-                      {ar ? 'اختر نوع الوثيقة من القائمة' : 'Select a document type from the list'}
-                    </p>
-                    <p className="text-sm mt-1">
-                      {ar
-                        ? 'فاتورة، عرض سعر، إشعار دائن، أمر شراء، إشعار تسليم'
-                        : 'Invoice, Quote, Credit note, Purchase order, Delivery note'}
+                      {ar ? 'اختر نوع القالب من القائمة' : 'Select a template type from the list'}
                     </p>
                   </div>
                 )}

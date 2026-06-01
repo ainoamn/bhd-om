@@ -5,6 +5,23 @@ import { useParams } from 'next/navigation';
 import Icon from '@/components/icons/Icon';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import { log } from '@/lib/logger';
+import {
+  CUSTOM_REPORT_SOURCES,
+  downloadCsv,
+  fetchCustomReportRows,
+  rowsToCsv,
+  type CustomReportSource,
+} from '@/lib/admin/customReportExport';
+import {
+  deleteReportSchedule,
+  hydrateReportSchedulesFromServer,
+  listReportSchedules,
+  markScheduleRun,
+  REPORT_SCHEDULES_EVENT,
+  upsertReportSchedule,
+  type ReportSchedule,
+  type ReportScheduleFrequency,
+} from '@/lib/data/reportSchedules';
 
 interface ReportTemplate {
   id: string;
@@ -14,7 +31,7 @@ interface ReportTemplate {
   icon: keyof typeof import('@/lib/icons').icons;
   fields: ReportField[];
   filters: ReportFilter[];
-  schedule?: ReportSchedule;
+  schedule?: TemplateReportSchedule;
 }
 
 interface ReportField {
@@ -32,7 +49,7 @@ interface ReportFilter {
   options?: string[];
 }
 
-interface ReportSchedule {
+interface TemplateReportSchedule {
   enabled: boolean;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
   recipients: string[];
@@ -59,6 +76,19 @@ export default function AdvancedReports() {
   const [generatedReports, setGeneratedReports] = useState<GeneratedReport[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'templates' | 'custom' | 'scheduled' | 'history'>('templates');
+  const [customSource, setCustomSource] = useState<CustomReportSource>('bookings');
+  const [customColumns, setCustomColumns] = useState<string[]>(() =>
+    CUSTOM_REPORT_SOURCES.bookings.columns.map((c) => c.id)
+  );
+  const [customBusy, setCustomBusy] = useState(false);
+  const [schedules, setSchedules] = useState<ReportSchedule[]>(() => listReportSchedules());
+  const [scheduleForm, setScheduleForm] = useState({
+    nameAr: '',
+    nameEn: '',
+    source: 'bookings' as CustomReportSource,
+    frequency: 'weekly' as ReportScheduleFrequency,
+    recipientEmail: '',
+  });
 
   const reportTemplates: ReportTemplate[] = [
     {
@@ -132,7 +162,15 @@ export default function AdvancedReports() {
 
   useEffect(() => {
     loadGeneratedReports();
+    void hydrateReportSchedulesFromServer();
+    const onSchedules = () => setSchedules(listReportSchedules());
+    window.addEventListener(REPORT_SCHEDULES_EVENT, onSchedules);
+    return () => window.removeEventListener(REPORT_SCHEDULES_EVENT, onSchedules);
   }, []);
+
+  useEffect(() => {
+    setCustomColumns(CUSTOM_REPORT_SOURCES[customSource].columns.map((c) => c.id));
+  }, [customSource]);
 
   const loadGeneratedReports = () => {
     try {
@@ -244,6 +282,75 @@ export default function AdvancedReports() {
     localStorage.setItem('generated_reports', JSON.stringify(updatedReports));
     
     log.userAction('report_delete', { reportId });
+  };
+
+  const pushGeneratedCsvReport = (name: string, size: number) => {
+    const reportId = `csv_${Date.now()}`;
+    const entry: GeneratedReport = {
+      id: reportId,
+      templateId: 'custom',
+      name,
+      generatedAt: new Date(),
+      status: 'completed',
+      size,
+    };
+    const updated = [entry, ...generatedReports];
+    setGeneratedReports(updated);
+    localStorage.setItem('generated_reports', JSON.stringify(updated));
+    return reportId;
+  };
+
+  const runCustomExport = async (source: CustomReportSource, columnIds: string[], reportName: string) => {
+    const rows = await fetchCustomReportRows(source);
+    const csv = rowsToCsv(rows, columnIds);
+    const size = downloadCsv(`${reportName.replace(/\s+/g, '-')}.csv`, csv);
+    pushGeneratedCsvReport(reportName, size);
+  };
+
+  const generateCustomReport = async () => {
+    if (customColumns.length === 0) return;
+    setCustomBusy(true);
+    try {
+      const label = ar ? CUSTOM_REPORT_SOURCES[customSource].labelAr : CUSTOM_REPORT_SOURCES[customSource].labelEn;
+      await runCustomExport(customSource, customColumns, `${label} — ${new Date().toISOString().slice(0, 10)}`);
+    } catch (error) {
+      log.error('Custom report export failed', { error });
+      alert(ar ? 'فشل تصدير التقرير' : 'Report export failed');
+    } finally {
+      setCustomBusy(false);
+    }
+  };
+
+  const saveSchedule = () => {
+    if (!scheduleForm.nameAr.trim() || !scheduleForm.recipientEmail.trim()) {
+      alert(ar ? 'أدخل الاسم والبريد' : 'Enter name and email');
+      return;
+    }
+    const id = `sched_${Date.now()}`;
+    upsertReportSchedule({
+      id,
+      nameAr: scheduleForm.nameAr.trim(),
+      nameEn: scheduleForm.nameEn.trim() || scheduleForm.nameAr.trim(),
+      source: scheduleForm.source,
+      columnIds: CUSTOM_REPORT_SOURCES[scheduleForm.source].columns.map((c) => c.id),
+      frequency: scheduleForm.frequency,
+      recipientEmail: scheduleForm.recipientEmail.trim(),
+      enabled: true,
+      updatedAt: new Date().toISOString(),
+    });
+    setScheduleForm({ nameAr: '', nameEn: '', source: 'bookings', frequency: 'weekly', recipientEmail: '' });
+    setSchedules(listReportSchedules());
+  };
+
+  const runScheduleNow = async (schedule: ReportSchedule) => {
+    try {
+      const label = ar ? schedule.nameAr : schedule.nameEn || schedule.nameAr;
+      await runCustomExport(schedule.source, schedule.columnIds, label);
+      markScheduleRun(schedule.id);
+      setSchedules(listReportSchedules());
+    } catch {
+      alert(ar ? 'فشل تشغيل الجدولة' : 'Scheduled run failed');
+    }
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -598,22 +705,149 @@ export default function AdvancedReports() {
           )}
 
           {activeTab === 'custom' && (
-            <div className="text-center py-12 text-gray-500">
-              <span className="w-14 h-14 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center mx-auto mb-3">
-                <Icon name="plus" className="w-7 h-7 text-[#8B6F47]" />
-              </span>
-              <p className="text-lg font-medium text-gray-700 mb-1">{ar ? 'منشئ التقارير المخصص' : 'Custom report builder'}</p>
-              <p>{ar ? 'قريباً - يمكنك إنشاء تقارير مخصصة بالكامل' : 'Coming soon — build fully custom reports'}</p>
+            <div className="space-y-6">
+              <p className="text-sm text-gray-600">
+                {ar
+                  ? 'اختر مصدر البيانات والأعمدة ثم صدّر CSV — يُحفظ في سجل التقارير.'
+                  : 'Pick a data source and columns, then export CSV — saved to report history.'}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'مصدر البيانات' : 'Data source'}</label>
+                  <select
+                    value={customSource}
+                    onChange={(e) => setCustomSource(e.target.value as CustomReportSource)}
+                    className="admin-input w-full"
+                  >
+                    {(Object.keys(CUSTOM_REPORT_SOURCES) as CustomReportSource[]).map((key) => (
+                      <option key={key} value={key}>
+                        {ar ? CUSTOM_REPORT_SOURCES[key].labelAr : CUSTOM_REPORT_SOURCES[key].labelEn}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-2">{ar ? 'الأعمدة' : 'Columns'}</p>
+                <div className="flex flex-wrap gap-3">
+                  {CUSTOM_REPORT_SOURCES[customSource].columns.map((col) => (
+                    <label key={col.id} className="inline-flex items-center gap-2 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={customColumns.includes(col.id)}
+                        onChange={(e) => {
+                          setCustomColumns((prev) =>
+                            e.target.checked ? [...prev, col.id] : prev.filter((id) => id !== col.id)
+                          );
+                        }}
+                      />
+                      {ar ? col.labelAr : col.labelEn}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={customBusy || customColumns.length === 0}
+                onClick={() => void generateCustomReport()}
+                className="admin-btn admin-btn-primary inline-flex items-center gap-2"
+              >
+                <Icon name="documentText" className="w-4 h-4" />
+                {customBusy ? (ar ? 'جاري التصدير...' : 'Exporting...') : ar ? 'تصدير CSV' : 'Export CSV'}
+              </button>
             </div>
           )}
 
           {activeTab === 'scheduled' && (
-            <div className="text-center py-12 text-gray-500">
-              <span className="w-14 h-14 rounded-xl bg-[#8B6F47]/10 flex items-center justify-center mx-auto mb-3">
-                <Icon name="calendar" className="w-7 h-7 text-[#8B6F47]" />
-              </span>
-              <p className="text-lg font-medium text-gray-700 mb-1">{ar ? 'التقارير المجدولة' : 'Scheduled reports'}</p>
-              <p>{ar ? 'قريباً - إدارة التقارير المجدولة تلقائياً' : 'Coming soon — manage automated report schedules'}</p>
+            <div className="space-y-6">
+              <div className="admin-card border border-gray-200">
+                <div className="admin-card-header">
+                  <h3 className="admin-card-title">{ar ? 'جدولة جديدة' : 'New schedule'}</h3>
+                </div>
+                <div className="admin-card-body grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input
+                    type="text"
+                    value={scheduleForm.nameAr}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, nameAr: e.target.value })}
+                    className="admin-input w-full"
+                    placeholder={ar ? 'اسم الجدولة (عربي)' : 'Schedule name (Arabic)'}
+                  />
+                  <input
+                    type="email"
+                    value={scheduleForm.recipientEmail}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, recipientEmail: e.target.value })}
+                    className="admin-input w-full"
+                    placeholder={ar ? 'البريد المستلم' : 'Recipient email'}
+                  />
+                  <select
+                    value={scheduleForm.source}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, source: e.target.value as CustomReportSource })}
+                    className="admin-input w-full"
+                  >
+                    {(Object.keys(CUSTOM_REPORT_SOURCES) as CustomReportSource[]).map((key) => (
+                      <option key={key} value={key}>
+                        {ar ? CUSTOM_REPORT_SOURCES[key].labelAr : CUSTOM_REPORT_SOURCES[key].labelEn}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={scheduleForm.frequency}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, frequency: e.target.value as ReportScheduleFrequency })}
+                    className="admin-input w-full"
+                  >
+                    <option value="daily">{ar ? 'يومي' : 'Daily'}</option>
+                    <option value="weekly">{ar ? 'أسبوعي' : 'Weekly'}</option>
+                    <option value="monthly">{ar ? 'شهري' : 'Monthly'}</option>
+                  </select>
+                  <button type="button" onClick={saveSchedule} className="admin-btn admin-btn-primary md:col-span-2">
+                    {ar ? 'حفظ الجدولة' : 'Save schedule'}
+                  </button>
+                </div>
+              </div>
+              {schedules.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">{ar ? 'لا توجد جداول محفوظة' : 'No saved schedules'}</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-700 font-semibold">
+                      <tr>
+                        <th className="px-4 py-3 text-start">{ar ? 'الاسم' : 'Name'}</th>
+                        <th className="px-4 py-3 text-start">{ar ? 'المصدر' : 'Source'}</th>
+                        <th className="px-4 py-3 text-start">{ar ? 'التكرار' : 'Frequency'}</th>
+                        <th className="px-4 py-3 text-start">{ar ? 'البريد' : 'Email'}</th>
+                        <th className="px-4 py-3 text-start">{ar ? 'إجراءات' : 'Actions'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {schedules.map((s) => (
+                        <tr key={s.id}>
+                          <td className="px-4 py-3">{ar ? s.nameAr : s.nameEn || s.nameAr}</td>
+                          <td className="px-4 py-3">{ar ? CUSTOM_REPORT_SOURCES[s.source].labelAr : CUSTOM_REPORT_SOURCES[s.source].labelEn}</td>
+                          <td className="px-4 py-3">{s.frequency}</td>
+                          <td className="px-4 py-3">{s.recipientEmail}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => void runScheduleNow(s)} className="text-[#8B6F47] hover:underline text-xs">
+                                {ar ? 'تشغيل الآن' : 'Run now'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  deleteReportSchedule(s.id);
+                                  setSchedules(listReportSchedules());
+                                }}
+                                className="text-red-600 hover:underline text-xs"
+                              >
+                                {ar ? 'حذف' : 'Delete'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

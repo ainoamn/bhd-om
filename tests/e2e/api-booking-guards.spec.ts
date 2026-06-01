@@ -277,6 +277,13 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('report-schedules POST requires authentication', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/settings/report-schedules`, {
+      data: { schedules: [] },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('address-book GET requires authentication', async ({ request }) => {
     const res = await request.get(`${baseURL}/api/address-book?limit=1&offset=0`);
     expect(res.status()).toBe(401);
