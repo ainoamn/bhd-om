@@ -9,6 +9,16 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (65) — Phase 13 محاسبة: analytics hook + استعادة التبويبات
+
+- **Hook:** `useAccountingHubAnalytics.ts` — KPI، تقارير DB، اتجاهات شهرية، مطالبات/مدفوعات
+- **Pure:** `monthlyTrends.ts` — `computeMonthlyTrendSeries` (6 أشهر)
+- **Unit test:** `monthlyTrends.test.ts` — 17 اختباراً إجمالاً
+- **إصلاح:** استعادة تبويبات reports/claims/cheques/payments/periods/audit/settings (كانت مفقودة من Phase 10–12)
+- **فترات:** `apiLockPeriod` عند useDb
+- **`AccountingSection.tsx`:** ~620 سطر
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (64) — Phase 12 محاسبة: useAccountingHub + مسودات النماذج
 
 - **Hook:** `useAccountingHub.ts` — بيانات، فلاتر، فرز، تحميل، pagination، حجوزات معلّقة

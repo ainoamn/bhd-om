@@ -1,15 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import {
-  getAccountBalance,
   getFiscalSettings,
   saveFiscalSettings,
-  aiDetectAnomalies,
   lockPeriod,
   getNextDocumentSerial,
-  getBankAccountBalance,
   type ChartAccount,
   type JournalEntry,
   type AccountingDocument,
@@ -21,8 +18,6 @@ import {
 import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
 import InvoicePrint from './InvoicePrint';
 import DocumentPrintModal from './DocumentPrintModal';
-import SortSelect, { type SortOption } from './SortSelect';
-import AccountingFilter from './AccountingFilter';
 import AccountingReportsTab from './accounting/AccountingReportsTab';
 import AccountingClaimsTab from './accounting/AccountingClaimsTab';
 import AccountingChequesTab from './accounting/AccountingChequesTab';
@@ -41,13 +36,11 @@ import AccountingAddDocumentModal from './accounting/AccountingAddDocumentModal'
 import AccountingAddJournalModal from './accounting/AccountingAddJournalModal';
 import AccountingAddChequeModal from './accounting/AccountingAddChequeModal';
 import AccountingInvoiceScanModal, { type InvoiceScanResult } from './accounting/AccountingInvoiceScanModal';
-import { computeFinancialKpisFromAccounts } from '@/lib/accounting/dashboard/accountStats';
-import styles from './accounting.module.css';
 import {
   lockPeriod as apiLockPeriod,
 } from '@/lib/accounting/api/client';
 import { REPORT_URL_IDS, type ReportViewId } from '@/lib/accounting/ui/reportLabels';
-import { useAccountingDbReports } from '@/lib/accounting/hooks/useAccountingDbReports';
+import { useAccountingHubAnalytics } from '@/lib/accounting/hooks/useAccountingHubAnalytics';
 import { useAccountingHub } from '@/lib/accounting/hooks/useAccountingHub';
 import { clearDraft } from '@/lib/utils/draftStorage';
 import { ACCOUNTING_DRAFT_KEYS } from '@/lib/accounting/ui/draftKeys';
@@ -301,15 +294,26 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     }
   }, [actionFromUrl, tabFromUrl, searchParams?.get('propertyId'), searchParams?.get('projectId')]);
 
-  const reportFrom = filterFromDate || new Date().getFullYear() + '-01-01';
-  const reportTo = filterToDate || new Date().toISOString().slice(0, 10);
-  const reportAsOf = filterToDate || new Date().toISOString().slice(0, 10);
-
-  /** استخدام بيانات الـ state للتقارير لضمان انعكاس التحديثات فوراً (محلي و API) */
-  const entriesForReports = journalEntries;
-  const accountsForReports = accounts;
+  const analytics = useAccountingHubAnalytics({
+    useDb,
+    activeTab,
+    filterFromDate,
+    filterToDate,
+    reportView,
+    agingLedger,
+    journalEntries,
+    accounts,
+    documents,
+    bankAccounts,
+    dataMeta,
+    selectedBankAccountId,
+    reportPropertyId,
+    reportContactId,
+  });
 
   const {
+    entriesForReports,
+    accountsForReports,
     trialBalance,
     incomeStatement,
     balanceSheet,
@@ -327,118 +331,23 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     loadingBankStatement,
     propertyLedgerDb,
     loadingPropertyLedger,
-  } = useAccountingDbReports({
-    useDb,
-    activeTab,
-    reportView,
+    stats,
+    todayStats,
+    anomalies,
+    cashSnapshot,
+    banksTotal,
+    latestEntries,
+    latestDocs,
+    monthlyLabels,
+    monthlyRevenue,
+    monthlyExpense,
+    receivables,
+    chequesReceivable,
+    totalClaims,
+    paymentsTotal,
     reportFrom,
     reportTo,
-    reportAsOf,
-    agingLedger,
-    journalEntries,
-    accounts,
-    selectedBankAccountId,
-    reportPropertyId,
-    reportContactId,
-  });
-
-  const dbKpis = useMemo(
-    () => (useDb ? computeFinancialKpisFromAccounts(accounts) : null),
-    [useDb, accounts]
-  );
-
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const todayStats = useMemo(() => {
-    let received = 0;
-    let expenses = 0;
-    for (const doc of documents) {
-      if (doc.date !== todayIso || doc.status === 'CANCELLED') continue;
-      const amt = doc.totalAmount ?? doc.amount ?? 0;
-      if (doc.type === 'RECEIPT' || doc.type === 'INVOICE') received += amt;
-      if (doc.type === 'PAYMENT' || doc.type === 'PURCHASE_INV') expenses += amt;
-    }
-    return { received, expenses };
-  }, [documents, todayIso]);
-
-  const stats = useDb && dbKpis
-    ? {
-        totalEntries: dataMeta?.journalTotal ?? journalEntries.length,
-        totalDocuments: dataMeta?.documentsTotal ?? documents.length,
-        totalAssets: dbKpis.totalAssets,
-        totalLiabilities: dbKpis.totalLiabilities,
-        totalEquity: dbKpis.totalEquity,
-        totalRevenue: dbKpis.totalRevenue,
-        totalExpenses: dbKpis.totalExpenses,
-        netIncome: dbKpis.netIncome,
-      }
-    : {
-        totalEntries: journalEntries.length,
-        totalDocuments: documents.length,
-        totalAssets: balanceSheet.totalAssets,
-        totalLiabilities: balanceSheet.totalLiabilities,
-        totalEquity: balanceSheet.totalEquity + balanceSheet.netIncome,
-        totalRevenue: incomeStatement.revenue.total,
-        totalExpenses: incomeStatement.expense.total,
-        netIncome: incomeStatement.netIncome,
-      };
-
-  const anomalies = aiDetectAnomalies(entriesForReports, accountsForReports);
-
-  const cashSnapshot = useDb && dbKpis
-    ? { balance: dbKpis.cashBalance }
-    : getBankAccountBalance('CASH', reportAsOf, entriesForReports);
-  const banksTotal = useDb && dbKpis
-    ? dbKpis.bankBalance
-    : bankAccounts
-        .filter((b) => b.isActive)
-        .reduce((s, b) => s + getBankAccountBalance(b.id, reportAsOf, entriesForReports).balance, 0);
-  /** لا نكرّر عرض قيد الإيصال في «أحدث القيود» — الإيصال يظهر في «أحدث المستندات» */
-  const latestEntries = journalEntries.filter((e) => e.documentType !== 'RECEIPT').slice(0, 5);
-  const latestDocs = documents.slice(0, 5);
-  const monthlyLabels: string[] = [];
-  const monthlyRevenue: number[] = [];
-  const monthlyExpense: number[] = [];
-  {
-    const months = 6;
-    const now = new Date();
-    const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
-    for (let m = 0; m < months; m++) {
-      const monthStart = new Date(startDate.getFullYear(), startDate.getMonth() + m, 1);
-      const monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + m + 1, 0);
-      const label = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
-      monthlyLabels.push(label);
-      let rev = 0, exp = 0;
-      for (const entry of entriesForReports) {
-        if (entry.status === 'CANCELLED' || entry.replacedBy) continue;
-        const d = new Date(entry.date);
-        if (d < monthStart || d > monthEnd) continue;
-        for (const line of entry.lines) {
-          const acc = accountsForReports.find((a) => a.id === line.accountId);
-          if (!acc) continue;
-          if (acc.type === 'REVENUE') rev += (line.credit || 0) - (line.debit || 0);
-          if (acc.type === 'EXPENSE') exp += (line.debit || 0) - (line.credit || 0);
-        }
-      }
-      monthlyRevenue.push(rev);
-      monthlyExpense.push(exp);
-    }
-  }
-
-  const receivables = useMemo(() => {
-    if (useDb && dbKpis) return dbKpis.receivables;
-    const invs = documents.filter((d) => d.type === 'INVOICE' && d.status !== 'PAID' && d.status !== 'CANCELLED');
-    return invs.reduce((s, d) => s + d.totalAmount, 0);
-  }, [documents, useDb, dbKpis]);
-  const chequesReceivable = useMemo(() => {
-    if (useDb && dbKpis) return dbKpis.chequesReceivable;
-    const cheques = documents.filter((d) => d.type === 'RECEIPT' && d.paymentMethod === 'CHEQUE');
-    return cheques.reduce((s, d) => s + d.totalAmount, 0);
-  }, [documents, useDb, dbKpis]);
-  const totalClaims = receivables + chequesReceivable;
-  const paymentsTotal = useMemo(() => {
-    const pays = documents.filter((d) => d.type === 'PAYMENT' || d.type === 'RECEIPT');
-    return pays.reduce((s, d) => s + d.totalAmount, 0);
-  }, [documents]);
+  } = analytics;
 
   return (
     <div className="space-y-6" data-testid="accounting-hub">
@@ -606,6 +515,138 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             setShowAddDocument(true);
           }}
           getPropertyDisplay={getPropertyDisplay}
+        />
+      )}
+
+      {activeTab === 'reports' && (
+        <AccountingReportsTab
+          ar={ar}
+          locale={locale}
+          reportView={reportView}
+          setReportView={setReportView}
+          reportFrom={reportFrom}
+          reportTo={reportTo}
+          useDb={useDb}
+          loadingCore={loadingCore}
+          loadingVat={loadingVat}
+          loadingAging={loadingAging}
+          loadingCashFlow={loadingCashFlow}
+          loadingCompare={loadingCompare}
+          loadingBankStatement={loadingBankStatement}
+          loadingPropertyLedger={loadingPropertyLedger}
+          trialBalance={trialBalance}
+          incomeStatement={incomeStatement}
+          balanceSheet={balanceSheet}
+          cashFlow={cashFlow}
+          vatReportData={vatReportData}
+          agingLedger={agingLedger}
+          setAgingLedger={setAgingLedger}
+          agingReportData={agingReportData}
+          cashFlowDb={cashFlowDb}
+          compareReportData={compareReportData}
+          bankStatementDb={bankStatementDb}
+          propertyLedgerDb={propertyLedgerDb}
+          bankAccounts={bankAccounts}
+          selectedBankAccountId={selectedBankAccountId}
+          setSelectedBankAccountId={setSelectedBankAccountId}
+          reportPropertyId={reportPropertyId}
+          setReportPropertyId={setReportPropertyId}
+          reportContactId={reportContactId}
+          setReportContactId={setReportContactId}
+          entriesForReports={entriesForReports}
+          contacts={contacts}
+          mergedProperties={mergedProperties}
+        />
+      )}
+
+      {activeTab === 'claims' && (
+        <AccountingClaimsTab
+          ar={ar}
+          locale={locale}
+          documents={documents}
+          contacts={contacts}
+          sortDocuments={sortDocuments}
+          setSortDocuments={setSortDocuments}
+          totalClaims={totalClaims}
+          receivables={receivables}
+          chequesReceivable={chequesReceivable}
+          getPropertyDisplay={getPropertyDisplay}
+        />
+      )}
+
+      {activeTab === 'cheques' && (
+        <AccountingChequesTab
+          ar={ar}
+          locale={locale}
+          documents={documents}
+          contacts={contacts}
+          sortDocuments={sortDocuments}
+          setSortDocuments={setSortDocuments}
+          filterFromDate={filterFromDate}
+          filterToDate={filterToDate}
+          filterContactId={filterContactId}
+          filterPropertyId={filterPropertyId}
+          filterProjectId={filterProjectId}
+          searchQuery={searchQuery}
+          projectsList={projectsList}
+          getPropertyDisplay={getPropertyDisplay}
+          getProjectDisplay={getProjectDisplay}
+          setPrintDocument={setPrintDocument}
+          onAddCheque={() => {
+            setChequeForm({
+              chequeNumber: '',
+              amount: '',
+              dueDate: new Date().toISOString().slice(0, 10),
+              bankName: '',
+              descriptionAr: '',
+              contactId: '',
+              propertyId: '',
+              projectId: '',
+              contractId: '',
+              date: new Date().toISOString().slice(0, 10),
+            });
+            setShowAddCheque(true);
+          }}
+        />
+      )}
+
+      {activeTab === 'payments' && (
+        <AccountingPaymentsTab
+          ar={ar}
+          locale={locale}
+          documents={documents}
+          contacts={contacts}
+          bankAccounts={bankAccounts}
+          sortDocuments={sortDocuments}
+          setSortDocuments={setSortDocuments}
+          paymentsTotal={paymentsTotal}
+          getPropertyDisplay={getPropertyDisplay}
+        />
+      )}
+
+      {activeTab === 'periods' && (
+        <AccountingPeriodsTab
+          ar={ar}
+          periods={periods}
+          onLockPeriod={async (periodId) => {
+            if (useDb) await apiLockPeriod(periodId);
+            else lockPeriod(periodId);
+            await loadData();
+          }}
+        />
+      )}
+
+      {activeTab === 'audit' && <AccountingAuditTab ar={ar} auditLogs={auditLogs} />}
+
+      {activeTab === 'settings' && (
+        <AccountingSettingsTab
+          ar={ar}
+          fiscalForm={fiscalForm}
+          setFiscalForm={setFiscalForm}
+          onSave={() => {
+            saveFiscalSettings(fiscalForm);
+            void loadData();
+          }}
         />
       )}
 
