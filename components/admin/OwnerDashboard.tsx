@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
 import PortalPendingTasksCard from '@/components/admin/PortalPendingTasksCard';
+import PortalAiHero from '@/components/admin/PortalAiHero';
 import { getContactForUser } from '@/lib/data/addressBook';
 import { buildOwnerPendingTasks, fetchOpenMaintenanceTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
 import { getPropertyById, getPropertyDataOverrides, properties as staticProperties } from '@/lib/data/properties';
@@ -204,12 +205,7 @@ export default function OwnerDashboard() {
   return (
     <div>
       {(can('dashboard') || !hasAnyBlock) && (
-        <div className="admin-page-header">
-          <h1 className="admin-page-title">{tNav('dashboard')}</h1>
-          <p className="admin-page-subtitle">
-            {locale === 'ar' ? 'مرحباً، ' : 'Welcome, '}{user?.name || (locale === 'ar' ? 'المالك' : 'Owner')}
-          </p>
-        </div>
+        <PortalAiHero locale={locale} role="OWNER" userName={user?.name} />
       )}
 
       {ownerPendingTasks.length > 0 && <PortalPendingTasksCard locale={locale} tasks={ownerPendingTasks} />}

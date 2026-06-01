@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
 import PortalPendingTasksCard from '@/components/admin/PortalPendingTasksCard';
+import PortalAiHero from '@/components/admin/PortalAiHero';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import { buildClientPendingTasks, fetchOpenMaintenanceTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
@@ -110,12 +111,7 @@ export default function ClientDashboard() {
   return (
     <div>
       {(can('dashboard') || !hasAnyBlock) && (
-        <div className="admin-page-header">
-          <h1 className="admin-page-title">{tNav('dashboard')}</h1>
-          <p className="admin-page-subtitle">
-            {locale === 'ar' ? 'مرحباً، ' : 'Welcome, '}{user?.name || (locale === 'ar' ? 'العميل' : 'Client')}
-          </p>
-        </div>
+        <PortalAiHero locale={locale} role="CLIENT" userName={user?.name} />
       )}
 
       {/* الوصول للموقع: الصفحة الرئيسية، تصفح العقارات، حجز المعاينة، المشاريع، الخدمات، التواصل */}

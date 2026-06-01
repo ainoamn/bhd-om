@@ -9,6 +9,16 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 50) — إعادة تصميم لوحة الرئيسية + مساعد ذكي
+
+- **`AdminHomeDashboard`:** لوحة إدارة جديدة — Hero، KPIs، أولويات، نشاط، إجراءات سريعة، جاهزية
+- **`AiInsightPanel` + `PortalAiHero`:** مساعد ذكي (تحليل قواعد + بيانات حية) للأدمن والعميل/المالك
+- **API:** `GET /api/admin/dashboard-insights` + `GET /api/me/portal-insights`
+- **`lib/admin/dashboardInsights.ts`:** محرك توصيات (حجوزات، رسائل، اشتراكات، صيانة، صحة النظام)
+- **CSS:** `admin-dash-*` — hero، KPI، shimmer loading، dark mode
+- **`page.tsx`:** تبسيط — AdminHomeDashboard / Client / Owner
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 49) — رفع تصميم اللوحة إلى 10/10
 
 - **Design tokens:** `--admin-primary`, surfaces, borders, shadows في `app/[locale]/admin/admin.css`
