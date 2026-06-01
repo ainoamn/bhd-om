@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
     const mode = searchParams.get('mode') === 'CASH' ? 'CASH' : 'BANK';
     const fromDate = searchParams.get('fromDate') || undefined;
     const toDate = searchParams.get('toDate') || undefined;
-    const data = await getBankLedgerFromDb({ mode, fromDate, toDate });
+    const bankAccountId = searchParams.get('bankAccountId') || undefined;
+    const data = await getBankLedgerFromDb({ mode, fromDate, toDate, bankAccountId });
     return NextResponse.json(data);
   } catch (err) {
     console.error('Bank reconciliation GET:', err);
@@ -39,13 +40,14 @@ export async function POST(request: NextRequest) {
     const fromDate = body.fromDate || undefined;
     const toDate = body.toDate || undefined;
     const statementBalance = body.statementBalance != null ? Number(body.statementBalance) : undefined;
+    const bankAccountId = body.bankAccountId ? String(body.bankAccountId) : undefined;
 
     let statementLines: StatementLine[] = Array.isArray(body.statementLines) ? body.statementLines : [];
     if (body.statementCsv && typeof body.statementCsv === 'string') {
       statementLines = parseBankStatementCsv(body.statementCsv);
     }
 
-    const { lines: bookLines } = await getBankLedgerFromDb({ mode, fromDate, toDate });
+    const { lines: bookLines } = await getBankLedgerFromDb({ mode, fromDate, toDate, bankAccountId });
     const result = reconcileBankLines(bookLines, statementLines, statementBalance);
     return NextResponse.json({ ...result, bookLines: bookLines.length, statementLines: statementLines.length });
   } catch (err) {

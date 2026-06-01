@@ -10,6 +10,7 @@ export type AccountingQuickActionsProps = {
   onNewInvoice: () => void;
   onNewReceipt: () => void;
   onNewExpense: () => void;
+  onScanInvoice: () => void;
   onViewReports: () => void;
 };
 
@@ -20,6 +21,7 @@ export default function AccountingQuickActions({
   onNewInvoice,
   onNewReceipt,
   onNewExpense,
+  onScanInvoice,
   onViewReports,
 }: AccountingQuickActionsProps) {
   return (
@@ -71,6 +73,13 @@ export default function AccountingQuickActions({
           </span>
           <span className={styles.quickActionLabel}>{ar ? 'مصروف' : 'Expense'}</span>
           <span className={styles.quickActionHint}>{ar ? 'دفعة أو مشتريات' : 'Payment or purchase'}</span>
+        </button>
+        <button type="button" onClick={onScanInvoice} className={`${styles.quickActionCard} ${styles.quickActionCardMuted}`}>
+          <span className={styles.quickActionIcon} aria-hidden>
+            <Icon name="sparkles" className="w-6 h-6" />
+          </span>
+          <span className={styles.quickActionLabel}>{ar ? 'مسح فاتورة' : 'Scan invoice'}</span>
+          <span className={styles.quickActionHint}>{ar ? 'AI — مراجعة قبل الحفظ' : 'AI — review before save'}</span>
         </button>
         <button type="button" onClick={onViewReports} className={`${styles.quickActionCard} ${styles.quickActionCardMuted}`}>
           <span className={styles.quickActionIcon} aria-hidden>

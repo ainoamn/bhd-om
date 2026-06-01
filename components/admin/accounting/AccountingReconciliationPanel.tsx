@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { BankAccount } from '@/lib/data/bankAccounts';
 
 type ReconResult = {
   bookBalance: number;
@@ -11,9 +12,10 @@ type ReconResult = {
   unmatchedStatement: Array<{ id: string; date: string; amount: number; reference?: string }>;
 };
 
-export default function AccountingReconciliationPanel(props: { ar: boolean }) {
-  const { ar } = props;
+export default function AccountingReconciliationPanel(props: { ar: boolean; bankAccounts?: BankAccount[] }) {
+  const { ar, bankAccounts = [] } = props;
   const [mode, setMode] = useState<'CASH' | 'BANK'>('BANK');
+  const [bankAccountId, setBankAccountId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
   const [statementBalance, setStatementBalance] = useState('');
@@ -23,13 +25,28 @@ export default function AccountingReconciliationPanel(props: { ar: boolean }) {
   const [result, setResult] = useState<ReconResult | null>(null);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (mode === 'CASH') {
+      setBankAccountId('');
+    } else if (!bankAccountId && bankAccounts.length > 0) {
+      const active = bankAccounts.filter((b) => b.isActive);
+      if (active.length > 0) setBankAccountId(active[0].id);
+    }
+  }, [mode, bankAccounts, bankAccountId]);
+
+  const reconParams = () => {
+    const sp = new URLSearchParams({ mode });
+    if (fromDate) sp.set('fromDate', fromDate);
+    if (toDate) sp.set('toDate', toDate);
+    if (mode === 'BANK' && bankAccountId) sp.set('bankAccountId', bankAccountId);
+    return sp;
+  };
+
   const loadBook = async () => {
     setLoading(true);
     setError('');
     try {
-      const sp = new URLSearchParams({ mode });
-      if (fromDate) sp.set('fromDate', fromDate);
-      if (toDate) sp.set('toDate', toDate);
+      const sp = reconParams();
       const res = await fetch(`/api/accounting/bank-reconciliation?${sp}`, { credentials: 'include' });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -54,6 +71,7 @@ export default function AccountingReconciliationPanel(props: { ar: boolean }) {
           mode,
           fromDate: fromDate || undefined,
           toDate: toDate || undefined,
+          bankAccountId: mode === 'BANK' && bankAccountId ? bankAccountId : undefined,
           statementBalance: statementBalance ? Number(statementBalance) : undefined,
           statementCsv: csv.trim() || undefined,
         }),
@@ -84,6 +102,17 @@ export default function AccountingReconciliationPanel(props: { ar: boolean }) {
             <option value="CASH">{ar ? 'الصندوق (1000)' : 'Cash (1000)'}</option>
           </select>
         </div>
+        {mode === 'BANK' && bankAccounts.length > 0 && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'حساب بنكي' : 'Bank account'}</label>
+            <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className="admin-select min-w-[200px]">
+              <option value="">{ar ? '— الكل (1100) —' : '— All (1100) —'}</option>
+              {bankAccounts.filter((b) => b.isActive).map((b) => (
+                <option key={b.id} value={b.id}>{ar ? b.nameAr : (b.nameEn || b.nameAr)} — {b.accountNumber}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">{ar ? 'من' : 'From'}</label>
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="admin-input" />

@@ -9,6 +9,13 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (55) — Phase 3 محاسبة: dueDate + OCR + مطابقة لكل بنك
+
+- **`dueDate` في Prisma:** migration `20260601160000_accounting_document_due_date` + فهرس — aging أدق
+- **OCR v1:** `invoiceOcrEngine.ts` + `POST /api/accounting/ai/scan-invoice` + `AccountingInvoiceScanModal` + زر «مسح فاتورة» في الإجراءات السريعة
+- **مطابقة البنك:** فلتر `bankAccountId` في `getBankLedgerFromDb` (ربط عبر serial المستند) + UI اختيار حساب بنكي
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (54) — Phase 2 محاسبة: أعمار الذمم + مطابقة البنك
 
 - **AR/AP Aging:** `lib/accounting/reports/agingReport.ts` + `GET /api/accounting/reports?report=aging&ledger=ar|ap` + تبويب «أعمار الذمم» (`AccountingAgingPanel`)

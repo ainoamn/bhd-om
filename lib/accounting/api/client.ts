@@ -171,6 +171,29 @@ export async function fetchAgingReport(params: { ledger?: 'ar' | 'ap'; asOfDate?
   }>(`${BASE}/reports?${sp}`);
 }
 
+export async function scanInvoiceFromText(params: { text?: string; fileName?: string; attachmentUrl?: string }) {
+  return fetchJson<{
+    type: 'INVOICE' | 'PURCHASE_INV';
+    date?: string;
+    dueDate?: string;
+    amount?: number;
+    netAmount?: number;
+    vatAmount?: number;
+    vatRate?: number;
+    reference?: string;
+    descriptionAr?: string;
+    descriptionEn?: string;
+    vendorHint?: string;
+    confidence: string;
+    explanationAr: string;
+    explanationEn: string;
+    attachmentUrl?: string;
+  }>(`${BASE}/ai/scan-invoice`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
 export async function suggestJournalEntry(description: string, amount?: number) {
   return fetchJson<{
     lines: Array<{ accountId: string; debit: number; credit: number; descriptionAr?: string }>;

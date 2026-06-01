@@ -428,6 +428,7 @@ export async function getDocumentsFromDb(filters?: {
     type: r.type,
     status: r.status,
     date: r.date.toISOString().slice(0, 10),
+    dueDate: r.dueDate ? r.dueDate.toISOString().slice(0, 10) : undefined,
     contactId: r.contactId,
     bankAccountId: r.bankAccountId,
     propertyId: r.propertyId,
@@ -527,6 +528,7 @@ export async function createDocumentInDb(data: {
       type: (DOC_TYPE_MAP[data.type] || 'OTHER') as AccountingDocType,
       status: (DOC_STATUS_MAP[data.status] || 'APPROVED') as AccountingDocStatus,
       date: new Date(data.date),
+      dueDate: data.dueDate ? new Date(data.dueDate) : null,
       contactId: data.contactId ?? null,
       bankAccountId: data.bankAccountId ?? null,
       propertyId: data.propertyId ?? null,
@@ -550,6 +552,7 @@ export async function createDocumentInDb(data: {
     type: doc.type,
     status: doc.status,
     date: doc.date.toISOString().slice(0, 10),
+    dueDate: doc.dueDate ? doc.dueDate.toISOString().slice(0, 10) : undefined,
     contactId: doc.contactId,
     bankAccountId: doc.bankAccountId,
     propertyId: doc.propertyId,
@@ -893,7 +896,7 @@ export async function getAgingReportFromDb(ledger: 'ar' | 'ap', asOfDate: string
     type: r.type,
     status: r.status,
     date: r.date.toISOString().slice(0, 10),
-    dueDate: r.date.toISOString().slice(0, 10),
+    dueDate: r.dueDate ? r.dueDate.toISOString().slice(0, 10) : r.date.toISOString().slice(0, 10),
     contactId: r.contactId,
     totalAmount: r.totalAmount,
     netAmount: r.netAmount,
@@ -906,6 +909,8 @@ export async function getBankLedgerFromDb(params: {
   mode: 'CASH' | 'BANK';
   fromDate?: string;
   toDate?: string;
+  /** Filter to movements linked to documents on this bank account (serial in journal description) */
+  bankAccountId?: string;
 }) {
   const { computeBookBalance } = await import('../reports/bankReconciliation');
   await ensureAccountingAccounts();
@@ -916,6 +921,15 @@ export async function getBankLedgerFromDb(params: {
   const dateFilter: { gte?: Date; lte?: Date } = {};
   if (params.fromDate) dateFilter.gte = new Date(params.fromDate);
   if (params.toDate) dateFilter.lte = new Date(params.toDate);
+
+  let serialFilter: Set<string> | null = null;
+  if (params.bankAccountId && params.bankAccountId !== 'CASH') {
+    const linkedDocs = await prisma.accountingDocument.findMany({
+      where: { bankAccountId: params.bankAccountId },
+      select: { serialNumber: true },
+    });
+    serialFilter = new Set(linkedDocs.map((d) => d.serialNumber));
+  }
 
   const entries = await prisma.accountingJournalEntry.findMany({
     where: {
@@ -938,6 +952,11 @@ export async function getBankLedgerFromDb(params: {
   }> = [];
 
   for (const entry of entries) {
+    if (serialFilter) {
+      const hay = `${entry.descriptionAr || ''} ${entry.descriptionEn || ''} ${entry.reference || ''} ${entry.serialNumber}`;
+      const linked = [...serialFilter].some((sn) => hay.includes(sn));
+      if (!linked) continue;
+    }
     for (const line of entry.lines) {
       if (line.accountId !== acc.id) continue;
       if (line.debit < 0.001 && line.credit < 0.001) continue;

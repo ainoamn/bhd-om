@@ -57,6 +57,7 @@ import AccountingFilter from './AccountingFilter';
 import AccountingQuickActions from './accounting/AccountingQuickActions';
 import AccountingAgingPanel from './accounting/AccountingAgingPanel';
 import AccountingReconciliationPanel from './accounting/AccountingReconciliationPanel';
+import AccountingInvoiceScanModal, { type InvoiceScanResult } from './accounting/AccountingInvoiceScanModal';
 import { computeFinancialKpisFromAccounts } from '@/lib/accounting/dashboard/accountStats';
 import { getCompanyData } from '@/lib/data/companyData';
 import { getDefaultTemplate } from '@/lib/data/documentTemplates';
@@ -254,6 +255,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [showAddJournal, setShowAddJournal] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showAddCheque, setShowAddCheque] = useState(false);
+  const [showInvoiceScan, setShowInvoiceScan] = useState(false);
   const [printDocument, setPrintDocument] = useState<AccountingDocument | null>(null);
   const [reportView, setReportView] = useState<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation'>('trial');
   const [vatReportData, setVatReportData] = useState<Awaited<ReturnType<typeof fetchVatReport>> | null>(null);
@@ -321,6 +323,35 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       branch: '',
       attachments: [],
       items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
+    });
+    setShowAddDocument(true);
+    setTab('documents');
+  };
+
+  const applyInvoiceScan = (draft: InvoiceScanResult) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const docType = draft.type;
+    const useLineItems = ['INVOICE', 'QUOTE', 'PURCHASE_INV', 'PURCHASE_ORDER', 'CREDIT_NOTE', 'DEBIT_NOTE'].includes(docType);
+    setDocForm({
+      type: docType,
+      serialNumber: getNextDocumentSerial(docType),
+      amount: draft.amount || '',
+      contactId: '',
+      bankAccountId: '',
+      propertyId: '',
+      projectId: '',
+      descriptionAr: draft.descriptionAr ?? '',
+      descriptionEn: draft.descriptionEn ?? '',
+      date: draft.date || today,
+      dueDate: draft.dueDate || draft.date || today,
+      currency: 'OMR',
+      useLineItems,
+      vatRate: draft.vatRate ?? 0,
+      purchaseOrder: '',
+      reference: draft.reference || '',
+      branch: '',
+      attachments: draft.attachments ?? [],
+      items: [{ descriptionAr: draft.descriptionAr || '', quantity: 1, unitPrice: draft.amount || '', accountId: '' }],
     });
     setShowAddDocument(true);
     setTab('documents');
@@ -946,6 +977,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             onNewInvoice={() => openDocumentModule('INVOICE')}
             onNewReceipt={() => openDocumentModule('RECEIPT')}
             onNewExpense={() => openDocumentModule('PAYMENT', { descriptionAr: 'مصروف', descriptionEn: 'Expense' })}
+            onScanInvoice={() => setShowInvoiceScan(true)}
             onViewReports={() => setTab('reports', undefined, 'income')}
           />
           {(dataMeta?.documentsTruncated || dataMeta?.journalTruncated) && (
@@ -2595,7 +2627,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                   {!useDb ? (
                     <p className="text-amber-700 text-sm">{ar ? 'مطابقة البنك متاحة مع قاعدة البيانات فقط' : 'Bank reconciliation requires database mode'}</p>
                   ) : (
-                    <AccountingReconciliationPanel ar={ar} />
+                    <AccountingReconciliationPanel ar={ar} bankAccounts={bankAccounts} />
                   )}
                 </div>
               )}
@@ -3314,6 +3346,13 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
           </div>
         </div>
       )}
+
+      <AccountingInvoiceScanModal
+        ar={ar}
+        open={showInvoiceScan}
+        onClose={() => setShowInvoiceScan(false)}
+        onApply={applyInvoiceScan}
+      />
     </div>
   );
 }

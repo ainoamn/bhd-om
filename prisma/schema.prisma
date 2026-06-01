@@ -541,6 +541,7 @@ model AccountingDocument {
   type            AccountingDocType
   status          AccountingDocStatus
   date            DateTime
+  dueDate         DateTime?
   totalAmount     Float     @default(0)
   vatRate         Float?
   vatAmount       Float?
@@ -562,6 +563,7 @@ model AccountingDocument {
   @@index([type])
   @@index([status])
   @@index([date])
+  @@index([dueDate])
   @@index([contactId])
   @@index([createdAt])
 }
