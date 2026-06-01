@@ -54,6 +54,11 @@ import AccountingPeriodsTab from './accounting/AccountingPeriodsTab';
 import AccountingAuditTab from './accounting/AccountingAuditTab';
 import AccountingDashboardTab from './accounting/AccountingDashboardTab';
 import AccountingDocumentsTab from './accounting/AccountingDocumentsTab';
+import AccountingSalesTab from './accounting/AccountingSalesTab';
+import AccountingPurchasesTab from './accounting/AccountingPurchasesTab';
+import AccountingAccountsTab from './accounting/AccountingAccountsTab';
+import AccountingSettingsTab from './accounting/AccountingSettingsTab';
+import AccountingAddAccountModal from './accounting/AccountingAddAccountModal';
 import AccountingInvoiceScanModal, { type InvoiceScanResult } from './accounting/AccountingInvoiceScanModal';
 import { computeFinancialKpisFromAccounts } from '@/lib/accounting/dashboard/accountStats';
 import styles from './accounting.module.css';
@@ -78,69 +83,6 @@ import { useAccountingDbReports } from '@/lib/accounting/hooks/useAccountingDbRe
 import type { AccountingInitialData } from '@/lib/accounting/types/pageData';
 
 export type { AccountingInitialData };
-
-const ACCOUNT_TYPE_LABELS: Record<AccountType, { ar: string; en: string }> = {
-  ASSET: { ar: 'أصول', en: 'Assets' },
-  LIABILITY: { ar: 'التزامات', en: 'Liabilities' },
-  EQUITY: { ar: 'حقوق الملكية', en: 'Equity' },
-  REVENUE: { ar: 'إيرادات', en: 'Revenue' },
-  EXPENSE: { ar: 'مصروفات', en: 'Expenses' },
-};
-
-/** المبيعات - وحدات منفصلة */
-const SALES_MODULES = [
-  { id: 'quotes', labelAr: 'عروض أسعار وفواتير مبدئية', labelEn: 'Quotes & Proforma Invoices', icon: 'documentText' as const },
-  { id: 'invoices', labelAr: 'فواتير بيع', labelEn: 'Sales Invoices', icon: 'archive' as const },
-  { id: 'receipts', labelAr: 'سندات العملاء', labelEn: 'Customer Receipts', icon: 'archive' as const },
-  { id: 'scheduled', labelAr: 'فواتير مجدولة', labelEn: 'Scheduled Invoices', icon: 'calendar' as const },
-  { id: 'credit-notes', labelAr: 'إشعارات دائنة', labelEn: 'Credit Notes', icon: 'documentText' as const },
-  { id: 'cash-inv', labelAr: 'فواتير نقدية', labelEn: 'Cash Invoices', icon: 'archive' as const },
-  { id: 'delivery', labelAr: 'إشعارات تسليم', labelEn: 'Delivery Notes', icon: 'documentText' as const },
-  { id: 'api-inv', labelAr: 'فواتير بيع من ال API', labelEn: 'Sales Invoices from API', icon: 'cog' as const },
-];
-
-/** المشتريات - وحدات منفصلة */
-const PURCHASES_MODULES = [
-  { id: 'purch-inv', labelAr: 'فواتير مشتريات', labelEn: 'Purchase Invoices', icon: 'archive' as const },
-  { id: 'supp-receipts', labelAr: 'سندات الموردين', labelEn: 'Supplier Receipts', icon: 'archive' as const },
-  { id: 'cash-exp', labelAr: 'مصروفات نقدية', labelEn: 'Cash Expenses', icon: 'archive' as const },
-  { id: 'debit-notes', labelAr: 'إشعارات مدينة', labelEn: 'Debit Notes', icon: 'documentText' as const },
-  { id: 'po', labelAr: 'أوامر شراء', labelEn: 'Purchase Orders', icon: 'documentText' as const },
-];
-
-function salesModuleDocType(id: string): DocumentType | null {
-  const map: Record<string, DocumentType> = {
-    quotes: 'QUOTE',
-    invoices: 'INVOICE',
-    receipts: 'RECEIPT',
-    scheduled: 'INVOICE',
-    'credit-notes': 'CREDIT_NOTE',
-    'cash-inv': 'INVOICE',
-    delivery: 'OTHER',
-    'api-inv': 'INVOICE',
-  };
-  return map[id] ?? null;
-}
-
-function purchasesModuleDocType(id: string): DocumentType | null {
-  const map: Record<string, DocumentType> = {
-    'purch-inv': 'PURCHASE_INV',
-    'supp-receipts': 'PAYMENT',
-    'cash-exp': 'PAYMENT',
-    'debit-notes': 'DEBIT_NOTE',
-    po: 'PURCHASE_ORDER',
-  };
-  return map[id] ?? null;
-}
-
-function salesModulePreset(id: string): { descriptionAr?: string; descriptionEn?: string } {
-  if (id === 'delivery') return { descriptionAr: 'إشعار تسليم', descriptionEn: 'Delivery note' };
-  if (id === 'scheduled') return { descriptionAr: 'فاتورة مجدولة', descriptionEn: 'Scheduled invoice' };
-  if (id === 'cash-inv') return { descriptionAr: 'فاتورة نقدية', descriptionEn: 'Cash invoice' };
-  if (id === 'api-inv') return { descriptionAr: 'فاتورة بيع API', descriptionEn: 'API sales invoice' };
-  if (id === 'credit-notes') return { descriptionAr: 'إشعار دائن', descriptionEn: 'Credit note' };
-  return {};
-}
 
 type TabId = 'dashboard' | 'sales' | 'purchases' | 'accounts' | 'journal' | 'documents' | 'reports' | 'claims' | 'cheques' | 'payments' | 'settings' | 'audit' | 'periods';
 
@@ -178,7 +120,6 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [filterPropertyId, setFilterPropertyId] = useState('');
   const [filterProjectId, setFilterProjectId] = useState('');
   const [filterDocType, setFilterDocType] = useState<DocumentType | ''>('');
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [receiptConfirmKey, setReceiptConfirmKey] = useState(0);
   const [showAddDocument, setShowAddDocument] = useState(false);
@@ -299,7 +240,6 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [contactDropdownOpen, setContactDropdownOpen] = useState(false);
   const [sortDocuments, setSortDocuments] = useState<SortOption>('dateDesc');
   const [sortJournal, setSortJournal] = useState<SortOption>('dateDesc');
-  const [sortAccounts, setSortAccounts] = useState<SortOption>('number');
 
   const [dataSourceFromApi, setDataSourceFromApi] = useState<boolean | null>(initialData ? true : null);
   const [dataMeta, setDataMeta] = useState(initialData?.meta ?? null);
@@ -618,34 +558,6 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     return list;
   }, [filteredEntries, sortJournal, contacts, locale]);
 
-  /** الحسابات مرتبة */
-  const sortedAccounts = useMemo(() => {
-    const list = [...accounts];
-    list.sort((a, b) => {
-      switch (sortAccounts) {
-        case 'dateDesc':
-        case 'dateAsc': return 0;
-        case 'number': return (a.code || '').localeCompare(b.code || '');
-        case 'property': return (a.nameAr || '').localeCompare(b.nameAr || '');
-        case 'alphabetical': return (a.nameAr || a.nameEn || '').localeCompare(b.nameAr || b.nameEn || '');
-        default: return 0;
-      }
-    });
-    return list;
-  }, [accounts, sortAccounts]);
-
-  /** تجميع الحسابات حسب النوع للعرض المنظم (أصول → التزامات → حقوق ملكية → إيرادات → مصروفات) */
-  const ACCOUNT_TYPE_ORDER: AccountType[] = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'];
-  const accountsByType = useMemo(() => {
-    const map = new Map<AccountType, typeof sortedAccounts>();
-    for (const t of ACCOUNT_TYPE_ORDER) map.set(t, []);
-    for (const a of sortedAccounts) {
-      const list = map.get(a.type as AccountType);
-      if (list) list.push(a);
-    }
-    return ACCOUNT_TYPE_ORDER.map((t) => ({ type: t, accounts: map.get(t) || [] }));
-  }, [sortedAccounts]);
-
   const reportFrom = filterFromDate || new Date().getFullYear() + '-01-01';
   const reportTo = filterToDate || new Date().toISOString().slice(0, 10);
   const reportAsOf = filterToDate || new Date().toISOString().slice(0, 10);
@@ -653,13 +565,6 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   /** استخدام بيانات الـ state للتقارير لضمان انعكاس التحديثات فوراً (محلي و API) */
   const entriesForReports = journalEntries;
   const accountsForReports = accounts;
-  const ledgerLines = selectedAccountId
-    ? getAccountLedger(selectedAccountId, filterFromDate || undefined, filterToDate || undefined, entriesForReports)
-    : [];
-
-  const ledgerWithBalance = selectedAccountId
-    ? getAccountLedgerWithBalance(selectedAccountId, filterFromDate || undefined, filterToDate || undefined, entriesForReports, accountsForReports)
-    : [];
 
   const {
     trialBalance,
@@ -930,193 +835,26 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         />
       )}
 
-      {/* المبيعات - وحدات منظمة */}
       {activeTab === 'sales' && (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-emerald-200/80 bg-white shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-white border-b border-emerald-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Icon name="archive" className="h-5 w-5 text-emerald-600" />
-                {ar ? 'المبيعات' : 'Sales'}
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">{ar ? 'عروض أسعار، فواتير بيع، سندات عملاء، إشعارات دائنة' : 'Quotes, sales invoices, customer receipts, credit notes'}</p>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {SALES_MODULES.map((m) => {
-                  const docType = salesModuleDocType(m.id);
-                  const canOpen = docType !== null;
-                  const preset = salesModulePreset(m.id);
-                  return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={canOpen ? () => openDocumentModule(docType!, preset) : undefined}
-                    className={`flex flex-col items-start gap-3 p-4 rounded-xl border-2 text-right group ${canOpen ? 'border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/50 cursor-pointer transition-all' : 'border-gray-100 bg-gray-50/50 cursor-default'}`}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 group-hover:bg-emerald-200">
-                      <Icon name={m.icon} className="h-5 w-5" />
-                    </div>
-                    <span className="font-semibold text-gray-900">{ar ? m.labelAr : m.labelEn}</span>
-                    {canOpen ? <span className="text-xs text-emerald-600">✓ {ar ? 'متاح' : 'Available'}</span> : <span className="text-xs text-amber-600">{ar ? 'قريباً' : 'Coming soon'}</span>}
-                  </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <AccountingSalesTab ar={ar} onOpenDocument={(docType, preset) => openDocumentModule(docType, preset)} />
       )}
 
-      {/* المشتريات - وحدات منظمة */}
       {activeTab === 'purchases' && (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-blue-200/80 bg-white shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-white border-b border-blue-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Icon name="archive" className="h-5 w-5 text-blue-600" />
-                {ar ? 'المشتريات' : 'Purchases'}
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">{ar ? 'فواتير مشتريات، سندات موردين، مصروفات، إشعارات مدينة، أوامر شراء' : 'Purchase invoices, supplier receipts, expenses, debit notes, purchase orders'}</p>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {PURCHASES_MODULES.map((m) => {
-                  const purchDocType = purchasesModuleDocType(m.id);
-                  const canOpen = purchDocType !== null;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={canOpen ? () => openDocumentModule(purchDocType!) : undefined}
-                      className={`flex flex-col items-start gap-3 p-4 rounded-xl border-2 text-right group ${canOpen ? 'border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 cursor-pointer transition-all' : 'border-gray-100 bg-gray-50/50 cursor-default'}`}
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-200">
-                        <Icon name={m.icon} className="h-5 w-5" />
-                      </div>
-                      <span className="font-semibold text-gray-900">{ar ? m.labelAr : m.labelEn}</span>
-                      {canOpen ? <span className="text-xs text-blue-600">✓ {ar ? 'متاح' : 'Available'}</span> : <span className="text-xs text-amber-600">{ar ? 'قريباً' : 'Coming soon'}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <AccountingPurchasesTab ar={ar} onOpenDocument={(docType) => openDocumentModule(docType)} />
       )}
 
       {activeTab === 'accounts' && (
-        <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-4">
-            <h4 className="flex items-center gap-2 font-bold text-gray-900">
-              <Icon name="archive" className="h-5 w-5 admin-accent-text" />
-              {ar ? 'دليل الحسابات' : 'Chart of Accounts'}
-            </h4>
-            <div className="flex flex-wrap items-center gap-3">
-              <SortSelect value={sortAccounts} onChange={setSortAccounts} ar={ar} />
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={() => {
-                  setAccountForm({ code: '', nameAr: '', nameEn: '', type: 'EXPENSE' });
-                  setShowAddAccount(true);
-                }}
-              >
-                <Icon name="plus" className="h-4 w-4" />
-                {ar ? 'إضافة حساب' : 'Add account'}
-              </button>
-              <select
-              value={selectedAccountId || ''}
-              onChange={(e) => setSelectedAccountId(e.target.value || null)}
-              className="admin-input !py-2.5 !text-sm !w-auto"
-            >
-              <option value="">{ar ? '— عرض كشف حساب —' : '— View ledger —'}</option>
-              {sortedAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.code} - {ar ? a.nameAr : a.nameEn || a.nameAr}</option>
-              ))}
-            </select>
-            </div>
-          </div>
-          {selectedAccountId ? (
-            <div className="p-6">
-              <h5 className="font-semibold text-gray-900 mb-4">
-                {(() => {
-                  const acc = getAccountById(selectedAccountId);
-                  return acc ? `${acc.code} - ${ar ? acc.nameAr : acc.nameEn || acc.nameAr}` : '';
-                })()}
-              </h5>
-              <div className="overflow-x-auto">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>{ar ? 'التاريخ' : 'Date'}</th>
-                      <th>{ar ? 'رقم القيد' : 'Entry #'}</th>
-                      <th>{ar ? 'الوصف' : 'Description'}</th>
-                      <th>{ar ? 'مدين' : 'Debit'}</th>
-                      <th>{ar ? 'دائن' : 'Credit'}</th>
-                      <th>{ar ? 'الرصيد الجاري' : 'Running Balance'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledgerWithBalance.map(({ entry, debit, credit, runningBalance }, i) => (
-                      <tr key={`${entry.id}-${i}`}>
-                        <td>{new Date(entry.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                        <td className="font-mono text-sm">{entry.serialNumber}</td>
-                        <td>{ar ? entry.descriptionAr : entry.descriptionEn || entry.descriptionAr || '—'}</td>
-                        <td>{debit > 0 ? debit.toLocaleString() : '—'}</td>
-                        <td>{credit > 0 ? credit.toLocaleString() : '—'}</td>
-                        <td className="font-semibold">{runningBalance.toLocaleString()} ر.ع</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {ledgerWithBalance.length === 0 && (
-                <p className="text-center text-gray-500 py-8">{ar ? 'لا توجد حركات' : 'No transactions'}</p>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              {accountsByType.map(({ type, accounts: typeAccounts }) => {
-                if (typeAccounts.length === 0) return null;
-                const typeLabel = ar ? ACCOUNT_TYPE_LABELS[type].ar : ACCOUNT_TYPE_LABELS[type].en;
-                const typeTotal = typeAccounts.reduce((sum, a) => {
-                  const bal = getAccountBalance(a.id, undefined, entriesForReports, accountsForReports);
-                  return sum + bal.balance;
-                }, 0);
-                return (
-                  <div key={type} className="border-b border-gray-100 last:border-b-0">
-                    <div className="px-6 py-3 bg-gray-50/80 flex justify-between items-center">
-                      <h5 className="font-semibold text-gray-800">{typeLabel}</h5>
-                      <span className="text-sm font-bold tabular-nums text-gray-700">{typeTotal.toLocaleString()} ر.ع</span>
-                    </div>
-                    <table className="admin-table w-full">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">{ar ? 'الرمز' : 'Code'}</th>
-                          <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">{ar ? 'اسم الحساب' : 'Account'}</th>
-                          <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">{ar ? 'الرصيد' : 'Balance'}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {typeAccounts.map((a) => {
-                          const bal = getAccountBalance(a.id, undefined, entriesForReports, accountsForReports);
-                          return (
-                            <tr key={a.id} className="border-t border-gray-100 hover:bg-gray-50/50">
-                              <td className="py-3 px-4 font-mono text-sm text-gray-800">{a.code}</td>
-                              <td className="py-3 px-4 font-medium text-gray-900">{ar ? a.nameAr : a.nameEn || a.nameAr}</td>
-                              <td className={`py-3 px-4 text-right font-semibold tabular-nums ${bal.balance >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{bal.balance.toLocaleString()} ر.ع</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <AccountingAccountsTab
+          ar={ar}
+          accounts={accounts}
+          journalEntries={journalEntries}
+          filterFromDate={filterFromDate}
+          filterToDate={filterToDate}
+          onAddAccount={() => {
+            setAccountForm({ code: '', nameAr: '', nameEn: '', type: 'EXPENSE' });
+            setShowAddAccount(true);
+          }}
+        />
       )}
 
       {activeTab === 'journal' && (
@@ -1888,36 +1626,15 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       {activeTab === 'audit' && <AccountingAuditTab ar={ar} auditLogs={auditLogs} />}
 
       {activeTab === 'settings' && (
-        <div className="admin-card p-6 max-w-xl">
-          <h4 className="font-bold text-gray-900 mb-6">{ar ? 'إعدادات المحاسبة' : 'Accounting Settings'}</h4>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              saveFiscalSettings(fiscalForm);
-              loadData();
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'العملة' : 'Currency'}</label>
-              <select value={fiscalForm.currency} onChange={(e) => setFiscalForm({ ...fiscalForm, currency: e.target.value })} className="admin-select w-full">
-                <option value="OMR">ر.ع (OMR)</option>
-                <option value="SAR">ر.س (SAR)</option>
-                <option value="AED">د.إ (AED)</option>
-                <option value="USD">$ (USD)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'ضريبة القيمة المضافة (%)' : 'VAT Rate (%)'}</label>
-              <select value={fiscalForm.vatRate} onChange={(e) => setFiscalForm({ ...fiscalForm, vatRate: parseInt(e.target.value, 10) })} className="admin-select w-full">
-                <option value={0}>0%</option>
-                <option value={5}>5%</option>
-                <option value={15}>15%</option>
-              </select>
-            </div>
-            <button type="submit" className="px-4 py-2.5 admin-btn-primary">{ar ? 'حفظ الإعدادات' : 'Save Settings'}</button>
-          </form>
-        </div>
+        <AccountingSettingsTab
+          ar={ar}
+          fiscalForm={fiscalForm}
+          setFiscalForm={setFiscalForm}
+          onSave={() => {
+            saveFiscalSettings(fiscalForm);
+            loadData();
+          }}
+        />
       )}
 
       {/* Modal: طباعة مستند - قابلة للسحب وضمن حدود الشاشة */}
@@ -1932,60 +1649,14 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         </DocumentPrintModal>
       )}
 
-      {/* Modal: إضافة حساب */}
-      {showAddAccount && (
-        <div className={styles.modalOverlay} onClick={() => setShowAddAccount(false)}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 className={styles.modalTitle}>{ar ? 'إضافة حساب جديد' : 'Add new account'}</h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!accountForm.code.trim() || !accountForm.nameAr.trim()) return;
-                try {
-                  createAccount({
-                    code: accountForm.code.trim(),
-                    nameAr: accountForm.nameAr.trim(),
-                    nameEn: accountForm.nameEn.trim() || undefined,
-                    type: accountForm.type,
-                    isActive: true,
-                    sortOrder: 999,
-                  });
-                  loadData();
-                  setShowAddAccount(false);
-                } catch (err) {
-                  alert(err instanceof Error ? err.message : ar ? 'خطأ' : 'Error');
-                }
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'رمز الحساب' : 'Account code'}</label>
-                <input type="text" value={accountForm.code} onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })} className="admin-input w-full" placeholder="مثال: 5110" required />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'الاسم (عربي)' : 'Name (Arabic)'}</label>
-                <input type="text" value={accountForm.nameAr} onChange={(e) => setAccountForm({ ...accountForm, nameAr: e.target.value })} className="admin-input w-full" required />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'الاسم (إنجليزي)' : 'Name (English)'}</label>
-                <input type="text" value={accountForm.nameEn} onChange={(e) => setAccountForm({ ...accountForm, nameEn: e.target.value })} className="admin-input w-full" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">{ar ? 'نوع الحساب' : 'Account type'}</label>
-                <select value={accountForm.type} onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value as AccountType })} className="admin-select w-full">
-                  {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((t) => (
-                    <option key={t} value={t}>{ar ? ACCOUNT_TYPE_LABELS[t].ar : ACCOUNT_TYPE_LABELS[t].en}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowAddAccount(false)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button type="submit" className="flex-1 px-4 py-2.5 admin-btn-primary">{ar ? 'إضافة' : 'Add'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AccountingAddAccountModal
+        ar={ar}
+        open={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        accountForm={accountForm}
+        setAccountForm={setAccountForm}
+        onCreated={loadData}
+      />
 
       <AccountingInvoiceScanModal
         ar={ar}

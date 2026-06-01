@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (62) — Phase 10 محاسبة: sales/purchases/accounts/settings + modal
+
+- **تبويبات:** `AccountingSalesTab`, `AccountingPurchasesTab`, `AccountingAccountsTab`, `AccountingSettingsTab`
+- **مودال:** `AccountingAddAccountModal` — استخراج من `AccountingSection`
+- **مشترك:** `salesPurchasesModules.ts`, `accountTypeLabels.ts`
+- **Unit test:** `salesPurchasesModules.test.ts` + `test:unit` glob
+- **E2E:** تبويبات sales/purchases/settings في `accounting-hub.spec.ts`
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (61) — Phase 9 محاسبة: dashboard/documents + FTA API + CI unit tests
 
 - **تبويبات:** `AccountingDashboardTab`, `AccountingDocumentsTab` — استخراج ~350 + ~140 سطر من `AccountingSection.tsx`
