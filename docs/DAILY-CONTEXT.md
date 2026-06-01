@@ -9,6 +9,43 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 45) — المرحلة 4: polish + E2E
+
+- **`SiteContentHydrator`:** تحميل محتوى الموقع من `/api/settings/site-content` للصفحات العامة
+- **`Services` (الرئيسية):** يتحدّث بعد الحفظ من لوحة الإدارة (`SITE_CONTENT_EVENT`)
+- **`loading.tsx`:** services، contact، submissions
+- **E2E:** صفحات portal/admin الجديدة + contact-submissions + site-content + notifications API
+- **`npm run build`** ✅
+
+### جلسة 2026-05-31 (تابع 44) — المرحلة 3: لوحة المدير (إكمال الصفحات)
+
+- **القائمة:** إزالة شارة «قريباً» من العقود والصيانة في `adminNav`
+- **`/api/settings/site-content`:** حفظ محتوى الموقع (خدمات + تواصل)
+- **`/admin/services` + `/admin/contact`:** تحرير حقيقي مع مسودات + حقول إجبارية
+- **`/api/contact-submissions` + `/admin/submissions`:** رسائل الزوار من `ContactSubmission`
+- **نماذج `/contact`:** `ContactForm` و `CallbackForm` يحفظان في DB
+- **`POST /api/admin/projects`:** إنشاء مشروع + ربط `/admin/projects/new`
+- **`MaintenanceRequest`:** نموذج + API + `/admin/maintenance` (قائمة، إنشاء، تحديث حالة)
+- **`npm run build`** ✅ — migration `20260531150000` يُطبَّق عبر `db:migrate:deploy`
+
+### جلسة 2026-05-31 (تابع 43) — المرحلة 2: لوحة المستخدم (تحسينات)
+
+- **`ClientDashboard` / `OwnerDashboard`:** بطاقة «مهام تحتاج إجراءك» + عدّاد إشعارات حي
+- **`PortalPendingTasksCard` + `portalDashboardHelpers`:** حجز، دفع، عقد، توقيع
+- **`/admin/my-invoices` + `/admin/my-receipts`:** زر طباعة عبر `GET /api/me/accounting-documents/[id]`
+- **`/admin/my-contacts`:** واجهة خفيفة لجهة الاتصال المرتبطة (بدل دفتر العناوين الكامل في القائمة)
+- **i18n:** `clientNav.myContacts` / `ownerNav.myContacts`
+- **`npm run build`** ✅
+
+### جلسة 2026-05-31 (تابع 42) — المرحلة 1: بوابة المستخدم + إشعارات
+
+- **`lib/config/userPortalRoutes.ts`:** مصدر واحد لمسارات العميل/المالك (`/admin` رئيسية + my-* + notifications + address-book + contract-review)
+- **`lib/auth/permissions.ts`:** إصلاح `canAccessRoute` — لم يعد `/admin` يفتح كل لوحة الإدارة للعميل
+- **`AdminLayoutInner`:** حارس مسارات موحّد؛ إعادة توجيه للصفحة الافتراضية حسب الدور
+- **إشعارات:** نموذج Prisma `Notification` + `GET/PATCH /api/me/notifications` + مزامنة من الحجوزات
+- **`/admin/notifications`:** قائمة حية، تعليم مقروء، شارة عدّاد في `RoleBasedSidebar`
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 41) — لوحة جاهزية الإنتاج + أخطاء دفع أوضح
 
 - **`GET /api/admin/production-readiness`:** `database` ping + `overall` (DB، env، Thawani، legacy)

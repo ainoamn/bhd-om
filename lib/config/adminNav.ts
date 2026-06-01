@@ -185,10 +185,7 @@ export function getAdminNavGroupsConfig(): AdminNavGroup[] {
     .filter((i) => ADMIN_ONLY_SECTIONS.has(i.section))
     .map(toItem);
 
-  const propertiesItems = propertiesSubItems.map((i) => ({
-    ...toItem(i),
-    comingSoon: ['contractsManage', 'maintenanceManage'].includes(i.section),
-  }));
+  const propertiesItems = propertiesSubItems.map(toItem);
 
   const projectsItems = projectsSubItems.map(toItem);
   const topLevelForAdmin = topLevelItems

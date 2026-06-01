@@ -106,7 +106,7 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
       { href: '/admin/notifications', labelKey: 'clientNav.notifications', icon: 'inbox', section: 'notifications' },
       { href: '/admin/my-account', labelKey: 'clientNav.myAccount', icon: 'users', section: 'myAccount' },
       { href: '/subscriptions', labelKey: 'subscriptions', icon: 'creditCard', section: 'subscriptions' },
-      { href: '/admin/address-book', labelKey: 'addressBook', icon: 'users', section: 'addressBook' },
+      { href: '/admin/my-contacts', labelKey: 'clientNav.myContacts', icon: 'users', section: 'addressBook' },
     ],
   },
   OWNER: {
@@ -121,7 +121,7 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
       { href: '/admin/notifications', labelKey: 'ownerNav.notifications', icon: 'inbox', section: 'notifications' },
       { href: '/admin/my-account', labelKey: 'ownerNav.myAccount', icon: 'users', section: 'myAccount' },
       { href: '/subscriptions', labelKey: 'subscriptions', icon: 'creditCard', section: 'subscriptions' },
-      { href: '/admin/address-book', labelKey: 'addressBook', icon: 'users', section: 'addressBook' },
+      { href: '/admin/my-contacts', labelKey: 'ownerNav.myContacts', icon: 'users', section: 'addressBook' },
     ],
   },
 };

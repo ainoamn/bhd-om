@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
+import PortalPendingTasksCard from '@/components/admin/PortalPendingTasksCard';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
+import { buildClientPendingTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
 import type { PropertyBooking } from '@/lib/data/bookings';
 
@@ -32,6 +34,9 @@ export default function ClientDashboard() {
   const [contracts, setContracts] = useState<PropertyBooking[]>([]);
   const [receiptsCount, setReceiptsCount] = useState(0);
   const [invoicesCount, setInvoicesCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  const pendingTasks = useMemo(() => buildClientPendingTasks(bookings), [bookings]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -64,6 +69,9 @@ export default function ClientDashboard() {
         setReceiptsCount(0);
         setInvoicesCount(0);
       }
+      if (!alive) return;
+      const unread = await fetchUnreadNotificationsCount();
+      if (alive) setUnreadNotifications(unread);
     };
     void load();
     return () => {
@@ -136,6 +144,8 @@ export default function ClientDashboard() {
           </div>
         </div>
       </div>
+
+      {pendingTasks.length > 0 && <PortalPendingTasksCard locale={locale} tasks={pendingTasks} />}
 
       {can('subscriptions') && (
         <div className="admin-card mb-8">
@@ -229,7 +239,7 @@ export default function ClientDashboard() {
                   <Icon name="inbox" className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-gray-900">0</div>
+                  <div className="text-xl font-bold text-gray-900">{unreadNotifications}</div>
                   <div className="text-sm text-gray-500">{tNav('notifications')}</div>
                 </div>
               </div>
@@ -254,12 +264,14 @@ export default function ClientDashboard() {
                 ) : (
                   <ul className="space-y-3">
                     {bookings.slice(0, 5).map((b) => (
-                      <li key={b.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100">
+                      <li key={b.id}>
+                        <Link href={`/${locale}/admin/my-bookings`} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100">
                         <div>
                           <p className="font-medium text-gray-900 text-sm">{b.propertyTitleAr}</p>
                           <p className="text-xs text-gray-500">{fmtDate(String(b.createdAt || ''))} · {statusKey(b.status)}</p>
                         </div>
                         <Icon name="chevronLeft" className="w-5 h-5 text-gray-400" />
+                        </Link>
                       </li>
                     ))}
                   </ul>

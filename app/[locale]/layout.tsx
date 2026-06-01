@@ -9,6 +9,7 @@ import { WebVitals } from '@/components/WebVitals';
 import { PageViewTracker } from '@/components/PageViewTracker';
 import { OrganizationJsonLd } from '@/components/JsonLd';
 import PropertyStorageMigration from '@/components/PropertyStorageMigration';
+import SiteContentHydrator from '@/components/SiteContentHydrator';
 import { Cairo, Inter } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
@@ -64,6 +65,7 @@ export default async function RootLayout({
     <div lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} className={`${locale === 'ar' ? cairo.variable : inter.variable} font-sans antialiased`}>
       <OrganizationJsonLd />
       <PropertyStorageMigration />
+      <SiteContentHydrator />
       <Analytics />
       <WebVitals />
       <PageViewTracker />

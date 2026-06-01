@@ -31,12 +31,35 @@ export default function AddProjectPage() {
     startDate: '',
     completionDate: '',
   });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: ربط مع API عند الإطلاق
-    alert('سيتم حفظ المشروع في قاعدة البيانات عند الربط بالـ API');
-    router.push(`/${locale}/admin/projects`);
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/projects', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          area: form.area ? Number(form.area) : undefined,
+          units: form.units ? Number(form.units) : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(String(data.error || (locale === 'ar' ? 'فشل الحفظ' : 'Save failed')));
+        return;
+      }
+      router.push(`/${locale}/admin/projects`);
+    } catch {
+      setError(locale === 'ar' ? 'فشل الحفظ' : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -187,10 +210,11 @@ export default function AddProjectPage() {
         <div className="admin-card">
           <div className="admin-card-body">
             <div className="flex gap-4">
-              <button type="submit" className="admin-btn-primary">
+              <button type="submit" className="admin-btn-primary" disabled={saving}>
                 <Icon name="check" className="w-5 h-5" />
-                حفظ المشروع
+                {saving ? (locale === 'ar' ? 'جاري الحفظ…' : 'Saving…') : locale === 'ar' ? 'حفظ المشروع' : 'Save project'}
               </button>
+              {error && <p className="text-sm text-red-600">{error}</p>}
               <Link href={`/${locale}/admin/projects`} className="admin-btn-secondary">
                 إلغاء
               </Link>

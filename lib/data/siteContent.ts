@@ -217,6 +217,26 @@ export const siteContent: SiteContentStore = {
 // تحرير محتوى - للاستخدام مع React state (يُحدّث في الذاكرة، يُربط بقاعدة البيانات لاحقاً)
 let editableContent: SiteContentStore = JSON.parse(JSON.stringify(siteContent));
 
+export const SITE_CONTENT_EVENT = 'bhd_site_content_updated';
+
+let hydratePromise: Promise<void> | null = null;
+
+export async function hydrateSiteContentFromServer(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!hydratePromise) {
+    hydratePromise = fetch('/api/settings/site-content', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: SiteContentStore | null) => {
+        if (data && typeof data === 'object') replaceSiteContent(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydratePromise = null;
+      });
+  }
+  await hydratePromise;
+}
+
 export function getSiteContent(): SiteContentStore {
   return editableContent;
 }
@@ -234,6 +254,22 @@ export function updateSiteSection(path: string, value: string): void {
 
 export function resetSiteContent(): void {
   editableContent = JSON.parse(JSON.stringify(siteContent));
+}
+
+export function replaceSiteContent(next: SiteContentStore): void {
+  editableContent = JSON.parse(JSON.stringify(next));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(SITE_CONTENT_EVENT));
+  }
+}
+
+export function patchSiteContent(partial: Partial<SiteContentStore>): void {
+  editableContent = {
+    ...editableContent,
+    ...partial,
+    services: partial.services ? { ...editableContent.services, ...partial.services } : editableContent.services,
+    contact: partial.contact ? { ...editableContent.contact, ...partial.contact } : editableContent.contact,
+  };
 }
 
 export type SiteSectionItem = { id: string; blockKey: string; pathAr: string; pathEn?: string; labelAr: string; labelEn: string; type: 'text' | 'textarea' | 'image' };

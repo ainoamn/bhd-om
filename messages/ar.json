@@ -188,7 +188,8 @@
         "myInvoices": "فواتيري",
         "myReceipts": "إيصالاتي",
         "notifications": "الإشعارات",
-        "myAccount": "حسابي"
+        "myAccount": "حسابي",
+        "myContacts": "جهة اتصالي"
       },
       "ownerNav": {
         "dashboard": "لوحتي",
@@ -197,7 +198,8 @@
         "myContracts": "عقودي",
         "myInvoices": "فواتيري",
         "notifications": "الإشعارات",
-        "myAccount": "حسابي"
+        "myAccount": "حسابي",
+        "myContacts": "جهة اتصالي"
       },
       "roleClient": "لوحة العميل",
       "roleOwner": "لوحة المالك",

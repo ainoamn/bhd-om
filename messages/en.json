@@ -188,7 +188,8 @@
         "myInvoices": "My Invoices",
         "myReceipts": "My Receipts",
         "notifications": "Notifications",
-        "myAccount": "My Account"
+        "myAccount": "My Account",
+        "myContacts": "My contact"
       },
       "ownerNav": {
         "dashboard": "My Dashboard",
@@ -197,7 +198,8 @@
         "myContracts": "My Contracts",
         "myInvoices": "My Invoices",
         "notifications": "Notifications",
-        "myAccount": "My Account"
+        "myAccount": "My Account",
+        "myContacts": "My contact"
       },
       "roleClient": "Client Dashboard",
       "roleOwner": "Owner Dashboard",

@@ -1,11 +1,18 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useLocale } from 'next-intl';
-import { getSiteContent } from '@/lib/data/siteContent';
+import { getSiteContent, SITE_CONTENT_EVENT, type SiteContentStore } from '@/lib/data/siteContent';
 
 export default function Services() {
   const locale = useLocale();
-  const content = getSiteContent().services;
+  const [content, setContent] = useState<SiteContentStore['services']>(() => getSiteContent().services);
+
+  useEffect(() => {
+    const sync = () => setContent({ ...getSiteContent().services, items: [...getSiteContent().services.items] });
+    window.addEventListener(SITE_CONTENT_EVENT, sync);
+    return () => window.removeEventListener(SITE_CONTENT_EVENT, sync);
+  }, []);
 
   return (
     <section className="py-32 bg-white">

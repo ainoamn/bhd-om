@@ -1,113 +1,171 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 
-const mockSubmissions = [
-  { id: 1, name: 'أحمد محمد', email: 'ahmed@example.com', phone: '+96891234567', type: 'CONTACT', isRead: false, date: '2025-02-09' },
-  { id: 2, name: 'سارة علي', email: 'sara@example.com', phone: '+96898765432', type: 'CALLBACK', isRead: true, date: '2025-02-08' },
-  { id: 3, name: 'محمد سالم', email: 'mohammed@example.com', type: 'CONTACT', isRead: false, date: '2025-02-07' },
-];
+type Submission = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string | null;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+};
 
-const typeLabels: Record<string, string> = {
-  CONTACT: 'نموذج تواصل',
-  CALLBACK: 'طلب اتصال',
+const typeLabels: Record<string, { ar: string; en: string }> = {
+  CONTACT: { ar: 'نموذج تواصل', en: 'Contact form' },
+  CALLBACK: { ar: 'طلب اتصال', en: 'Callback request' },
 };
 
 export default function SubmissionsAdminPage() {
-  const [filter, setFilter] = useState<'all' | 'contact' | 'callback'>('all');
-  const [selectedItem, setSelectedItem] = useState<typeof mockSubmissions[0] | null>(null);
+  const params = useParams();
+  const locale = (params?.locale as string) || 'ar';
+  const ar = locale === 'ar';
+
+  const [filter, setFilter] = useState<'all' | 'CONTACT' | 'CALLBACK'>('all');
+  const [items, setItems] = useState<Submission[]>([]);
+  const [selected, setSelected] = useState<Submission | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({ limit: '100' });
+      if (filter !== 'all') qs.set('type', filter);
+      const res = await fetch(`/api/admin/contact-submissions?${qs}`, { credentials: 'include', cache: 'no-store' });
+      const data = res.ok ? await res.json() : { items: [], unreadCount: 0 };
+      setItems(Array.isArray(data.items) ? data.items : []);
+      setUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
+    } catch {
+      setItems([]);
+      setUnreadCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const markRead = async (id: string, isRead: boolean) => {
+    await fetch(`/api/admin/contact-submissions/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ isRead }),
+    });
+    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, isRead } : x)));
+    if (selected?.id === id) setSelected({ ...selected, isRead });
+    void load();
+  };
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString(ar ? 'ar-OM' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   return (
     <div>
       <AdminPageHeader
-        title="جهات الاتصال والرسائل"
-        subtitle="عرض وإدارة رسائل التواصل وطلبات الاتصال من الزوار"
+        title={ar ? 'جهات الاتصال والرسائل' : 'Contact messages'}
+        subtitle={ar ? `رسائل الزوار — ${unreadCount} غير مقروء` : `Visitor messages — ${unreadCount} unread`}
       />
 
       <div className="mb-6">
-        <select value={filter} onChange={(e) => setFilter(e.target.value as any)} className="admin-select">
-          <option value="all">الكل</option>
-          <option value="contact">نموذج تواصل</option>
-          <option value="callback">طلب اتصال</option>
+        <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} className="admin-select">
+          <option value="all">{ar ? 'الكل' : 'All'}</option>
+          <option value="CONTACT">{ar ? 'نموذج تواصل' : 'Contact form'}</option>
+          <option value="CALLBACK">{ar ? 'طلب اتصال' : 'Callback'}</option>
         </select>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <div className="admin-card overflow-hidden">
           <div className="admin-card-header">
-            <h2 className="admin-card-title">الرسائل</h2>
+            <h2 className="admin-card-title">{ar ? 'الرسائل' : 'Messages'}</h2>
           </div>
-          <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
-            {mockSubmissions.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setSelectedItem(item)}
-                className={`w-full text-right p-4 hover:bg-gray-50 transition-colors ${
-                  selectedItem?.id === item.id ? 'bg-[#8B6F47]/5' : ''
-                } ${!item.isRead ? 'font-semibold' : ''}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-900">{item.name}</span>
-                  {!item.isRead && <span className="w-2 h-2 rounded-full bg-[#8B6F47]"></span>}
-                </div>
-                <div className="text-sm text-gray-500 mt-1">{item.email}</div>
-                <div className="text-xs text-gray-400 mt-1">{item.date} - {typeLabels[item.type]}</div>
-              </button>
-            ))}
-          </div>
+          {loading ? (
+            <div className="p-8 text-center text-gray-500">{ar ? 'جاري التحميل…' : 'Loading…'}</div>
+          ) : items.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">{ar ? 'لا توجد رسائل' : 'No messages'}</div>
+          ) : (
+            <div className="max-h-[500px] divide-y divide-gray-100 overflow-y-auto">
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setSelected(item);
+                    if (!item.isRead) void markRead(item.id, true);
+                  }}
+                  className={`w-full p-4 text-right transition-colors hover:bg-gray-50 ${selected?.id === item.id ? 'bg-[#8B6F47]/5' : ''} ${!item.isRead ? 'font-semibold' : ''}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-gray-900">{item.name}</span>
+                    {!item.isRead && <span className="h-2 w-2 rounded-full bg-[#8B6F47]" />}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-500">{item.email}</div>
+                  <div className="mt-1 text-xs text-gray-400">
+                    {fmtDate(item.createdAt)} — {ar ? typeLabels[item.type]?.ar : typeLabels[item.type]?.en || item.type}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="admin-card">
-          {selectedItem ? (
+          {selected ? (
             <>
-              <div className="admin-card-header">
-                <h2 className="admin-card-title">تفاصيل الرسالة</h2>
+              <div className="admin-card-header flex flex-wrap items-center justify-between gap-2">
+                <h2 className="admin-card-title">{ar ? 'تفاصيل الرسالة' : 'Message details'}</h2>
+                {!selected.isRead ? null : (
+                  <button type="button" className="text-xs text-gray-500 hover:underline" onClick={() => void markRead(selected.id, false)}>
+                    {ar ? 'تعليم كغير مقروء' : 'Mark unread'}
+                  </button>
+                )}
               </div>
               <div className="admin-card-body space-y-4">
                 <div>
-                  <label className="text-sm text-gray-500 block mb-1">الاسم</label>
-                  <p className="font-semibold text-gray-900">{selectedItem.name}</p>
+                  <label className="mb-1 block text-sm text-gray-500">{ar ? 'الاسم' : 'Name'}</label>
+                  <p className="font-semibold text-gray-900">{selected.name}</p>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-500 block mb-1">البريد الإلكتروني</label>
-                  <p className="font-semibold text-gray-900">{selectedItem.email}</p>
+                  <label className="mb-1 block text-sm text-gray-500">{ar ? 'البريد' : 'Email'}</label>
+                  <p className="font-semibold text-gray-900">{selected.email}</p>
                 </div>
-                {selectedItem.phone && (
+                {selected.phone && (
                   <div>
-                    <label className="text-sm text-gray-500 block mb-1">الهاتف</label>
-                    <p className="font-semibold text-gray-900">{selectedItem.phone}</p>
+                    <label className="mb-1 block text-sm text-gray-500">{ar ? 'الهاتف' : 'Phone'}</label>
+                    <p className="font-semibold text-gray-900">{selected.phone}</p>
                   </div>
                 )}
                 <div>
-                  <label className="text-sm text-gray-500 block mb-1">النوع</label>
-                  <p className="font-semibold text-gray-900">{typeLabels[selectedItem.type]}</p>
+                  <label className="mb-1 block text-sm text-gray-500">{ar ? 'الرسالة' : 'Message'}</label>
+                  <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600">{selected.message || '—'}</p>
                 </div>
-                <div>
-                  <label className="text-sm text-gray-500 block mb-1">التاريخ</label>
-                  <p className="font-semibold text-gray-900">{selectedItem.date}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-500 block mb-2">الرسالة</label>
-                  <p className="p-4 rounded-xl bg-gray-50 text-gray-600 text-sm">محتوى الرسالة سيكون هنا عند الربط مع قاعدة البيانات</p>
-                </div>
-                <div className="flex gap-2 pt-4">
-                  <a href={`mailto:${selectedItem.email}`} className="admin-btn-primary text-sm py-2">رد عبر البريد</a>
-                  <a href="https://wa.me/96891115341" target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors">واتساب</a>
-                  <a href={`tel:${selectedItem.phone}`} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">اتصال</a>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <a href={`mailto:${selected.email}`} className="admin-btn admin-btn--primary text-sm">
+                    {ar ? 'رد بالبريد' : 'Reply by email'}
+                  </a>
+                  {selected.phone && (
+                    <>
+                      <a href={`https://wa.me/${selected.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
+                        WhatsApp
+                      </a>
+                      <a href={`tel:${selected.phone}`} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                        {ar ? 'اتصال' : 'Call'}
+                      </a>
+                    </>
+                  )}
                 </div>
               </div>
             </>
           ) : (
-            <div className="admin-card-body text-center py-20">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <p className="text-gray-500 font-medium mb-2">اختر رسالة من القائمة لعرض التفاصيل</p>
-              <p className="text-sm text-gray-400">يمكنك الرد على الرسائل عبر البريد أو الواتساب أو الاتصال</p>
-            </div>
+            <div className="admin-card-body py-20 text-center text-gray-500">{ar ? 'اختر رسالة من القائمة' : 'Select a message from the list'}</div>
           )}
         </div>
       </div>

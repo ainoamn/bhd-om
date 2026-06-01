@@ -16,6 +16,7 @@ import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import DraftBanner from '@/components/admin/DraftBanner';
 import { useUserBar } from '@/components/UserBarContext';
+import { isPathAllowedForPortalUser } from '@/lib/config/userPortalRoutes';
 import './admin.css';
 
 /** قراءة tab و action من الرابط - useSearchParams يتفاعل مع تغيير query string */
@@ -78,34 +79,6 @@ type WindowWithAdminDev = Window & {
   isLoginAsUser?: boolean;
   currentUser?: unknown;
 };
-
-/** مسارات مسموحة لغير الأدمن (بدون locale) — ثابت لتفادي إعادة إنشاء المصفوفة وتبعيات useEffect */
-const ALLOWED_PATHS_FOR_NON_ADMIN = [
-  '/admin',
-  '/admin/my-bookings',
-  '/admin/my-contracts',
-  '/admin/my-invoices',
-  '/admin/my-receipts',
-  '/admin/my-properties',
-  '/admin/notifications',
-  '/admin/my-account',
-  '/admin/address-book',
-  '/admin/bank-details',
-  '/admin/company-data',
-  '/admin/document-templates',
-  '/admin/site',
-  '/admin/accounting',
-  '/admin/properties',
-  '/admin/bookings',
-  '/admin/contracts',
-  '/admin/maintenance',
-  '/admin/data',
-  '/admin/projects',
-  '/admin/services',
-  '/admin/contact',
-  '/admin/submissions',
-  '/admin/backup',
-] as const;
 
 export default function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -288,14 +261,10 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
 
     if (isLoginAsUser && (devMockSession || currentUser)) return;
     if (status !== 'authenticated' || !isNonAdmin || !pathname) return;
-    const base = (pathname || '').replace(/^\/[a-z]{2}/, '') || pathname;
-    const isAllowed = ALLOWED_PATHS_FOR_NON_ADMIN.some(
-      (p) => base === p || base.startsWith(`${p}/`) || base.startsWith(`${p}?`),
-    );
-    if (!isAllowed) {
-      router.replace(`/${locale}/admin`);
+    if (!isPathAllowedForPortalUser(pathname)) {
+      router.replace(`/${locale}${userRole === 'OWNER' ? '/admin/my-properties' : '/admin/my-bookings'}`);
     }
-  }, [status, isNonAdmin, pathname, locale, router]);
+  }, [status, isNonAdmin, pathname, locale, router, userRole]);
 
   const effectiveRole: 'ADMIN' | 'CLIENT' | 'OWNER' =
     userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER' ? userRole : 'CLIENT';

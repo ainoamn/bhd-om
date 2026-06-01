@@ -20,6 +20,9 @@ export const CACHE_ADDRESS_BOOK_GET = httpCachePrivate(12, 45);
 /** قائمة عقارات الإدارة: تغيّر أقل من الحجوزات */
 export const CACHE_ADMIN_PROPERTIES_GET = httpCachePrivate(45, 180);
 
+/** إشعارات المستخدم */
+export const CACHE_ME_NOTIFICATIONS_GET = httpCachePrivate(5, 15);
+
 /** جهة الاتصال المرتبطة بالمستخدم */
 export const CACHE_LINKED_CONTACT_GET = httpCachePrivate(20, 45);
 

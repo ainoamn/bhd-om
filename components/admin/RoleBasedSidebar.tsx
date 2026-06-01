@@ -55,6 +55,26 @@ export default function RoleBasedSidebar({
   const tAddr = useTranslations('addressBook');
   const [, setSettingsVersion] = useState(0);
   const [planPermissionIds, setPlanPermissionIds] = useState<string[] | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  useEffect(() => {
+    if (role !== 'CLIENT' && role !== 'OWNER') {
+      setUnreadNotifications(0);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/me/notifications?limit=1', { credentials: 'include', cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { unreadCount?: number } | null) => {
+        if (!cancelled && typeof data?.unreadCount === 'number') setUnreadNotifications(data.unreadCount);
+      })
+      .catch(() => {
+        if (!cancelled) setUnreadNotifications(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role, pathname]);
 
   useEffect(() => {
     const handler = () => setSettingsVersion((v) => v + 1);
@@ -149,6 +169,7 @@ export default function RoleBasedSidebar({
                 const href = (item.href === '/admin/subscriptions' && role !== 'ADMIN') ? '/subscriptions' : item.href;
                 const fullHref = `/${locale}${href}`;
                 const isActive = pathname === fullHref || (href !== '/admin' && pathname?.startsWith(fullHref));
+                const isNotifications = item.section === 'notifications';
                 return (
                   <li key={item.href}>
                     <Link
@@ -159,6 +180,14 @@ export default function RoleBasedSidebar({
                     >
                       <Icon name={item.icon as keyof typeof import('@/lib/icons').icons} className="admin-nav-icon" aria-hidden />
                       <span className="admin-nav-link-text">{t(item.labelKey)}</span>
+                      {isNotifications && unreadNotifications > 0 && (
+                        <span
+                          className="ms-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                          aria-label={locale === 'ar' ? `${unreadNotifications} غير مقروء` : `${unreadNotifications} unread`}
+                        >
+                          {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

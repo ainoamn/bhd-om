@@ -19,14 +19,21 @@ export default function ContactForm() {
     setIsSubmitting(true);
     setSubmitStatus('idle');
 
-    // Simulate form submission
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const res = await fetch('/api/contact-submissions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...formData, type: 'CONTACT' }),
+      });
+      if (!res.ok) throw new Error('fail');
       setSubmitStatus('success');
       setFormData({ name: '', email: '', phone: '', message: '' });
-      
       setTimeout(() => setSubmitStatus('idle'), 5000);
-    }, 1000);
+    } catch {
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

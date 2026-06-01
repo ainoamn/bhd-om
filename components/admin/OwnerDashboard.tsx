@@ -6,7 +6,9 @@ import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
+import PortalPendingTasksCard from '@/components/admin/PortalPendingTasksCard';
 import { getContactForUser } from '@/lib/data/addressBook';
+import { buildOwnerPendingTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
 import { getPropertyById, getPropertyDataOverrides, properties as staticProperties } from '@/lib/data/properties';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
@@ -57,6 +59,7 @@ export default function OwnerDashboard() {
 
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
   const [invoicesCount, setInvoicesCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -89,6 +92,9 @@ export default function OwnerDashboard() {
         if (!alive) return;
         setInvoicesCount(0);
       });
+    fetchUnreadNotificationsCount().then((n) => {
+      if (alive) setUnreadNotifications(n);
+    });
     return () => {
       alive = false;
     };
@@ -165,6 +171,17 @@ export default function OwnerDashboard() {
     return tasks.slice(0, 10);
   }, [serverBookings, landlordMatchCtx, ownerPortfolioSerials]);
 
+  const ownerPendingTasks = useMemo(
+    () =>
+      buildOwnerPendingTasks(
+        serverBookings.filter((b) =>
+          bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)
+        ),
+        verificationTasks.map((t) => ({ bookingId: t.bookingId, token: t.token }))
+      ),
+    [serverBookings, landlordMatchCtx, ownerPortfolioSerials, verificationTasks]
+  );
+
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
   const contractStatusKey = (s: string) => (s === 'APPROVED' ? (locale === 'ar' ? 'نشط' : 'Active') : s === 'ENDED' ? (locale === 'ar' ? 'منتهي' : 'Ended') : (locale === 'ar' ? 'مسودة' : 'Draft'));
 
@@ -187,6 +204,8 @@ export default function OwnerDashboard() {
           </p>
         </div>
       )}
+
+      {ownerPendingTasks.length > 0 && <PortalPendingTasksCard locale={locale} tasks={ownerPendingTasks} />}
 
       {can('subscriptions') && (
         <div className="admin-card mb-8">
@@ -267,7 +286,7 @@ export default function OwnerDashboard() {
                   <Icon name="inbox" className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-gray-900">0</div>
+                  <div className="text-xl font-bold text-gray-900">{unreadNotifications}</div>
                   <div className="text-sm text-gray-500">{tNav('notifications')}</div>
                 </div>
               </div>

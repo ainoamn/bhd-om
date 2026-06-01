@@ -124,4 +124,58 @@ test.describe('Critical DB-first flows', () => {
     expect(typeof data.tableDocumentCount).toBe('number');
     expect(typeof data.fullyMigrated).toBe('boolean');
   });
+
+  test('admin portal pages load (services, submissions, maintenance, notifications)', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing E2E admin credentials');
+
+    await loginWithCredentials(page, creds!);
+    for (const path of [
+      '/ar/admin/services',
+      '/ar/admin/submissions',
+      '/ar/admin/maintenance',
+      '/ar/admin/notifications',
+      '/ar/admin/my-contacts',
+    ]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(new RegExp(path.replace(/\//g, '\\/')));
+      await expect(page.locator('body')).toBeVisible();
+    }
+  });
+
+  test('site content API is public-readable', async ({ request }) => {
+    const res = await request.get('/api/settings/site-content');
+    expect(res.ok()).toBeTruthy();
+    const data = (await res.json()) as { services?: { titleAr?: string }; contact?: { titleAr?: string } };
+    expect(data.services?.titleAr).toBeTruthy();
+    expect(data.contact?.titleAr).toBeTruthy();
+  });
+
+  test('contact submission API accepts public POST', async ({ request }) => {
+    const ts = Date.now();
+    const res = await request.post('/api/contact-submissions', {
+      data: {
+        name: `E2E Visitor ${ts}`,
+        email: `e2e-contact-${ts}@example.test`,
+        message: 'E2E test message',
+        type: 'CONTACT',
+      },
+    });
+    expect(res.status()).toBe(201);
+    const body = (await res.json()) as { ok?: boolean; id?: string };
+    expect(body.ok).toBe(true);
+    expect(body.id).toBeTruthy();
+  });
+
+  test('notifications API responds for authenticated admin', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing E2E admin credentials');
+
+    await loginWithCredentials(page, creds!);
+    const res = await page.request.get('/api/me/notifications?limit=5');
+    expect(res.ok()).toBeTruthy();
+    const data = (await res.json()) as { items?: unknown[]; unreadCount?: number };
+    expect(Array.isArray(data.items)).toBe(true);
+    expect(typeof data.unreadCount).toBe('number');
+  });
 });

@@ -17,13 +17,21 @@ export default function CallbackForm() {
     setIsSubmitting(true);
     setSubmitStatus('idle');
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const res = await fetch('/api/contact-submissions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: formData.name, phone: formData.phone, type: 'CALLBACK' }),
+      });
+      if (!res.ok) throw new Error('fail');
       setSubmitStatus('success');
       setFormData({ name: '', phone: '' });
-      
       setTimeout(() => setSubmitStatus('idle'), 5000);
-    }, 1000);
+    } catch {
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
