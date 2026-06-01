@@ -156,9 +156,17 @@ export default function RoleBasedSidebar({
                   {userDisplayName}
                 </p>
               )}
-              <div className="flex items-center gap-2">
-                <LanguageSwitcher currentLocale={locale} />
+              <div className="admin-sidebar-meta-actions">
+                <AdminThemeToggle locale={locale} variant="pill" />
+                <div className="admin-sidebar-lang">
+                  <LanguageSwitcher currentLocale={locale} />
+                </div>
               </div>
+            </div>
+          )}
+          {sidebarCollapsed && (
+            <div className="admin-sidebar-meta admin-sidebar-meta--collapsed">
+              <AdminThemeToggle locale={locale} variant="pill" compact />
             </div>
           )}
         </div>
@@ -198,7 +206,6 @@ export default function RoleBasedSidebar({
         </nav>
 
         <div className="admin-sidebar-footer">
-          <AdminThemeToggle locale={locale} compact={sidebarCollapsed} />
           <button
             type="button"
             onClick={onToggleCollapse}

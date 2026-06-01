@@ -186,7 +186,61 @@
   gap: 0.5rem;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px solid rgb(243 244 246);
+  border-top: 1px solid var(--admin-border-subtle);
+  flex-wrap: wrap;
+}
+.admin-sidebar-meta--collapsed {
+  justify-content: center;
+  padding-top: 0.375rem;
+  margin-top: 0.375rem;
+}
+.admin-sidebar-meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+.admin-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.35rem 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid rgb(var(--admin-primary-rgb) / 0.35);
+  background: rgb(var(--admin-primary-rgb) / 0.1);
+  color: var(--admin-primary-hover);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.15s;
+  touch-action: manipulation;
+  min-height: 1.75rem;
+}
+.admin-theme-toggle:hover {
+  background: rgb(var(--admin-primary-rgb) / 0.18);
+  border-color: var(--admin-primary);
+}
+.admin-theme-toggle:active {
+  transform: scale(0.97);
+}
+.admin-theme-toggle--compact {
+  padding: 0.35rem;
+  min-width: 1.75rem;
+}
+.admin-theme-toggle-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.admin-theme-toggle-label {
+  white-space: nowrap;
+}
+.admin-root[data-admin-theme='dark'] .admin-theme-toggle {
+  background: rgb(var(--admin-primary-rgb) / 0.2);
+  color: #f3e8d8;
+  border-color: rgb(var(--admin-primary-rgb) / 0.45);
 }
 .admin-sidebar-user {
   font-size: 0.6875rem;
@@ -234,6 +288,10 @@
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: calc(1rem + env(safe-area-inset-left));
   padding-right: calc(1rem + env(safe-area-inset-right));
+  background:
+    radial-gradient(ellipse 120% 80% at 100% 0%, rgb(var(--admin-primary-rgb) / 0.06), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--admin-primary-rgb) / 0.04), transparent 50%),
+    var(--admin-bg);
 }
 @media (min-width: 640px) {
   .admin-main-inner {
@@ -558,6 +616,11 @@
   box-shadow: var(--admin-shadow-sm);
   max-width: 100%;
   min-width: 0;
+}
+.admin-root:not([data-admin-theme='dark']) .admin-card {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 24px -8px rgb(var(--admin-primary-rgb) / 0.12);
 }
 .admin-card-header {
   border-bottom: 1px solid var(--admin-border-subtle);

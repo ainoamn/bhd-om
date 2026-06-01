@@ -14,9 +14,11 @@ import {
 type Props = {
   locale: string;
   compact?: boolean;
+  /** pill = زر بارز في الهيدر/الشريط؛ nav = رابط في أسفل القائمة */
+  variant?: 'nav' | 'pill';
 };
 
-export default function AdminThemeToggle({ locale, compact }: Props) {
+export default function AdminThemeToggle({ locale, compact, variant = 'nav' }: Props) {
   const ar = locale === 'ar';
   const [theme, setTheme] = useState<AdminTheme>('light');
   const [resolved, setResolved] = useState<'light' | 'dark'>('light');
@@ -68,6 +70,21 @@ export default function AdminThemeToggle({ locale, compact }: Props) {
         : ar
           ? 'فاتح'
           : 'Light';
+
+  if (variant === 'pill') {
+    return (
+      <button
+        type="button"
+        onClick={cycle}
+        className={`admin-theme-toggle ${compact ? 'admin-theme-toggle--compact' : ''}`}
+        title={ar ? 'تبديل المظهر (فاتح / داكن / تلقائي)' : 'Toggle theme (light / dark / auto)'}
+        aria-label={ar ? 'تبديل المظهر' : 'Toggle theme'}
+      >
+        <Icon name={resolved === 'dark' ? 'moon' : 'sun'} className="admin-theme-toggle-icon" aria-hidden />
+        {!compact && <span className="admin-theme-toggle-label">{label}</span>}
+      </button>
+    );
+  }
 
   return (
     <button

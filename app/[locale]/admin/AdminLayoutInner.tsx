@@ -445,9 +445,17 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
               {currentSession?.user && (
                 <p className="admin-sidebar-user" title={userName}>{userName}</p>
               )}
-              <div className="admin-sidebar-lang">
-                <LanguageSwitcher currentLocale={locale} />
+              <div className="admin-sidebar-meta-actions">
+                <AdminThemeToggle locale={locale} variant="pill" />
+                <div className="admin-sidebar-lang">
+                  <LanguageSwitcher currentLocale={locale} />
+                </div>
               </div>
+            </div>
+          )}
+          {sidebarCollapsed && (
+            <div className="admin-sidebar-meta admin-sidebar-meta--collapsed">
+              <AdminThemeToggle locale={locale} variant="pill" compact />
             </div>
           )}
         </div>
@@ -587,7 +595,6 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
         </nav>
 
         <div className="admin-sidebar-footer">
-          <AdminThemeToggle locale={locale} compact={sidebarCollapsed} />
           <button
             type="button"
             onClick={toggleCollapse}
@@ -674,7 +681,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
               </span>
             )}
           </div>
-          <AdminThemeToggle locale={locale} compact />
+          <AdminThemeToggle locale={locale} variant="pill" compact />
         </header>
         <div className="admin-main-inner">{children}</div>
       </main>
