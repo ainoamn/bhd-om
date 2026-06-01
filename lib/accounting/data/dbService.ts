@@ -10,8 +10,9 @@ import type { AccountingAccountType, AccountingDocType, AccountingDocStatus } fr
 const DEFAULT_ACCOUNTS: Array<{ code: string; nameAr: string; nameEn: string; type: AccountingAccountType; sortOrder: number }> = [
   { code: '1000', nameAr: 'الصندوق', nameEn: 'Cash', type: 'ASSET', sortOrder: 1 },
   { code: '1100', nameAr: 'البنوك', nameEn: 'Banks', type: 'ASSET', sortOrder: 2 },
-  { code: '1200', nameAr: 'العملاء', nameEn: 'Receivables', type: 'ASSET', sortOrder: 3 },
-  { code: '1210', nameAr: 'ذمم مدينة أخرى', nameEn: 'Other Receivables', type: 'ASSET', sortOrder: 4 },
+  { code: '1150', nameAr: 'شيكات تحت التحصيل', nameEn: 'Cheques Receivable', type: 'ASSET', sortOrder: 3 },
+  { code: '1200', nameAr: 'العملاء', nameEn: 'Receivables', type: 'ASSET', sortOrder: 4 },
+  { code: '1210', nameAr: 'ذمم مدينة أخرى', nameEn: 'Other Receivables', type: 'ASSET', sortOrder: 5 },
   { code: '1300', nameAr: 'عربونات مقدمة', nameEn: 'Prepaid Deposits', type: 'ASSET', sortOrder: 5 },
   { code: '1400', nameAr: 'مصروفات مقدمة', nameEn: 'Prepaid Expenses', type: 'ASSET', sortOrder: 6 },
   { code: '1500', nameAr: 'أصول أخرى', nameEn: 'Other Assets', type: 'ASSET', sortOrder: 7 },
@@ -43,8 +44,14 @@ const DOC_TYPE_MAP: Record<string, AccountingDocType> = {
   JOURNAL: 'JOURNAL',
   PURCHASE_INV: 'PURCHASE_INV',
   PURCHASE_ORDER: 'PURCHASE_ORDER',
+  CREDIT_NOTE: 'CREDIT_NOTE',
+  DEBIT_NOTE: 'DEBIT_NOTE',
   OTHER: 'OTHER',
 };
+
+/** Default page size for accounting lists — scales to 1M+ records */
+export const ACCOUNTING_DEFAULT_PAGE_SIZE = 150;
+export const ACCOUNTING_MAX_PAGE_SIZE = 500;
 
 const DOC_STATUS_MAP: Record<string, AccountingDocStatus> = {
   DRAFT: 'DRAFT',
@@ -66,6 +73,23 @@ export async function ensureAccountingAccounts() {
   }
   await ensureSubscriptionRevenueAccount();
   await ensurePropertyRentRevenueAccount();
+  await ensureChequeReceivableAccount();
+}
+
+/** حساب شيكات تحت التحصيل (1150) */
+export async function ensureChequeReceivableAccount() {
+  const existing = await prisma.accountingAccount.findUnique({ where: { code: '1150' } });
+  if (!existing) {
+    await prisma.accountingAccount.create({
+      data: {
+        code: '1150',
+        nameAr: 'شيكات تحت التحصيل',
+        nameEn: 'Cheques Receivable',
+        type: 'ASSET',
+        parentId: null,
+      },
+    });
+  }
 }
 
 /** حساب مخصص للاشتراكات: إيرادات الباقات من المستخدمين (4250) — يُستخدم لكل دفعة اشتراك */
@@ -224,14 +248,17 @@ export async function getAccountsFromDb() {
   }));
 }
 
-export async function getJournalEntriesFromDb(filters?: { fromDate?: string; toDate?: string }) {
-  const where: any = {};
+export async function getJournalEntriesFromDb(filters?: { fromDate?: string; toDate?: string; limit?: number; offset?: number }) {
+  const where: { date?: { gte?: Date; lte?: Date } } = {};
   if (filters?.fromDate) where.date = { ...where.date, gte: new Date(filters.fromDate) };
   if (filters?.toDate) where.date = { ...where.date, lte: new Date(filters.toDate) };
+  const limit = filters?.limit && filters.limit > 0 ? Math.min(ACCOUNTING_MAX_PAGE_SIZE, filters.limit) : undefined;
+  const offset = limit ? Math.max(0, filters?.offset ?? 0) : undefined;
   const rows = await prisma.accountingJournalEntry.findMany({
     where,
     include: { lines: true },
-    orderBy: { date: 'desc' },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    ...(limit ? { take: limit, skip: offset } : {}),
   });
   return rows.map((r) => ({
     id: r.id,
@@ -253,6 +280,28 @@ export async function getJournalEntriesFromDb(filters?: { fromDate?: string; toD
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));
+}
+
+export async function countJournalEntriesFromDb(filters?: { fromDate?: string; toDate?: string }) {
+  const where: { date?: { gte?: Date; lte?: Date } } = {};
+  if (filters?.fromDate) where.date = { ...where.date, gte: new Date(filters.fromDate) };
+  if (filters?.toDate) where.date = { ...where.date, lte: new Date(filters.toDate) };
+  return prisma.accountingJournalEntry.count({ where });
+}
+
+export async function getJournalEntriesPageFromDb(filters?: {
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const limit = Math.min(ACCOUNTING_MAX_PAGE_SIZE, filters?.limit ?? ACCOUNTING_DEFAULT_PAGE_SIZE);
+  const offset = Math.max(0, filters?.offset ?? 0);
+  const [items, total] = await Promise.all([
+    getJournalEntriesFromDb({ ...filters, limit, offset }),
+    countJournalEntriesFromDb(filters),
+  ]);
+  return { items, total, limit, offset };
 }
 
 const ENTRY_STATUS_MAP: Record<string, 'DRAFT' | 'PENDING' | 'APPROVED' | 'POSTED' | 'CANCELLED'> = {
@@ -349,16 +398,29 @@ export async function createJournalEntryInDb(data: {
   };
 }
 
-export async function getDocumentsFromDb(filters?: { fromDate?: string; toDate?: string; type?: string; contactId?: string }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- مركّب تاريخ + نوع + جهة اتصال لـ Prisma where
-  const where: any = {};
+export async function getDocumentsFromDb(filters?: {
+  fromDate?: string;
+  toDate?: string;
+  type?: string;
+  contactId?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const where: {
+    date?: { gte?: Date; lte?: Date };
+    type?: AccountingDocType;
+    contactId?: string;
+  } = {};
   if (filters?.fromDate) where.date = { ...where.date, gte: new Date(filters.fromDate) };
   if (filters?.toDate) where.date = { ...where.date, lte: new Date(filters.toDate) };
-  if (filters?.type) where.type = filters.type;
+  if (filters?.type) where.type = filters.type as AccountingDocType;
   if (filters?.contactId) where.contactId = filters.contactId;
+  const limit = filters?.limit && filters.limit > 0 ? Math.min(ACCOUNTING_MAX_PAGE_SIZE, filters.limit) : undefined;
+  const offset = limit ? Math.max(0, filters?.offset ?? 0) : undefined;
   const rows = await prisma.accountingDocument.findMany({
     where,
-    orderBy: { date: 'desc' },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    ...(limit ? { take: limit, skip: offset } : {}),
   });
   return rows.map((r) => ({
     id: r.id,
@@ -385,6 +447,36 @@ export async function getDocumentsFromDb(filters?: { fromDate?: string; toDate?:
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));
+}
+
+export async function countDocumentsFromDb(filters?: { fromDate?: string; toDate?: string; type?: string; contactId?: string }) {
+  const where: {
+    date?: { gte?: Date; lte?: Date };
+    type?: AccountingDocType;
+    contactId?: string;
+  } = {};
+  if (filters?.fromDate) where.date = { ...where.date, gte: new Date(filters.fromDate) };
+  if (filters?.toDate) where.date = { ...where.date, lte: new Date(filters.toDate) };
+  if (filters?.type) where.type = filters.type as AccountingDocType;
+  if (filters?.contactId) where.contactId = filters.contactId;
+  return prisma.accountingDocument.count({ where });
+}
+
+export async function getDocumentsPageFromDb(filters?: {
+  fromDate?: string;
+  toDate?: string;
+  type?: string;
+  contactId?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const limit = Math.min(ACCOUNTING_MAX_PAGE_SIZE, filters?.limit ?? ACCOUNTING_DEFAULT_PAGE_SIZE);
+  const offset = Math.max(0, filters?.offset ?? 0);
+  const [items, total] = await Promise.all([
+    getDocumentsFromDb({ ...filters, limit, offset }),
+    countDocumentsFromDb(filters),
+  ]);
+  return { items, total, limit, offset };
 }
 
 /** بادئات الأرقام المتسلسلة حسب نوع المستند - كل نوع له تسلسل مستقل */
@@ -760,8 +852,13 @@ export async function updateDocumentStatusInDb(id: string, status: 'APPROVED' | 
   };
 }
 
-/** جلب كل بيانات المحاسبة من الخادم (مزامنة + قراءة) — للعرض المباشر من الصفحة دون الاعتماد على طلب API من المتصفح */
-export async function getAccountingDataForPage(filters?: { fromDate?: string; toDate?: string }) {
+/** جلب بيانات المحاسبة للصفحة — paginated bootstrap for scale */
+export async function getAccountingDataForPage(filters?: {
+  fromDate?: string;
+  toDate?: string;
+  documentsLimit?: number;
+  journalLimit?: number;
+}) {
   const { after } = await import('next/server');
   after(async () => {
     try {
@@ -775,11 +872,24 @@ export async function getAccountingDataForPage(filters?: { fromDate?: string; to
       /* ignore */
     }
   });
-  const [accounts, documents, journalEntries, periods] = await Promise.all([
+  const docLimit = filters?.documentsLimit ?? ACCOUNTING_DEFAULT_PAGE_SIZE;
+  const jrnLimit = filters?.journalLimit ?? ACCOUNTING_DEFAULT_PAGE_SIZE;
+  const [accounts, docPage, jrnPage, periods] = await Promise.all([
     getAccountsFromDb(),
-    getDocumentsFromDb({ fromDate: filters?.fromDate, toDate: filters?.toDate }),
-    getJournalEntriesFromDb({ fromDate: filters?.fromDate, toDate: filters?.toDate }),
+    getDocumentsPageFromDb({ fromDate: filters?.fromDate, toDate: filters?.toDate, limit: docLimit, offset: 0 }),
+    getJournalEntriesPageFromDb({ fromDate: filters?.fromDate, toDate: filters?.toDate, limit: jrnLimit, offset: 0 }),
     getFiscalPeriodsFromDb(),
   ]);
-  return { accounts, documents, journalEntries, periods };
+  return {
+    accounts,
+    documents: docPage.items,
+    journalEntries: jrnPage.items,
+    periods,
+    meta: {
+      documentsTotal: docPage.total,
+      journalTotal: jrnPage.total,
+      documentsTruncated: docPage.total > docPage.items.length,
+      journalTruncated: jrnPage.total > jrnPage.items.length,
+    },
+  };
 }

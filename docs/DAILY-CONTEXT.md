@@ -9,6 +9,16 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (52) — Phase 0 محاسبة: DB موحّد + سرعة + إجراءات سريعة
+
+- **مصدر بيانات واحد:** صفحات journal/accounts/reports → redirect إلى `/admin/accounting?tab=...` (إلغاء localStorage المنفصل)
+- **Pagination DB:** `getDocumentsPageFromDb`, `getJournalEntriesPageFromDb` — bootstrap 150 سجل، headers `X-Total-Count`
+- **`dbPostingRules.ts`:** ترحيل موحّد + **CREDIT_NOTE** و **DEBIT_NOTE** في Prisma enum + migration
+- **حساب 1150** شيكات تحت التحصيل في دليل الحسابات الافتراضي
+- **`AccountingQuickActions`:** واجهة Book Keeper — فاتورة/إيصال/مصروف/تقارير + «استلمنا اليوم»
+- **KPIs من أرصدة DB:** `computeFinancialKpisFromAccounts` — بدون تحميل كل القيود
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-05-31 (تابع 51) — توحيد تصميم كل صفحات اللوحة الفرعية
 
 - **`admin-subpages`:** class على `admin-main-inner` — inputs، جداول، بطاقات، dark mode تلقائي
@@ -16,7 +26,7 @@
 - **المحاسبة:** إزالة header أزرق/بنفسجي من `AdminAccountingClient` → `AdminPageHeader` + أزرار موحّدة
 - **`accounting.module.css`:** tokens + dark mode داخل `.admin-root`
 - **`AdminSubpageShell`:** غلاف اختياري للصفحات الفرعية
-- **`npm run build`** ✅ — **لم يُرفع Git بعد**
+- **`npm run build`** ✅ — **رفع Git** (`f101be3`)
 
 ### جلسة 2026-05-31 (تابع 50) — إعادة تصميم لوحة الرئيسية + مساعد ذكي
 

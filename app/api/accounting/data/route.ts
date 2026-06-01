@@ -1,25 +1,30 @@
 /**
  * نقطة نهاية موحّدة لجلب بيانات المحاسبة (حسابات، مستندات، قيود، فترات).
- * تُشغّل مزامنة الحجوزات المدفوعة تلقائياً قبل إرجاع البيانات.
- * لا يشترط التحقق من الجلسة للقراءة — الصفحة محمية بمسار /admin؛ لضمان ظهور البيانات دائماً.
+ * Paginated bootstrap — optimized for large datasets.
  */
 import { NextRequest, NextResponse, after } from 'next/server';
 import {
   getAccountsFromDb,
-  getDocumentsFromDb,
-  getJournalEntriesFromDb,
+  getDocumentsPageFromDb,
+  getJournalEntriesPageFromDb,
   getFiscalPeriodsFromDb,
   syncPaidBookingsToAccountingDb,
   syncSubscriptionHistoryToAccountingDb,
+  ACCOUNTING_DEFAULT_PAGE_SIZE,
+  ACCOUNTING_MAX_PAGE_SIZE,
 } from '@/lib/accounting/data/dbService';
 
 const NO_CACHE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' };
 
 export async function GET(request: NextRequest) {
-  const fromDate = new URL(request.url).searchParams.get('fromDate') || undefined;
-  const toDate = new URL(request.url).searchParams.get('toDate') || undefined;
+  const { searchParams } = new URL(request.url);
+  const fromDate = searchParams.get('fromDate') || undefined;
+  const toDate = searchParams.get('toDate') || undefined;
+  const limitRaw = Number(searchParams.get('limit') || ACCOUNTING_DEFAULT_PAGE_SIZE);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0
+    ? Math.min(ACCOUNTING_MAX_PAGE_SIZE, Math.floor(limitRaw))
+    : ACCOUNTING_DEFAULT_PAGE_SIZE;
 
-  /** المزامنة تُؤجَّل بعد إرسال الاستجابة حتى لا تنتظر الواجهة 10+ ثانية */
   after(async () => {
     try {
       await syncPaidBookingsToAccountingDb();
@@ -33,22 +38,34 @@ export async function GET(request: NextRequest) {
     }
   });
 
-  let accounts: any[] = [];
-  let documents: any[] = [];
-  let journalEntries: any[] = [];
-  let periods: any[] = [];
+  let accounts: Awaited<ReturnType<typeof getAccountsFromDb>> = [];
+  let documents: Awaited<ReturnType<typeof getDocumentsPageFromDb>>['items'] = [];
+  let journalEntries: Awaited<ReturnType<typeof getJournalEntriesPageFromDb>>['items'] = [];
+  let periods: Awaited<ReturnType<typeof getFiscalPeriodsFromDb>> = [];
+  let meta = {
+    documentsTotal: 0,
+    journalTotal: 0,
+    documentsTruncated: false,
+    journalTruncated: false,
+  };
 
   try {
-    const [acc, doc, ent, per] = await Promise.all([
+    const [acc, docPage, jrnPage, per] = await Promise.all([
       getAccountsFromDb(),
-      getDocumentsFromDb({ fromDate, toDate }),
-      getJournalEntriesFromDb({ fromDate, toDate }),
+      getDocumentsPageFromDb({ fromDate, toDate, limit, offset: 0 }),
+      getJournalEntriesPageFromDb({ fromDate, toDate, limit, offset: 0 }),
       getFiscalPeriodsFromDb(),
     ]);
     accounts = acc;
-    documents = doc;
-    journalEntries = ent;
+    documents = docPage.items;
+    journalEntries = jrnPage.items;
     periods = per;
+    meta = {
+      documentsTotal: docPage.total,
+      journalTotal: jrnPage.total,
+      documentsTruncated: docPage.total > docPage.items.length,
+      journalTruncated: jrnPage.total > jrnPage.items.length,
+    };
   } catch (err) {
     console.error('Accounting data GET:', err);
     try {
@@ -59,8 +76,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { accounts, documents, journalEntries, periods },
+    { accounts, documents, journalEntries, periods, meta },
     { headers: NO_CACHE }
   );
 }
-

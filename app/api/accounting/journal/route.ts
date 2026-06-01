@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getJournalEntriesFromDb,
+  getJournalEntriesPageFromDb,
   createJournalEntryInDb,
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
@@ -18,18 +18,16 @@ export async function GET(request: NextRequest) {
     const toDate = searchParams.get('toDate') || undefined;
     const limitRaw = Number(searchParams.get('limit') || '0');
     const offsetRaw = Number(searchParams.get('offset') || '0');
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 50;
     const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
-    const entries = await getJournalEntriesFromDb({ fromDate, toDate });
-    const totalCount = entries.length;
-    const paged = limit > 0 ? entries.slice(offset, offset + limit) : entries;
-    return NextResponse.json(paged, {
+    const page = await getJournalEntriesPageFromDb({ fromDate, toDate, limit, offset });
+    return NextResponse.json(page.items, {
       headers: {
         'Cache-Control': CACHE_ACCOUNTING_JOURNAL_GET,
         Vary: HTTP_CACHE_VARY_AUTH,
-        'X-Total-Count': String(totalCount),
-        'X-Limit': String(limit || totalCount),
-        'X-Offset': String(offset),
+        'X-Total-Count': String(page.total),
+        'X-Limit': String(page.limit),
+        'X-Offset': String(page.offset),
       },
     });
   } catch (err) {

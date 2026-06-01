@@ -1,93 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getDocumentsFromDb,
+  getDocumentsPageFromDb,
   createDocumentInDb,
-  createJournalEntryInDb,
   updateDocumentInDb,
-  getAccountsFromDb,
 } from '@/lib/accounting/data/dbService';
+import { postDocumentToDb } from '@/lib/accounting/rules/dbPostingRules';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 import { CACHE_ACCOUNTING_DOCUMENTS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
-
-async function postDocumentToDb(doc: any) {
-  const accounts = await getAccountsFromDb();
-  const cashAcc = accounts.find((a: any) => a.code === '1000');
-  const bankAcc = accounts.find((a: any) => a.code === '1100');
-  const revenueAcc = accounts.find((a: any) => a.code === '4000');
-  const vatAcc = accounts.find((a: any) => a.code === '2200');
-  const expenseAcc = accounts.find((a: any) => a.code === '5000');
-  const depositAcc = accounts.find((a: any) => a.code === '2100');
-
-  const debitAcc = doc.bankAccountId ? bankAcc : cashAcc;
-  const totalAmount = doc.totalAmount || doc.amount || 0;
-  const amount = doc.amount || 0;
-  const vatAmount = doc.vatAmount || 0;
-
-  let lines: Array<{ accountId: string; debit: number; credit: number; descriptionAr?: string; descriptionEn?: string }> = [];
-
-  const payableAcc = accounts.find((a: any) => a.code === '2000');
-
-  if (doc.type === 'RECEIPT' || doc.type === 'INVOICE') {
-    if (!debitAcc || !revenueAcc) throw new Error('دليل الحسابات غير مكتمل');
-    lines = [
-      { accountId: debitAcc.id, debit: totalAmount, credit: 0, descriptionAr: doc.descriptionAr || `إيصال ${doc.serialNumber}`, descriptionEn: doc.descriptionEn },
-      { accountId: revenueAcc.id, debit: 0, credit: amount, descriptionAr: doc.descriptionAr, descriptionEn: doc.descriptionEn },
-    ];
-    if (vatAmount > 0 && vatAcc) {
-      lines.push({ accountId: vatAcc.id, debit: 0, credit: vatAmount, descriptionAr: `ضريبة ${doc.serialNumber}`, descriptionEn: `VAT ${doc.serialNumber}` });
-    }
-  } else if (doc.type === 'PURCHASE_INV') {
-    if (!payableAcc || !expenseAcc) throw new Error('دليل الحسابات غير مكتمل');
-    const purchaseLines: typeof lines = [];
-    if (doc.items?.length && doc.items.some((i: any) => i.accountId)) {
-      let allocated = 0;
-      for (const item of doc.items) {
-        if (item.accountId && item.amount > 0) {
-          purchaseLines.push({ accountId: item.accountId, debit: item.amount, credit: 0, descriptionAr: item.descriptionAr || doc.descriptionAr, descriptionEn: item.descriptionEn || doc.descriptionEn });
-          allocated += item.amount;
-        }
-      }
-      if (allocated < amount) {
-        purchaseLines.push({ accountId: expenseAcc.id, debit: amount - allocated, credit: 0, descriptionAr: doc.descriptionAr || `فاتورة مشتريات ${doc.serialNumber}`, descriptionEn: doc.descriptionEn || `Purchase invoice ${doc.serialNumber}` });
-      }
-    } else {
-      purchaseLines.push({ accountId: expenseAcc.id, debit: amount, credit: 0, descriptionAr: doc.descriptionAr || `فاتورة مشتريات ${doc.serialNumber}`, descriptionEn: doc.descriptionEn || `Purchase invoice ${doc.serialNumber}` });
-    }
-    if (vatAmount > 0 && vatAcc) {
-      purchaseLines.push({ accountId: vatAcc.id, debit: vatAmount, credit: 0, descriptionAr: `ضريبة ${doc.serialNumber}`, descriptionEn: `VAT ${doc.serialNumber}` });
-    }
-    purchaseLines.push({ accountId: payableAcc.id, debit: 0, credit: totalAmount, descriptionAr: doc.descriptionAr || `فاتورة مشتريات ${doc.serialNumber}`, descriptionEn: doc.descriptionEn || `Purchase invoice ${doc.serialNumber}` });
-    lines = purchaseLines;
-  } else if (doc.type === 'PAYMENT') {
-    if (!debitAcc || !expenseAcc) throw new Error('دليل الحسابات غير مكتمل');
-    lines = [
-      { accountId: expenseAcc.id, debit: totalAmount, credit: 0, descriptionAr: doc.descriptionAr, descriptionEn: doc.descriptionEn },
-      { accountId: debitAcc.id, debit: 0, credit: totalAmount, descriptionAr: doc.descriptionAr, descriptionEn: doc.descriptionEn },
-    ];
-  } else if (doc.type === 'DEPOSIT') {
-    if (!debitAcc || !depositAcc) throw new Error('دليل الحسابات غير مكتمل');
-    lines = [
-      { accountId: debitAcc.id, debit: totalAmount, credit: 0, descriptionAr: doc.descriptionAr, descriptionEn: doc.descriptionEn },
-      { accountId: depositAcc.id, debit: 0, credit: totalAmount, descriptionAr: doc.descriptionAr, descriptionEn: doc.descriptionEn },
-    ];
-  }
-
-  if (lines.length === 0) return null;
-  const entry = await createJournalEntryInDb({
-    date: doc.date,
-    lines,
-    descriptionAr: doc.descriptionAr || `${doc.type} ${doc.serialNumber}`,
-    descriptionEn: doc.descriptionEn,
-    documentType: doc.type,
-    documentId: doc.id,
-    contactId: doc.contactId,
-    bankAccountId: doc.bankAccountId,
-    propertyId: doc.propertyId,
-    projectId: doc.projectId,
-    status: 'APPROVED',
-  });
-  return entry;
-}
 
 export async function GET(request: NextRequest) {
   const { getAccountingRoleFromRequest } = await import('@/lib/accounting/rbac/apiAuth');
@@ -102,18 +21,16 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || undefined;
     const limitRaw = Number(searchParams.get('limit') || '0');
     const offsetRaw = Number(searchParams.get('offset') || '0');
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 0;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(500, Math.floor(limitRaw)) : 50;
     const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
-    const docs = await getDocumentsFromDb({ fromDate, toDate, type });
-    const totalCount = docs.length;
-    const paged = limit > 0 ? docs.slice(offset, offset + limit) : docs;
-    return NextResponse.json(paged, {
+    const page = await getDocumentsPageFromDb({ fromDate, toDate, type, limit, offset });
+    return NextResponse.json(page.items, {
       headers: {
         'Cache-Control': CACHE_ACCOUNTING_DOCUMENTS_GET,
         Vary: HTTP_CACHE_VARY_AUTH,
-        'X-Total-Count': String(totalCount),
-        'X-Limit': String(limit || totalCount),
-        'X-Offset': String(offset),
+        'X-Total-Count': String(page.total),
+        'X-Limit': String(page.limit),
+        'X-Offset': String(page.offset),
       },
     });
   } catch (err) {
@@ -158,15 +75,14 @@ export async function POST(request: NextRequest) {
 
     let journalEntryId: string | undefined;
     if (doc.status === 'APPROVED' || doc.status === 'PAID') {
-      try {
-        const entry = await postDocumentToDb(doc);
-        if (entry) {
-          await updateDocumentInDb(doc.id, { journalEntryId: entry.id });
-          journalEntryId = entry.id;
-        }
-      } catch (postErr) {
-        console.error('Posting failed:', postErr);
-        throw postErr;
+      const entry = await postDocumentToDb({
+        ...doc,
+        items: body.items,
+        paymentMethod: body.paymentMethod,
+      });
+      if (entry) {
+        await updateDocumentInDb(doc.id, { journalEntryId: entry.id });
+        journalEntryId = entry.id;
       }
     }
 

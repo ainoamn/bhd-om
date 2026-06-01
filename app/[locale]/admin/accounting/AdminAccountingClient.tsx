@@ -26,15 +26,15 @@ export default function AdminAccountingClient(props: { initialData: AccountingIn
         }
         actions={
           <div className="admin-toolbar-group flex-wrap justify-end">
-            <Link href={`/${locale}/admin/accounting/journal`} prefetch className="admin-btn-primary text-sm !py-2">
+            <Link href={`/${locale}/admin/accounting?tab=journal`} prefetch className="admin-btn-primary text-sm !py-2">
               <Icon name="plus" className="w-4 h-4" aria-hidden />
               {ar ? 'قيد يومية' : 'Journal entry'}
             </Link>
-            <Link href={`/${locale}/admin/accounting/accounts`} prefetch className="admin-btn-secondary text-sm !py-2">
+            <Link href={`/${locale}/admin/accounting?tab=accounts`} prefetch className="admin-btn-secondary text-sm !py-2">
               <Icon name="archive" className="w-4 h-4" aria-hidden />
               {ar ? 'دليل الحسابات' : 'Chart of accounts'}
             </Link>
-            <Link href={`/${locale}/admin/accounting/reports`} prefetch className="admin-btn-secondary text-sm !py-2">
+            <Link href={`/${locale}/admin/accounting?tab=reports`} prefetch className="admin-btn-secondary text-sm !py-2">
               <Icon name="chartBar" className="w-4 h-4" aria-hidden />
               {ar ? 'التقارير' : 'Reports'}
             </Link>

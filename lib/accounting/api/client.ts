@@ -17,39 +17,57 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-/** جلب كل بيانات المحاسبة دفعة واحدة (حسابات، مستندات، قيود، فترات) لضمان ربط صحيح */
-export async function fetchAccountingData(params?: { fromDate?: string; toDate?: string }) {
-  const sp = new URLSearchParams(params);
+/** جلب بيانات المحاسبة (paginated bootstrap) */
+export async function fetchAccountingData(params?: { fromDate?: string; toDate?: string; limit?: number }) {
+  const sp = new URLSearchParams();
+  if (params?.fromDate) sp.set('fromDate', params.fromDate);
+  if (params?.toDate) sp.set('toDate', params.toDate);
+  if (params?.limit) sp.set('limit', String(params.limit));
   return fetchJson<{
-    accounts: any[];
-    documents: any[];
-    journalEntries: any[];
-    periods: any[];
+    accounts: unknown[];
+    documents: unknown[];
+    journalEntries: unknown[];
+    periods: unknown[];
+    meta?: {
+      documentsTotal: number;
+      journalTotal: number;
+      documentsTruncated: boolean;
+      journalTruncated: boolean;
+    };
   }>(`${BASE}/data?${sp}`);
 }
 
+export async function fetchJournalEntries(params?: { fromDate?: string; toDate?: string; limit?: number; offset?: number }) {
+  const sp = new URLSearchParams();
+  if (params?.fromDate) sp.set('fromDate', params.fromDate);
+  if (params?.toDate) sp.set('toDate', params.toDate);
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  return fetchJson<unknown[]>(`${BASE}/journal?${sp}`);
+}
+
+export async function fetchDocuments(params?: { fromDate?: string; toDate?: string; type?: string; limit?: number; offset?: number }) {
+  const sp = new URLSearchParams();
+  if (params?.fromDate) sp.set('fromDate', params.fromDate);
+  if (params?.toDate) sp.set('toDate', params.toDate);
+  if (params?.type) sp.set('type', params.type);
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  return fetchJson<unknown[]>(`${BASE}/documents?${sp}`);
+}
+
 export async function fetchAccounts() {
-  return fetchJson<any[]>(`${BASE}/accounts`);
+  return fetchJson<unknown[]>(`${BASE}/accounts`);
 }
 
-export async function fetchJournalEntries(params?: { fromDate?: string; toDate?: string }) {
-  const sp = new URLSearchParams(params);
-  return fetchJson<any[]>(`${BASE}/journal?${sp}`);
-}
-
-export async function createJournalEntry(data: any) {
-  return fetchJson<any>(`${BASE}/journal`, {
+export async function createJournalEntry(data: Record<string, unknown>) {
+  return fetchJson<unknown>(`${BASE}/journal`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function fetchDocuments(params?: { fromDate?: string; toDate?: string; type?: string }) {
-  const sp = new URLSearchParams(params);
-  return fetchJson<any[]>(`${BASE}/documents?${sp}`);
-}
-
-export async function createDocument(data: any) {
+export async function createDocument(data: Record<string, unknown>) {
   return fetchJson<any>(`${BASE}/documents`, {
     method: 'POST',
     body: JSON.stringify(data),

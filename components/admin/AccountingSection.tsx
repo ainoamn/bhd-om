@@ -54,6 +54,8 @@ import ClaimsPaymentsExportButtons from './ClaimsPaymentsExportButtons';
 import DocumentPrintModal from './DocumentPrintModal';
 import SortSelect, { type SortOption } from './SortSelect';
 import AccountingFilter from './AccountingFilter';
+import AccountingQuickActions from './accounting/AccountingQuickActions';
+import { computeFinancialKpisFromAccounts } from '@/lib/accounting/dashboard/accountStats';
 import { getCompanyData } from '@/lib/data/companyData';
 import { getDefaultTemplate } from '@/lib/data/documentTemplates';
 import { LOGO_SIZE_DEFAULT } from '@/lib/data/documentTemplateConstants';
@@ -189,10 +191,16 @@ function BookingCancellationCompleteForm({ requestId, onComplete, ar }: { reques
 }
 
 export type AccountingInitialData = {
-  accounts?: any[];
-  documents?: any[];
-  journalEntries?: any[];
-  periods?: any[];
+  accounts?: ChartAccount[];
+  documents?: AccountingDocument[];
+  journalEntries?: JournalEntry[];
+  periods?: Array<{ id: string; code: string; startDate: string; endDate: string; isLocked: boolean }>;
+  meta?: {
+    documentsTotal?: number;
+    journalTotal?: number;
+    documentsTruncated?: boolean;
+    journalTruncated?: boolean;
+  };
 };
 
 export default function AccountingSection(props: { initialData?: AccountingInitialData }) {
@@ -318,6 +326,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [sortAccounts, setSortAccounts] = useState<SortOption>('number');
 
   const [dataSourceFromApi, setDataSourceFromApi] = useState<boolean | null>(initialData ? true : null);
+  const [dataMeta, setDataMeta] = useState(initialData?.meta ?? null);
   const useDb = dataSourceFromApi === true;
   /** حجوزات بانتظار تأكيد المحاسب — من API عند استخدام قاعدة البيانات */
   const [pendingConfirmBookings, setPendingConfirmBookings] = useState<PropertyBooking[]>([]);
@@ -342,10 +351,11 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         fromDate: filterFromDate || undefined,
         toDate: filterToDate || undefined,
       });
-      if (Array.isArray(data.accounts)) setAccounts(data.accounts);
-      if (Array.isArray(data.documents)) setDocuments(data.documents);
-      if (Array.isArray(data.journalEntries)) setJournalEntries(data.journalEntries);
-      if (Array.isArray(data.periods)) setPeriods(data.periods);
+      if (Array.isArray(data.accounts)) setAccounts(data.accounts as ChartAccount[]);
+      if (Array.isArray(data.documents)) setDocuments(data.documents as AccountingDocument[]);
+      if (Array.isArray(data.journalEntries)) setJournalEntries(data.journalEntries as JournalEntry[]);
+      if (Array.isArray(data.periods)) setPeriods(data.periods as typeof periods);
+      if (data.meta) setDataMeta(data.meta);
       setDataSourceFromApi(true);
       if (typeof window !== 'undefined') {
         const auditRes = await fetch('/api/accounting/audit?limit=50', { credentials: 'include' }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
@@ -630,23 +640,56 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     return null;
   }, [journalForm.descriptionAr, journalForm.descriptionEn, accounts]);
 
-  const stats = {
-    totalEntries: journalEntries.length,
-    totalDocuments: documents.length,
-    totalAssets: balanceSheet.totalAssets,
-    totalLiabilities: balanceSheet.totalLiabilities,
-    totalEquity: balanceSheet.totalEquity + balanceSheet.netIncome,
-    totalRevenue: incomeStatement.revenue.total,
-    totalExpenses: incomeStatement.expense.total,
-    netIncome: incomeStatement.netIncome,
-  };
+  const dbKpis = useMemo(
+    () => (useDb ? computeFinancialKpisFromAccounts(accounts) : null),
+    [useDb, accounts]
+  );
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayStats = useMemo(() => {
+    let received = 0;
+    let expenses = 0;
+    for (const doc of documents) {
+      if (doc.date !== todayIso || doc.status === 'CANCELLED') continue;
+      const amt = doc.totalAmount ?? doc.amount ?? 0;
+      if (doc.type === 'RECEIPT' || doc.type === 'INVOICE') received += amt;
+      if (doc.type === 'PAYMENT' || doc.type === 'PURCHASE_INV') expenses += amt;
+    }
+    return { received, expenses };
+  }, [documents, todayIso]);
+
+  const stats = useDb && dbKpis
+    ? {
+        totalEntries: dataMeta?.journalTotal ?? journalEntries.length,
+        totalDocuments: dataMeta?.documentsTotal ?? documents.length,
+        totalAssets: dbKpis.totalAssets,
+        totalLiabilities: dbKpis.totalLiabilities,
+        totalEquity: dbKpis.totalEquity,
+        totalRevenue: dbKpis.totalRevenue,
+        totalExpenses: dbKpis.totalExpenses,
+        netIncome: dbKpis.netIncome,
+      }
+    : {
+        totalEntries: journalEntries.length,
+        totalDocuments: documents.length,
+        totalAssets: balanceSheet.totalAssets,
+        totalLiabilities: balanceSheet.totalLiabilities,
+        totalEquity: balanceSheet.totalEquity + balanceSheet.netIncome,
+        totalRevenue: incomeStatement.revenue.total,
+        totalExpenses: incomeStatement.expense.total,
+        netIncome: incomeStatement.netIncome,
+      };
 
   const anomalies = aiDetectAnomalies(entriesForReports, accountsForReports);
 
-  const cashSnapshot = getBankAccountBalance('CASH', reportAsOf, entriesForReports);
-  const banksTotal = bankAccounts
-    .filter((b) => b.isActive)
-    .reduce((s, b) => s + getBankAccountBalance(b.id, reportAsOf, entriesForReports).balance, 0);
+  const cashSnapshot = useDb && dbKpis
+    ? { balance: dbKpis.cashBalance }
+    : getBankAccountBalance('CASH', reportAsOf, entriesForReports);
+  const banksTotal = useDb && dbKpis
+    ? dbKpis.bankBalance
+    : bankAccounts
+        .filter((b) => b.isActive)
+        .reduce((s, b) => s + getBankAccountBalance(b.id, reportAsOf, entriesForReports).balance, 0);
   /** لا نكرّر عرض قيد الإيصال في «أحدث القيود» — الإيصال يظهر في «أحدث المستندات» */
   const latestEntries = journalEntries.filter((e) => e.documentType !== 'RECEIPT').slice(0, 5);
   const latestDocs = documents.slice(0, 5);
@@ -700,13 +743,15 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   }
 
   const receivables = useMemo(() => {
+    if (useDb && dbKpis) return dbKpis.receivables;
     const invs = documents.filter((d) => d.type === 'INVOICE' && d.status !== 'PAID' && d.status !== 'CANCELLED');
     return invs.reduce((s, d) => s + d.totalAmount, 0);
-  }, [documents]);
+  }, [documents, useDb, dbKpis]);
   const chequesReceivable = useMemo(() => {
+    if (useDb && dbKpis) return dbKpis.chequesReceivable;
     const cheques = documents.filter((d) => d.type === 'RECEIPT' && d.paymentMethod === 'CHEQUE');
     return cheques.reduce((s, d) => s + d.totalAmount, 0);
-  }, [documents]);
+  }, [documents, useDb, dbKpis]);
   const totalClaims = receivables + chequesReceivable;
   const paymentsTotal = useMemo(() => {
     const pays = documents.filter((d) => d.type === 'PAYMENT' || d.type === 'RECEIPT');
@@ -790,6 +835,22 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
 
       {activeTab === 'dashboard' && (
         <div className={`space-y-6 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+          <AccountingQuickActions
+            ar={ar}
+            todayReceived={todayStats.received}
+            todayExpenses={todayStats.expenses}
+            onNewInvoice={() => openDocumentModule('INVOICE')}
+            onNewReceipt={() => openDocumentModule('RECEIPT')}
+            onNewExpense={() => openDocumentModule('PAYMENT', { descriptionAr: 'مصروف', descriptionEn: 'Expense' })}
+            onViewReports={() => setTab('reports', undefined, 'income')}
+          />
+          {(dataMeta?.documentsTruncated || dataMeta?.journalTruncated) && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {ar
+                ? `عرض أحدث ${documents.length} مستند و${journalEntries.length} قيد — الإجمالي: ${dataMeta?.documentsTotal ?? documents.length} مستند، ${dataMeta?.journalTotal ?? journalEntries.length} قيد. استخدم الفلاتر أو التبويبات لتحميل المزيد.`
+                : `Showing latest ${documents.length} documents and ${journalEntries.length} entries — totals: ${dataMeta?.documentsTotal ?? documents.length} docs, ${dataMeta?.journalTotal ?? journalEntries.length} entries. Use filters or tabs to load more.`}
+            </p>
+          )}
           <div className={styles.rangeBar}>
             <span className="text-xs font-semibold text-gray-700">{ar ? 'نطاق زمني' : 'Range'}</span>
             <div className="flex flex-wrap gap-2">

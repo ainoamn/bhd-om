@@ -4,4 +4,5 @@
 
 export const USE_ACCOUNTING_DB =
   typeof process !== 'undefined' &&
-  process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB === 'true';
+  (process.env?.NEXT_PUBLIC_ACCOUNTING_USE_DB === 'true' ||
+    process.env?.NODE_ENV === 'production');

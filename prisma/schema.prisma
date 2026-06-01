@@ -454,6 +454,8 @@ enum AccountingDocType {
   JOURNAL
   PURCHASE_INV
   PURCHASE_ORDER
+  CREDIT_NOTE
+  DEBIT_NOTE
   OTHER
 }
 
