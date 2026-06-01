@@ -37,8 +37,7 @@ import { ensureDefaultPeriods } from '@/lib/accounting/compliance/periodEngine';
 import { getContactDisplayFull, searchContacts } from '@/lib/data/addressBook';
 import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
 import { getAllBankAccounts, getBankAccountDisplay } from '@/lib/data/bankAccounts';
-import { syncPaidBookingsToAccounting, getBookingsPendingAccountantConfirmation, confirmBookingReceiptByAccountant, getBookingsPendingCancellation, completeCancellationByAccountant, getBookingDisplayName, mergeBookingsFromServer, type PropertyBooking } from '@/lib/data/bookings';
-import { getDocumentUploadLink, getDocumentLinkMessage, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
+import { syncPaidBookingsToAccounting, type PropertyBooking } from '@/lib/data/bookings';
 import { projects as projectsList, getProjectDisplayText } from '@/lib/data/projects';
 import { properties as propertiesList, getPropertyById, getPropertyDisplayText } from '@/lib/data/properties';
 import DateInput from '@/components/shared/DateInput';
@@ -46,7 +45,6 @@ import InvoicePrint from './InvoicePrint';
 import DocumentPrintModal from './DocumentPrintModal';
 import SortSelect, { type SortOption } from './SortSelect';
 import AccountingFilter from './AccountingFilter';
-import AccountingQuickActions from './accounting/AccountingQuickActions';
 import AccountingReportsTab from './accounting/AccountingReportsTab';
 import AccountingClaimsTab from './accounting/AccountingClaimsTab';
 import AccountingChequesTab from './accounting/AccountingChequesTab';
@@ -54,6 +52,8 @@ import AccountingPaymentsTab from './accounting/AccountingPaymentsTab';
 import AccountingJournalTab from './accounting/AccountingJournalTab';
 import AccountingPeriodsTab from './accounting/AccountingPeriodsTab';
 import AccountingAuditTab from './accounting/AccountingAuditTab';
+import AccountingDashboardTab from './accounting/AccountingDashboardTab';
+import AccountingDocumentsTab from './accounting/AccountingDocumentsTab';
 import AccountingInvoiceScanModal, { type InvoiceScanResult } from './accounting/AccountingInvoiceScanModal';
 import { computeFinancialKpisFromAccounts } from '@/lib/accounting/dashboard/accountStats';
 import styles from './accounting.module.css';
@@ -143,35 +143,6 @@ function salesModulePreset(id: string): { descriptionAr?: string; descriptionEn?
 }
 
 type TabId = 'dashboard' | 'sales' | 'purchases' | 'accounts' | 'journal' | 'documents' | 'reports' | 'claims' | 'cheques' | 'payments' | 'settings' | 'audit' | 'periods';
-
-function BookingCancellationCompleteForm({ requestId, onComplete, ar }: { requestId: string; onComplete: () => void; ar: boolean }) {
-  const [note, setNote] = useState('');
-  const handleComplete = () => {
-    const result = completeCancellationByAccountant(requestId, note.trim() || (ar ? 'تم استرداد/خصم المبلغ' : 'Amount refunded/deducted'));
-    if (result) {
-      setNote('');
-      onComplete();
-    }
-  };
-  return (
-    <div className="flex flex-col sm:flex-row gap-2 sm:items-center shrink-0">
-      <input
-        type="text"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder={ar ? 'ملاحظة المحاسب (تُعرض في الحجز)' : 'Accountant note (shown on booking)'}
-        className="admin-input flex-1 min-w-[180px] !py-2 !text-sm"
-      />
-      <button
-        type="button"
-        onClick={handleComplete}
-        className="px-4 py-2 admin-btn-primary transition-colors shrink-0"
-      >
-        {ar ? 'تمت العملية' : 'Done'}
-      </button>
-    </div>
-  );
-}
 
 export default function AccountingSection(props: { initialData?: AccountingInitialData }) {
   const { initialData } = props;
@@ -920,363 +891,43 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             )}
         </div>
 
-      {activeTab === 'dashboard' && useDb && documents.length === 0 && journalEntries.length === 0 && (
-        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-          {ar
-            ? 'لا توجد حركات محاسبية بعد. يتم تشغيل المزامنة تلقائياً (دفعات الاشتراكات والحجوزات) عند فتح هذه الصفحة. إذا كان لديك دفعات سابقة، أعد تحميل الصفحة (F5) بعد ثوانٍ لرؤية الإيصالات.'
-            : 'No accounting movements yet. Sync runs automatically (subscription and booking payments) when you open this page. If you have previous payments, reload the page (F5) after a few seconds to see receipts.'}
-        </div>
-      )}
-
       {activeTab === 'dashboard' && (
-        <div className={`space-y-6 transition-all duration-300 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          <AccountingQuickActions
-            ar={ar}
-            todayReceived={todayStats.received}
-            todayExpenses={todayStats.expenses}
-            onNewInvoice={() => openDocumentModule('INVOICE')}
-            onNewReceipt={() => openDocumentModule('RECEIPT')}
-            onNewExpense={() => openDocumentModule('PAYMENT', { descriptionAr: 'مصروف', descriptionEn: 'Expense' })}
-            onScanInvoice={() => setShowInvoiceScan(true)}
-            onViewReports={() => setTab('reports', undefined, 'income')}
-          />
-          {(dataMeta?.documentsTruncated || dataMeta?.journalTruncated) && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              {ar
-                ? `عرض أحدث ${documents.length} مستند و${journalEntries.length} قيد — الإجمالي: ${dataMeta?.documentsTotal ?? documents.length} مستند، ${dataMeta?.journalTotal ?? journalEntries.length} قيد. استخدم الفلاتر أو التبويبات لتحميل المزيد.`
-                : `Showing latest ${documents.length} documents and ${journalEntries.length} entries — totals: ${dataMeta?.documentsTotal ?? documents.length} docs, ${dataMeta?.journalTotal ?? journalEntries.length} entries. Use filters or tabs to load more.`}
-            </p>
-          )}
-          <div className={styles.rangeBar}>
-            <span className="text-xs font-semibold text-gray-700">{ar ? 'نطاق زمني' : 'Range'}</span>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={setRangeThisMonth} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium hover:bg-gray-50">{ar ? 'هذا الشهر' : 'This Month'}</button>
-              <button type="button" onClick={setRangeLast30} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium hover:bg-gray-50">{ar ? 'آخر 30 يوماً' : 'Last 30 Days'}</button>
-              <button type="button" onClick={setRangeYearToDate} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium hover:bg-gray-50">{ar ? 'منذ بداية السنة' : 'Year to Date'}</button>
-            </div>
-          </div>
-          <div className={styles.statGrid}>
-            <button type="button" onClick={() => setTab('reports', undefined, 'balance')} className={`${styles.statCard} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all text-start`}>
-              <p className={styles.statCardLabel}>{ar ? 'إجمالي الأصول' : 'Total Assets'}</p>
-              <p className={styles.statCardValue}>{stats.totalAssets.toLocaleString()} ر.ع</p>
-            </button>
-            <button type="button" onClick={() => setTab('reports', undefined, 'balance')} className={`${styles.statCard} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all text-start`}>
-              <p className={styles.statCardLabel}>{ar ? 'إجمالي الالتزامات' : 'Liabilities'}</p>
-              <p className={styles.statCardValue}>{stats.totalLiabilities.toLocaleString()} ر.ع</p>
-            </button>
-            <button type="button" onClick={() => setTab('reports', undefined, 'balance')} className={`${styles.statCard} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all text-start`}>
-              <p className={styles.statCardLabel}>{ar ? 'حقوق الملكية' : 'Equity'}</p>
-              <p className={styles.statCardValue}>{stats.totalEquity.toLocaleString()} ر.ع</p>
-            </button>
-            <button type="button" onClick={() => setTab('reports', undefined, 'income')} className={`${styles.statCard} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all text-start`}>
-              <p className={styles.statCardLabel}>{ar ? 'الإيرادات' : 'Revenue'}</p>
-              <p className={`${styles.statCardValue} ${styles.statCardPositive}`}>{stats.totalRevenue.toLocaleString()} ر.ع</p>
-            </button>
-            <button type="button" onClick={() => setTab('reports', undefined, 'income')} className={`${styles.statCard} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all text-start`}>
-              <p className={styles.statCardLabel}>{ar ? 'المصروفات' : 'Expenses'}</p>
-              <p className={`${styles.statCardValue} ${styles.statCardNegative}`}>{stats.totalExpenses.toLocaleString()} ر.ع</p>
-            </button>
-            <button type="button" onClick={() => setTab('reports', undefined, 'income')} className={`${styles.statCard} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all text-start`}>
-              <p className={styles.statCardLabel}>{ar ? 'صافي الدخل' : 'Net Income'}</p>
-              <p className={`${styles.statCardValue} ${stats.netIncome >= 0 ? styles.statCardPositive : styles.statCardNegative}`}>{stats.netIncome.toLocaleString()} ر.ع</p>
-            </button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'الصندوق' : 'Cash'}</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{cashSnapshot.balance.toLocaleString()} ر.ع</p>
-            </div>
-            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'البنوك' : 'Banks'}</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{banksTotal.toLocaleString()} ر.ع</p>
-            </div>
-            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'ذمم العملاء' : 'Receivables'}</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-700 tabular-nums">{receivables.toLocaleString()} ر.ع</p>
-            </div>
-            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'شيكات قيد التحصيل' : 'Cheques receivable'}</p>
-              <p className="mt-1 text-2xl font-bold text-amber-700 tabular-nums">{chequesReceivable.toLocaleString()} ر.ع</p>
-            </div>
-          </div>
-          {/* الحسابات الرئيسية: إيرادات العقارات، الاشتراكات */}
-          {(() => {
-            const acc4000 = accounts.find((a: { code: string }) => a.code === '4000');
-            const acc4250 = accounts.find((a: { code: string }) => a.code === '4250');
-            const bal4000 = acc4000 ? getAccountBalance(acc4000.id, undefined, entriesForReports, accountsForReports).balance : 0;
-            const bal4250 = acc4250 ? getAccountBalance(acc4250.id, undefined, entriesForReports, accountsForReports).balance : 0;
-            if (accounts.length === 0) return null;
-            return (
-              <div className="rounded-2xl admin-accent-border admin-accent-bg-soft p-5 shadow-sm">
-                <p className="text-xs font-semibold admin-accent-text mb-3">{ar ? 'الحسابات الرئيسية للنظام' : 'Key system accounts'}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-600">1000 — {ar ? 'الصندوق' : 'Cash'}</p>
-                    <p className="text-lg font-bold text-gray-900 tabular-nums">{cashSnapshot.balance.toLocaleString()} ر.ع</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">4000 — {ar ? 'إيرادات العقارات والإيجار' : 'Property & Rent Revenue'}</p>
-                    <p className="text-lg font-bold text-emerald-700 tabular-nums">{bal4000.toLocaleString()} ر.ع</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">4250 — {ar ? 'إيرادات الاشتراكات (الباقات)' : 'Subscription Revenue'}</p>
-                    <p className="text-lg font-bold text-emerald-700 tabular-nums">{bal4250.toLocaleString()} ر.ع</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">{ar ? 'إجمالي الإيرادات' : 'Total Revenue'}</p>
-                    <p className="text-lg font-bold text-emerald-700 tabular-nums">{(bal4000 + bal4250).toLocaleString()} ر.ع</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-          {/* Revenue vs Expense bar */}
-          {(stats.totalRevenue > 0 || stats.totalExpenses > 0) && (
-            <div className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm">
-              <p className="mb-4 text-sm font-semibold text-gray-700">{ar ? 'الإيرادات vs المصروفات' : 'Revenue vs Expenses'}</p>
-              <div className="flex gap-8 items-end h-20">
-                <div className="flex-1 flex flex-col items-center gap-2">
-                  <div
-                    className="w-full max-w-32 rounded-t-lg bg-gradient-to-t from-emerald-500 to-emerald-400 transition-all duration-500 min-h-[8px]"
-                    style={{ height: `${Math.max(8, (stats.totalRevenue / Math.max(stats.totalRevenue + stats.totalExpenses, 1)) * 72)}px` }}
-                  />
-                  <span className="text-sm font-bold text-emerald-700 tabular-nums">{stats.totalRevenue.toLocaleString()} ر.ع</span>
-                </div>
-                <div className="flex-1 flex flex-col items-center gap-2">
-                  <div
-                    className="w-full max-w-32 rounded-t-lg bg-gradient-to-t from-red-500 to-red-400 transition-all duration-500 min-h-[8px]"
-                    style={{ height: `${Math.max(8, (stats.totalExpenses / Math.max(stats.totalRevenue + stats.totalExpenses, 1)) * 72)}px` }}
-                  />
-                  <span className="text-sm font-bold text-red-700 tabular-nums">{stats.totalExpenses.toLocaleString()} ر.ع</span>
-                </div>
-              </div>
-              <div className="mt-4 flex gap-6 text-xs text-gray-500">
-                <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> {ar ? 'إيرادات' : 'Revenue'}</span>
-                <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> {ar ? 'مصروفات' : 'Expenses'}</span>
-              </div>
-            </div>
-          )}
-          <div className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm">
-            <p className="mb-4 text-sm font-semibold text-gray-700">{ar ? 'اتجاهات الأشهر الأخيرة' : 'Recent monthly trends'}</p>
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-xs text-gray-500 mb-2">{ar ? 'الإيرادات' : 'Revenue'}</p>
-                <div className="flex items-end gap-2 h-16">
-                  {monthlyRevenue.map((v, i) => (
-                    <div key={`rev-${i}`} className="w-6 rounded-t bg-emerald-400" style={{ height: `${Math.max(4, (v / Math.max(...monthlyRevenue.concat(1))) * 64)}px` }} title={`${monthlyLabels[i]}: ${v.toLocaleString()} ر.ع`} />
-                  ))}
-                </div>
-                <div className="mt-2 flex justify-between text-[10px] text-gray-400">
-                  {monthlyLabels.map((l) => <span key={`rl-${l}`}>{l}</span>)}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-2">{ar ? 'المصروفات' : 'Expenses'}</p>
-                <div className="flex items-end gap-2 h-16">
-                  {monthlyExpense.map((v, i) => (
-                    <div key={`exp-${i}`} className="w-6 rounded-t bg-red-400" style={{ height: `${Math.max(4, (v / Math.max(...monthlyExpense.concat(1))) * 64)}px` }} title={`${monthlyLabels[i]}: ${v.toLocaleString()} ر.ع`} />
-                  ))}
-                </div>
-                <div className="mt-2 flex justify-between text-[10px] text-gray-400">
-                  {monthlyLabels.map((l) => <span key={`el-${l}`}>{l}</span>)}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button type="button" onClick={() => setTab('journal')} className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer text-start">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'عدد القيود' : 'Journal Entries'}</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{stats.totalEntries}</p>
-            </button>
-            <button type="button" onClick={() => setTab('documents')} className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer text-start">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'المستندات' : 'Documents'}</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{stats.totalDocuments}</p>
-            </button>
-            <button type="button" onClick={() => setTab('accounts')} className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer text-start">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'الحسابات' : 'Accounts'}</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{accounts.length}</p>
-            </button>
-            <button type="button" onClick={() => setTab('reports', undefined, 'bankStatement')} className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-5 shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer text-start">
-              <p className="text-xs font-semibold text-emerald-700">{ar ? 'كشف الحساب البنكي' : 'Bank Statement'}</p>
-              <p className="mt-1 text-sm font-medium text-emerald-800">{ar ? 'عرض الإيداعات والسحوبات' : 'View deposits & withdrawals'}</p>
-            </button>
-            <button type="button" onClick={() => setTab('cheques')} className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-5 shadow-sm transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer text-start">
-              <p className="text-xs font-semibold text-amber-700">{ar ? 'الشيكات' : 'Cheques'}</p>
-              <p className="mt-1 text-2xl font-bold text-amber-800 tabular-nums">{documents.filter((d) => d.paymentMethod === 'CHEQUE').length}</p>
-            </button>
-            <div className="rounded-2xl admin-accent-border admin-accent-bg-soft p-5 shadow-sm">
-              <p className="text-xs font-semibold admin-accent-text">{ar ? 'معايير محاسبية عالمية' : 'Global Standards'}</p>
-              <p className="mt-2 text-sm font-medium leading-relaxed admin-accent-text">{ar ? 'قيد مزدوج • ميزان مراجعة • قائمة دخل • ميزانية عمومية' : 'Double-entry • Trial Balance • P&L • Balance Sheet'}</p>
-            </div>
-          </div>
-          {typeof window !== 'undefined' && (() => {
-            const pendingReceipts = useDb ? pendingConfirmBookings : getBookingsPendingAccountantConfirmation();
-            return pendingReceipts.length > 0 && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm">
-                <h5 className="mb-3 flex items-center gap-2 font-semibold text-amber-800">
-                  <span className="text-xl">⚠️</span>
-                  {ar ? 'تأكيد استلام مبالغ الحجز (الإيصال مُنشأ، غير مقيد)' : 'Confirm booking receipt (receipt created, unposted)'}
-                </h5>
-                <p className="text-sm text-amber-700 mb-4">
-                  {ar ? 'الإيصال مُنشأ تلقائياً عند الحجز. تحقّق من استلام المبلغ واضغط للتأكيد — ثم يظهر الحجز في الحجوزات لإدخال البيانات.' : 'Receipt was created at booking. Verify amount received and click to confirm — then the booking appears in Bookings for data entry.'}
-                </p>
-                <ul className="space-y-3">
-                  {pendingReceipts.map((b) => (
-                    <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white rounded-xl border border-amber-200/80">
-                      <div>
-                        <p className="font-semibold text-gray-900">{getBookingDisplayName(b, locale)}</p>
-                        <p className="text-sm text-gray-600">{b.propertyTitleAr || b.propertyTitleEn} • {(b.priceAtBooking ?? 0).toLocaleString()} ر.ع</p>
-                        {b.paymentMethod && (
-                          <p className="text-xs text-gray-500">
-                            {b.paymentMethod === 'CASH' ? (ar ? 'نقداً' : 'Cash') : b.paymentMethod === 'BANK_TRANSFER' ? (ar ? 'تحويل' : 'Transfer') : (ar ? 'شيك' : 'Cheque')}
-                            {b.paymentReferenceNo && ` • ${b.paymentReferenceNo}`}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (useDb) {
-                            try {
-                              const res = await fetch(`/api/bookings/${encodeURIComponent(b.id)}/confirm-receipt`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
-                              const body = await res.json().catch(() => ({}));
-                              if (res.ok && body.booking) {
-                                mergeBookingsFromServer([body.booking as PropertyBooking]);
-                                setPendingConfirmBookings((prev) => prev.filter((x) => x.id !== b.id));
-                                setReceiptConfirmKey((k) => k + 1);
-                                loadData();
-                                const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                                const link = getDocumentUploadLink(origin, locale, b.propertyId, b.id, b.email);
-                                const msg = getDocumentLinkMessage(link, ar);
-                                if (b.phone) openWhatsAppWithMessage(b.phone, msg);
-                                if (b.email) openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link - Contract documentation', msg);
-                              }
-                            } catch {
-                              // ignore
-                            }
-                          } else {
-                            confirmBookingReceiptByAccountant(b.id);
-                            const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                            const link = getDocumentUploadLink(origin, locale, b.propertyId, b.id, b.email);
-                            const msg = getDocumentLinkMessage(link, ar);
-                            if (b.phone) openWhatsAppWithMessage(b.phone, msg);
-                            if (b.email) openEmailWithMessage(b.email, ar ? 'رابط رفع المستندات - توثيق العقد' : 'Document upload link - Contract documentation', msg);
-                            setReceiptConfirmKey((k) => k + 1);
-                            loadData();
-                          }
-                        }}
-                        className="px-4 py-2 admin-btn-primary transition-colors shrink-0"
-                      >
-                        {ar ? 'تأكيد الاستلام وتقيد الطلب' : 'Confirm receipt & post'}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })()}
-          {typeof window !== 'undefined' && (() => {
-            const pendingCancellations = getBookingsPendingCancellation();
-            return pendingCancellations.length > 0 && (
-              <div className="rounded-2xl border border-red-200 bg-red-50/80 p-5 shadow-sm">
-                <h5 className="mb-3 flex items-center gap-2 font-semibold text-red-800">
-                  <span className="text-xl">↩️</span>
-                  {ar ? 'طلبات إلغاء الحجوزات (استرداد/خصم)' : 'Booking cancellation requests (refund/deduction)'}
-                </h5>
-                <p className="text-sm text-red-700 mb-4">
-                  {ar ? '1) ألغِ الإيصال/السند المرتبط بالحجز إن وجد. 2) استرد أو اخصم المبلغ للعميل. 3) أدخل الملاحظة واضغط تمت العملية لإلغاء الحجز وإظهار الملاحظة في النظام.' : '1) Cancel the linked receipt/document if any. 2) Refund/deduct amount to customer. 3) Enter note and click Done to cancel booking and show note in system.'}
-                </p>
-                <ul className="space-y-4">
-                  {pendingCancellations.map(({ id, bookingId, amountToRefund, booking }) => {
-                    const linkedDocs = useDb
-                      ? documents.filter((d) => String((d as AccountingDocument & { bookingId?: unknown }).bookingId || '') === String(bookingId))
-                      : typeof window !== 'undefined'
-                        ? searchDocuments({ bookingId })
-                        : [];
-                    return (
-                    <li key={id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-white rounded-xl border border-red-200/80">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900">{getBookingDisplayName(booking, locale)}</p>
-                        <p className="text-sm text-gray-600">{booking.propertyTitleAr || booking.propertyTitleEn} • {(amountToRefund).toLocaleString()} ر.ع {ar ? 'للاسترداد/الخصم' : 'to refund/deduct'}</p>
-                        {booking.paymentMethod && (
-                          <p className="text-xs text-gray-500">
-                            {booking.paymentMethod === 'CASH' ? (ar ? 'نقداً' : 'Cash') : booking.paymentMethod === 'BANK_TRANSFER' ? (ar ? 'تحويل' : 'Transfer') : (ar ? 'شيك' : 'Cheque')}
-                            {booking.paymentReferenceNo && ` • ${booking.paymentReferenceNo}`}
-                          </p>
-                        )}
-                        {linkedDocs.filter((d) => d.status !== 'CANCELLED').length > 0 && (
-                          <p className="text-xs text-amber-700 mt-1">
-                            {ar ? 'إلغِ الإيصال أولاً:' : 'Cancel receipt first:'}{' '}
-                            <button type="button" onClick={() => setTab('documents')} className="underline font-medium">
-                              {linkedDocs.filter((d) => d.status !== 'CANCELLED').map((d) => d.serialNumber).join(', ')}
-                            </button>
-                          </p>
-                        )}
-                      </div>
-                      <BookingCancellationCompleteForm
-                        requestId={id}
-                        onComplete={() => {
-                          setReceiptConfirmKey((k) => k + 1);
-                          loadData();
-                        }}
-                        ar={ar}
-                      />
-                    </li>
-                  );
-                  })}
-                </ul>
-              </div>
-            );
-          })()}
-          {anomalies.length > 0 && (
-            <div className="rounded-2xl border border-red-200 bg-red-50/80 p-5 shadow-sm">
-              <h5 className="mb-3 flex items-center gap-2 font-semibold text-red-800">
-                <Icon name="sparkles" className="h-5 w-5" />
-                {ar ? 'تنبيهات الذكاء الاصطناعي' : 'AI Alerts'}
-              </h5>
-              <ul className="space-y-2 text-sm text-red-700">
-                {anomalies.map((a) => (
-                  <li key={a.accountId} className="flex items-start gap-2">
-                    <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                    <span><strong>{a.accountCode}</strong> — {a.accountNameAr}: {a.message} ({a.balance.toLocaleString()} ر.ع)</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'أحدث القيود' : 'Latest entries'}</p>
-              <ul className="mt-3 space-y-2">
-                {latestEntries.map((e) => (
-                  <li key={e.id} className="flex items-center justify-between text-sm">
-                    <span className="font-mono">{e.serialNumber}</span>
-                    <span className="text-gray-600">{ar ? e.descriptionAr : e.descriptionEn || e.descriptionAr || '—'}</span>
-                    <span className="text-gray-500">{new Date(e.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold text-gray-500">{ar ? 'أحدث المستندات' : 'Latest documents'}</p>
-              <ul className="mt-3 space-y-2">
-                {latestDocs.map((d) => (
-                  <li key={d.id} className="flex items-center justify-between text-sm">
-                    <span className="font-mono">{d.serialNumber}</span>
-                    <span className="text-gray-600">{ar ? d.descriptionAr : d.descriptionEn || d.descriptionAr || '—'}</span>
-                    <span className="text-gray-500">{new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-5 shadow-sm">
-            <p className="flex items-start gap-3 text-sm leading-relaxed text-amber-900">
-              <Icon name="information" className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-              <span>{ar ? 'النظام مرتبط بـ: دفتر العناوين، التفاصيل البنكية، العقارات، المشاريع. قيد مزدوج • ميزان مراجعة • قائمة دخل • ميزانية عمومية • اقتراح ذكي للحسابات.' : 'System linked to: Address Book, Bank Details, Properties, Projects. Double-entry • Trial Balance • P&L • Balance Sheet • AI account suggestions.'}</span>
-            </p>
-          </div>
-        </div>
+        <AccountingDashboardTab
+          ar={ar}
+          locale={locale}
+          mounted={mounted}
+          useDb={useDb}
+          documents={documents}
+          journalEntries={journalEntries}
+          accounts={accounts}
+          accountsForReports={accountsForReports}
+          entriesForReports={entriesForReports}
+          dataMeta={dataMeta}
+          stats={stats}
+          todayStats={todayStats}
+          cashSnapshot={cashSnapshot}
+          banksTotal={banksTotal}
+          receivables={receivables}
+          chequesReceivable={chequesReceivable}
+          monthlyLabels={monthlyLabels}
+          monthlyRevenue={monthlyRevenue}
+          monthlyExpense={monthlyExpense}
+          anomalies={anomalies}
+          latestEntries={latestEntries}
+          latestDocs={latestDocs}
+          pendingConfirmBookings={pendingConfirmBookings}
+          setPendingConfirmBookings={setPendingConfirmBookings}
+          setTab={setTab}
+          onNewInvoice={() => openDocumentModule('INVOICE')}
+          onNewReceipt={() => openDocumentModule('RECEIPT')}
+          onNewExpense={() => openDocumentModule('PAYMENT', { descriptionAr: 'مصروف', descriptionEn: 'Expense' })}
+          onScanInvoice={() => setShowInvoiceScan(true)}
+          setRangeThisMonth={setRangeThisMonth}
+          setRangeLast30={setRangeLast30}
+          setRangeYearToDate={setRangeYearToDate}
+          onReceiptConfirmed={() => setReceiptConfirmKey((k) => k + 1)}
+          loadData={loadData}
+        />
       )}
 
       {/* المبيعات - وحدات منظمة */}
@@ -1492,145 +1143,57 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       )}
 
       {activeTab === 'documents' && (
-        <div className="space-y-4">
-          <AccountingFilter
-            fields={[
-              { key: 'search', labelAr: 'بحث', labelEn: 'Search', type: 'text', placeholderAr: 'رقم، وصف...', placeholderEn: 'Number, description...' },
-              { key: 'type', labelAr: 'نوع المستند', labelEn: 'Document type', type: 'select', options: Object.entries(DOC_TYPE_LABELS).map(([k, v]) => ({ value: k, labelAr: v.ar, labelEn: v.en })) },
-              { key: 'date', labelAr: 'الفترة', labelEn: 'Period', type: 'daterange' },
-              { key: 'contact', labelAr: 'العميل/المورد', labelEn: 'Contact', type: 'select', options: contacts.slice(0, 50).map((c) => ({ value: c.id, labelAr: `${c.firstName} ${c.familyName}`, labelEn: c.nameEn || `${c.firstName} ${c.familyName}` })) },
-            ]}
-            values={{
-              search: searchQuery,
-              type: filterDocType,
-              dateFrom: filterFromDate,
-              dateTo: filterToDate,
-              contact: filterContactId,
-            }}
-            onChange={(k, v) => {
-              if (k === 'search') setSearchQuery(v);
-              else if (k === 'type') setFilterDocType(v as DocumentType | '');
-              else if (k === 'dateFrom') setFilterFromDate(v);
-              else if (k === 'dateTo') setFilterToDate(v);
-              else if (k === 'contact') setFilterContactId(v);
-            }}
-            onReset={() => {
-              setSearchQuery('');
-              setFilterDocType('');
-              setFilterFromDate('');
-              setFilterToDate('');
-              setFilterContactId('');
-            }}
-            ar={ar}
-            resultCount={sortedDocs.length}
-          />
-          <div className="admin-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
-            <h4 className="font-bold text-gray-900">{ar ? 'الفواتير والإيصالات وعروض الأسعار' : 'Invoices, Receipts & Quotes'}</h4>
-            <SortSelect value={sortDocuments} onChange={setSortDocuments} ar={ar} />
-            <button
-              type="button"
-              className="text-sm font-semibold admin-accent-text hover:underline"
-              onClick={() => {
-                const today = new Date().toISOString().slice(0, 10);
-                setDocForm({
-                  type: 'RECEIPT',
-                  serialNumber: getNextDocumentSerial('RECEIPT'),
-                  amount: '',
-                  contactId: '',
-                  bankAccountId: '',
-                  propertyId: '',
-                  projectId: '',
-                  descriptionAr: '',
-                  descriptionEn: '',
-                  date: today,
-                  dueDate: today,
-                  currency: 'OMR',
-                  useLineItems: false,
-                  vatRate: 0,
-                  purchaseOrder: '',
-                  reference: '',
-                  branch: '',
-                  attachments: [],
-                  items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
-                });
-                setShowAddDocument(true);
-              }}
-            >
-              {ar ? '➕ إضافة مستند' : '➕ Add document'}
-            </button>
-          </div>
-          {sortedDocs.length === 0 ? (
-            <div className="p-16 text-center">
-              <p className="text-gray-500 font-medium">{ar ? 'لا توجد مستندات' : 'No documents'}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>{ar ? 'التاريخ' : 'Date'}</th>
-                    <th>{ar ? 'الرقم' : 'Number'}</th>
-                    <th>{ar ? 'النوع' : 'Type'}</th>
-                    <th>{ar ? 'العميل' : 'Contact'}</th>
-                    <th>{ar ? 'الحساب البنكي' : 'Bank'}</th>
-                    <th>{ar ? 'العقار' : 'Property'}</th>
-                    <th>{ar ? 'المبلغ' : 'Amount'}</th>
-                    <th>{ar ? 'الحالة' : 'Status'}</th>
-                    <th>{ar ? 'إجراءات' : 'Actions'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedDocs.map((d) => (
-                    <tr key={d.id}>
-                      <td>{new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                      <td className="font-mono text-sm">{d.serialNumber}</td>
-                      <td>{ar ? DOC_TYPE_LABELS[d.type].ar : DOC_TYPE_LABELS[d.type].en}</td>
-                      <td>
-                        {d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '—'}
-                      </td>
-                      <td className="text-sm">
-                        {d.bankAccountId ? (() => { const b = bankAccounts.find((x) => x.id === d.bankAccountId); return b ? getBankAccountDisplay(b) : d.bankAccountId; })() : (ar ? 'صندوق' : 'Cash')}
-                      </td>
-                      <td className="text-sm align-top">
-                        {d.propertyId ? (() => {
-                          const p = getPropertyById(d.propertyId);
-                          return p ? <span className="whitespace-pre-line block text-left">{getPropertyDisplay(p)}</span> : d.propertyId;
-                        })() : '—'}
-                      </td>
-                      <td className="font-semibold">{d.totalAmount.toLocaleString()} ر.ع</td>
-                      <td>
-                        <span className="admin-badge">{d.status}</span>
-                        {(d.status === 'APPROVED' || d.status === 'PAID') && !d.journalEntryId && (
-                          <span className="mr-1 inline-block px-2 py-0.5 text-xs rounded bg-amber-100 text-amber-800" title={ar ? 'لم يُرحّل بعد' : 'Not posted yet'}>
-                            {ar ? 'غير مرحّل' : 'unposted'}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => setPrintDocument(d)}
-                          className="text-sm admin-accent-text hover:underline"
-                        >
-                          📄 {ar ? 'عرض / طباعة / تنزيل' : 'View / Print / Download'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {useDb && (dataMeta?.documentsTotal ?? 0) > documents.length && (
-            <div className="border-t border-gray-100 px-6 py-4 text-center">
-              <button type="button" onClick={loadMoreDocuments} disabled={loadingMoreDocs} className="admin-btn-secondary text-sm !py-2">
-                {loadingMoreDocs ? (ar ? 'جاري التحميل...' : 'Loading...') : (ar ? `تحميل المزيد (${documents.length}/${dataMeta?.documentsTotal})` : `Load more (${documents.length}/${dataMeta?.documentsTotal})`)}
-              </button>
-            </div>
-          )}
-        </div>
-        </div>
+        <AccountingDocumentsTab
+          ar={ar}
+          locale={locale}
+          contacts={contacts}
+          bankAccounts={bankAccounts}
+          sortedDocs={sortedDocs}
+          searchQuery={searchQuery}
+          filterDocType={filterDocType}
+          filterFromDate={filterFromDate}
+          filterToDate={filterToDate}
+          filterContactId={filterContactId}
+          setSearchQuery={setSearchQuery}
+          setFilterDocType={setFilterDocType}
+          setFilterFromDate={setFilterFromDate}
+          setFilterToDate={setFilterToDate}
+          setFilterContactId={setFilterContactId}
+          sortDocuments={sortDocuments}
+          setSortDocuments={setSortDocuments}
+          useDb={useDb}
+          documentsCount={documents.length}
+          documentsTotal={dataMeta?.documentsTotal}
+          loadingMoreDocs={loadingMoreDocs}
+          loadMoreDocuments={loadMoreDocuments}
+          setPrintDocument={setPrintDocument}
+          onAddDocument={() => {
+            const today = new Date().toISOString().slice(0, 10);
+            setDocForm({
+              type: 'RECEIPT',
+              serialNumber: getNextDocumentSerial('RECEIPT'),
+              amount: '',
+              contactId: '',
+              bankAccountId: '',
+              propertyId: '',
+              projectId: '',
+              descriptionAr: '',
+              descriptionEn: '',
+              date: today,
+              dueDate: today,
+              currency: 'OMR',
+              useLineItems: false,
+              vatRate: 0,
+              purchaseOrder: '',
+              reference: '',
+              branch: '',
+              attachments: [],
+              items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
+            });
+            setShowAddDocument(true);
+          }}
+          getPropertyDisplay={getPropertyDisplay}
+        />
       )}
 
       {/* Modal: إضافة مستند */}

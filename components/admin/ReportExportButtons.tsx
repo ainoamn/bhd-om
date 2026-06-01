@@ -192,12 +192,32 @@ export default function ReportExportButtons({
     URL.revokeObjectURL(url);
   };
 
-  const handleFtaJson = () => {
+  const downloadFtaFromServer = async (format: 'json' | 'xml') => {
+    const url = `/api/accounting/reports/vat-export?format=${format}&fromDate=${encodeURIComponent(reportFrom)}&toDate=${encodeURIComponent(reportTo)}`;
+    const res = await fetch(url, { credentials: 'include' });
+    if (res.ok) {
+      const blob = await res.blob();
+      const ext = format === 'xml' ? 'xml' : 'json';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${filename}_FTA.${ext}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      return true;
+    }
+    return false;
+  };
+
+  const handleFtaJson = async () => {
+    const ok = await downloadFtaFromServer('json');
+    if (ok) return;
     const payload = buildFtaPayload();
     if (payload) downloadJson(`${filename}_FTA`, payload);
   };
 
-  const handleFtaXml = () => {
+  const handleFtaXml = async () => {
+    const ok = await downloadFtaFromServer('xml');
+    if (ok) return;
     const payload = buildFtaPayload();
     if (payload) downloadXml(`${filename}_FTA`, buildVatFtaExportXml(payload));
   };

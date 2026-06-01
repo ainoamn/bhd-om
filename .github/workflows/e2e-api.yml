@@ -49,6 +49,9 @@ jobs:
       - name: Seed database for E2E
         run: npx prisma db seed
 
+      - name: Run unit tests
+        run: npm run test:unit
+
       - name: Build application
         run: npm run build
 

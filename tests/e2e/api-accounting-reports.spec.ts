@@ -75,6 +75,31 @@ test.describe('API — accounting reports (authenticated admin)', () => {
     expect(Array.isArray(body.lines)).toBe(true);
   });
 
+  test('GET /api/accounting/reports/vat-export?format=json returns FTA payload', async ({ page }) => {
+    const res = await page.request.get(
+      `/api/accounting/reports/vat-export?format=json&fromDate=${FROM}&toDate=${TO}`
+    );
+    expect(res.ok()).toBeTruthy();
+    expect(res.headers()['content-type']).toContain('application/json');
+    const body = await res.json();
+    expect(body.format).toBe('BHD-OM-VAT-RETURN');
+    expect(body.schemaVersion).toBe('1.0');
+    expect(body.period).toMatchObject({ startDate: FROM, endDate: TO });
+    expect(body.totals).toBeTruthy();
+    expect(Array.isArray(body.transactions)).toBe(true);
+  });
+
+  test('GET /api/accounting/reports/vat-export?format=xml returns XML attachment', async ({ page }) => {
+    const res = await page.request.get(
+      `/api/accounting/reports/vat-export?format=xml&fromDate=${FROM}&toDate=${TO}`
+    );
+    expect(res.ok()).toBeTruthy();
+    expect(res.headers()['content-type']).toContain('xml');
+    const text = await res.text();
+    expect(text).toContain('<VatReturn');
+    expect(text).toContain(`start="${FROM}"`);
+  });
+
   test('unauthenticated GET /api/accounting/reports is rejected', async ({ request }) => {
     const res = await request.get(`/api/accounting/reports?report=trial&fromDate=${FROM}&toDate=${TO}`);
     expect(res.status()).toBeGreaterThanOrEqual(401);

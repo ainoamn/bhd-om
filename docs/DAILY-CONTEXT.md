@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (61) — Phase 9 محاسبة: dashboard/documents + FTA API + CI unit tests
+
+- **تبويبات:** `AccountingDashboardTab`, `AccountingDocumentsTab` — استخراج ~350 + ~140 سطر من `AccountingSection.tsx`
+- **FTA API:** `GET /api/accounting/reports/vat-export?format=json|xml` — تصدير من DB + بيانات الشركة
+- **Export UI:** `ReportExportButtons` — FTA JSON/XML عبر API مع fallback محلي
+- **CI:** `npm run test:unit` في `.github/workflows/e2e-api.yml`
+- **E2E:** اختباران لـ vat-export في `api-accounting-reports.spec.ts`
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (60) — Phase 8 محاسبة: cheques/payments + FTA export + unit tests
 
 - **تبويبات:** `AccountingChequesTab`, `AccountingPaymentsTab` + `paymentFlowLabels.ts`
