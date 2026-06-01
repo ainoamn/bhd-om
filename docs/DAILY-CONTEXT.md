@@ -9,6 +9,17 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 47) — المرحلة 5: بوابة صيانة + قوالب تواصل
+
+- **`/admin/my-maintenance`:** طلب صيانة للعميل/المالك + قائمة الطلبات + مسودات
+- **`GET/POST /api/me/maintenance-requests`:** API بوابة المستخدم (pagination + openOnly)
+- **إشعارات:** `NotificationKind.MAINTENANCE` + إشعار عند تغيير حالة الطلب من الإدارة
+- **لوحة العميل/المالك:** مهام صيانة مفتوحة في `PortalPendingTasksCard`
+- **قوالب التواصل:** `/api/settings/communication-templates` + `CommunicationTemplateEditor` في `document-templates?section=management`
+- **Migration:** `20260531170000_phase5_maintenance_portal` (enum + index)
+- **E2E:** guards + communication-templates + my-maintenance (client إن وُجدت credentials)
+- **`npm run build`** ✅
+
 ### جلسة 2026-05-31 (تابع 46) — رفع المراحل 1–4 + E2E + migrations
 
 - **Migration:** `20260531150000_add_maintenance_requests` طُبّق على Neon (كان معلّقاً advisory lock)

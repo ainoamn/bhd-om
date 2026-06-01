@@ -71,6 +71,7 @@ const topLevelItems: NavItemWithSection[] = [
   { href: '/admin/my-properties', labelKey: 'ownerNav.myProperties', icon: 'building', section: 'myProperties' },
   { href: '/admin/my-invoices', labelKey: 'clientNav.myInvoices', icon: 'documentText', section: 'myInvoices' },
   { href: '/admin/my-receipts', labelKey: 'clientNav.myReceipts', icon: 'documentText', section: 'myReceipts' },
+  { href: '/admin/my-maintenance', labelKey: 'clientNav.myMaintenance', icon: 'wrench', section: 'myMaintenance' },
   { href: '/admin/notifications', labelKey: 'clientNav.notifications', icon: 'inbox', section: 'notifications' },
   { href: '/admin/my-account', labelKey: 'clientNav.myAccount', icon: 'users', section: 'myAccount' },
   { href: '/admin/analytics', labelKey: 'analytics', icon: 'chartBar', section: 'analytics' },
@@ -108,7 +109,7 @@ const ALL_NAV_ITEMS = collectAllNavItems();
 
 /** ترتيب افتراضي للصلاحيات — يمكن إضافة أقسام جديدة في الأسفل */
 const SECTION_ORDER: string[] = [
-  'dashboard', 'myBookings', 'myContracts', 'myProperties', 'myInvoices', 'myReceipts', 'notifications', 'myAccount',
+  'dashboard', 'myBookings', 'myContracts', 'myProperties', 'myInvoices', 'myReceipts', 'myMaintenance', 'notifications', 'myAccount',
   'addressBook', 'bankDetails', 'companyData', 'documentTemplates', 'site',
   'accountingHome', 'accountingSales', 'accountingPurchases', 'accountingJournal', 'accountingDocuments', 'accountingAccounts',
   'accountingReports', 'accountingClaims', 'accountingCheques', 'accountingPayments', 'accountingPeriods', 'accountingAudit',

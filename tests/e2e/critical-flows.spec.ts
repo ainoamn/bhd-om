@@ -178,4 +178,29 @@ test.describe('Critical DB-first flows', () => {
     expect(Array.isArray(data.items)).toBe(true);
     expect(typeof data.unreadCount).toBe('number');
   });
+
+  test('communication templates API responds for authenticated admin', async ({ page }) => {
+    const creds = resolveE2EAdminCredentials();
+    test.skip(!creds, 'Missing E2E admin credentials');
+
+    await loginWithCredentials(page, creds!);
+    const res = await page.request.get('/api/settings/communication-templates');
+    expect(res.ok()).toBeTruthy();
+    const data = (await res.json()) as { messages?: unknown[]; alerts?: unknown[]; notifications?: unknown[] };
+    expect(Array.isArray(data.messages)).toBe(true);
+    expect(Array.isArray(data.alerts)).toBe(true);
+    expect(Array.isArray(data.notifications)).toBe(true);
+  });
+
+  test('portal my-maintenance page loads for client when credentials exist', async ({ page }) => {
+    test.skip(!process.env.E2E_CLIENT_EMAIL || !process.env.E2E_CLIENT_PASSWORD, 'Missing E2E client credentials');
+    await page.context().clearCookies();
+    await loginWithCredentials(page, {
+      email: process.env.E2E_CLIENT_EMAIL!,
+      password: process.env.E2E_CLIENT_PASSWORD!,
+    });
+    await page.goto('/ar/admin/my-maintenance');
+    await expect(page).toHaveURL(/\/admin\/my-maintenance/);
+    await expect(page.locator('body')).toBeVisible();
+  });
 });

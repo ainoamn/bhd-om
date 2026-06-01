@@ -187,6 +187,7 @@
         "myContracts": "عقودي",
         "myInvoices": "فواتيري",
         "myReceipts": "إيصالاتي",
+        "myMaintenance": "صيانة عقاري",
         "notifications": "الإشعارات",
         "myAccount": "حسابي",
         "myContacts": "جهة اتصالي"
@@ -199,7 +200,8 @@
         "myInvoices": "فواتيري",
         "notifications": "الإشعارات",
         "myAccount": "حسابي",
-        "myContacts": "جهة اتصالي"
+        "myContacts": "جهة اتصالي",
+        "myMaintenance": "صيانة عقاري"
       },
       "roleClient": "لوحة العميل",
       "roleOwner": "لوحة المالك",

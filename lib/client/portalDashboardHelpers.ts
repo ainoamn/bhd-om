@@ -91,3 +91,29 @@ export async function fetchUnreadNotificationsCount(): Promise<number> {
     return 0;
   }
 }
+
+export async function fetchOpenMaintenanceTasks(): Promise<PortalPendingTask[]> {
+  try {
+    const res = await fetch('/api/me/maintenance-requests?openOnly=1&limit=20', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      items?: Array<{ id: string; propertyLabelAr?: string | null; descriptionAr?: string; status?: string }>;
+    };
+    const items = Array.isArray(data.items) ? data.items : [];
+    return items.map((row) => {
+      const label = String(row.propertyLabelAr || row.descriptionAr || row.id).trim();
+      return {
+        id: `maint-${row.id}`,
+        kind: 'maintenance' as const,
+        titleAr: `متابعة صيانة — ${label}`,
+        titleEn: `Maintenance follow-up — ${label}`,
+        href: '/admin/my-maintenance',
+      };
+    });
+  } catch {
+    return [];
+  }
+}

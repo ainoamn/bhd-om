@@ -722,6 +722,7 @@ enum NotificationKind {
   PAYMENT
   SYSTEM
   SUBSCRIPTION
+  MAINTENANCE
 }
 
 model Notification {
@@ -767,4 +768,5 @@ model MaintenanceRequest {
 
   @@index([status])
   @@index([createdAt])
+  @@index([reporterUserId, createdAt])
 }

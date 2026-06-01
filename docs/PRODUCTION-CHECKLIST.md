@@ -86,3 +86,13 @@ npm run build
 npm run test:e2e:verify
 # GitHub Actions: job واحد e2e-verify — guards + address-book + happy-path + critical + public-pages
 ```
+
+---
+
+## 8. بوابة العميل/المالك — صيانة (المرحلة 5)
+
+| المسار | الغرض |
+|--------|--------|
+| `/admin/my-maintenance` | طلب صيانة ومتابعة الحالة |
+| `GET/POST /api/me/maintenance-requests` | API بوابة المستخدم |
+| `/admin/document-templates?section=management` | قوالب رسائل/تنبيهات/إشعارات |

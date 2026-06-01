@@ -8,7 +8,7 @@ export type PortalPendingTask = {
   titleAr: string;
   titleEn: string;
   href: string;
-  kind: 'payment' | 'contract' | 'booking' | 'sign';
+  kind: 'payment' | 'contract' | 'booking' | 'sign' | 'maintenance';
 };
 
 type Props = {
@@ -28,6 +28,8 @@ export default function PortalPendingTasksCard({ locale, tasks }: Props) {
         return 'archive';
       case 'sign':
         return 'documentText';
+      case 'maintenance':
+        return 'wrench';
       default:
         return 'calendar';
     }

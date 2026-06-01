@@ -187,6 +187,7 @@
         "myContracts": "My Contracts",
         "myInvoices": "My Invoices",
         "myReceipts": "My Receipts",
+        "myMaintenance": "My maintenance",
         "notifications": "Notifications",
         "myAccount": "My Account",
         "myContacts": "My contact"
@@ -199,7 +200,8 @@
         "myInvoices": "My Invoices",
         "notifications": "Notifications",
         "myAccount": "My Account",
-        "myContacts": "My contact"
+        "myContacts": "My contact",
+        "myMaintenance": "My maintenance"
       },
       "roleClient": "Client Dashboard",
       "roleOwner": "Owner Dashboard",

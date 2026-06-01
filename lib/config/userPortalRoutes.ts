@@ -12,6 +12,7 @@ export const PORTAL_PAGE_PATHS = [
   '/admin/my-account',
   '/admin/notifications',
   '/admin/my-contacts',
+  '/admin/my-maintenance',
   '/admin/address-book',
   '/admin/contract-review',
 ] as const;

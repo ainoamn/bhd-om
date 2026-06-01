@@ -1,4 +1,4 @@
-import type { NotificationKind } from '@prisma/client';
+import type { MaintenanceStatus, NotificationKind } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { bookingMatchesClientRecord, bookingVisibleToOwner, normPhoneLast8 } from '@/lib/data/ownerLandlordMatch';
 import { listBookingStorageRows, parseBookingStorageData } from '@/lib/server/repositories/bookingStorageRepo';
@@ -205,4 +205,33 @@ export async function markAllNotificationsRead(userId: string): Promise<number> 
     data: { readAt: new Date() },
   });
   return result.count;
+}
+
+const MAINTENANCE_STATUS_LABELS: Record<MaintenanceStatus, { ar: string; en: string }> = {
+  OPEN: { ar: 'مفتوح', en: 'Open' },
+  IN_PROGRESS: { ar: 'قيد التنفيذ', en: 'In progress' },
+  COMPLETED: { ar: 'مكتمل', en: 'Completed' },
+  CANCELLED: { ar: 'ملغى', en: 'Cancelled' },
+};
+
+/** إشعار المستخدم عند تغيّر حالة طلب الصيانة */
+export async function notifyMaintenanceStatusChange(
+  requestId: string,
+  userId: string | null | undefined,
+  status: MaintenanceStatus,
+  descriptionAr: string
+): Promise<void> {
+  if (!userId) return;
+  const labels = MAINTENANCE_STATUS_LABELS[status] ?? { ar: status, en: status };
+  const snippet = descriptionAr.trim().slice(0, 80);
+  await upsertNotification({
+    userId,
+    kind: 'MAINTENANCE',
+    dedupeKey: `maintenance:${requestId}:status:${status}`,
+    titleAr: `تحديث صيانة — ${labels.ar}`,
+    titleEn: `Maintenance update — ${labels.en}`,
+    bodyAr: snippet || `تم تحديث حالة طلب الصيانة إلى ${labels.ar}.`,
+    bodyEn: snippet || `Your maintenance request status is now ${labels.en}.`,
+    href: '/admin/my-maintenance',
+  });
 }

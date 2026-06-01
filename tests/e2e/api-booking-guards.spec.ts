@@ -265,6 +265,18 @@ test.describe('API guards — booking & contract path', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('me maintenance-requests GET requires authentication', async ({ request }) => {
+    const res = await request.get(`${baseURL}/api/me/maintenance-requests`);
+    expect(res.status()).toBe(401);
+  });
+
+  test('communication-templates POST requires authentication', async ({ request }) => {
+    const res = await request.post(`${baseURL}/api/settings/communication-templates`, {
+      data: { messages: [] },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('address-book GET requires authentication', async ({ request }) => {
     const res = await request.get(`${baseURL}/api/address-book?limit=1&offset=0`);
     expect(res.status()).toBe(401);

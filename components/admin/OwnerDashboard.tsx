@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
 import PortalPendingTasksCard from '@/components/admin/PortalPendingTasksCard';
 import { getContactForUser } from '@/lib/data/addressBook';
-import { buildOwnerPendingTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
+import { buildOwnerPendingTasks, fetchOpenMaintenanceTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
 import { getPropertyById, getPropertyDataOverrides, properties as staticProperties } from '@/lib/data/properties';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
@@ -60,6 +60,7 @@ export default function OwnerDashboard() {
   const [serverBookings, setServerBookings] = useState<PropertyBooking[]>([]);
   const [invoicesCount, setInvoicesCount] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [maintenanceTasks, setMaintenanceTasks] = useState<ReturnType<typeof buildOwnerPendingTasks>>([]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -94,6 +95,9 @@ export default function OwnerDashboard() {
       });
     fetchUnreadNotificationsCount().then((n) => {
       if (alive) setUnreadNotifications(n);
+    });
+    fetchOpenMaintenanceTasks().then((tasks) => {
+      if (alive) setMaintenanceTasks(tasks);
     });
     return () => {
       alive = false;
@@ -173,13 +177,16 @@ export default function OwnerDashboard() {
 
   const ownerPendingTasks = useMemo(
     () =>
-      buildOwnerPendingTasks(
-        serverBookings.filter((b) =>
-          bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)
+      [
+        ...buildOwnerPendingTasks(
+          serverBookings.filter((b) =>
+            bookingRelevantToOwnerContext(b as unknown as Record<string, unknown>, landlordMatchCtx, ownerPortfolioSerials)
+          ),
+          verificationTasks.map((t) => ({ bookingId: t.bookingId, token: t.token }))
         ),
-        verificationTasks.map((t) => ({ bookingId: t.bookingId, token: t.token }))
-      ),
-    [serverBookings, landlordMatchCtx, ownerPortfolioSerials, verificationTasks]
+        ...maintenanceTasks,
+      ],
+    [serverBookings, landlordMatchCtx, ownerPortfolioSerials, verificationTasks, maintenanceTasks]
   );
 
   const fmtDate = (d: string) => (d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-OM' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');

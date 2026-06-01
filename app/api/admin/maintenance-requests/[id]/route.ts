@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
+import { notifyMaintenanceStatusChange } from '@/lib/server/notifications';
 import type { MaintenanceStatus } from '@prisma/client';
 
 export const runtime = 'nodejs';
@@ -40,7 +41,18 @@ export async function PATCH(
       return NextResponse.json({ error: 'No updates' }, { status: 400 });
     }
 
+    const existing = await prisma.maintenanceRequest.findUnique({
+      where: { id },
+      select: { reporterUserId: true, status: true, descriptionAr: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
     const row = await prisma.maintenanceRequest.update({ where: { id }, data });
+    if (data.status && data.status !== existing.status) {
+      await notifyMaintenanceStatusChange(id, existing.reporterUserId, data.status, existing.descriptionAr);
+    }
     return NextResponse.json({
       id: row.id,
       status: row.status,

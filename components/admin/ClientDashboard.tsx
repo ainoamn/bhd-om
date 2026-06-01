@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
 import PortalPendingTasksCard from '@/components/admin/PortalPendingTasksCard';
 import { getSectionsForRole, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
-import { buildClientPendingTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
+import { buildClientPendingTasks, fetchOpenMaintenanceTasks, fetchUnreadNotificationsCount } from '@/lib/client/portalDashboardHelpers';
 import type { DashboardSectionKey } from '@/lib/config/dashboardRoles';
 import type { PropertyBooking } from '@/lib/data/bookings';
 
@@ -35,8 +35,12 @@ export default function ClientDashboard() {
   const [receiptsCount, setReceiptsCount] = useState(0);
   const [invoicesCount, setInvoicesCount] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [maintenanceTasks, setMaintenanceTasks] = useState<ReturnType<typeof buildClientPendingTasks>>([]);
 
-  const pendingTasks = useMemo(() => buildClientPendingTasks(bookings), [bookings]);
+  const pendingTasks = useMemo(
+    () => [...buildClientPendingTasks(bookings), ...maintenanceTasks],
+    [bookings, maintenanceTasks]
+  );
 
   useEffect(() => {
     if (!user?.id) return;
@@ -72,6 +76,9 @@ export default function ClientDashboard() {
       if (!alive) return;
       const unread = await fetchUnreadNotificationsCount();
       if (alive) setUnreadNotifications(unread);
+      if (!alive) return;
+      const maint = await fetchOpenMaintenanceTasks();
+      if (alive) setMaintenanceTasks(maint);
     };
     void load();
     return () => {

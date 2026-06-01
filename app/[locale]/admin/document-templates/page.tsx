@@ -4,7 +4,9 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Icon from '@/components/icons/Icon';
 import InvoiceTemplateEditor from '@/components/admin/InvoiceTemplateEditor';
+import CommunicationTemplateEditor from '@/components/admin/CommunicationTemplateEditor';
 import type { TemplateType } from '@/lib/data/documentTemplates';
+import type { CommunicationTemplateCategory } from '@/lib/data/communicationTemplates';
 
 export default function DocumentTemplatesPage() {
   const params = useParams();
@@ -100,6 +102,8 @@ export default function DocumentTemplatesPage() {
         <div className="lg:col-span-2">
           {isAccounting && ['invoice', 'receipt', 'quote', 'creditNote', 'purchaseOrder', 'deliveryNote', 'report'].includes(currentType) ? (
             <InvoiceTemplateEditor templateType={currentType as TemplateType} locale={locale} />
+          ) : !isAccounting && ['messages', 'alerts', 'notifications'].includes(currentType) ? (
+            <CommunicationTemplateEditor category={currentType as CommunicationTemplateCategory} locale={locale} />
           ) : (
             <div className="admin-card">
               <div className="admin-card-header">

@@ -23,6 +23,7 @@ export type DashboardSectionKey =
   | 'myProperties'
   | 'myInvoices'
   | 'myReceipts'
+  | 'myMaintenance'
   | 'notifications'
   | 'myAccount'
   | 'addressBook'
@@ -96,13 +97,14 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
   },
   CLIENT: {
     role: 'CLIENT',
-    sections: ['dashboard', 'myBookings', 'myContracts', 'myInvoices', 'myReceipts', 'notifications', 'myAccount', 'subscriptions'],
+    sections: ['dashboard', 'myBookings', 'myContracts', 'myInvoices', 'myReceipts', 'myMaintenance', 'notifications', 'myAccount', 'subscriptions'],
     navItems: [
       { href: '/admin', labelKey: 'clientNav.dashboard', icon: 'dashboard', section: 'dashboard' },
       { href: '/admin/my-bookings', labelKey: 'clientNav.myBookings', icon: 'calendar', section: 'myBookings' },
       { href: '/admin/my-contracts', labelKey: 'clientNav.myContracts', icon: 'archive', section: 'myContracts' },
       { href: '/admin/my-invoices', labelKey: 'clientNav.myInvoices', icon: 'documentText', section: 'myInvoices' },
       { href: '/admin/my-receipts', labelKey: 'clientNav.myReceipts', icon: 'documentText', section: 'myReceipts' },
+      { href: '/admin/my-maintenance', labelKey: 'clientNav.myMaintenance', icon: 'wrench', section: 'myMaintenance' },
       { href: '/admin/notifications', labelKey: 'clientNav.notifications', icon: 'inbox', section: 'notifications' },
       { href: '/admin/my-account', labelKey: 'clientNav.myAccount', icon: 'users', section: 'myAccount' },
       { href: '/subscriptions', labelKey: 'subscriptions', icon: 'creditCard', section: 'subscriptions' },
@@ -111,13 +113,14 @@ export const defaultDashboardConfigs: Record<RoleKey, RoleDashboardConfig> = {
   },
   OWNER: {
     role: 'OWNER',
-    sections: ['dashboard', 'myProperties', 'myBookings', 'myContracts', 'myInvoices', 'notifications', 'myAccount', 'subscriptions'],
+    sections: ['dashboard', 'myProperties', 'myBookings', 'myContracts', 'myInvoices', 'myMaintenance', 'notifications', 'myAccount', 'subscriptions'],
     navItems: [
       { href: '/admin', labelKey: 'ownerNav.dashboard', icon: 'dashboard', section: 'dashboard' },
       { href: '/admin/my-properties', labelKey: 'ownerNav.myProperties', icon: 'building', section: 'myProperties' },
       { href: '/admin/my-bookings', labelKey: 'ownerNav.myBookings', icon: 'calendar', section: 'myBookings' },
       { href: '/admin/my-contracts', labelKey: 'ownerNav.myContracts', icon: 'archive', section: 'myContracts' },
       { href: '/admin/my-invoices', labelKey: 'ownerNav.myInvoices', icon: 'documentText', section: 'myInvoices' },
+      { href: '/admin/my-maintenance', labelKey: 'ownerNav.myMaintenance', icon: 'wrench', section: 'myMaintenance' },
       { href: '/admin/notifications', labelKey: 'ownerNav.notifications', icon: 'inbox', section: 'notifications' },
       { href: '/admin/my-account', labelKey: 'ownerNav.myAccount', icon: 'users', section: 'myAccount' },
       { href: '/subscriptions', labelKey: 'subscriptions', icon: 'creditCard', section: 'subscriptions' },
