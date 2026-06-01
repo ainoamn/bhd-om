@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (63) — Phase 11 محاسبة: modals مستند/قيد/شيك
+
+- **مودالات:** `AccountingAddDocumentModal`, `AccountingAddJournalModal`, `AccountingAddChequeModal`
+- **أنواع:** `lib/accounting/types/formTypes.ts`
+- **AI محلي:** `journalAccountSuggest.ts` — اقتراح حساب من وصف القيد (بدون `\b` للعربي)
+- **Unit test:** `journalAccountSuggest.test.ts` — 14 اختباراً إجمالاً
+- **`AccountingSection.tsx`:** ~570 سطر (كان ~1700)
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (62) — Phase 10 محاسبة: sales/purchases/accounts/settings + modal
 
 - **تبويبات:** `AccountingSalesTab`, `AccountingPurchasesTab`, `AccountingAccountsTab`, `AccountingSettingsTab`
