@@ -19,7 +19,8 @@
 - **`AdminPageHeader`:** ألوان من tokens + dark mode
 - **تقارير/محاسبة:** إزالة `#8B6F47` hardcoded من `AdvancedReports` و`AccountingSection` (جزء كبير)
 - **أيقونات:** `sun` + `moon` في `lib/icons.ts`
-- **`npm run build`** ✅ — **لم يُرفع Git بعد** (في انتظار طلب صريح)
+- **`npm run build`** ✅
+- **Push:** `c121463` → `origin/master` ✅
 
 ### جلسة 2026-05-31 (تابع 48) — إكمال صفحات اللوحة + رفع
 
