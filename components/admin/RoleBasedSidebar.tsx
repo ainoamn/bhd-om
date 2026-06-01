@@ -9,6 +9,7 @@ import { signOut } from 'next-auth/react';
 import Icon from '@/components/icons/Icon';
 import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import AdminThemeToggle from '@/components/admin/AdminThemeToggle';
 import { getEffectiveDashboardConfig, loadDashboardSettingsFromServer, DASHBOARD_SETTINGS_EVENT } from '@/lib/data/dashboardSettings';
 import type { RoleKey, DashboardType } from '@/lib/config/dashboardRoles';
 
@@ -197,6 +198,7 @@ export default function RoleBasedSidebar({
         </nav>
 
         <div className="admin-sidebar-footer">
+          <AdminThemeToggle locale={locale} compact={sidebarCollapsed} />
           <button
             type="button"
             onClick={onToggleCollapse}

@@ -9,6 +9,18 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-05-31 (تابع 49) — رفع تصميم اللوحة إلى 10/10
+
+- **Design tokens:** `--admin-primary`, surfaces, borders, shadows في `app/[locale]/admin/admin.css`
+- **Dark mode:** `[data-admin-theme="dark"]` + تبديل فاتح/داكن/تلقائي (`AdminThemeToggle` في الشريط الجانبي + هيدر الجوال)
+- **`lib/client/adminTheme.ts`:** `initAdminTheme`, `ADMIN_THEME_EVENT`, حفظ `bhd_admin_theme`
+- **توحيد الأزرار:** `admin-btn-primary` = `admin-btn--primary`؛ فئات accent (`admin-accent-text`, `admin-accent-bg-soft`)
+- **`AdminToolbar` + `admin-tabs-nav`:** شريط أدوات وتبويبات موحّدة للصفحات الكثيفة
+- **`AdminPageHeader`:** ألوان من tokens + dark mode
+- **تقارير/محاسبة:** إزالة `#8B6F47` hardcoded من `AdvancedReports` و`AccountingSection` (جزء كبير)
+- **أيقونات:** `sun` + `moon` في `lib/icons.ts`
+- **`npm run build`** ✅ — **لم يُرفع Git بعد** (في انتظار طلب صريح)
+
 ### جلسة 2026-05-31 (تابع 48) — إكمال صفحات اللوحة + رفع
 
 - **المحاسبة:** تفعيل كل وحدات المبيعات/المشتريات (إشعار دائن/مدين، فواتير مجدولة/نقدية، تسليم، سندات موردين...)

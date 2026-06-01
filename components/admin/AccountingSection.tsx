@@ -175,12 +175,12 @@ function BookingCancellationCompleteForm({ requestId, onComplete, ar }: { reques
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder={ar ? 'ملاحظة المحاسب (تُعرض في الحجز)' : 'Accountant note (shown on booking)'}
-        className="flex-1 min-w-[180px] px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-[#8B6F47]/20 focus:border-[#8B6F47]"
+        className="admin-input flex-1 min-w-[180px] !py-2 !text-sm"
       />
       <button
         type="button"
         onClick={handleComplete}
-        className="px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors shrink-0"
+        className="px-4 py-2 admin-btn-primary transition-colors shrink-0"
       >
         {ar ? 'تمت العملية' : 'Done'}
       </button>
@@ -850,8 +850,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             const bal4250 = acc4250 ? getAccountBalance(acc4250.id, undefined, entriesForReports, accountsForReports).balance : 0;
             if (accounts.length === 0) return null;
             return (
-              <div className="rounded-2xl border border-[#8B6F47]/20 bg-[#8B6F47]/5 p-5 shadow-sm">
-                <p className="text-xs font-semibold text-[#8B6F47] mb-3">{ar ? 'الحسابات الرئيسية للنظام' : 'Key system accounts'}</p>
+              <div className="rounded-2xl admin-accent-border admin-accent-bg-soft p-5 shadow-sm">
+                <p className="text-xs font-semibold admin-accent-text mb-3">{ar ? 'الحسابات الرئيسية للنظام' : 'Key system accounts'}</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-gray-600">1000 — {ar ? 'الصندوق' : 'Cash'}</p>
@@ -947,9 +947,9 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               <p className="text-xs font-semibold text-amber-700">{ar ? 'الشيكات' : 'Cheques'}</p>
               <p className="mt-1 text-2xl font-bold text-amber-800 tabular-nums">{documents.filter((d) => d.paymentMethod === 'CHEQUE').length}</p>
             </button>
-            <div className="rounded-2xl border border-[#8B6F47]/30 bg-[#8B6F47]/5 p-5 shadow-sm">
-              <p className="text-xs font-semibold text-[#8B6F47]">{ar ? 'معايير محاسبية عالمية' : 'Global Standards'}</p>
-              <p className="mt-2 text-sm font-medium leading-relaxed text-[#6B5535]">{ar ? 'قيد مزدوج • ميزان مراجعة • قائمة دخل • ميزانية عمومية' : 'Double-entry • Trial Balance • P&L • Balance Sheet'}</p>
+            <div className="rounded-2xl admin-accent-border admin-accent-bg-soft p-5 shadow-sm">
+              <p className="text-xs font-semibold admin-accent-text">{ar ? 'معايير محاسبية عالمية' : 'Global Standards'}</p>
+              <p className="mt-2 text-sm font-medium leading-relaxed admin-accent-text">{ar ? 'قيد مزدوج • ميزان مراجعة • قائمة دخل • ميزانية عمومية' : 'Double-entry • Trial Balance • P&L • Balance Sheet'}</p>
             </div>
           </div>
           {typeof window !== 'undefined' && (() => {
@@ -1008,7 +1008,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                             loadData();
                           }
                         }}
-                        className="px-4 py-2 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535] transition-colors shrink-0"
+                        className="px-4 py-2 admin-btn-primary transition-colors shrink-0"
                       >
                         {ar ? 'تأكيد الاستلام وتقيد الطلب' : 'Confirm receipt & post'}
                       </button>
@@ -1201,7 +1201,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-4">
             <h4 className="flex items-center gap-2 font-bold text-gray-900">
-              <Icon name="archive" className="h-5 w-5 text-[#8B6F47]" />
+              <Icon name="archive" className="h-5 w-5 admin-accent-text" />
               {ar ? 'دليل الحسابات' : 'Chart of Accounts'}
             </h4>
             <div className="flex flex-wrap items-center gap-3">
@@ -1220,7 +1220,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               <select
               value={selectedAccountId || ''}
               onChange={(e) => setSelectedAccountId(e.target.value || null)}
-              className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium focus:border-[#8B6F47] focus:ring-2 focus:ring-[#8B6F47]/20"
+              className="admin-input !py-2.5 !text-sm !w-auto"
             >
               <option value="">{ar ? '— عرض كشف حساب —' : '— View ledger —'}</option>
               {sortedAccounts.map((a) => (
@@ -1315,14 +1315,14 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-4">
             <h4 className="flex items-center gap-2 font-bold text-gray-900">
-              <Icon name="documentText" className="h-5 w-5 text-[#8B6F47]" />
+              <Icon name="documentText" className="h-5 w-5 admin-accent-text" />
               {ar ? 'قيود اليومية' : 'Journal Entries'}
             </h4>
             <div className="flex flex-wrap items-center gap-4">
               <SortSelect value={sortJournal} onChange={setSortJournal} ar={ar} />
               <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#8B6F47] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#6B5535] hover:shadow-md"
+              className="admin-btn-primary inline-flex items-center gap-2 text-sm shadow-sm hover:shadow-md"
               onClick={() => {
                 setJournalForm({
                   date: new Date().toISOString().slice(0, 10),
@@ -1420,7 +1420,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
             <SortSelect value={sortDocuments} onChange={setSortDocuments} ar={ar} />
             <button
               type="button"
-              className="text-sm font-semibold text-[#8B6F47] hover:underline"
+              className="text-sm font-semibold admin-accent-text hover:underline"
               onClick={() => {
                 const today = new Date().toISOString().slice(0, 10);
                 setDocForm({
@@ -1501,7 +1501,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                         <button
                           type="button"
                           onClick={() => setPrintDocument(d)}
-                          className="text-sm text-[#8B6F47] hover:underline"
+                          className="text-sm admin-accent-text hover:underline"
                         >
                           📄 {ar ? 'عرض / طباعة / تنزيل' : 'View / Print / Download'}
                         </button>
@@ -1771,7 +1771,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                     </table>
                   </div>
                   <div className="flex gap-2 mt-2">
-                    <button type="button" onClick={() => setDocForm({ ...docForm, items: [...docForm.items, { descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }] })} className="text-sm text-[#8B6F47] hover:underline font-semibold">{ar ? 'أضف بند' : 'Add line'}</button>
+                    <button type="button" onClick={() => setDocForm({ ...docForm, items: [...docForm.items, { descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }] })} className="text-sm admin-accent-text hover:underline font-semibold">{ar ? 'أضف بند' : 'Add line'}</button>
                     <button type="button" onClick={() => setDocForm({ ...docForm, items: docForm.items.length > 1 ? docForm.items.slice(0, -1) : [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }] })} className="text-sm text-red-600 hover:underline">{ar ? 'حذف آخر بند' : 'Delete last line'}</button>
                     <button type="button" onClick={() => setDocForm({ ...docForm, items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }] })} className="text-sm text-amber-600 hover:underline">{ar ? 'مسح الكل' : 'Clear all'}</button>
                   </div>
@@ -1802,11 +1802,11 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                 <div className="flex flex-wrap gap-2">
                   {docForm.attachments.map((att, i) => (
                     <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 text-sm">
-                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-[#8B6F47] hover:underline truncate max-w-[120px]">{att.name}</a>
+                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="admin-accent-text hover:underline truncate max-w-[120px]">{att.name}</a>
                       <button type="button" onClick={() => setDocForm({ ...docForm, attachments: docForm.attachments.filter((_, j) => j !== i) })} className="text-red-600">✕</button>
                     </span>
                   ))}
-                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-gray-300 hover:border-[#8B6F47] cursor-pointer text-sm font-medium text-gray-600">
+                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-gray-300 admin-accent-border-hover cursor-pointer text-sm font-medium text-gray-600">
                     <input type="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx" className="hidden" onChange={async (ev) => {
                       const file = ev.target.files?.[0];
                       if (!file) return;
@@ -1857,7 +1857,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowAddDocument(false)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">{ar ? 'إضافة' : 'Add'}</button>
+                <button type="submit" className="flex-1 px-4 py-2.5 admin-btn-primary">{ar ? 'إضافة' : 'Add'}</button>
               </div>
             </form>
           </div>
@@ -1961,7 +1961,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowAddCheque(false)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">{ar ? 'إضافة شيك' : 'Add Cheque'}</button>
+                <button type="submit" className="flex-1 px-4 py-2.5 admin-btn-primary">{ar ? 'إضافة شيك' : 'Add Cheque'}</button>
               </div>
             </form>
           </div>
@@ -2035,7 +2035,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                   <button
                     type="button"
                     onClick={() => setJournalForm({ ...journalForm, lines: [...journalForm.lines, { accountId: '', debit: '', credit: '', desc: '' }] })}
-                    className="text-xs font-semibold text-[#8B6F47] hover:underline"
+                    className="text-xs font-semibold admin-accent-text hover:underline"
                   >
                     {ar ? '+ سطر' : '+ Line'}
                   </button>
@@ -2068,7 +2068,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowAddJournal(false)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">{ar ? 'إضافة القيد' : 'Add entry'}</button>
+                <button type="submit" className="flex-1 px-4 py-2.5 admin-btn-primary">{ar ? 'إضافة القيد' : 'Add entry'}</button>
               </div>
             </form>
           </div>
@@ -2730,7 +2730,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                       <td><span className={styles.badge}>{d.type === 'RECEIPT' ? (ar ? 'تحت التحصيل' : 'Receivable') : (ar ? 'مدفوع' : 'Payable')}</span></td>
                       <td className="font-semibold">{d.totalAmount.toLocaleString()} ر.ع</td>
                       <td>
-                        <button type="button" onClick={() => setPrintDocument(d)} className="text-sm text-[#8B6F47] hover:underline">
+                        <button type="button" onClick={() => setPrintDocument(d)} className="text-sm admin-accent-text hover:underline">
                           📄 {ar ? 'عرض' : 'View'}
                         </button>
                       </td>
@@ -2968,7 +2968,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                 <option value={15}>15%</option>
               </select>
             </div>
-            <button type="submit" className="px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">{ar ? 'حفظ الإعدادات' : 'Save Settings'}</button>
+            <button type="submit" className="px-4 py-2.5 admin-btn-primary">{ar ? 'حفظ الإعدادات' : 'Save Settings'}</button>
           </form>
         </div>
       )}
@@ -3033,7 +3033,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowAddAccount(false)} className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">{ar ? 'إلغاء' : 'Cancel'}</button>
-                <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-[#8B6F47] hover:bg-[#6B5535]">{ar ? 'إضافة' : 'Add'}</button>
+                <button type="submit" className="flex-1 px-4 py-2.5 admin-btn-primary">{ar ? 'إضافة' : 'Add'}</button>
               </div>
             </form>
           </div>

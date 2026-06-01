@@ -15,6 +15,8 @@ import { getAdminNavGroupsConfig } from '@/lib/config/adminNav';
 import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import DraftBanner from '@/components/admin/DraftBanner';
+import AdminThemeToggle from '@/components/admin/AdminThemeToggle';
+import { initAdminTheme, getAdminTheme, resolveAdminTheme, ADMIN_THEME_EVENT } from '@/lib/client/adminTheme';
 import { useUserBar } from '@/components/UserBarContext';
 import { isPathAllowedForPortalUser } from '@/lib/config/userPortalRoutes';
 import './admin.css';
@@ -148,6 +150,23 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
     return () => {
       alive = false;
       window.clearTimeout(timeout);
+    };
+  }, []);
+
+  const [adminThemeResolved, setAdminThemeResolved] = useState<'light' | 'dark'>(() =>
+    typeof window !== 'undefined' ? resolveAdminTheme(getAdminTheme()) : 'light'
+  );
+
+  useEffect(() => {
+    initAdminTheme();
+    setAdminThemeResolved(resolveAdminTheme(getAdminTheme()));
+    const onThemeChange = () => setAdminThemeResolved(resolveAdminTheme(getAdminTheme()));
+    window.addEventListener(ADMIN_THEME_EVENT, onThemeChange);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', onThemeChange);
+    return () => {
+      window.removeEventListener(ADMIN_THEME_EVENT, onThemeChange);
+      mq.removeEventListener('change', onThemeChange);
     };
   }, []);
 
@@ -378,7 +397,11 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className={`admin-root ${sidebarCollapsed ? 'admin-root--sidebar-collapsed' : ''} ${hasUserBar ? 'admin-root--has-user-bar' : ''}`} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+    <div
+      className={`admin-root ${sidebarCollapsed ? 'admin-root--sidebar-collapsed' : ''} ${hasUserBar ? 'admin-root--has-user-bar' : ''}`}
+      data-admin-theme={adminThemeResolved}
+      dir={locale === 'ar' ? 'rtl' : 'ltr'}
+    >
       {!isAdminConfirmed ? (
         <RoleBasedSidebar
           role={effectiveRole}
@@ -564,6 +587,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
         </nav>
 
         <div className="admin-sidebar-footer">
+          <AdminThemeToggle locale={locale} compact={sidebarCollapsed} />
           <button
             type="button"
             onClick={toggleCollapse}
@@ -650,7 +674,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
               </span>
             )}
           </div>
-          <div className="w-8 sm:w-10 shrink-0" aria-hidden />
+          <AdminThemeToggle locale={locale} compact />
         </header>
         <div className="admin-main-inner">{children}</div>
       </main>

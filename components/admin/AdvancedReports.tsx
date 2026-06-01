@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Icon from '@/components/icons/Icon';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
+import AdminToolbar from '@/components/admin/AdminToolbar';
 import { log } from '@/lib/logger';
 import {
   CUSTOM_REPORT_SOURCES,
@@ -399,7 +400,7 @@ export default function AdvancedReports() {
             type="text"
             value={value}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+            className="admin-input"
             placeholder={field.name}
           />
         );
@@ -410,7 +411,7 @@ export default function AdvancedReports() {
             type="number"
             value={value}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+            className="admin-input"
             placeholder={field.name}
           />
         );
@@ -421,7 +422,7 @@ export default function AdvancedReports() {
             type="date"
             value={value}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+            className="admin-input"
           />
         );
       
@@ -430,7 +431,7 @@ export default function AdvancedReports() {
           <select
             value={value}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+            className="admin-input"
           >
             <option value="">{field.name}</option>
             {field.options?.map(option => (
@@ -446,7 +447,7 @@ export default function AdvancedReports() {
               type="checkbox"
               checked={value}
               onChange={(e) => handleFieldChange(field.id, e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-[#8B6F47] focus:ring-[#8B6F47]"
+              className="w-4 h-4 rounded border-gray-300 admin-accent-text focus:ring-[color:var(--admin-primary)]"
             />
             <span>{field.name}</span>
           </label>
@@ -467,7 +468,7 @@ export default function AdvancedReports() {
             type="date"
             value={value}
             onChange={(e) => handleFilterChange(filter.id, e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+            className="admin-input"
           />
         );
       
@@ -476,7 +477,7 @@ export default function AdvancedReports() {
           <select
             value={value}
             onChange={(e) => handleFilterChange(filter.id, e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+            className="admin-input"
           >
             <option value="">{filter.name}</option>
             {filter.options?.map(option => (
@@ -493,7 +494,7 @@ export default function AdvancedReports() {
               placeholder="من"
               value={value?.min || ''}
               onChange={(e) => handleFilterChange(filter.id, { ...value, min: e.target.value })}
-              className="w-24 px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+              className="admin-input w-24"
             />
             <span>-</span>
             <input
@@ -501,7 +502,7 @@ export default function AdvancedReports() {
               placeholder="إلى"
               value={value?.max || ''}
               onChange={(e) => handleFilterChange(filter.id, { ...value, max: e.target.value })}
-              className="w-24 px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] text-gray-900"
+              className="admin-input w-24"
             />
           </div>
         );
@@ -521,7 +522,7 @@ export default function AdvancedReports() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <AdminPageHeader
         title={ar ? 'التقارير' : 'Reports'}
         subtitle={ar ? 'إنشاء تقارير مخصصة وذكية' : 'Create custom and smart reports'}
@@ -529,29 +530,22 @@ export default function AdvancedReports() {
 
       {/* Tabs */}
       <div className="admin-card overflow-hidden rounded-2xl">
-        <div className="border-b border-gray-200 bg-gray-50/50">
-          <nav className="flex gap-1 p-2" aria-label="Tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-3 px-4 rounded-xl font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-[#8B6F47] text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-200/70 hover:text-gray-900'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Icon name={tab.icon as any} className="w-4 h-4" />
-                  {ar ? tab.labelAr : tab.labelEn}
-                </div>
-              </button>
-            ))}
-          </nav>
-        </div>
+        <nav className="admin-tabs-nav" aria-label="Tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`admin-tab-btn${activeTab === tab.id ? ' admin-tab-btn--active' : ''}`}
+            >
+              <Icon name={tab.icon as keyof typeof import('@/lib/icons').icons} className="w-4 h-4" />
+              {ar ? tab.labelAr : tab.labelEn}
+            </button>
+          ))}
+        </nav>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="admin-tab-panel">
           {activeTab === 'templates' && (
             <div className="space-y-6">
               {/* Template Selection */}
@@ -562,8 +556,8 @@ export default function AdvancedReports() {
                     onClick={() => handleTemplateSelect(template.id)}
                     className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
                       selectedTemplate === template.id
-                        ? 'border-[#8B6F47] bg-[#8B6F47]/5'
-                        : 'border-gray-200 hover:border-[#8B6F47]/50 hover:bg-gray-50'
+                        ? 'admin-accent-border admin-accent-bg-soft'
+                        : 'border-gray-200 hover:border-[color:rgb(var(--admin-primary-rgb)/0.5)] hover:bg-gray-50'
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-3">
@@ -623,7 +617,7 @@ export default function AdvancedReports() {
                     <button
                       onClick={generateReport}
                       disabled={isGenerating}
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl font-semibold bg-[#8B6F47] text-white hover:bg-[#6B5535] transition-colors disabled:opacity-60"
+                      className="admin-btn-primary disabled:opacity-60"
                     >
                       {isGenerating ? (
                         <>
@@ -680,7 +674,7 @@ export default function AdvancedReports() {
                               {report.status === 'completed' && (
                                 <button
                                   onClick={() => downloadReport(report)}
-                                  className="p-2 rounded-lg text-[#8B6F47] hover:bg-[#8B6F47]/10 transition-colors"
+                                  className="p-2 rounded-lg admin-accent-text admin-accent-bg-soft-hover transition-colors"
                                   title={ar ? 'تحميل' : 'Download'}
                                 >
                                   <Icon name="externalLink" className="w-4 h-4" />
@@ -827,7 +821,7 @@ export default function AdvancedReports() {
                           <td className="px-4 py-3">{s.recipientEmail}</td>
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
-                              <button type="button" onClick={() => void runScheduleNow(s)} className="text-[#8B6F47] hover:underline text-xs">
+                              <button type="button" onClick={() => void runScheduleNow(s)} className="admin-accent-text hover:underline text-xs">
                                 {ar ? 'تشغيل الآن' : 'Run now'}
                               </button>
                               <button
