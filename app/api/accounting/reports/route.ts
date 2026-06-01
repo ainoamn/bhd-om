@@ -4,6 +4,8 @@ import {
   getAccountsFromDb,
   getVatReportFromDb,
   getAgingReportFromDb,
+  getCashFlowFromDb,
+  getPeriodCompareFromDb,
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 
@@ -33,6 +35,16 @@ export async function GET(request: NextRequest) {
       const asOfDate = searchParams.get('asOfDate') || toDate;
       const agingReport = await getAgingReportFromDb(ledger, asOfDate);
       return NextResponse.json(agingReport);
+    }
+
+    if (report === 'cashflow') {
+      const cashFlow = await getCashFlowFromDb(fromDate, toDate);
+      return NextResponse.json(cashFlow);
+    }
+
+    if (report === 'compare') {
+      const compare = await getPeriodCompareFromDb(fromDate, toDate);
+      return NextResponse.json(compare);
     }
 
     const entries = await getJournalEntriesFromDb({ fromDate, toDate: asOfDate });

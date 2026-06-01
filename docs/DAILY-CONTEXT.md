@@ -9,6 +9,16 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (56) — Phase 4 محاسبة: ربط القيود + OCR + تقارير متقدمة
+
+- **ربط DB:** `journalEntryId` على المستند + `documentId`/`bankAccountId`/`contactId` على القيد — migration `20260601170000_accounting_journal_links`
+- **مطابقة البنك:** فلتر مباشر بـ `bankAccountId` على القيد + fallback للبيانات القديمة
+- **OCR حقيقي:** `tesseract.js` (عربي+إنجليزي) في `AccountingInvoiceScanModal` — قراءة تلقائية من الصورة
+- **تدفق نقدي DB:** `cashFlowReport.ts` + `GET /api/accounting/reports?report=cashflow`
+- **مقارنة الفترات:** `periodCompareReport.ts` + تبويب «مقارنة الفترات» + تصدير CSV
+- **تصدير VAT CSV** من `ReportExportButtons`
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (55) — Phase 3 محاسبة: dueDate + OCR + مطابقة لكل بنك
 
 - **`dueDate` في Prisma:** migration `20260601160000_accounting_document_due_date` + فهرس — aging أدق

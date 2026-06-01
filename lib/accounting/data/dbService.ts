@@ -276,6 +276,9 @@ export async function getJournalEntriesFromDb(filters?: { fromDate?: string; toD
     totalCredit: r.totalCredit,
     descriptionAr: r.descriptionAr,
     descriptionEn: r.descriptionEn,
+    documentId: r.documentId,
+    bankAccountId: r.bankAccountId,
+    contactId: r.contactId,
     status: r.status,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
@@ -344,6 +347,10 @@ export async function createJournalEntryInDb(data: {
       totalCredit,
       descriptionAr: data.descriptionAr ?? null,
       descriptionEn: data.descriptionEn ?? null,
+      reference: data.documentId ? data.documentId : null,
+      documentId: data.documentId ?? null,
+      bankAccountId: data.bankAccountId ?? null,
+      contactId: data.contactId ?? null,
       status: entryStatus,
       createdBy: data.createdBy ?? 'system',
       lines: {
@@ -445,6 +452,7 @@ export async function getDocumentsFromDb(filters?: {
     purchaseOrder: r.purchaseOrder,
     reference: r.reference,
     branch: r.branch,
+    journalEntryId: r.journalEntryId ?? undefined,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));
@@ -567,15 +575,20 @@ export async function createDocumentInDb(data: {
     purchaseOrder: doc.purchaseOrder,
     reference: doc.reference,
     branch: doc.branch,
+    journalEntryId: doc.journalEntryId ?? undefined,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };
 }
 
-export async function updateDocumentInDb(id: string, _data: { journalEntryId?: string }) {
+export async function updateDocumentInDb(id: string, data: { journalEntryId?: string; contactId?: string | null }) {
   const doc = await prisma.accountingDocument.update({
     where: { id },
-    data: { updatedAt: new Date() },
+    data: {
+      ...(data.journalEntryId !== undefined ? { journalEntryId: data.journalEntryId } : {}),
+      ...(data.contactId !== undefined ? { contactId: data.contactId } : {}),
+      updatedAt: new Date(),
+    },
   });
   return doc;
 }
@@ -952,10 +965,14 @@ export async function getBankLedgerFromDb(params: {
   }> = [];
 
   for (const entry of entries) {
-    if (serialFilter) {
-      const hay = `${entry.descriptionAr || ''} ${entry.descriptionEn || ''} ${entry.reference || ''} ${entry.serialNumber}`;
-      const linked = [...serialFilter].some((sn) => hay.includes(sn));
-      if (!linked) continue;
+    if (params.bankAccountId && params.bankAccountId !== 'CASH') {
+      const directMatch = entry.bankAccountId === params.bankAccountId;
+      let legacyMatch = false;
+      if (!directMatch && serialFilter) {
+        const hay = `${entry.descriptionAr || ''} ${entry.descriptionEn || ''} ${entry.reference || ''} ${entry.serialNumber}`;
+        legacyMatch = [...serialFilter].some((sn) => hay.includes(sn));
+      }
+      if (!directMatch && !legacyMatch) continue;
     }
     for (const line of entry.lines) {
       if (line.accountId !== acc.id) continue;
@@ -977,6 +994,59 @@ export async function getBankLedgerFromDb(params: {
     bookBalance: computeBookBalance(lines),
     accountCode: code,
   };
+}
+
+async function computeIncomeTotalsFromDb(fromDate: string, toDate: string) {
+  const [entries, accounts] = await Promise.all([
+    getJournalEntriesFromDb({ fromDate, toDate }),
+    getAccountsFromDb(),
+  ]);
+  const active = entries.filter((e) => e.status !== 'CANCELLED');
+  let revenue = 0;
+  let expense = 0;
+  const revIds = new Set(accounts.filter((a) => a.type === 'REVENUE').map((a) => a.id));
+  const expIds = new Set(accounts.filter((a) => a.type === 'EXPENSE').map((a) => a.id));
+  for (const entry of active) {
+    for (const line of entry.lines) {
+      if (revIds.has(line.accountId)) revenue += (line.credit || 0) - (line.debit || 0);
+      if (expIds.has(line.accountId)) expense += (line.debit || 0) - (line.credit || 0);
+    }
+  }
+  return {
+    revenue: Math.round(revenue * 100) / 100,
+    expense: Math.round(expense * 100) / 100,
+  };
+}
+
+export async function getCashFlowFromDb(fromDate: string, toDate: string) {
+  const { buildCashFlowFromJournalLines } = await import('../reports/cashFlowReport');
+  await ensureAccountingAccounts();
+  const cashAccounts = await prisma.accountingAccount.findMany({
+    where: { code: { in: ['1000', '1100'] } },
+    select: { id: true },
+  });
+  const entries = await prisma.accountingJournalEntry.findMany({
+    where: {
+      status: { in: ['APPROVED', 'POSTED'] },
+      date: { gte: new Date(fromDate), lte: new Date(toDate) },
+      lines: { some: { accountId: { in: cashAccounts.map((a) => a.id) } } },
+    },
+    include: { lines: true },
+  });
+  return buildCashFlowFromJournalLines(entries, cashAccounts.map((a) => a.id), fromDate, toDate);
+}
+
+export async function getPeriodCompareFromDb(fromDate: string, toDate: string) {
+  const { buildPeriodCompareReport, previousPeriodRange } = await import('../reports/periodCompareReport');
+  const prev = previousPeriodRange(fromDate, toDate);
+  const [current, previous] = await Promise.all([
+    computeIncomeTotalsFromDb(fromDate, toDate),
+    computeIncomeTotalsFromDb(prev.fromDate, prev.toDate),
+  ]);
+  return buildPeriodCompareReport(
+    { fromDate, toDate, ...current },
+    { fromDate: prev.fromDate, toDate: prev.toDate, ...previous }
+  );
 }
 
 /** جلب بيانات المحاسبة للصفحة — paginated bootstrap for scale */

@@ -75,6 +75,8 @@ import {
   fetchDocumentsPage,
   fetchVatReport,
   fetchAgingReport,
+  fetchCashFlowReport,
+  fetchPeriodCompareReport,
   suggestJournalEntry,
   createDocument as apiCreateDocument,
   createJournalEntry as apiCreateJournalEntry,
@@ -103,7 +105,7 @@ const DOC_TYPE_LABELS: Record<DocumentType, { ar: string; en: string }> = {
   OTHER: { ar: 'أخرى', en: 'Other' },
 };
 
-const REPORT_LABELS: Record<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation', { ar: string; en: string }> = {
+const REPORT_LABELS: Record<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare', { ar: string; en: string }> = {
   trial: { ar: 'ميزان المراجعة', en: 'Trial Balance' },
   income: { ar: 'قائمة الدخل', en: 'Income Statement (P&L)' },
   balance: { ar: 'الميزانية العمومية', en: 'Balance Sheet' },
@@ -113,6 +115,7 @@ const REPORT_LABELS: Record<'trial' | 'income' | 'balance' | 'cashflow' | 'bankS
   vat: { ar: 'إقرار ضريبة القيمة المضافة', en: 'VAT Return Summary' },
   aging: { ar: 'أعمار الذمم', en: 'AR/AP Aging' },
   reconciliation: { ar: 'مطابقة البنك', en: 'Bank Reconciliation' },
+  compare: { ar: 'مقارنة الفترات', en: 'Period Comparison' },
 };
 
 /** المبيعات - وحدات منفصلة */
@@ -222,7 +225,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
 
-  const setTab = (tab: TabId, action?: string, report?: 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation') => {
+  const setTab = (tab: TabId, action?: string, report?: 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare') => {
     setActiveTab(tab);
     const params = new URLSearchParams();
     params.set('tab', tab);
@@ -257,12 +260,16 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [showAddCheque, setShowAddCheque] = useState(false);
   const [showInvoiceScan, setShowInvoiceScan] = useState(false);
   const [printDocument, setPrintDocument] = useState<AccountingDocument | null>(null);
-  const [reportView, setReportView] = useState<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation'>('trial');
+  const [reportView, setReportView] = useState<'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare'>('trial');
   const [vatReportData, setVatReportData] = useState<Awaited<ReturnType<typeof fetchVatReport>> | null>(null);
   const [loadingVat, setLoadingVat] = useState(false);
   const [agingLedger, setAgingLedger] = useState<'ar' | 'ap'>('ar');
   const [agingReportData, setAgingReportData] = useState<Awaited<ReturnType<typeof fetchAgingReport>> | null>(null);
   const [loadingAging, setLoadingAging] = useState(false);
+  const [cashFlowDb, setCashFlowDb] = useState<Awaited<ReturnType<typeof fetchCashFlowReport>> | null>(null);
+  const [loadingCashFlow, setLoadingCashFlow] = useState(false);
+  const [compareReportData, setCompareReportData] = useState<Awaited<ReturnType<typeof fetchPeriodCompareReport>> | null>(null);
+  const [loadingCompare, setLoadingCompare] = useState(false);
   const [loadingMoreJournal, setLoadingMoreJournal] = useState(false);
   const [loadingMoreDocs, setLoadingMoreDocs] = useState(false);
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
@@ -436,8 +443,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   useEffect(() => {
     const tab = (searchParams?.get('tab') || 'dashboard') as TabId;
     setActiveTab(tab);
-    const report = searchParams?.get('report') as 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | null;
-    if (tab === 'reports' && report && ['trial', 'income', 'balance', 'cashflow', 'bankStatement', 'propertyLedger', 'vat', 'aging', 'reconciliation'].includes(report)) {
+    const report = searchParams?.get('report') as 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare' | null;
+    if (tab === 'reports' && report && ['trial', 'income', 'balance', 'cashflow', 'bankStatement', 'propertyLedger', 'vat', 'aging', 'reconciliation', 'compare'].includes(report)) {
       setReportView(report);
     }
   }, [searchParams?.get('tab'), searchParams?.get('report')]);
@@ -532,6 +539,30 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       .finally(() => { if (!cancelled) setLoadingAging(false); });
     return () => { cancelled = true; };
   }, [useDb, reportView, activeTab, agingLedger, filterToDate]);
+  useEffect(() => {
+    if (!useDb || reportView !== 'cashflow' || activeTab !== 'reports') return;
+    const from = filterFromDate || new Date().getFullYear() + '-01-01';
+    const to = filterToDate || new Date().toISOString().slice(0, 10);
+    let cancelled = false;
+    setLoadingCashFlow(true);
+    fetchCashFlowReport({ fromDate: from, toDate: to })
+      .then((data) => { if (!cancelled) setCashFlowDb(data); })
+      .catch(() => { if (!cancelled) setCashFlowDb(null); })
+      .finally(() => { if (!cancelled) setLoadingCashFlow(false); });
+    return () => { cancelled = true; };
+  }, [useDb, reportView, activeTab, filterFromDate, filterToDate]);
+  useEffect(() => {
+    if (!useDb || reportView !== 'compare' || activeTab !== 'reports') return;
+    const from = filterFromDate || new Date().getFullYear() + '-01-01';
+    const to = filterToDate || new Date().toISOString().slice(0, 10);
+    let cancelled = false;
+    setLoadingCompare(true);
+    fetchPeriodCompareReport({ fromDate: from, toDate: to })
+      .then((data) => { if (!cancelled) setCompareReportData(data); })
+      .catch(() => { if (!cancelled) setCompareReportData(null); })
+      .finally(() => { if (!cancelled) setLoadingCompare(false); });
+    return () => { cancelled = true; };
+  }, [useDb, reportView, activeTab, filterFromDate, filterToDate]);
   useEffect(() => {
     if (actionFromUrl === 'add') {
       if (tabFromUrl === 'journal') setShowAddJournal(true);
@@ -2302,7 +2333,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       {activeTab === 'reports' && (
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
-            {(['trial', 'income', 'balance', 'vat', 'aging', 'reconciliation', 'cashflow', 'bankStatement', 'propertyLedger'] as const).map((r) => (
+            {(['trial', 'income', 'balance', 'compare', 'vat', 'aging', 'reconciliation', 'cashflow', 'bankStatement', 'propertyLedger'] as const).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -2392,6 +2423,8 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
                   incomeStatement={incomeStatement}
                   balanceSheet={balanceSheet}
                   cashFlow={cashFlow}
+                  vatReportData={vatReportData}
+                  compareReportData={compareReportData}
                   ar={ar}
                 />
               </div>
@@ -2633,14 +2666,90 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
               )}
               {reportView === 'cashflow' && (
                 <div className="max-w-md space-y-4">
-                  <div className="p-4 rounded-xl bg-gray-50 border">
-                    <p className="text-sm text-gray-500">{ar ? 'التشغيل (صافي الدخل)' : 'Operating (Net Income)'}</p>
-                    <p className="text-xl font-bold">{cashFlow.operating.toLocaleString()} ر.ع</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gray-50 border">
-                    <p className="text-sm text-gray-500">{ar ? 'التدفق الصافي' : 'Net Cash Change'}</p>
-                    <p className={`text-xl font-bold ${cashFlow.netChange >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{cashFlow.netChange.toLocaleString()} ر.ع</p>
-                  </div>
+                  {!useDb ? (
+                    <>
+                      <div className="p-4 rounded-xl bg-gray-50 border">
+                        <p className="text-sm text-gray-500">{ar ? 'التشغيل (صافي الدخل)' : 'Operating (Net Income)'}</p>
+                        <p className="text-xl font-bold">{cashFlow.operating.toLocaleString()} ر.ع</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-gray-50 border">
+                        <p className="text-sm text-gray-500">{ar ? 'التدفق الصافي' : 'Net Cash Change'}</p>
+                        <p className={`text-xl font-bold ${cashFlow.netChange >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{cashFlow.netChange.toLocaleString()} ر.ع</p>
+                      </div>
+                    </>
+                  ) : loadingCashFlow ? (
+                    <p className="text-gray-500">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+                  ) : cashFlowDb ? (
+                    <>
+                      <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                        <p className="text-sm text-emerald-700">{ar ? 'تدفقات نقدية (صندوق + بنوك)' : 'Cash flows (cash + banks)'}</p>
+                        <p className="text-xs text-emerald-600 mt-1">{cashFlowDb.fromDate} — {cashFlowDb.toDate}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-4 rounded-xl bg-gray-50 border">
+                          <p className="text-sm text-gray-500">{ar ? 'مقبوضات' : 'Cash in'}</p>
+                          <p className="text-xl font-bold text-emerald-700">{cashFlowDb.cashIn.toLocaleString()} ر.ع</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-gray-50 border">
+                          <p className="text-sm text-gray-500">{ar ? 'مدفوعات' : 'Cash out'}</p>
+                          <p className="text-xl font-bold text-red-600">{cashFlowDb.cashOut.toLocaleString()} ر.ع</p>
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-xl bg-gray-50 border">
+                        <p className="text-sm text-gray-500">{ar ? 'التدفق الصافي' : 'Net change'}</p>
+                        <p className={`text-xl font-bold ${cashFlowDb.netChange >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{cashFlowDb.netChange.toLocaleString()} ر.ع</p>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-gray-500">{ar ? 'تعذّر تحميل التقرير' : 'Failed to load report'}</p>
+                  )}
+                </div>
+              )}
+              {reportView === 'compare' && (
+                <div className="space-y-6">
+                  {!useDb ? (
+                    <p className="text-amber-700 text-sm">{ar ? 'مقارنة الفترات متاحة مع قاعدة البيانات فقط' : 'Period comparison requires database mode'}</p>
+                  ) : loadingCompare ? (
+                    <p className="text-gray-500">{ar ? 'جاري التحميل...' : 'Loading...'}</p>
+                  ) : compareReportData ? (
+                    <>
+                      <table className="admin-table w-full max-w-2xl">
+                        <thead>
+                          <tr>
+                            <th>{ar ? 'البند' : 'Item'}</th>
+                            <th>{ar ? 'الفترة الحالية' : 'Current'}</th>
+                            <th>{ar ? 'الفترة السابقة' : 'Previous'}</th>
+                            <th>{ar ? 'الفرق' : 'Delta'}</th>
+                            <th>%</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {([
+                            { key: 'revenue' as const, labelAr: 'الإيرادات', labelEn: 'Revenue', pct: compareReportData.delta.revenuePct },
+                            { key: 'expense' as const, labelAr: 'المصروفات', labelEn: 'Expenses', pct: compareReportData.delta.expensePct },
+                            { key: 'netIncome' as const, labelAr: 'صافي الدخل', labelEn: 'Net income', pct: compareReportData.delta.netIncomePct },
+                          ]).map((row) => (
+                            <tr key={row.key}>
+                              <td>{ar ? row.labelAr : row.labelEn}</td>
+                              <td>{compareReportData.current[row.key].toLocaleString()} ر.ع</td>
+                              <td>{compareReportData.previous[row.key].toLocaleString()} ر.ع</td>
+                              <td className={compareReportData.delta[row.key] >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                                {compareReportData.delta[row.key].toLocaleString()} ر.ع
+                              </td>
+                              <td>{row.pct != null ? `${row.pct > 0 ? '+' : ''}${row.pct}%` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="text-xs text-gray-500">
+                        {ar
+                          ? `الحالية: ${compareReportData.current.fromDate} — ${compareReportData.current.toDate} · السابقة: ${compareReportData.previous.fromDate} — ${compareReportData.previous.toDate}`
+                          : `Current: ${compareReportData.current.fromDate} — ${compareReportData.current.toDate} · Previous: ${compareReportData.previous.fromDate} — ${compareReportData.previous.toDate}`}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-gray-500">{ar ? 'تعذّر تحميل التقرير' : 'Failed to load report'}</p>
+                  )}
                 </div>
               )}
               {reportView === 'bankStatement' && (

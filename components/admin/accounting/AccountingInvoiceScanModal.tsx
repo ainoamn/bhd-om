@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import type { DocumentType } from '@/lib/data/accounting';
 import { scanInvoiceFromText } from '@/lib/accounting/api/client';
+import { extractTextFromInvoiceImage } from '@/lib/utils/invoiceImageOcr';
 
 export type InvoiceScanResult = {
   type: DocumentType;
@@ -28,6 +29,7 @@ export default function AccountingInvoiceScanModal(props: {
   const [fileName, setFileName] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState('');
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof scanInvoiceFromText>> | null>(null);
@@ -37,6 +39,7 @@ export default function AccountingInvoiceScanModal(props: {
   const handleUpload = async (file: File) => {
     setUploading(true);
     setError('');
+    setOcrStatus('');
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -45,6 +48,23 @@ export default function AccountingInvoiceScanModal(props: {
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       setAttachmentUrl(data.url);
       setFileName(file.name);
+
+      if (file.type.startsWith('image/')) {
+        setOcrStatus(ar ? 'جاري قراءة الصورة...' : 'Reading image...');
+        const ocrText = await extractTextFromInvoiceImage(file, (msg) => {
+          if (msg.startsWith('ocr:')) {
+            setOcrStatus(ar ? `قراءة الصورة ${msg.slice(4)}%` : `Reading image ${msg.slice(4)}%`);
+          } else if (msg === 'loading') {
+            setOcrStatus(ar ? 'تحميل محرك OCR...' : 'Loading OCR engine...');
+          }
+        });
+        if (ocrText) {
+          setText(ocrText);
+          setOcrStatus(ar ? 'تم استخراج النص من الصورة' : 'Text extracted from image');
+        } else {
+          setOcrStatus(ar ? 'لم يُستخرج نص — الصق يدوياً' : 'No text extracted — paste manually');
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload error');
     } finally {
@@ -90,7 +110,7 @@ export default function AccountingInvoiceScanModal(props: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div className="admin-card w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h3 className="font-bold text-lg">{ar ? 'مسح فاتورة (AI)' : 'Scan invoice (AI)'}</h3>
+          <h3 className="font-bold text-lg">{ar ? 'مسح فاتورة (AI + OCR)' : 'Scan invoice (AI + OCR)'}</h3>
           <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-800 text-xl leading-none">×</button>
         </div>
         <div className="p-6 space-y-4">
@@ -100,11 +120,11 @@ export default function AccountingInvoiceScanModal(props: {
               : 'Extracted data is not saved until you review and click Save on the document form.'}
           </p>
           <div>
-            <label className="block text-sm font-semibold mb-1">{ar ? 'رفع صورة/PDF' : 'Upload image/PDF'}</label>
+            <label className="block text-sm font-semibold mb-1">{ar ? 'رفع صورة (OCR تلقائي)' : 'Upload image (auto OCR)'}</label>
             <input
               ref={fileRef}
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              accept=".jpg,.jpeg,.png,.webp"
               className="admin-input w-full"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -112,15 +132,16 @@ export default function AccountingInvoiceScanModal(props: {
               }}
             />
             {uploading && <p className="text-xs text-gray-500 mt-1">{ar ? 'جاري الرفع...' : 'Uploading...'}</p>}
+            {ocrStatus && <p className="text-xs text-blue-700 mt-1">{ocrStatus}</p>}
             {attachmentUrl && <p className="text-xs text-emerald-700 mt-1">✓ {fileName}</p>}
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-1">{ar ? 'الصق نص OCR (اختياري)' : 'Paste OCR text (optional)'}</label>
+            <label className="block text-sm font-semibold mb-1">{ar ? 'نص الفاتورة (قابل للتعديل)' : 'Invoice text (editable)'}</label>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               className="admin-input w-full min-h-[100px] font-mono text-xs"
-              placeholder={ar ? 'Invoice Total 150.000 OMR\nDue Date 2026-07-15' : 'Invoice Total 150.000 OMR\nDue Date 2026-07-15'}
+              placeholder={ar ? 'يُملأ تلقائياً من الصورة أو الصق يدوياً' : 'Auto-filled from image or paste manually'}
             />
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}

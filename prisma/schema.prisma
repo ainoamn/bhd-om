@@ -511,6 +511,9 @@ model AccountingJournalEntry {
   approvedAt      DateTime?
   postedBy        String?
   postedAt        DateTime?
+  documentId      String?
+  bankAccountId   String?
+  contactId       String?
   createdBy       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -518,6 +521,9 @@ model AccountingJournalEntry {
 
   @@index([date])
   @@index([status])
+  @@index([documentId])
+  @@index([bankAccountId])
+  @@index([contactId])
   @@index([createdAt])
 }
 
@@ -556,6 +562,7 @@ model AccountingDocument {
   attachmentsJson String?   // JSON [{url, name}]
   purchaseOrder   String?
   branch          String?
+  journalEntryId  String?
   createdBy       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -565,6 +572,7 @@ model AccountingDocument {
   @@index([date])
   @@index([dueDate])
   @@index([contactId])
+  @@index([journalEntryId])
   @@index([createdAt])
 }
 

@@ -194,6 +194,38 @@ export async function scanInvoiceFromText(params: { text?: string; fileName?: st
   });
 }
 
+export async function fetchCashFlowReport(params: { fromDate?: string; toDate?: string }) {
+  const sp = new URLSearchParams({ report: 'cashflow', ...params } as Record<string, string>);
+  return fetchJson<{
+    report: 'cashflow';
+    fromDate: string;
+    toDate: string;
+    operating: number;
+    investing: number;
+    financing: number;
+    netChange: number;
+    cashIn: number;
+    cashOut: number;
+  }>(`${BASE}/reports?${sp}`);
+}
+
+export async function fetchPeriodCompareReport(params: { fromDate?: string; toDate?: string }) {
+  const sp = new URLSearchParams({ report: 'compare', ...params } as Record<string, string>);
+  return fetchJson<{
+    report: 'compare';
+    current: { fromDate: string; toDate: string; revenue: number; expense: number; netIncome: number };
+    previous: { fromDate: string; toDate: string; revenue: number; expense: number; netIncome: number };
+    delta: {
+      revenue: number;
+      expense: number;
+      netIncome: number;
+      revenuePct: number | null;
+      expensePct: number | null;
+      netIncomePct: number | null;
+    };
+  }>(`${BASE}/reports?${sp}`);
+}
+
 export async function suggestJournalEntry(description: string, amount?: number) {
   return fetchJson<{
     lines: Array<{ accountId: string; debit: number; credit: number; descriptionAr?: string }>;

@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { downloadCsv } from '@/lib/utils/csvExport';
 
-type ReportView = 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation';
+type ReportView = 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare';
 
 interface ReportExportButtonsProps {
   reportView: ReportView;
@@ -13,6 +13,17 @@ interface ReportExportButtonsProps {
   incomeStatement?: { revenue: { items: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; total: number }; expense: { items: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; total: number }; netIncome: number };
   balanceSheet?: { assets: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; liabilities: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; equity: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; totalAssets: number; totalLiabilities: number };
   cashFlow?: { operating: number; investing: number; financing: number; netChange: number };
+  vatReportData?: {
+    summary: { vatOutput: number; vatInput: number; netVatPayable: number };
+    lines: Array<{ serialNumber: string; date: string; type: string; vatAmount: number; direction: string }>;
+    fromDate: string;
+    toDate: string;
+  } | null;
+  compareReportData?: {
+    current: { fromDate: string; toDate: string; revenue: number; expense: number; netIncome: number };
+    previous: { fromDate: string; toDate: string; revenue: number; expense: number; netIncome: number };
+    delta: { revenue: number; expense: number; netIncome: number; revenuePct: number | null; expensePct: number | null; netIncomePct: number | null };
+  } | null;
   ar: boolean;
 }
 
@@ -24,6 +35,8 @@ export default function ReportExportButtons({
   incomeStatement,
   balanceSheet,
   cashFlow,
+  vatReportData,
+  compareReportData,
   ar,
 }: ReportExportButtonsProps) {
   const [open, setOpen] = useState(false);
@@ -39,6 +52,7 @@ export default function ReportExportButtons({
     vat: ar ? 'إقرار VAT' : 'VAT Return',
     aging: ar ? 'أعمار الذمم' : 'AR/AP Aging',
     reconciliation: ar ? 'مطابقة البنك' : 'Bank Reconciliation',
+    compare: ar ? 'مقارنة الفترات' : 'Period Comparison',
   }[reportView];
 
   const filename = `${reportLabel}_${reportFrom}_${reportTo}`.replace(/\s+/g, '_');
@@ -99,6 +113,25 @@ export default function ReportExportButtons({
         [ar ? 'التدفق الصافي' : 'Net Change', cashFlow.netChange],
       ];
       downloadCsv(filename, rows);
+    } else if (reportView === 'vat' && vatReportData) {
+      const rows: (string | number)[][] = [
+        [ar ? 'ملخص VAT' : 'VAT Summary', vatReportData.fromDate, vatReportData.toDate],
+        [ar ? 'ضريبة المخرجات' : 'Output VAT', vatReportData.summary.vatOutput],
+        [ar ? 'ضريبة المدخلات' : 'Input VAT', vatReportData.summary.vatInput],
+        [ar ? 'صافي VAT' : 'Net VAT', vatReportData.summary.netVatPayable],
+        [],
+        [ar ? 'التاريخ' : 'Date', ar ? 'الرقم' : 'No.', ar ? 'النوع' : 'Type', ar ? 'الاتجاه' : 'Direction', 'VAT'],
+        ...vatReportData.lines.map((l) => [l.date, l.serialNumber, l.type, l.direction, l.vatAmount]),
+      ];
+      downloadCsv(filename, rows);
+    } else if (reportView === 'compare' && compareReportData) {
+      const c = compareReportData;
+      downloadCsv(filename, [
+        [ar ? 'البند' : 'Item', ar ? 'الحالية' : 'Current', ar ? 'السابقة' : 'Previous', ar ? 'الفرق' : 'Delta', '%'],
+        [ar ? 'الإيرادات' : 'Revenue', c.current.revenue, c.previous.revenue, c.delta.revenue, c.delta.revenuePct ?? ''],
+        [ar ? 'المصروفات' : 'Expenses', c.current.expense, c.previous.expense, c.delta.expense, c.delta.expensePct ?? ''],
+        [ar ? 'صافي الدخل' : 'Net income', c.current.netIncome, c.previous.netIncome, c.delta.netIncome, c.delta.netIncomePct ?? ''],
+      ]);
     } else {
       downloadCsv(filename, [[reportLabel, reportFrom, reportTo]]);
     }
