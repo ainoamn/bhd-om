@@ -15,6 +15,8 @@ import {
   fetchAgingReport,
   fetchCashFlowReport,
   fetchPeriodCompareReport,
+  fetchBankStatementReport,
+  fetchPropertyLedgerReport,
 } from '@/lib/accounting/api/client';
 import type { ReportViewId } from '@/lib/accounting/ui/reportLabels';
 
@@ -32,8 +34,24 @@ export function useAccountingDbReports(opts: {
   agingLedger: 'ar' | 'ap';
   journalEntries: JournalEntry[];
   accounts: ChartAccount[];
+  selectedBankAccountId?: string;
+  reportPropertyId?: string;
+  reportContactId?: string;
 }) {
-  const { useDb, activeTab, reportView, reportFrom, reportTo, reportAsOf, agingLedger, journalEntries, accounts } = opts;
+  const {
+    useDb,
+    activeTab,
+    reportView,
+    reportFrom,
+    reportTo,
+    reportAsOf,
+    agingLedger,
+    journalEntries,
+    accounts,
+    selectedBankAccountId,
+    reportPropertyId,
+    reportContactId,
+  } = opts;
 
   const localTrial = useMemo(
     () => getTrialBalance(reportFrom, reportTo, journalEntries, accounts),
@@ -65,6 +83,10 @@ export function useAccountingDbReports(opts: {
   const [loadingCashFlow, setLoadingCashFlow] = useState(false);
   const [compareReportData, setCompareReportData] = useState<Awaited<ReturnType<typeof fetchPeriodCompareReport>> | null>(null);
   const [loadingCompare, setLoadingCompare] = useState(false);
+  const [bankStatementDb, setBankStatementDb] = useState<Awaited<ReturnType<typeof fetchBankStatementReport>> | null>(null);
+  const [loadingBankStatement, setLoadingBankStatement] = useState(false);
+  const [propertyLedgerDb, setPropertyLedgerDb] = useState<Awaited<ReturnType<typeof fetchPropertyLedgerReport>> | null>(null);
+  const [loadingPropertyLedger, setLoadingPropertyLedger] = useState(false);
 
   useEffect(() => {
     if (!useDb || activeTab !== 'reports') return;
@@ -179,6 +201,41 @@ export function useAccountingDbReports(opts: {
     return () => { cancelled = true; };
   }, [useDb, reportView, activeTab, reportFrom, reportTo]);
 
+  useEffect(() => {
+    if (!useDb || reportView !== 'bankStatement' || activeTab !== 'reports' || !selectedBankAccountId) return;
+    let cancelled = false;
+    setLoadingBankStatement(true);
+    fetchBankStatementReport({
+      bankAccountId: selectedBankAccountId,
+      fromDate: reportFrom,
+      toDate: reportTo,
+    })
+      .then((data) => { if (!cancelled) setBankStatementDb(data); })
+      .catch(() => { if (!cancelled) setBankStatementDb(null); })
+      .finally(() => { if (!cancelled) setLoadingBankStatement(false); });
+    return () => { cancelled = true; };
+  }, [useDb, reportView, activeTab, selectedBankAccountId, reportFrom, reportTo]);
+
+  useEffect(() => {
+    if (!useDb || reportView !== 'propertyLedger' || activeTab !== 'reports') return;
+    if (!reportPropertyId && !reportContactId) {
+      setPropertyLedgerDb(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPropertyLedger(true);
+    fetchPropertyLedgerReport({
+      propertyId: reportPropertyId ? parseInt(reportPropertyId, 10) : undefined,
+      contactId: reportContactId || undefined,
+      fromDate: reportFrom,
+      toDate: reportTo,
+    })
+      .then((data) => { if (!cancelled) setPropertyLedgerDb(data); })
+      .catch(() => { if (!cancelled) setPropertyLedgerDb(null); })
+      .finally(() => { if (!cancelled) setLoadingPropertyLedger(false); });
+    return () => { cancelled = true; };
+  }, [useDb, reportView, activeTab, reportPropertyId, reportContactId, reportFrom, reportTo]);
+
   const trialBalance = useDb && dbTrial ? dbTrial : localTrial;
   const incomeStatement = useDb && dbIncome ? dbIncome : localIncome;
   const balanceSheet = useDb && dbBalance ? dbBalance : localBalance;
@@ -197,5 +254,9 @@ export function useAccountingDbReports(opts: {
     loadingCashFlow,
     compareReportData,
     loadingCompare,
+    bankStatementDb,
+    loadingBankStatement,
+    propertyLedgerDb,
+    loadingPropertyLedger,
   };
 }

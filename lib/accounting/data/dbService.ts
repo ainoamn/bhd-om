@@ -5,7 +5,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { generateBhdSerial } from '@/lib/server/serialNumbers';
-import type { AccountingAccountType, AccountingDocType, AccountingDocStatus } from '@prisma/client';
+import type { AccountingAccountType, AccountingDocType, AccountingDocStatus, Prisma } from '@prisma/client';
 
 const DEFAULT_ACCOUNTS: Array<{ code: string; nameAr: string; nameEn: string; type: AccountingAccountType; sortOrder: number }> = [
   { code: '1000', nameAr: 'الصندوق', nameEn: 'Cash', type: 'ASSET', sortOrder: 1 },
@@ -1047,6 +1047,221 @@ export async function getPeriodCompareFromDb(fromDate: string, toDate: string) {
     { fromDate, toDate, ...current },
     { fromDate: prev.fromDate, toDate: prev.toDate, ...previous }
   );
+}
+
+/** Bank/cash statement with entry metadata for reports UI */
+export async function getBankStatementFromDb(params: {
+  bankAccountId: string;
+  fromDate?: string;
+  toDate?: string;
+}) {
+  await ensureAccountingAccounts();
+  const isCash = params.bankAccountId === 'CASH';
+  const code = isCash ? '1000' : '1100';
+  const acc = await prisma.accountingAccount.findUnique({ where: { code } });
+  if (!acc) {
+    return {
+      report: 'bankStatement' as const,
+      bankAccountId: params.bankAccountId,
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      lines: [],
+      balance: { debit: 0, credit: 0, balance: 0 },
+    };
+  }
+
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (params.fromDate) dateFilter.gte = new Date(params.fromDate);
+  if (params.toDate) dateFilter.lte = new Date(params.toDate);
+
+  let serialFilter: Set<string> | null = null;
+  if (!isCash) {
+    const linkedDocs = await prisma.accountingDocument.findMany({
+      where: { bankAccountId: params.bankAccountId },
+      select: { serialNumber: true },
+    });
+    serialFilter = new Set(linkedDocs.map((d) => d.serialNumber));
+  }
+
+  const entries = await prisma.accountingJournalEntry.findMany({
+    where: {
+      status: { in: ['APPROVED', 'POSTED'] },
+      ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
+      lines: { some: { accountId: acc.id } },
+    },
+    include: { lines: true },
+    orderBy: [{ date: 'asc' }, { serialNumber: 'asc' }],
+  });
+
+  const docIds = [...new Set(entries.map((e) => e.documentId).filter(Boolean))] as string[];
+  const docs =
+    docIds.length > 0
+      ? await prisma.accountingDocument.findMany({
+          where: { id: { in: docIds } },
+          select: { id: true, propertyId: true },
+        })
+      : [];
+  const docMap = new Map(docs.map((d) => [d.id, d]));
+
+  const lines: Array<{
+    entryId: string;
+    date: string;
+    descriptionAr?: string | null;
+    descriptionEn?: string | null;
+    contactId?: string | null;
+    propertyId?: number | null;
+    debit: number;
+    credit: number;
+  }> = [];
+  let totalDebit = 0;
+  let totalCredit = 0;
+
+  for (const entry of entries) {
+    if (isCash) {
+      if (entry.bankAccountId) continue;
+    } else {
+      const directMatch = entry.bankAccountId === params.bankAccountId;
+      let legacyMatch = false;
+      if (!directMatch && serialFilter) {
+        const hay = `${entry.descriptionAr || ''} ${entry.descriptionEn || ''} ${entry.reference || ''} ${entry.serialNumber}`;
+        legacyMatch = [...serialFilter].some((sn) => hay.includes(sn));
+      }
+      if (!directMatch && !legacyMatch) continue;
+    }
+
+    for (const line of entry.lines) {
+      if (line.accountId !== acc.id) continue;
+      if (line.debit < 0.001 && line.credit < 0.001) continue;
+      const doc = entry.documentId ? docMap.get(entry.documentId) : undefined;
+      lines.push({
+        entryId: entry.id,
+        date: entry.date.toISOString().slice(0, 10),
+        descriptionAr: entry.descriptionAr,
+        descriptionEn: entry.descriptionEn,
+        contactId: entry.contactId,
+        propertyId: doc?.propertyId ?? null,
+        debit: line.debit,
+        credit: line.credit,
+      });
+      totalDebit += line.debit;
+      totalCredit += line.credit;
+    }
+  }
+
+  return {
+    report: 'bankStatement' as const,
+    bankAccountId: params.bankAccountId,
+    fromDate: params.fromDate,
+    toDate: params.toDate,
+    lines,
+    balance: {
+      debit: Math.round(totalDebit * 100) / 100,
+      credit: Math.round(totalCredit * 100) / 100,
+      balance: Math.round((totalDebit - totalCredit) * 100) / 100,
+    },
+  };
+}
+
+/** Property/tenant ledger from journal entries linked by contact or document.propertyId */
+export async function getPropertyLedgerFromDb(params: {
+  propertyId?: number;
+  contactId?: string;
+  fromDate?: string;
+  toDate?: string;
+}) {
+  await ensureAccountingAccounts();
+
+  if (!params.propertyId && !params.contactId) {
+    return {
+      report: 'propertyLedger' as const,
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      entries: [],
+      totals: { debit: 0, credit: 0, count: 0 },
+    };
+  }
+
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (params.fromDate) dateFilter.gte = new Date(params.fromDate);
+  if (params.toDate) dateFilter.lte = new Date(params.toDate);
+
+  let propertyDocIds: string[] = [];
+  if (params.propertyId) {
+    const docs = await prisma.accountingDocument.findMany({
+      where: { propertyId: params.propertyId },
+      select: { id: true },
+    });
+    propertyDocIds = docs.map((d) => d.id);
+    if (propertyDocIds.length === 0 && !params.contactId) {
+      return {
+        report: 'propertyLedger' as const,
+        fromDate: params.fromDate,
+        toDate: params.toDate,
+        entries: [],
+        totals: { debit: 0, credit: 0, count: 0 },
+      };
+    }
+  }
+
+  const where: Prisma.AccountingJournalEntryWhereInput = {
+    status: { in: ['APPROVED', 'POSTED'] },
+    ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
+  };
+
+  if (params.propertyId && params.contactId) {
+    const or: Prisma.AccountingJournalEntryWhereInput[] = [{ contactId: params.contactId }];
+    if (propertyDocIds.length) or.push({ documentId: { in: propertyDocIds } });
+    where.OR = or;
+  } else if (params.contactId) {
+    where.contactId = params.contactId;
+  } else if (params.propertyId && propertyDocIds.length) {
+    where.documentId = { in: propertyDocIds };
+  }
+
+  const rows = await prisma.accountingJournalEntry.findMany({
+    where,
+    orderBy: [{ date: 'asc' }, { serialNumber: 'asc' }],
+  });
+
+  const docIds = [...new Set(rows.map((e) => e.documentId).filter(Boolean))] as string[];
+  const docs =
+    docIds.length > 0
+      ? await prisma.accountingDocument.findMany({
+          where: { id: { in: docIds } },
+          select: { id: true, type: true, propertyId: true },
+        })
+      : [];
+  const docMap = new Map(docs.map((d) => [d.id, d]));
+
+  const entries = rows.map((e) => ({
+    id: e.id,
+    serialNumber: e.serialNumber,
+    date: e.date.toISOString().slice(0, 10),
+    descriptionAr: e.descriptionAr,
+    descriptionEn: e.descriptionEn,
+    documentType: e.documentId ? docMap.get(e.documentId)?.type : undefined,
+    totalDebit: e.totalDebit,
+    totalCredit: e.totalCredit,
+    bankAccountId: e.bankAccountId,
+    contactId: e.contactId,
+    propertyId: e.documentId ? docMap.get(e.documentId)?.propertyId ?? null : null,
+  }));
+
+  const totals = {
+    debit: Math.round(entries.reduce((s, e) => s + e.totalDebit, 0) * 100) / 100,
+    credit: Math.round(entries.reduce((s, e) => s + e.totalCredit, 0) * 100) / 100,
+    count: entries.length,
+  };
+
+  return {
+    report: 'propertyLedger' as const,
+    fromDate: params.fromDate,
+    toDate: params.toDate,
+    propertyId: params.propertyId,
+    contactId: params.contactId,
+    entries,
+    totals,
+  };
 }
 
 /** جلب بيانات المحاسبة للصفحة — paginated bootstrap for scale */

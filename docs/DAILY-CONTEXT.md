@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (58) — Phase 6 محاسبة: استخراج التقارير + DB bank/property + E2E
+
+- **`AccountingReportsTab.tsx`:** استخراج تبويب التقارير (~620 سطر) من `AccountingSection`
+- **`documentLabels.ts`:** `DOC_TYPE_LABELS` مشترك
+- **DB تقارير:** `getBankStatementFromDb` + `getPropertyLedgerFromDb` — `GET /api/accounting/reports?report=bankStatement|propertyLedger`
+- **Hook:** `useAccountingDbReports` — جلب bank/property ledger من API عند `useDb`
+- **E2E:** `tests/e2e/api-accounting-reports.spec.ts` — trial/income/vat/bank/property + auth guard
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (57) — Phase 5 محاسبة: تقارير DB + PDF OCR + backfill
 
 - **`useAccountingDbReports`:** hook موحّد — trial/income/balance من API عند DB + fallback محلي

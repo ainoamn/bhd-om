@@ -226,6 +226,70 @@ export async function fetchPeriodCompareReport(params: { fromDate?: string; toDa
   }>(`${BASE}/reports?${sp}`);
 }
 
+export async function fetchBankStatementReport(params: {
+  bankAccountId: string;
+  fromDate?: string;
+  toDate?: string;
+}) {
+  const sp = new URLSearchParams({
+    report: 'bankStatement',
+    bankAccountId: params.bankAccountId,
+    ...(params.fromDate ? { fromDate: params.fromDate } : {}),
+    ...(params.toDate ? { toDate: params.toDate } : {}),
+  });
+  return fetchJson<{
+    report: 'bankStatement';
+    bankAccountId: string;
+    fromDate?: string;
+    toDate?: string;
+    lines: Array<{
+      entryId: string;
+      date: string;
+      descriptionAr?: string | null;
+      descriptionEn?: string | null;
+      contactId?: string | null;
+      propertyId?: number | null;
+      debit: number;
+      credit: number;
+    }>;
+    balance: { debit: number; credit: number; balance: number };
+  }>(`${BASE}/reports?${sp}`);
+}
+
+export async function fetchPropertyLedgerReport(params: {
+  propertyId?: number;
+  contactId?: string;
+  fromDate?: string;
+  toDate?: string;
+}) {
+  const sp = new URLSearchParams({ report: 'propertyLedger' });
+  if (params.propertyId != null) sp.set('propertyId', String(params.propertyId));
+  if (params.contactId) sp.set('contactId', params.contactId);
+  if (params.fromDate) sp.set('fromDate', params.fromDate);
+  if (params.toDate) sp.set('toDate', params.toDate);
+  return fetchJson<{
+    report: 'propertyLedger';
+    fromDate?: string;
+    toDate?: string;
+    propertyId?: number;
+    contactId?: string;
+    entries: Array<{
+      id: string;
+      serialNumber: string;
+      date: string;
+      descriptionAr?: string | null;
+      descriptionEn?: string | null;
+      documentType?: string;
+      totalDebit: number;
+      totalCredit: number;
+      bankAccountId?: string | null;
+      contactId?: string | null;
+      propertyId?: number | null;
+    }>;
+    totals: { debit: number; credit: number; count: number };
+  }>(`${BASE}/reports?${sp}`);
+}
+
 export async function suggestJournalEntry(description: string, amount?: number) {
   return fetchJson<{
     lines: Array<{ accountId: string; debit: number; credit: number; descriptionAr?: string }>;

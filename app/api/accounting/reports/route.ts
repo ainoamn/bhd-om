@@ -6,6 +6,8 @@ import {
   getAgingReportFromDb,
   getCashFlowFromDb,
   getPeriodCompareFromDb,
+  getBankStatementFromDb,
+  getPropertyLedgerFromDb,
 } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 
@@ -45,6 +47,29 @@ export async function GET(request: NextRequest) {
     if (report === 'compare') {
       const compare = await getPeriodCompareFromDb(fromDate, toDate);
       return NextResponse.json(compare);
+    }
+
+    if (report === 'bankStatement') {
+      const bankAccountId = searchParams.get('bankAccountId') || 'CASH';
+      const statement = await getBankStatementFromDb({
+        bankAccountId,
+        fromDate,
+        toDate,
+      });
+      return NextResponse.json(statement);
+    }
+
+    if (report === 'propertyLedger') {
+      const propertyIdRaw = searchParams.get('propertyId');
+      const contactId = searchParams.get('contactId') || undefined;
+      const propertyId = propertyIdRaw ? parseInt(propertyIdRaw, 10) : undefined;
+      const ledger = await getPropertyLedgerFromDb({
+        propertyId: Number.isFinite(propertyId) ? propertyId : undefined,
+        contactId,
+        fromDate,
+        toDate,
+      });
+      return NextResponse.json(ledger);
     }
 
     const entries = await getJournalEntriesFromDb({ fromDate, toDate: asOfDate });
