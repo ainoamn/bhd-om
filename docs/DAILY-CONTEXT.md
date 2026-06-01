@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (59) — Phase 7 محاسبة: استخراج تبويبات + OCR عربي + E2E UI
+
+- **تبويبات مستخرجة:** `AccountingJournalTab`, `AccountingClaimsTab`, `AccountingPeriodsTab`, `AccountingAuditTab`
+- **`data-testid="accounting-hub"`** + test ids لكل تبويب — لاختبارات Playwright
+- **OCR عربي:** `arabicOcrNormalize.ts` — أرقام عربية/فارسية → Western قبل `parseInvoiceFromText`
+- **E2E UI:** `tests/e2e/accounting-hub.spec.ts` — تحميل المحاسبة + 8 تبويبات + trial report
+- **`npm run build`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (58ب) — إصلاح خطأ المحاسبة: migrations + SSR resilient
 
 - **السبب:** 3 migrations معلّقة (`dueDate`, `journalEntryId`, `bankAccountId/contactId/documentId`) — Prisma يفشل عند SSR → «حدث خطأ»

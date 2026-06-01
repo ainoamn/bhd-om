@@ -87,7 +87,7 @@ function isPurchase(text: string) {
 
 function pickTotalAmount(text: string, amounts: number[]): number | undefined {
   if (amounts.length === 0) return undefined;
-  const totalLine = text.match(/(?:total|grand\s+total|الإجمالي|المجموع|amount\s+due)[^\d]{0,30}(\d[\d,.\s]*)/i);
+  const totalLine = text.match(/(?:total|grand\s+total|الإجمالي|المجموع|amount\s+due|الاجمالي|المبلغ\s*الاجمالي)[^\d]{0,30}(\d[\d,.\s]*)/i);
   if (totalLine) {
     const n = parseFloat(totalLine[1].replace(/[,\s]/g, ''));
     if (Number.isFinite(n) && n > 0) return Math.round(n * 1000) / 1000;
@@ -110,8 +110,10 @@ function extractDueDate(text: string, dates: string[], invoiceDate?: string): st
   return future.length > 0 ? future[future.length - 1] : undefined;
 }
 
+import { normalizeArabicOcrText } from './arabicOcrNormalize';
+
 export function parseInvoiceFromText(text: string, fileName?: string): ScannedInvoiceDraft | null {
-  const combined = [text, fileName || ''].filter(Boolean).join('\n').trim();
+  const combined = normalizeArabicOcrText([text, fileName || ''].filter(Boolean).join('\n'));
   if (combined.length < 3) return null;
 
   const dates = extractDates(combined);

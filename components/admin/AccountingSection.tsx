@@ -49,6 +49,10 @@ import SortSelect, { type SortOption } from './SortSelect';
 import AccountingFilter from './AccountingFilter';
 import AccountingQuickActions from './accounting/AccountingQuickActions';
 import AccountingReportsTab from './accounting/AccountingReportsTab';
+import AccountingClaimsTab from './accounting/AccountingClaimsTab';
+import AccountingJournalTab from './accounting/AccountingJournalTab';
+import AccountingPeriodsTab from './accounting/AccountingPeriodsTab';
+import AccountingAuditTab from './accounting/AccountingAuditTab';
 import AccountingInvoiceScanModal, { type InvoiceScanResult } from './accounting/AccountingInvoiceScanModal';
 import { computeFinancialKpisFromAccounts } from '@/lib/accounting/dashboard/accountStats';
 import styles from './accounting.module.css';
@@ -849,7 +853,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   }, [documents]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="accounting-hub">
         <div className={styles.filterBar}>
           <div className={styles.filterField}>
             <label className={styles.filterLabel}>{ar ? 'بحث' : 'Search'}</label>
@@ -1464,80 +1468,26 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       )}
 
       {activeTab === 'journal' && (
-        <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-4">
-            <h4 className="flex items-center gap-2 font-bold text-gray-900">
-              <Icon name="documentText" className="h-5 w-5 admin-accent-text" />
-              {ar ? 'قيود اليومية' : 'Journal Entries'}
-            </h4>
-            <div className="flex flex-wrap items-center gap-4">
-              <SortSelect value={sortJournal} onChange={setSortJournal} ar={ar} />
-              <button
-              type="button"
-              className="admin-btn-primary inline-flex items-center gap-2 text-sm shadow-sm hover:shadow-md"
-              onClick={() => {
-                setJournalForm({
-                  date: new Date().toISOString().slice(0, 10),
-                  descriptionAr: '',
-                  descriptionEn: '',
-                  lines: [{ accountId: '', debit: '', credit: '', desc: '' }],
-                });
-                setShowAddJournal(true);
-              }}
-            >
-              <Icon name="plus" className="h-4 w-4" />
-              {ar ? 'قيد يومية يدوي' : 'Add journal entry'}
-            </button>
-            </div>
-          </div>
-          {sortedEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-20">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100">
-                <Icon name="documentText" className="h-8 w-8 text-gray-400" />
-              </div>
-              <p className="text-gray-500 font-medium">{ar ? 'لا توجد قيود' : 'No journal entries'}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>{ar ? 'التاريخ' : 'Date'}</th>
-                    <th>{ar ? 'رقم القيد' : 'Entry #'}</th>
-                    <th>{ar ? 'الوصف' : 'Description'}</th>
-                    <th>{ar ? 'النوع' : 'Type'}</th>
-                    <th>{ar ? 'المبلغ' : 'Amount'}</th>
-                    <th>{ar ? 'الرابط' : 'Link'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedEntries.map((e) => (
-                    <tr key={e.id}>
-                      <td>{new Date(e.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                      <td className="font-mono text-sm">{e.serialNumber}</td>
-                      <td>{ar ? e.descriptionAr : e.descriptionEn || e.descriptionAr || '—'}</td>
-                      <td>{e.documentType ? (ar ? DOC_TYPE_LABELS[e.documentType].ar : DOC_TYPE_LABELS[e.documentType].en) : '—'}</td>
-                      <td>{e.totalDebit.toLocaleString()} ر.ع</td>
-                      <td className="text-xs">
-                        {e.contactId && <span className="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-800">{ar ? 'عميل' : 'Contact'}</span>}
-                        {e.bankAccountId && <span className="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">{ar ? 'بنك' : 'Bank'}</span>}
-                        {e.propertyId && <span className="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-800">{ar ? 'عقار' : 'Property'}</span>}
-                        {e.projectId && <span className="inline-block px-2 py-0.5 rounded bg-violet-100 text-violet-800">{ar ? 'مشروع' : 'Project'}</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {useDb && (dataMeta?.journalTotal ?? 0) > journalEntries.length && (
-            <div className="border-t border-gray-100 px-6 py-4 text-center">
-              <button type="button" onClick={loadMoreJournal} disabled={loadingMoreJournal} className="admin-btn-secondary text-sm !py-2">
-                {loadingMoreJournal ? (ar ? 'جاري التحميل...' : 'Loading...') : (ar ? `تحميل المزيد (${journalEntries.length}/${dataMeta?.journalTotal})` : `Load more (${journalEntries.length}/${dataMeta?.journalTotal})`)}
-              </button>
-            </div>
-          )}
-        </div>
+        <AccountingJournalTab
+          ar={ar}
+          sortedEntries={sortedEntries}
+          sortJournal={sortJournal}
+          setSortJournal={setSortJournal}
+          useDb={useDb}
+          journalCount={journalEntries.length}
+          journalTotal={dataMeta?.journalTotal}
+          loadingMoreJournal={loadingMoreJournal}
+          loadMoreJournal={loadMoreJournal}
+          onAddJournal={() => {
+            setJournalForm({
+              date: new Date().toISOString().slice(0, 10),
+              descriptionAr: '',
+              descriptionEn: '',
+              lines: [{ accountId: '', debit: '', credit: '', desc: '' }],
+            });
+            setShowAddJournal(true);
+          }}
+        />
       )}
 
       {activeTab === 'documents' && (
@@ -2295,100 +2245,20 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         />
       )}
 
-      {/* المطالبات: ذمم مدينة + شيكات تحت التحصيل */}
-      {activeTab === 'claims' && (() => {
-        const rawClaims = documents.filter((d) => (d.type === 'INVOICE' && d.status !== 'PAID' && d.status !== 'CANCELLED') || (d.type === 'RECEIPT' && d.paymentMethod === 'CHEQUE'));
-        const getContactName = (d: AccountingDocument) => (d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '');
-        const getPropDisplay = (d: AccountingDocument) => { const p = d.propertyId ? getPropertyById(d.propertyId) : null; return p ? getPropertyDisplay(p) : ''; };
-        const claimsList = [...rawClaims].sort((a, b) => {
-          switch (sortDocuments) {
-            case 'dateDesc': return b.date.localeCompare(a.date);
-            case 'dateAsc': return a.date.localeCompare(b.date);
-            case 'number': return (a.serialNumber || '').localeCompare(b.serialNumber || '');
-            case 'property': return getPropDisplay(a).localeCompare(getPropDisplay(b));
-            case 'alphabetical': return getContactName(a).localeCompare(getContactName(b));
-            default: return 0;
-          }
-        });
-        const claimsTableData = claimsList.map((d) => ({
-          type: d.type === 'RECEIPT' ? (ar ? 'شيك' : 'Cheque') : (ar ? 'فاتورة' : 'Invoice'),
-          number: d.serialNumber,
-          contact: d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '—',
-          date: new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB'),
-          amount: `${d.totalAmount.toLocaleString()} ر.ع`,
-          status: d.type === 'RECEIPT' ? (ar ? 'شيك آجل' : 'Post-dated') : d.status,
-        }));
-        return (
-        <div className={styles.featureSection}>
-          <div className={`${styles.featureSectionHeader} flex-wrap`}>
-            <div className={styles.featureSectionIcon}><Icon name="inbox" className="h-5 w-5" /></div>
-            <h4 className={styles.featureSectionTitle}>{ar ? 'المطالبات (ذمم مدينة + شيكات)' : 'Receivables & Cheques'}</h4>
-            <SortSelect value={sortDocuments} onChange={setSortDocuments} ar={ar} />
-            <div className={ar ? 'mr-auto' : 'ml-auto'}>
-            <ClaimsPaymentsExportButtons
-              tableData={claimsTableData}
-              headers={[
-                { key: 'type', labelAr: 'النوع', labelEn: 'Type' },
-                { key: 'number', labelAr: 'الرقم', labelEn: 'Number' },
-                { key: 'contact', labelAr: 'العميل', labelEn: 'Contact' },
-                { key: 'date', labelAr: 'التاريخ', labelEn: 'Date' },
-                { key: 'amount', labelAr: 'المبلغ', labelEn: 'Amount' },
-                { key: 'status', labelAr: 'الحالة', labelEn: 'Status' },
-              ]}
-              printAreaId="claims-export-area"
-              filename={ar ? 'المطالبات' : 'Claims'}
-              ar={ar}
-            />
-            </div>
-          </div>
-          <div className={styles.featureSectionBody}>
-            <div className="mb-6 flex flex-wrap gap-6">
-              <div>
-                <p className={styles.statCardLabel}>{ar ? 'إجمالي المطالبات' : 'Total Claims'}</p>
-                <p className={`${styles.statCardValue} ${styles.statCardAccent}`}>{totalClaims.toLocaleString()} ر.ع</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{ar ? 'ذمم مدينة (فواتير)' : 'Receivables (invoices)'}</p>
-                <p className="font-semibold">{receivables.toLocaleString()} ر.ع</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{ar ? 'شيكات تحت التحصيل' : 'Cheques receivable'}</p>
-                <p className="font-semibold">{chequesReceivable.toLocaleString()} ر.ع</p>
-              </div>
-            </div>
-            <div id="claims-export-area" className="overflow-x-auto">
-              <table className="admin-table w-full">
-                <thead>
-                  <tr>
-                    <th>{ar ? 'النوع' : 'Type'}</th>
-                    <th>{ar ? 'الرقم' : 'Number'}</th>
-                    <th>{ar ? 'العميل' : 'Contact'}</th>
-                    <th>{ar ? 'التاريخ' : 'Date'}</th>
-                    <th>{ar ? 'المبلغ' : 'Amount'}</th>
-                    <th>{ar ? 'الحالة' : 'Status'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {claimsList.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.type === 'RECEIPT' ? (ar ? 'شيك' : 'Cheque') : (ar ? 'فاتورة' : 'Invoice')}</td>
-                      <td className="font-mono">{d.serialNumber}</td>
-                      <td>{d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '—'}</td>
-                      <td>{new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                      <td className="font-semibold">{d.totalAmount.toLocaleString()} ر.ع</td>
-                      <td><span className={styles.badge}>{d.type === 'RECEIPT' ? (ar ? 'شيك آجل' : 'Post-dated') : d.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {claimsList.length === 0 && (
-              <p className="text-gray-500 py-8 text-center">{ar ? 'لا توجد مطالبات أو شيكات' : 'No receivables or cheques'}</p>
-            )}
-          </div>
-        </div>
-        );
-      })()}
+      {activeTab === 'claims' && (
+        <AccountingClaimsTab
+          ar={ar}
+          locale={locale}
+          documents={documents}
+          contacts={contacts}
+          sortDocuments={sortDocuments}
+          setSortDocuments={setSortDocuments}
+          totalClaims={totalClaims}
+          receivables={receivables}
+          chequesReceivable={chequesReceivable}
+          getPropertyDisplay={getPropertyDisplay}
+        />
+      )}
 
       {/* الشيكات - شيكات تحت التحصيل ومدفوعة مرتبطة بعقار/مشروع */}
       {activeTab === 'cheques' && (() => {
@@ -2643,80 +2513,17 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       })()}
 
       {activeTab === 'periods' && (
-        <div className="admin-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h4 className="font-bold text-gray-900">{ar ? 'الفترات المالية' : 'Fiscal Periods'}</h4>
-            <p className="text-sm text-gray-500 mt-1">{ar ? 'لا ترحيل لفترة مغلقة' : 'No posting to closed period'}</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>{ar ? 'الفترة' : 'Period'}</th>
-                  <th>{ar ? 'من' : 'From'}</th>
-                  <th>{ar ? 'إلى' : 'To'}</th>
-                  <th>{ar ? 'الحالة' : 'Status'}</th>
-                  <th>{ar ? 'إجراء' : 'Action'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {periods.map((p) => (
-                  <tr key={p.id}>
-                    <td className="font-mono">{p.code}</td>
-                    <td>{new Date(p.startDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                    <td>{new Date(p.endDate).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                    <td>{p.isLocked ? <span className="admin-badge">{ar ? 'مغلق' : 'Locked'}</span> : <span className="admin-badge-success">{ar ? 'مفتوح' : 'Open'}</span>}</td>
-                    <td>
-                      {!p.isLocked && (
-                        <button
-                          type="button"
-                          onClick={() => { lockPeriod(p.id); loadData(); }}
-                          className="text-sm text-amber-600 hover:underline"
-                        >
-                          {ar ? 'إغلاق الفترة' : 'Lock period'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AccountingPeriodsTab
+          ar={ar}
+          periods={periods}
+          onLockPeriod={(periodId) => {
+            lockPeriod(periodId);
+            loadData();
+          }}
+        />
       )}
 
-      {activeTab === 'audit' && (
-        <div className="admin-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h4 className="font-bold text-gray-900">{ar ? 'سجل التدقيق' : 'Audit Log'}</h4>
-            <p className="text-sm text-gray-500 mt-1">{ar ? 'لا تعديل بدون أثر تدقيقي' : 'No modification without audit trail'}</p>
-          </div>
-          <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>{ar ? 'الوقت' : 'Time'}</th>
-                  <th>{ar ? 'الإجراء' : 'Action'}</th>
-                  <th>{ar ? 'الكيان' : 'Entity'}</th>
-                  <th>{ar ? 'المعرف' : 'ID'}</th>
-                  <th>{ar ? 'السبب' : 'Reason'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditLogs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="text-xs">{new Date(log.timestamp).toLocaleString(ar ? 'ar-OM' : 'en-GB')}</td>
-                    <td><span className="admin-badge">{log.action}</span></td>
-                    <td>{log.entityType}</td>
-                    <td className="font-mono text-xs">{log.entityId.slice(0, 12)}...</td>
-                    <td className="text-xs">{log.reason || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {activeTab === 'audit' && <AccountingAuditTab ar={ar} auditLogs={auditLogs} />}
 
       {activeTab === 'settings' && (
         <div className="admin-card p-6 max-w-xl">
