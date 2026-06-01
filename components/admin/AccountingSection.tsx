@@ -43,13 +43,14 @@ import { projects as projectsList, getProjectDisplayText } from '@/lib/data/proj
 import { properties as propertiesList, getPropertyById, getPropertyDisplayText } from '@/lib/data/properties';
 import DateInput from '@/components/shared/DateInput';
 import InvoicePrint from './InvoicePrint';
-import ClaimsPaymentsExportButtons from './ClaimsPaymentsExportButtons';
 import DocumentPrintModal from './DocumentPrintModal';
 import SortSelect, { type SortOption } from './SortSelect';
 import AccountingFilter from './AccountingFilter';
 import AccountingQuickActions from './accounting/AccountingQuickActions';
 import AccountingReportsTab from './accounting/AccountingReportsTab';
 import AccountingClaimsTab from './accounting/AccountingClaimsTab';
+import AccountingChequesTab from './accounting/AccountingChequesTab';
+import AccountingPaymentsTab from './accounting/AccountingPaymentsTab';
 import AccountingJournalTab from './accounting/AccountingJournalTab';
 import AccountingPeriodsTab from './accounting/AccountingPeriodsTab';
 import AccountingAuditTab from './accounting/AccountingAuditTab';
@@ -2260,257 +2261,55 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         />
       )}
 
-      {/* الشيكات - شيكات تحت التحصيل ومدفوعة مرتبطة بعقار/مشروع */}
-      {activeTab === 'cheques' && (() => {
-        let chequesList = documents.filter((d) => d.paymentMethod === 'CHEQUE');
-        if (filterFromDate) chequesList = chequesList.filter((d) => d.date >= filterFromDate);
-        if (filterToDate) chequesList = chequesList.filter((d) => d.date <= filterToDate);
-        if (filterContactId) chequesList = chequesList.filter((d) => d.contactId === filterContactId);
-        if (filterPropertyId) chequesList = chequesList.filter((d) => d.propertyId === parseInt(filterPropertyId, 10));
-        if (filterProjectId) chequesList = chequesList.filter((d) => d.projectId === parseInt(filterProjectId, 10));
-        if (searchQuery?.trim()) {
-          const q = searchQuery.toLowerCase();
-          chequesList = chequesList.filter((d) =>
-            (d.serialNumber || '').toLowerCase().includes(q) ||
-            (d.chequeNumber || d.paymentReference || '').toLowerCase().includes(q) ||
-            (d.descriptionAr || '').toLowerCase().includes(q) ||
-            (d.chequeBankName || '').toLowerCase().includes(q)
-          );
-        }
-        const getContactName = (d: AccountingDocument) => (d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '');
-        const getPropDisplay = (d: AccountingDocument) => { const p = d.propertyId ? getPropertyById(d.propertyId) : null; return p ? getPropertyDisplay(p) : ''; };
-        const getProjDisplay = (d: AccountingDocument) => { const p = d.projectId ? projectsList.find((x) => x.id === d.projectId) : null; return p ? getProjectDisplay(p) : ''; };
-        const sortedCheques = [...chequesList].sort((a, b) => {
-          switch (sortDocuments) {
-            case 'dateDesc': return b.date.localeCompare(a.date);
-            case 'dateAsc': return a.date.localeCompare(b.date);
-            case 'number': return (a.serialNumber || '').localeCompare(b.serialNumber || '');
-            case 'property': return getPropDisplay(a).localeCompare(getPropDisplay(b));
-            case 'alphabetical': return getContactName(a).localeCompare(getContactName(b));
-            default: return 0;
-          }
-        });
-        const chequesTableData = sortedCheques.map((d) => ({
-          date: new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB'),
-          number: d.serialNumber,
-          chequeNo: d.chequeNumber || d.paymentReference || '—',
-          dueDate: d.chequeDueDate || d.dueDate ? new Date(d.chequeDueDate || d.dueDate!).toLocaleDateString(ar ? 'ar-OM' : 'en-GB') : '—',
-          bank: d.chequeBankName || '—',
-          contact: d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '—',
-          property: d.propertyId ? (() => { const p = getPropertyById(d.propertyId!); return p ? getPropertyDisplay(p) : ''; })() : '—',
-          project: d.projectId ? (() => { const p = projectsList.find((x) => x.id === d.projectId); return p ? getProjectDisplay(p) : ''; })() : '—',
-          type: d.type === 'RECEIPT' ? (ar ? 'تحت التحصيل' : 'Receivable') : (ar ? 'مدفوع' : 'Payable'),
-          amount: `${d.totalAmount.toLocaleString()} ر.ع`,
-        }));
-        return (
-        <div className={styles.featureSection}>
-          <div className={`${styles.featureSectionHeader} flex-wrap`}>
-            <div className={styles.featureSectionIcon}><Icon name="archive" className="h-5 w-5" /></div>
-            <h4 className={styles.featureSectionTitle}>{ar ? 'الشيكات' : 'Cheques'}</h4>
-            <SortSelect value={sortDocuments} onChange={setSortDocuments} ar={ar} />
-            <div className={ar ? 'mr-auto' : 'ml-auto'}>
-              <button
-                type="button"
-                onClick={() => {
-                  setChequeForm({
-                    chequeNumber: '',
-                    amount: '',
-                    dueDate: new Date().toISOString().slice(0, 10),
-                    bankName: '',
-                    descriptionAr: '',
-                    contactId: '',
-                    propertyId: '',
-                    projectId: '',
-                    contractId: '',
-                    date: new Date().toISOString().slice(0, 10),
-                  });
-                  setShowAddCheque(true);
-                }}
-                className="admin-btn-primary text-sm"
-              >
-                {ar ? '➕ إضافة شيك' : '➕ Add Cheque'}
-              </button>
-            </div>
-          </div>
-          <div className={styles.featureSectionBody}>
-            <div className="mb-6 flex flex-wrap gap-6">
-              <div>
-                <p className={styles.statCardLabel}>{ar ? 'إجمالي الشيكات' : 'Total Cheques'}</p>
-                <p className={`${styles.statCardValue} ${styles.statCardAccent}`}>{chequesList.reduce((s, d) => s + d.totalAmount, 0).toLocaleString()} ر.ع</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{ar ? 'تحت التحصيل' : 'Receivable'}</p>
-                <p className="font-semibold">{chequesList.filter((d) => d.type === 'RECEIPT').reduce((s, d) => s + d.totalAmount, 0).toLocaleString()} ر.ع</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{ar ? 'مدفوعة' : 'Payable'}</p>
-                <p className="font-semibold">{chequesList.filter((d) => d.type === 'PAYMENT').reduce((s, d) => s + d.totalAmount, 0).toLocaleString()} ر.ع</p>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="admin-table w-full">
-                <thead>
-                  <tr>
-                    <th>{ar ? 'التاريخ' : 'Date'}</th>
-                    <th>{ar ? 'الرقم' : 'Number'}</th>
-                    <th>{ar ? 'رقم الشيك' : 'Cheque #'}</th>
-                    <th>{ar ? 'تاريخ الاستحقاق' : 'Due Date'}</th>
-                    <th>{ar ? 'البنك' : 'Bank'}</th>
-                    <th>{ar ? 'العميل' : 'Contact'}</th>
-                    <th>{ar ? 'العقار' : 'Property'}</th>
-                    <th>{ar ? 'المشروع' : 'Project'}</th>
-                    <th>{ar ? 'النوع' : 'Type'}</th>
-                    <th>{ar ? 'المبلغ' : 'Amount'}</th>
-                    <th>{ar ? 'إجراءات' : 'Actions'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedCheques.map((d) => (
-                    <tr key={d.id}>
-                      <td>{new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                      <td className="font-mono">{d.serialNumber}</td>
-                      <td>{d.chequeNumber || d.paymentReference || '—'}</td>
-                      <td>{(d.chequeDueDate || d.dueDate) ? new Date(d.chequeDueDate || d.dueDate!).toLocaleDateString(ar ? 'ar-OM' : 'en-GB') : '—'}</td>
-                      <td>{d.chequeBankName || '—'}</td>
-                      <td>{d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '—'}</td>
-                      <td className="text-sm align-top">{d.propertyId ? (() => { const p = getPropertyById(d.propertyId!); return p ? <span className="whitespace-pre-line block text-left">{getPropertyDisplay(p)}</span> : d.propertyId; })() : '—'}</td>
-                      <td className="text-sm">{d.projectId ? (() => { const p = projectsList.find((x) => x.id === d.projectId); return p ? getProjectDisplay(p) : ''; })() : '—'}</td>
-                      <td><span className={styles.badge}>{d.type === 'RECEIPT' ? (ar ? 'تحت التحصيل' : 'Receivable') : (ar ? 'مدفوع' : 'Payable')}</span></td>
-                      <td className="font-semibold">{d.totalAmount.toLocaleString()} ر.ع</td>
-                      <td>
-                        <button type="button" onClick={() => setPrintDocument(d)} className="text-sm admin-accent-text hover:underline">
-                          📄 {ar ? 'عرض' : 'View'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {chequesList.length === 0 && (
-              <p className="text-gray-500 py-8 text-center">{ar ? 'لا توجد شيكات. أضف شيكاً يدوياً أو من صفحة عقار/مشروع.' : 'No cheques. Add one manually or from property/project page.'}</p>
-            )}
-          </div>
-        </div>
-        );
-      })()}
+      {activeTab === 'cheques' && (
+        <AccountingChequesTab
+          ar={ar}
+          locale={locale}
+          documents={documents}
+          contacts={contacts}
+          sortDocuments={sortDocuments}
+          setSortDocuments={setSortDocuments}
+          filterFromDate={filterFromDate}
+          filterToDate={filterToDate}
+          filterContactId={filterContactId}
+          filterPropertyId={filterPropertyId}
+          filterProjectId={filterProjectId}
+          searchQuery={searchQuery}
+          projectsList={projectsList}
+          getPropertyDisplay={getPropertyDisplay}
+          getProjectDisplay={getProjectDisplay}
+          setPrintDocument={setPrintDocument}
+          onAddCheque={() => {
+            setChequeForm({
+              chequeNumber: '',
+              amount: '',
+              dueDate: new Date().toISOString().slice(0, 10),
+              bankName: '',
+              descriptionAr: '',
+              contactId: '',
+              propertyId: '',
+              projectId: '',
+              contractId: '',
+              date: new Date().toISOString().slice(0, 10),
+            });
+            setShowAddCheque(true);
+          }}
+        />
+      )}
 
-      {/* Payments - من أي حساب / إلى أي حساب / السبب / العقار */}
-      {activeTab === 'payments' && (() => {
-        const rawPayments = documents.filter((d) => d.type === 'PAYMENT' || d.type === 'RECEIPT');
-        const getContactName = (d: AccountingDocument) => (d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '');
-        const getPropDisplay = (d: AccountingDocument) => { const p = d.propertyId ? getPropertyById(d.propertyId) : null; return p ? getPropertyDisplay(p) : ''; };
-        const paymentsList = [...rawPayments].sort((a, b) => {
-          switch (sortDocuments) {
-            case 'dateDesc': return b.date.localeCompare(a.date);
-            case 'dateAsc': return a.date.localeCompare(b.date);
-            case 'number': return (a.serialNumber || '').localeCompare(b.serialNumber || '');
-            case 'property': return getPropDisplay(a).localeCompare(getPropDisplay(b));
-            case 'alphabetical': return getContactName(a).localeCompare(getContactName(b));
-            default: return 0;
-          }
-        });
-        const paymentsTableData = paymentsList.map((d) => {
-          const method = d.paymentMethod || (d.bankAccountId ? 'BANK_TRANSFER' : 'CASH');
-          const fromAcc = d.type === 'RECEIPT'
-            ? (method === 'CHEQUE' ? (ar ? 'شيكات تحت التحصيل' : 'Cheques receivable')
-              : method === 'BANK_TRANSFER' ? (() => { const b = bankAccounts.find((x) => x.id === d.bankAccountId); return b ? getBankAccountDisplay(b) : (ar ? 'البنوك' : 'Banks'); })()
-              : (ar ? 'الصندوق' : 'Cash'))
-            : (ar ? 'مصروفات التشغيل' : 'Operating expenses');
-          const toAcc = d.type === 'RECEIPT' ? (ar ? 'إيرادات الإيجار' : 'Rent revenue') : (d.bankAccountId ? (() => { const b = bankAccounts.find((x) => x.id === d.bankAccountId); return b ? getBankAccountDisplay(b) : (ar ? 'البنوك' : 'Banks'); })() : (ar ? 'الصندوق' : 'Cash'));
-          const prop = d.propertyId ? getPropertyById(d.propertyId) : null;
-          return {
-            date: new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB'),
-            number: d.serialNumber,
-            type: ar ? DOC_TYPE_LABELS[d.type].ar : DOC_TYPE_LABELS[d.type].en,
-            from: fromAcc,
-            to: toAcc,
-            reason: d.descriptionAr || d.descriptionEn || '—',
-            property: prop ? getPropertyDisplay(prop) : '—',
-            contact: d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '—',
-            amount: `${d.totalAmount.toLocaleString()} ر.ع`,
-          };
-        });
-        return (
-        <div className={styles.featureSection}>
-          <div className={`${styles.featureSectionHeader} flex-wrap`}>
-            <div className={styles.featureSectionIcon}><Icon name="archive" className="h-5 w-5" /></div>
-            <h4 className={styles.featureSectionTitle}>{ar ? 'المدفوعات' : 'Payments'}</h4>
-            <SortSelect value={sortDocuments} onChange={setSortDocuments} ar={ar} />
-            <div className={ar ? 'mr-auto' : 'ml-auto'}>
-            <ClaimsPaymentsExportButtons
-              tableData={paymentsTableData}
-              headers={[
-                { key: 'date', labelAr: 'التاريخ', labelEn: 'Date' },
-                { key: 'number', labelAr: 'الرقم', labelEn: 'Number' },
-                { key: 'type', labelAr: 'النوع', labelEn: 'Type' },
-                { key: 'from', labelAr: 'من حساب', labelEn: 'From account' },
-                { key: 'to', labelAr: 'إلى حساب', labelEn: 'To account' },
-                { key: 'reason', labelAr: 'السبب / الوصف', labelEn: 'Reason' },
-                { key: 'property', labelAr: 'العقار', labelEn: 'Property' },
-                { key: 'contact', labelAr: 'العميل', labelEn: 'Contact' },
-                { key: 'amount', labelAr: 'المبلغ', labelEn: 'Amount' },
-              ]}
-              printAreaId="payments-export-area"
-              filename={ar ? 'المدفوعات' : 'Payments'}
-              ar={ar}
-            />
-            </div>
-          </div>
-          <div className={styles.featureSectionBody}>
-            <div className="mb-6">
-              <p className={styles.statCardLabel}>{ar ? 'إجمالي المدفوعات والإيصالات' : 'Total Payments & Receipts'}</p>
-              <p className={`${styles.statCardValue} ${styles.statCardAccent}`}>{paymentsTotal.toLocaleString()} ر.ع</p>
-            </div>
-            <div id="payments-export-area" className="overflow-x-auto">
-              <table className="admin-table w-full">
-                <thead>
-                  <tr>
-                    <th>{ar ? 'التاريخ' : 'Date'}</th>
-                    <th>{ar ? 'الرقم' : 'Number'}</th>
-                    <th>{ar ? 'النوع' : 'Type'}</th>
-                    <th>{ar ? 'من حساب (استلمنا في)' : 'From account'}</th>
-                    <th>{ar ? 'إلى حساب' : 'To account'}</th>
-                    <th>{ar ? 'السبب / الوصف' : 'Reason'}</th>
-                    <th>{ar ? 'العقار' : 'Property'}</th>
-                    <th>{ar ? 'العميل' : 'Contact'}</th>
-                    <th>{ar ? 'المبلغ' : 'Amount'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentsList.map((d) => {
-                    const method = d.paymentMethod || (d.bankAccountId ? 'BANK_TRANSFER' : 'CASH');
-                    const fromAcc = d.type === 'RECEIPT'
-                      ? (method === 'CHEQUE' ? (ar ? 'شيكات تحت التحصيل' : 'Cheques receivable')
-                        : method === 'BANK_TRANSFER' ? (() => { const b = bankAccounts.find((x) => x.id === d.bankAccountId); return b ? getBankAccountDisplay(b) : (ar ? 'البنوك' : 'Banks'); })()
-                        : (ar ? 'الصندوق' : 'Cash'))
-                      : (ar ? 'مصروفات التشغيل' : 'Operating expenses');
-                    const toAcc = d.type === 'RECEIPT' ? (ar ? 'إيرادات الإيجار' : 'Rent revenue') : (d.bankAccountId ? (() => { const b = bankAccounts.find((x) => x.id === d.bankAccountId); return b ? getBankAccountDisplay(b) : (ar ? 'البنوك' : 'Banks'); })() : (ar ? 'الصندوق' : 'Cash'));
-                    const prop = d.propertyId ? getPropertyById(d.propertyId) : null;
-                    return (
-                      <tr key={d.id}>
-                        <td>{new Date(d.date).toLocaleDateString(ar ? 'ar-OM' : 'en-GB')}</td>
-                        <td className="font-mono">{d.serialNumber}</td>
-                        <td>{ar ? DOC_TYPE_LABELS[d.type].ar : DOC_TYPE_LABELS[d.type].en}</td>
-                        <td className="text-sm">{fromAcc}</td>
-                        <td className="text-sm">{toAcc}</td>
-                        <td className="text-sm max-w-[200px] truncate" title={ar ? d.descriptionAr : d.descriptionEn}>{d.descriptionAr || d.descriptionEn || '—'}</td>
-                        <td className="text-sm align-top">{prop ? <span className="whitespace-pre-line block text-left">{getPropertyDisplay(prop)}</span> : '—'}</td>
-                        <td className="text-sm">{d.contactId ? getContactDisplayFull(contacts.find((c) => c.id === d.contactId)!, locale) : '—'}</td>
-                        <td className="font-semibold">{d.totalAmount.toLocaleString()} ر.ع</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {paymentsList.length === 0 && (
-              <p className="text-gray-500 py-8 text-center">{ar ? 'لا توجد مدفوعات' : 'No payments'}</p>
-            )}
-          </div>
-        </div>
-        );
-      })()}
+      {activeTab === 'payments' && (
+        <AccountingPaymentsTab
+          ar={ar}
+          locale={locale}
+          documents={documents}
+          contacts={contacts}
+          bankAccounts={bankAccounts}
+          sortDocuments={sortDocuments}
+          setSortDocuments={setSortDocuments}
+          paymentsTotal={paymentsTotal}
+          getPropertyDisplay={getPropertyDisplay}
+        />
+      )}
 
       {activeTab === 'periods' && (
         <AccountingPeriodsTab

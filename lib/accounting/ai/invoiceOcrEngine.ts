@@ -82,7 +82,7 @@ function extractVendorHint(text: string): string | undefined {
 }
 
 function isPurchase(text: string) {
-  return /\b(مشتريات|purchase|supplier|vendor|مورد|bill\s+from|فاتورة\s+شراء)\b/i.test(text);
+  return /(مشتريات|purchase|supplier|vendor|مورد|bill\s+from|فاتورة\s+شراء)/i.test(text);
 }
 
 function pickTotalAmount(text: string, amounts: number[]): number | undefined {

@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-01 (60) — Phase 8 محاسبة: cheques/payments + FTA export + unit tests
+
+- **تبويبات:** `AccountingChequesTab`, `AccountingPaymentsTab` + `paymentFlowLabels.ts`
+- **FTA export:** `vatFtaExport.ts` — JSON/XML من تقرير VAT (زرّان في Export)
+- **Unit tests:** `npm run test:unit` — OCR normalize + invoice parse + FTA payload
+- **OCR:** إصلاح كشف «مشتريات» بدون `\b` (Arabic word boundaries)
+- **E2E:** تبويبا cheques/payments في `accounting-hub.spec.ts`
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-01 (59) — Phase 7 محاسبة: استخراج تبويبات + OCR عربي + E2E UI
 
 - **تبويبات مستخرجة:** `AccountingJournalTab`, `AccountingClaimsTab`, `AccountingPeriodsTab`, `AccountingAuditTab`

@@ -2,6 +2,9 @@
 
 import { useState, useRef } from 'react';
 import { downloadCsv } from '@/lib/utils/csvExport';
+import { downloadJson, downloadXml } from '@/lib/utils/jsonDownload';
+import { buildVatFtaExportPayload, buildVatFtaExportXml } from '@/lib/accounting/reports/vatFtaExport';
+import { getCompanyData } from '@/lib/data/companyData';
 
 type ReportView = 'trial' | 'income' | 'balance' | 'cashflow' | 'bankStatement' | 'propertyLedger' | 'vat' | 'aging' | 'reconciliation' | 'compare';
 
@@ -14,8 +17,16 @@ interface ReportExportButtonsProps {
   balanceSheet?: { assets: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; liabilities: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; equity: Array<{ code: string; nameAr: string; nameEn: string; amount: number }>; totalAssets: number; totalLiabilities: number };
   cashFlow?: { operating: number; investing: number; financing: number; netChange: number };
   vatReportData?: {
-    summary: { vatOutput: number; vatInput: number; netVatPayable: number };
-    lines: Array<{ serialNumber: string; date: string; type: string; vatAmount: number; direction: string }>;
+    summary: {
+      vatOutput: number;
+      vatInput: number;
+      netVatPayable: number;
+      taxableSales?: number;
+      taxablePurchases?: number;
+      documentCount?: number;
+      standardRate?: number;
+    };
+    lines: Array<{ serialNumber: string; date: string; type: string; vatAmount: number; direction: string; netAmount?: number }>;
     fromDate: string;
     toDate: string;
   } | null;
@@ -56,6 +67,37 @@ export default function ReportExportButtons({
   }[reportView];
 
   const filename = `${reportLabel}_${reportFrom}_${reportTo}`.replace(/\s+/g, '_');
+
+  const buildFtaPayload = () => {
+    if (!vatReportData) return null;
+    const company = typeof window !== 'undefined' ? getCompanyData() : null;
+    return buildVatFtaExportPayload(
+      {
+        fromDate: vatReportData.fromDate,
+        toDate: vatReportData.toDate,
+        summary: {
+          vatOutput: vatReportData.summary.vatOutput,
+          vatInput: vatReportData.summary.vatInput,
+          netVatPayable: vatReportData.summary.netVatPayable,
+          taxableSales: vatReportData.summary.taxableSales ?? 0,
+          taxablePurchases: vatReportData.summary.taxablePurchases ?? 0,
+          documentCount: vatReportData.summary.documentCount ?? vatReportData.lines.length,
+          standardRate: vatReportData.summary.standardRate ?? 0.05,
+        },
+        lines: vatReportData.lines.map((l) => ({
+          serialNumber: l.serialNumber,
+          date: l.date,
+          type: l.type,
+          netAmount: l.netAmount ?? 0,
+          vatAmount: l.vatAmount,
+          direction: l.direction as 'OUTPUT' | 'INPUT',
+        })),
+      },
+      company
+        ? { vatNumber: company.vatNumber, nameAr: company.nameAr, nameEn: company.nameEn, crNumber: company.crNumber }
+        : undefined
+    );
+  };
 
   const handlePrint = () => {
     window.print();
@@ -150,6 +192,16 @@ export default function ReportExportButtons({
     URL.revokeObjectURL(url);
   };
 
+  const handleFtaJson = () => {
+    const payload = buildFtaPayload();
+    if (payload) downloadJson(`${filename}_FTA`, payload);
+  };
+
+  const handleFtaXml = () => {
+    const payload = buildFtaPayload();
+    if (payload) downloadXml(`${filename}_FTA`, buildVatFtaExportXml(payload));
+  };
+
   return (
     <div className="relative">
       <button
@@ -175,6 +227,17 @@ export default function ReportExportButtons({
             <button type="button" onClick={() => { handleWord(); setOpen(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
               📝 Word
             </button>
+            {reportView === 'vat' && vatReportData && (
+              <>
+                <div className="my-1 border-t border-gray-100" />
+                <button type="button" onClick={() => { handleFtaJson(); setOpen(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
+                  🏛️ {ar ? 'FTA JSON' : 'FTA JSON'}
+                </button>
+                <button type="button" onClick={() => { handleFtaXml(); setOpen(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
+                  🏛️ {ar ? 'FTA XML' : 'FTA XML'}
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
