@@ -44,7 +44,11 @@ export function buildAddressBookContactPrintHtml(
     ? contact.companyData?.companyNameAr || contact.firstName || '—'
     : [contact.firstName, contact.secondName, contact.thirdName, contact.familyName].filter(Boolean).join(' ') || '—';
   const userId = options.linkedUserId || contact.userId || contact.linkedUserId || '';
-  const scanUrl = userId ? `${origin}/${locale}/scan/${userId}` : '';
+  const scanUrl = userId
+    ? `${origin}/${locale}/scan/${userId}`
+    : contact.id
+      ? `${origin}/${locale}/scan/contact/${contact.id}`
+      : '';
   const qrImg = scanUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(scanUrl)}`
     : '';

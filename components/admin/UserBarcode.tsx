@@ -4,17 +4,23 @@ import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface UserBarcodeProps {
-  userId: string;
+  userId?: string;
+  contactId?: string;
   locale: string;
   size?: number;
   className?: string;
 }
 
-/** باركود QR لكل مستخدم - عند المسح يفتح صفحة تفاصيل المستخدم الكاملة (كما في دفتر العناوين) */
-export default function UserBarcode({ userId, locale, size = 36, className = '' }: UserBarcodeProps) {
+/** باركود QR — مسح المستخدم أو جهة الاتصال لعرض البيانات الكاملة */
+export default function UserBarcode({ userId, contactId, locale, size = 36, className = '' }: UserBarcodeProps) {
   const [showFull, setShowFull] = useState(false);
   const base = typeof window !== 'undefined' ? window.location.origin : '';
-  const url = `${base}/${locale}/scan/${userId}`;
+  const url = userId
+    ? `${base}/${locale}/scan/${userId}`
+    : contactId
+      ? `${base}/${locale}/scan/contact/${contactId}`
+      : '';
+  if (!url) return null;
 
   return (
     <div className={`inline-flex items-center ${className}`}>

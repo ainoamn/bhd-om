@@ -1656,8 +1656,14 @@ export default function AdminAddressBookPage() {
                         className="text-right w-full block cursor-pointer"
                       >
                         <div className="flex items-center gap-1 min-w-0">
-                          {(c as { userId?: string }).userId && (
-                            <UserBarcode userId={(c as { userId: string }).userId} locale={locale} size={24} className="shrink-0" />
+                          {(c.userId || c.id) && (
+                            <UserBarcode
+                              userId={(c as { userId?: string }).userId}
+                              contactId={!((c as { userId?: string }).userId) ? c.id : undefined}
+                              locale={locale}
+                              size={24}
+                              className="shrink-0"
+                            />
                           )}
                           <div className="font-semibold text-xs text-gray-900 hover:admin-accent-text hover:underline cursor-pointer break-words leading-snug" title={getContactDisplayName(c, locale)}>
                             {getContactDisplayName(c, locale)}

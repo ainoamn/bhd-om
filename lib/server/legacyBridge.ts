@@ -7,6 +7,7 @@ import type { Contact, ContactCategory } from '@/lib/data/addressBook';
 import { getContactDisplayName } from '@/lib/data/addressBook';
 import { ADMIN_PERMISSIONS, type AdminPermission } from '@/lib/auth/adminPermissions';
 import { findManyAddressBookContactsOrHeal } from '@/lib/server/addressBookDbCompat';
+import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityToContactJson';
 import { prisma } from '@/lib/prisma';
 
 export const BHD_SITE_SSO_PASSWORD = '__BHD_SITE_SSO__';
@@ -424,9 +425,25 @@ export async function buildLegacyBridgePayload(
   const userIdToAddressBookKey = new Map<string, string>();
 
   for (const row of contactRows) {
-    const data = row.data as unknown as Contact;
+    const raw = { ...((row.data as Record<string, unknown>) ?? {}) };
+    const cid = String(row.contactId || '').trim();
+    if (typeof raw.id !== 'string' || !String(raw.id).trim()) {
+      raw.id = cid;
+    }
+    const data = raw as unknown as Contact;
     if (!data || typeof data !== 'object' || !data.id) continue;
     if (data.archived) continue;
+
+    const fromLinked = typeof row.linkedUserId === 'string' ? row.linkedUserId.trim() : '';
+    const fromJson = typeof raw.userId === 'string' ? String(raw.userId).trim() : '';
+    const identityUid = fromLinked || fromJson;
+    if (identityUid) {
+      const dbUser = siteUsers.find((u) => u.id === identityUid);
+      if (dbUser) {
+        applyUserIdentityToContactJson(raw, dbUser);
+      }
+    }
+
     const entry = mapSiteContactToLegacyEntry(data, row.linkedUserId);
     addressBook.push(entry);
     const linked = String(entry.linkedUserId || '').trim();
@@ -504,6 +521,15 @@ window.__bhdScanUrl=function(userId){
   if(!userId)return'';
   return location.origin+'/'+window.__bhdSiteLocale()+'/scan/'+userId;
 };
+window.__bhdScanUrlForEntry=function(r){
+  if(!r)return'';
+  var userId=String(r.userId||r.linkedUserId||'').trim();
+  if(userId)return window.__bhdScanUrl(userId);
+  var siteId=String(r.siteContactId||r.id||'').trim();
+  if(siteId&&(r.siteManaged||localStorage.getItem('bhd_site_integrated')==='1'))
+    return location.origin+'/'+window.__bhdSiteLocale()+'/scan/contact/'+siteId;
+  return'';
+};
 window.__bhdPrintSiteContact=function(siteContactId){
   if(!siteContactId){alert('لا يوجد معرف جهة اتصال على الموقع / No site contact id');return;}
   fetch('/api/admin/legacy-bridge/address-book/print?id='+encodeURIComponent(siteContactId),{credentials:'include',cache:'no-store'})
@@ -511,16 +537,30 @@ window.__bhdPrintSiteContact=function(siteContactId){
     .then(function(html){var w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}})
     .catch(function(){alert('تعذر طباعة التقرير من الموقع / Could not print from site');});
 };
-window.__bhdShowScanQrModal=function(userId){
-  if(!userId)return;
-  var url=window.__bhdScanUrl(userId);
-  var img='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(url);
+window.__bhdShowScanQrModalUrl=function(scanUrl){
+  if(!scanUrl)return;
+  var img='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(scanUrl);
   var ar=window.__bhdSiteLocale()==='ar';
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.25)"><p style="margin:0 0 12px;font-weight:700;color:#333">'+(ar?'مسح الباركود لعرض بيانات المستخدم':'Scan to view user data')+'</p><img src="'+img+'" alt="QR" style="width:220px;height:220px;display:block;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px"/><p style="margin:12px 0 0;font-size:11px;color:#6b7280;word-break:break-all" dir="ltr">'+url+'</p><button type="button" style="margin-top:14px;padding:8px 16px;border-radius:10px;border:1px solid #d1d5db;background:#f9fafb;font-weight:700;cursor:pointer">'+(ar?'إغلاق':'Close')+'</button></div>';
+  overlay.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.25)"><p style="margin:0 0 12px;font-weight:700;color:#333">'+(ar?'مسح الباركود لعرض بيانات جهة الاتصال':'Scan to view contact data')+'</p><img src="'+img+'" alt="QR" style="width:220px;height:220px;display:block;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px"/><p style="margin:12px 0 0;font-size:11px;color:#6b7280;word-break:break-all" dir="ltr">'+scanUrl+'</p><button type="button" style="margin-top:14px;padding:8px 16px;border-radius:10px;border:1px solid #d1d5db;background:#f9fafb;font-weight:700;cursor:pointer">'+(ar?'إغلاق':'Close')+'</button></div>';
   overlay.addEventListener('click',function(ev){if(ev.target===overlay||ev.target.tagName==='BUTTON')document.body.removeChild(overlay);});
   document.body.appendChild(overlay);
+};
+window.__bhdShowScanQrModal=function(userId){
+  var url=userId?window.__bhdScanUrl(userId):'';
+  if(url)window.__bhdShowScanQrModalUrl(url);
+};
+window.__bhdAbSerialCellHtml=function(r){
+  if(!r)return'<span style="color:#888">—</span>';
+  var serial=String(r.serialNumber||'').trim()||'—';
+  var scanUrl=typeof window.__bhdScanUrlForEntry==='function'?window.__bhdScanUrlForEntry(r):'';
+  var qr='';
+  if(scanUrl){
+    var img='https://api.qrserver.com/v1/create-qr-code/?size=40x40&data='+encodeURIComponent(scanUrl);
+    qr='<button type="button" data-ab-action="qr" data-ab-scan-url="'+scanUrl.replace(/"/g,'&quot;')+'" title="QR" style="padding:0;border:none;background:transparent;cursor:pointer;line-height:0"><img src="'+img+'" alt="QR" width="32" height="32" style="display:block;border-radius:4px;border:1px solid #e5e7eb"/></button>';
+  }
+  return '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px"><span style="font-size:11px;font-weight:700;color:#8B0000;font-family:monospace;white-space:nowrap" dir="ltr">'+serial+'</span>'+qr+'</div>';
 };
 window.__bhdAbCommActionsHtml=function(r){
   if(!r)return'';
@@ -536,7 +576,8 @@ window.__bhdAbCommActionsHtml=function(r){
   }
   if(email)parts.push('<a href="mailto:'+encodeURIComponent(email)+'" class="mini-btn" title="Email">✉️</a>');
   if(siteId)parts.push('<button type="button" class="mini-btn" data-ab-action="print-site" data-ab-site-id="'+siteId.replace(/"/g,'')+'" title="Print">🖨️</button>');
-  if(userId)parts.push('<button type="button" class="mini-btn" data-ab-action="qr" data-ab-user-id="'+userId.replace(/"/g,'')+'" title="QR">▦</button>');
+  var scanUrl=typeof window.__bhdScanUrlForEntry==='function'?window.__bhdScanUrlForEntry(r):'';
+  if(scanUrl)parts.push('<button type="button" class="mini-btn" data-ab-action="qr" data-ab-scan-url="'+scanUrl.replace(/"/g,'&quot;')+'" title="QR">▦</button>');
   if(!parts.length)return'';
   return'<div class="inline-actions ab-site-comm" style="margin-bottom:6px">'+parts.join('')+'</div>';
 };
@@ -564,6 +605,9 @@ function refreshLegacyAuthUiFromBridge(){
   }catch(e){}
   return false;
 }
+window.__bhdRefreshAddressBookFromSite=function(){
+  return fetchFullBridge();
+};
 function fetchFullBridge(){
   return fetch('/api/admin/legacy-bridge/bootstrap',{credentials:'include',cache:'no-store'})
     .then(function(r){return r.ok?r.json():null;})

@@ -6340,6 +6340,9 @@
                 <thead>
                     <tr>
                         <th>
+                            <span data-ar="الرقم المتسلسل" data-en="Serial">الرقم المتسلسل</span>
+                        </th>
+                        <th>
                             <span data-ar="بيانات جهة الاتصال" data-en="Contact details">بيانات جهة الاتصال</span>
                             <button type="button" class="mini-btn" onclick="setAddressBookSort('contact')">↕</button>
                             <button type="button" class="mini-btn" onclick="toggleAddressBookFilterRow()">🔍</button>
@@ -6362,6 +6365,7 @@
                         <th data-ar="إجراء" data-en="Action">إجراء</th>
                     </tr>
                     <tr id="addressBookFilterRow" hidden>
+                        <th><input id="abFilterSerial" placeholder="بحث الرقم / Search serial"></th>
                         <th><input id="abFilterContact" placeholder="بحث جهة الاتصال / Search contact"></th>
                         <th><input id="abFilterComm" placeholder="بحث التواصل / Search contact info"></th>
                         <th><input id="abFilterLocation" placeholder="بحث الموقع / Search location"></th>
@@ -18885,8 +18889,10 @@ function getEmptyCompanySignatory() {
                 return;
             }
             if (action === 'qr') {
+                const scanUrl = btn.getAttribute('data-ab-scan-url');
                 const uid = btn.getAttribute('data-ab-user-id');
-                if (typeof window.__bhdShowScanQrModal === 'function') window.__bhdShowScanQrModal(uid);
+                if (scanUrl && typeof window.__bhdShowScanQrModalUrl === 'function') window.__bhdShowScanQrModalUrl(scanUrl);
+                else if (uid && typeof window.__bhdShowScanQrModal === 'function') window.__bhdShowScanQrModal(uid);
                 return;
             }
             const idx = parseInt(btn.getAttribute('data-ab-index'), 10);
@@ -18975,8 +18981,10 @@ function getEmptyCompanySignatory() {
                     <div>${escHtml(r.building || '-')}</div>
                     <div style="font-size:11px;color:#5c6f7b">Unit: ${escHtml(r.unit || '-')}</div>
                 </td>`;
+            const serialCol = `<td style="white-space:nowrap;vertical-align:top">${typeof window.__bhdAbSerialCellHtml === 'function' ? window.__bhdAbSerialCellHtml(r) : escHtml(r.serialNumber || '—')}</td>`;
             return `
             <tr>
+                ${serialCol}
                 ${contactCol}
                 ${locCol}
                 <td style="font-size:11px;color:${formatDocAlert(r) ? '#9b1c1c' : '#3b4b56'};line-height:1.45">${formatDocAlertLines(r)}</td>
@@ -19026,6 +19034,7 @@ function getEmptyCompanySignatory() {
 
     function getAddressBookFilteredRows() {
         const q = toStr(document.getElementById('addressBookSearch')?.value).toLowerCase();
+        const fSerial = toStr(document.getElementById('abFilterSerial')?.value).toLowerCase();
         const fContact = toStr(document.getElementById('abFilterContact')?.value).toLowerCase();
         const fComm = toStr(document.getElementById('abFilterComm')?.value).toLowerCase();
         const fLoc = toStr(document.getElementById('abFilterLocation')?.value).toLowerCase();
@@ -19040,13 +19049,15 @@ function getEmptyCompanySignatory() {
                 : `${r.mobile} ${r.extraMobile} ${r.email}`.toLowerCase();
             const locText = `${r.building} ${r.unit}`.toLowerCase();
             const docsText = `${formatDocAlert(r)}`.toLowerCase();
-            const allText = `${contactText} ${commText} ${locText} ${docsText}`;
+            const serialText = toStr(r.serialNumber).toLowerCase();
+            const allText = `${serialText} ${contactText} ${commText} ${locText} ${docsText}`;
             const passGlobal = !q || allText.includes(q);
+            const passSerial = !fSerial || serialText.includes(fSerial);
             const passContact = !fContact || contactText.includes(fContact);
             const passComm = !fComm || commText.includes(fComm);
             const passLoc = !fLoc || locText.includes(fLoc);
             const passDocs = !fDocs || docsText.includes(fDocs);
-            return passGlobal && passContact && passComm && passLoc && passDocs;
+            return passGlobal && passSerial && passContact && passComm && passLoc && passDocs;
         });
         rows.sort((a, b) => {
             const dir = addressBookSortState.dir === 'asc' ? 1 : -1;
@@ -20214,6 +20225,30 @@ function getEmptyCompanySignatory() {
     }
 
     function refreshAddressBookFromSystem(showAlert = false) {
+        try {
+            if (localStorage.getItem('bhd_site_integrated') === '1') {
+                const finish = () => {
+                    renderAddressBookTable();
+                    if (showAlert) {
+                        alert(
+                            t(
+                                `✅ تم تحديث دفتر العناوين من الموقع. إجمالي السجلات: ${addressBookEntries.length}`,
+                                `✅ Address book updated from site. Total records: ${addressBookEntries.length}`
+                            )
+                        );
+                    }
+                };
+                if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+                    window.__bhdRefreshAddressBookFromSite().then(finish).catch(finish);
+                    return;
+                }
+                if (typeof window.__bhdReapplySiteBridge === 'function') {
+                    window.__bhdReapplySiteBridge();
+                    finish();
+                    return;
+                }
+            }
+        } catch (_eSiteAbRefresh) {}
         const oldRows = Array.isArray(addressBookEntries) ? addressBookEntries : [];
         const oldMap = new Map();
         oldRows.forEach((r) => {
