@@ -49,6 +49,7 @@ export type DashboardSectionKey =
   | 'accountingAddAccount'
   | 'accountingAddDocument'
   | 'accountingAddCheque'
+  | 'realEstateSystem'
   | 'propertiesManage'
   | 'bookingsManage'
   | 'contractsManage'

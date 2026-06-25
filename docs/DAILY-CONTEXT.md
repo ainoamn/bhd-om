@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-06-24 — استيراد legacy monolith + قرار استراتيجي
+
+- **قرار:** التخلي عن Electron كمنتج؛ الاعتماد على الموقع لايف + PWA لاحقاً.
+- **رفع Git:** نسخ `C:\dev\عقود الايجار` → `legacy/bhd-real-estate/` (184 ملف، commit `17a67ff`).
+- **استثناء من الرفع:** node_modules، .env، backups، data، *.db
+- **توثيق:** `docs/LEGACY-MONOLITH-INTEGRATION.md`، تحديث README و legacy/README و SESSION-START
+- **إصلاحات أداء (في legacy قبل الرفع):** مسار تحديث سريع، dirty KV، تخطي kvGetBulk، تأجيل مزامنة سحابة/محاسبة
+- **المرجع الكامل:** [docs/LEGACY-MONOLITH-INTEGRATION.md](LEGACY-MONOLITH-INTEGRATION.md)
+
 ### جلسة 2026-06-01 (65) — Phase 13 محاسبة: analytics hook + استعادة التبويبات
 
 - **Hook:** `useAccountingHubAnalytics.ts` — KPI، تقارير DB، اتجاهات شهرية، مطالبات/مدفوعات

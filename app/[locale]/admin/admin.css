@@ -1516,3 +1516,107 @@
 .admin-root[data-admin-theme='dark'] .modalContent {
   background: var(--admin-surface) !important;
 }
+
+/* Legacy real estate system (embedded monolith) */
+.admin-real-estate-legacy-frame {
+  width: 100%;
+  height: calc(100vh - 11rem);
+  min-height: 520px;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: #fff;
+  display: block;
+}
+
+.admin-dash-quick-action--highlight {
+  border-color: var(--admin-primary, #8b0000);
+  background: linear-gradient(135deg, rgba(139, 0, 0, 0.06), rgba(197, 160, 40, 0.08));
+}
+
+.admin-dash-quick-action--highlight .admin-dash-quick-icon {
+  background: var(--admin-primary, #8b0000);
+  color: #fff;
+}
+
+.admin-dash-legacy-launch {
+  border-radius: 16px;
+  border: 2px solid var(--admin-primary, #8b0000);
+  background: linear-gradient(135deg, rgba(139, 0, 0, 0.08), rgba(197, 160, 40, 0.12));
+  box-shadow: 0 4px 24px rgba(139, 0, 0, 0.1);
+}
+
+.admin-dash-legacy-launch-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.admin-dash-legacy-launch-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--admin-primary, #8b0000);
+  color: #fff;
+  margin-bottom: 0.35rem;
+}
+
+.admin-dash-legacy-launch-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0 0 0.35rem;
+  color: var(--admin-text);
+}
+
+.admin-dash-legacy-launch-desc {
+  margin: 0;
+  font-size: 0.875rem;
+  opacity: 0.85;
+  max-width: 42rem;
+}
+
+.admin-dash-legacy-launch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.admin-dash-legacy-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  background: var(--admin-primary, #8b0000);
+  color: #fff;
+  text-decoration: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(139, 0, 0, 0.25);
+}
+
+.admin-dash-legacy-launch-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(139, 0, 0, 0.35);
+  color: #fff;
+}
+
+.admin-dash-legacy-launch-btn--ghost {
+  background: transparent;
+  color: var(--admin-primary, #8b0000);
+  border: 2px solid var(--admin-primary, #8b0000);
+  box-shadow: none;
+}
+
+.admin-dash-legacy-launch-btn--ghost:hover {
+  background: rgba(139, 0, 0, 0.06);
+  color: var(--admin-primary, #8b0000);
+}

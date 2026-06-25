@@ -7,12 +7,26 @@
 - **GitHub:** [https://github.com/ainoamn/bhd-om](https://github.com/ainoamn/bhd-om)
 - **استنساخ:** `git clone https://github.com/ainoamn/bhd-om.git`
 
+## 🔄 استراتيجية المشروع (يونيو 2026) — اقرأ أولاً
+
+هذا المستودع يجمع **موقعين في مستودع واحد**:
+
+| الجزء | المسار | الغرض |
+|-------|--------|--------|
+| **المنتج الرئيسي (لايف)** | جذر المستودع (`app/`, `components/`, `prisma/`) | موقع [bhd-om.com](https://bhd-om.com) — Next.js + PostgreSQL |
+| **النظام القديم (مرجع)** | [`legacy/bhd-real-estate/`](legacy/bhd-real-estate/) | نسخة من مشروع `C:\dev\عقود الايجار` — للدمج التدريجي |
+
+**قرار استراتيجي:** التخلي عن التطبيق المكتبي (Electron) كمنتج نهائي؛ الاعتماد على **الموقع على الإنترنت** مع إمكانية تثبيته لاحقاً كـ **PWA** (نفس الموقع، ليس تطبيقاً منفصلاً).
+
+**الوثيقة الكاملة:** [docs/LEGACY-MONOLITH-INTEGRATION.md](docs/LEGACY-MONOLITH-INTEGRATION.md) — لماذا نُقل المشروع، ماذا تم إنجازه، وخارطة الدمج.
+
 > **العمل على أكثر من جهاز؟** راجع [docs/WORKFLOW.md](docs/WORKFLOW.md) لسير العمل والمزامنة بين الأجهزة.  
 > **لعدم فقدان التصميم والترابط عند التحديث؟** راجع [docs/SITE-SCENARIOS-AND-LINKS.md](docs/SITE-SCENARIOS-AND-LINKS.md) — سيناريوهات الموقع، خريطة الصفحات، ومعايير التصميم.  
 > **بداية/نهاية الجلسة والسياق اليومي؟** في **بداية كل جلسة** اقرأ [docs/SESSION-START.md](docs/SESSION-START.md) (تعليمات البرمجة، الملفات الواجب قراءتها). في **نهاية كل جلسة** نفّذ [docs/SESSION-END.md](docs/SESSION-END.md) (رفع التغييرات، تحديث الوثائق). حدّث [docs/DAILY-CONTEXT.md](docs/DAILY-CONTEXT.md) بعد كل جلسة لضمان عدم فقدان السياق عند التنقّل بين الأجهزة.  
 > **الدليل التقني الشامل (طبقات، ربط، صيانة، مخاطر):** [docs/اقرأني-الدليل-التقني-الشامل.md](docs/اقرأني-الدليل-التقني-الشامل.md)
 > **قاعدة البيانات — ما المربوط فعلياً؟ ومسار الترقية:** [docs/DATABASE-SETUP-AND-MIGRATION.md](docs/DATABASE-SETUP-AND-MIGRATION.md)
 > **سجل الإصلاحات والترقيات (مستمر):** [docs/DEVELOPMENT-FIXES-AND-UPGRADES.md](docs/DEVELOPMENT-FIXES-AND-UPGRADES.md)
+> **دمج نظام العقود القديم (legacy):** [docs/LEGACY-MONOLITH-INTEGRATION.md](docs/LEGACY-MONOLITH-INTEGRATION.md)
 
 ## 📋 نظرة عامة
 

@@ -10,6 +10,34 @@
 
 ## ما تم تنفيذه (منجز)
 
+### 39) استيراد نظام العقود Legacy + قرار الاستراتيجية — 2026-06-24
+
+**القرار**
+- التخلي عن التطبيق المكتبي (Electron + SQLite) كمسار إنتاج.
+- المنتج النهائي: موقع `bhd-om` على الإنترنت (Next.js + PostgreSQL).
+- نافذة «قابلة للتحميل» لاحقاً = **PWA** (نفس الموقع)، وليس Electron.
+
+**رفع Git**
+- مصدر محلي: `C:\dev\عقود الايجار`
+- وجهة: `legacy/bhd-real-estate/` في مستودع `ainoamn/bhd-om`
+- commit: `17a67ff` — 184 ملف مصدر (بدون node_modules، أسرار، قواعد بيانات)
+
+**توثيق**
+- `docs/LEGACY-MONOLITH-INTEGRATION.md` — الخطة الكاملة، المقارنة، المراحل
+- تحديث `README.md`, `legacy/README.md`, `docs/DAILY-CONTEXT.md`, `docs/SESSION-START.md`
+
+**إصلاحات أداء في legacy (قبل الرفع — مرجع للدمج)**
+- `refreshAppSystem`: مسار `bhd_app_refresh_fast`، إلغاء سحب KV مكرر قبل reload
+- إقلاع مكتبي: تخطي `kvGetBulk` عند وجود بيانات في localStorage
+- `syncBhdKvToServer`: dirty keys فقط على Desktop؛ تأجيل mirror IndexedDB
+- تأجيل `bhdCloudTryRestoreSession` و `scheduleAutomaticDataSync` بعد التحديث
+- مهلة `bhdFetchWithTimeout` (2.5s) لفحص السحابة
+
+**ما يُعطَّل لاحقاً (لا يُنقل إلى الجذر)**
+- `desktop/` بالكامل
+- `apps/api` كخدمة منفصلة (توحيد على Prisma في الجذر)
+- `server/` المحلي 3789 كمنتج (تطوير فقط إن لزم)
+
 ### 38) إغلاق مراحل المراجعة A–Z (0 → 1 → 2 → 3) — 2026-05-31
 
 **المرحلة 1 — مسار الحجز end-to-end**

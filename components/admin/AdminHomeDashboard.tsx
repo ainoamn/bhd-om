@@ -130,6 +130,13 @@ export default function AdminHomeDashboard({ locale, userName }: Props) {
 
   const quickActions = [
     {
+      href: '/admin/real-estate-system',
+      icon: 'home' as IconName,
+      title: ar ? 'نظام إدارة العقارات' : 'Real estate system',
+      desc: ar ? 'عقود الوحدات، الحجوزات، المحاسبة — النسخة التشغيلية الكاملة' : 'Unit contracts, bookings, accounting — full operational app',
+      highlight: true,
+    },
+    {
       href: '/admin/properties/new',
       icon: 'plus' as IconName,
       title: t('addProperty'),
@@ -212,6 +219,36 @@ export default function AdminHomeDashboard({ locale, userName }: Props) {
           )}
         </div>
       </header>
+
+      {/* نظام إدارة العقارات — اختصار رئيسي */}
+      <section className="admin-dash-legacy-launch mb-8" aria-label={ar ? 'نظام إدارة العقارات' : 'Real estate management system'}>
+        <div className="admin-dash-legacy-launch-inner">
+          <div className="admin-dash-legacy-launch-text">
+            <span className="admin-dash-legacy-launch-badge">{ar ? 'تشغيل يومي' : 'Daily operations'}</span>
+            <h2 className="admin-dash-legacy-launch-title">{ar ? 'نظام إدارة العقارات' : 'Real estate management system'}</h2>
+            <p className="admin-dash-legacy-launch-desc">
+              {ar
+                ? 'عقود الوحدات، حجوزات المباني، المحاسبة، الطباعة — افتح النظام التشغيلي الكامل من هنا'
+                : 'Unit contracts, building reservations, accounting, printing — open the full operational system here'}
+            </p>
+          </div>
+          <div className="admin-dash-legacy-launch-actions">
+            <Link href={`/${locale}/admin/real-estate-system`} prefetch className="admin-dash-legacy-launch-btn">
+              <Icon name="home" className="w-5 h-5" aria-hidden />
+              {ar ? 'فتح النظام' : 'Open system'}
+            </Link>
+            <a
+              href="/api/admin/legacy-real-estate/bhd-real-estate.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-dash-legacy-launch-btn admin-dash-legacy-launch-btn--ghost"
+            >
+              <Icon name="externalLink" className="w-5 h-5" aria-hidden />
+              {ar ? 'نافذة جديدة' : 'New window'}
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* KPI Grid */}
       <div className="admin-dash-kpi-grid mb-8">
@@ -327,7 +364,12 @@ export default function AdminHomeDashboard({ locale, userName }: Props) {
           <div className="admin-card-body">
             <div className="admin-dash-quick-grid">
               {quickActions.map((action) => (
-                <Link key={action.href} href={`/${locale}${action.href}`} prefetch className="admin-dash-quick-action">
+                <Link
+                  key={action.href}
+                  href={`/${locale}${action.href}`}
+                  prefetch
+                  className={`admin-dash-quick-action${'highlight' in action && action.highlight ? ' admin-dash-quick-action--highlight' : ''}`}
+                >
                   <span className="admin-dash-quick-icon">
                     <Icon name={action.icon} className="w-5 h-5" aria-hidden />
                   </span>
