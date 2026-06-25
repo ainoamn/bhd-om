@@ -43,8 +43,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const isMainHtml = fileName === 'bhd-real-estate.html' || fileName.endsWith('.html');
 
     let body: Buffer;
+    let bridgeStatus = 'none';
     if (isMainHtml) {
       const embedded = await buildLegacyBridgeMinimalPayload(userId, locale);
+      bridgeStatus = embedded ? 'embedded' : 'empty';
       body = await readLegacyRealEstateHtmlWithBridge(segments, embedded);
     } else {
       body = await readLegacyRealEstateFile(segments);
@@ -56,6 +58,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         'Content-Type': contentTypeForLegacyFile(fileName),
         'Cache-Control': 'private, no-store, must-revalidate',
         'X-Content-Type-Options': 'nosniff',
+        'X-Bhd-Bridge': bridgeStatus,
       },
     });
   } catch (error) {

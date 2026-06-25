@@ -456,41 +456,67 @@ export function resolveLegacyBridgeLocale(req: { nextUrl: URL; headers: Headers 
   return 'ar';
 }
 
-function buildBridgeBootScript(embeddedPayload: LegacyBridgePayload | null): string {
-  const embeddedLiteral = embeddedPayload
-    ? JSON.stringify(embeddedPayload).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
-    : 'null';
-
+function buildBridgeBootScript(): string {
   return `(function(){
 function applyBridge(data){
   if(!data)return;
   window.__bhdSiteBridge=data;
   window.__bhdSiteBridgePayload=data;
-  if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));
-  if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));
-  if(Array.isArray(data.addressBook)&&data.addressBook.length)localStorage.setItem('bhd_address_book',JSON.stringify(data.addressBook));
-  localStorage.setItem('bhd_site_integrated','1');
-  if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
+  try{
+    localStorage.setItem('bhd_site_integrated','1');
+    if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));
+    if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));
+    if(Array.isArray(data.addressBook)&&data.addressBook.length)localStorage.setItem('bhd_address_book',JSON.stringify(data.addressBook));
+    if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
+    window.dispatchEvent(new Event('bhd-site-bridge-applied'));
+  }catch(e){console.warn('[BHD] applyBridge storage failed',e);}
 }
 window.__bhdReapplySiteBridge=function(){applyBridge(window.__bhdSiteBridgePayload);};
 window.__bhdApplySiteBridge=function(d){if(d){window.__bhdSiteBridgePayload=d;applyBridge(d);}};
+function refreshLegacyAuthUiFromBridge(){
+  try{
+    if(typeof syncAuthStateFromStorage==='function')syncAuthStateFromStorage();
+    if(typeof updateAuthHeaderBar==='function')updateAuthHeaderBar();
+    if(typeof getLoggedInUser==='function'&&getLoggedInUser())return true;
+  }catch(e){}
+  return false;
+}
 function fetchFullBridge(){
   return fetch('/api/admin/legacy-bridge/bootstrap',{credentials:'include',cache:'no-store'})
     .then(function(r){return r.ok?r.json():null;})
-    .then(function(d){if(d)applyBridge(d);return d;})
-    .catch(function(){});
+    .then(function(d){
+      if(d)applyBridge(d);
+      return d;
+    })
+    .catch(function(){return null;});
+}
+function pollAuthUiRefresh(maxTries){
+  var tries=0;
+  (function tick(){
+    if(refreshLegacyAuthUiFromBridge())return;
+    if(++tries<maxTries)setTimeout(tick,200);
+  })();
 }
 window.addEventListener('message',function(ev){
   if(ev.origin!==location.origin)return;
-  if(ev.data&&ev.data.type==='bhd-site-bridge'&&ev.data.payload)applyBridge(ev.data.payload);
+  if(ev.data&&ev.data.type==='bhd-site-bridge'&&ev.data.payload){
+    applyBridge(ev.data.payload);
+    pollAuthUiRefresh(15);
+  }
+});
+window.addEventListener('bhd-site-bridge-applied',function(){
+  setTimeout(function(){pollAuthUiRefresh(10);},0);
 });
 try{
-  var embedded=${embeddedLiteral};
-  if(embedded){window.__bhdSiteBridgePayload=embedded;applyBridge(embedded);}
-}catch(e){console.warn('[BHD] embedded site bridge failed',e);}
-if(!window.__bhdSiteBridgePayload){fetchFullBridge();}
+  var dataEl=document.getElementById('bhd-site-bridge-data');
+  if(dataEl&&dataEl.textContent){
+    var embedded=JSON.parse(dataEl.textContent);
+    if(embedded){window.__bhdSiteBridgePayload=embedded;applyBridge(embedded);}
+  }
+}catch(e){console.warn('[BHD] embedded site bridge parse failed',e);}
+if(!window.__bhdSiteBridgePayload){fetchFullBridge().then(function(){pollAuthUiRefresh(20);});}
 document.addEventListener('DOMContentLoaded',function(){
-  fetchFullBridge();
+  fetchFullBridge().then(function(){pollAuthUiRefresh(25);});
   if(!window.__bhdSiteAdminUrls)return;
   var m=new URLSearchParams(location.search).get('mode');
   var u=window.__bhdSiteAdminUrls;
@@ -513,6 +539,11 @@ document.addEventListener('DOMContentLoaded',function(){
 
 export function injectLegacySiteBridgeScript(html: string, embeddedPayload?: LegacyBridgePayload | null): string {
   if (html.includes('id="bhd-site-bridge-boot"')) return html;
-  const tag = `<script id="bhd-site-bridge-boot">${buildBridgeBootScript(embeddedPayload ?? null)}</script>`;
+
+  const jsonBlock = embeddedPayload
+    ? `<script id="bhd-site-bridge-data" type="application/json">${JSON.stringify(embeddedPayload).replace(/</g, '\\u003c')}</script>`
+    : '';
+
+  const tag = `${jsonBlock}\n<script id="bhd-site-bridge-boot">${buildBridgeBootScript()}</script>`;
   return html.replace(/<head([^>]*)>/i, `<head$1>\n${tag}\n`);
 }
