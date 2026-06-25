@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
-import { contentTypeForLegacyFile, readLegacyRealEstateFile } from '@/lib/server/legacyRealEstateFiles';
+import {
+  contentTypeForLegacyFile,
+  readLegacyRealEstateFile,
+  readLegacyRealEstateHtmlWithBridge,
+} from '@/lib/server/legacyRealEstateFiles';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +18,11 @@ export async function GET(req: NextRequest, context: RouteContext) {
     if (forbidden) return forbidden;
 
     const { path: segments } = await context.params;
-    const body = await readLegacyRealEstateFile(segments);
     const fileName = segments?.length ? segments[segments.length - 1]! : 'bhd-real-estate.html';
+    const isMainHtml = fileName === 'bhd-real-estate.html' || fileName.endsWith('.html');
+    const body = isMainHtml
+      ? await readLegacyRealEstateHtmlWithBridge(segments)
+      : await readLegacyRealEstateFile(segments);
 
     return new NextResponse(new Uint8Array(body), {
       status: 200,

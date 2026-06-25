@@ -68632,7 +68632,12 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             await bhdCloudTryRestoreSession();
         }
         if (!dataWasWiped && !refreshFastBoot && !window.bhdDesktop) {
-            await hydrateLocalStorageFromIndexedDb();
+            if (localStorage.getItem('bhd_site_integrated') !== '1') {
+                await hydrateLocalStorageFromIndexedDb();
+            }
+        }
+        if (typeof window.__bhdReapplySiteBridge === 'function') {
+            window.__bhdReapplySiteBridge();
         }
         if (!refreshFastBoot) {
             await dropLegacySfgIndexedDb();

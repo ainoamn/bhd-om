@@ -37,3 +37,10 @@ export async function readLegacyRealEstateFile(segments: string[] | undefined): 
   const full = resolveLegacyRealEstatePath(segments);
   return fs.readFile(full);
 }
+
+export async function readLegacyRealEstateHtmlWithBridge(segments: string[] | undefined): Promise<Buffer> {
+  const { injectLegacySiteBridgeScript } = await import('@/lib/server/legacyBridge');
+  const raw = await readLegacyRealEstateFile(segments);
+  const html = injectLegacySiteBridgeScript(raw.toString('utf-8'));
+  return Buffer.from(html, 'utf-8');
+}
