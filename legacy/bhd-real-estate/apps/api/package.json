@@ -1,0 +1,52 @@
+{
+  "name": "bhd-real-estate-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BHD Real Estate Cloud API — PostgreSQL multi-tenant",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "node prisma/seed.js",
+    "db:studio": "prisma studio",
+    "migrate:kv": "node ../../tools/migrate-kv-to-pg.js",
+    "migrate:files": "node ../../tools/migrate-files-to-cloud.js",
+    "migrate:all": "node ../../tools/migrate-all-to-cloud.js",
+    "inspect:db": "node ../../tools/inspect-rental-db.js",
+    "pick:db": "node ../../tools/pick-best-rental-db.js",
+    "verify:stack": "node ../../tools/verify-cloud-stack.js",
+    "verify:full": "node ../../tools/verify-full-stack.js",
+    "preflight": "node ../../tools/preflight-path-a.js",
+    "lan:enable": "node ../../tools/enable-lan-access.js",
+    "smoke:test": "node ../../tools/smoke-test-api.js",
+    "load:test": "node ../../tools/load-test-api.js",
+    "test:isolation": "node ../../tools/test-company-isolation.js",
+    "backup:pg": "node ../../tools/backup-postgres.js",
+    "restore:pg": "node ../../tools/restore-postgres.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "@aws-sdk/client-s3": "^3.826.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "prisma": "^6.9.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}

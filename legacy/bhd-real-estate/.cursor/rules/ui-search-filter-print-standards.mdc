@@ -1,0 +1,21 @@
+---
+description: Keep future search/filter and print behavior consistent
+alwaysApply: true
+---
+
+# Search, Filter, and Print Standards
+
+- For any future screen that includes listing data, implement search and filtering in the same interaction style used in the address book:
+  - Global search input remains visible.
+  - Column-level filter inputs are toggled by a small search icon in the table header.
+  - Sorting controls are attached to the relevant column headers, not in a disconnected control area.
+- Keep filter and search behavior predictable:
+  - Global search narrows all visible rows.
+  - Column filters refine further (logical AND with global search).
+  - Sorting applies to the already filtered result set.
+- Reuse or extend existing helper patterns/functions for search/filter logic instead of introducing one-off implementations in each page.
+- For future print features, always use the same site print standard:
+  - Use `printWithSiteStandard(...)` (which routes through the official A4 print template).
+  - Do not create ad-hoc print windows with inconsistent styling unless explicitly requested.
+  - Keep report title, metadata, and table formatting aligned with current official print reports.
+- When asked to review or refactor an existing page, preserve this unified behavior for search/filter and print unless the user requests a different UX.

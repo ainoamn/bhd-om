@@ -1,0 +1,34 @@
+# Responsive Layout Standards
+
+- The application must remain usable and visually consistent on desktop, tablet (iPad), and phone screens.
+- Prefer fluid layouts over fixed pixel widths for main workspaces and modals.
+- Reuse existing responsive patterns before inventing new ones.
+
+## Breakpoints (align with current CSS)
+
+| Max width | Typical target |
+|-----------|----------------|
+| `980px` | Top navigation wraps; nav items stack in pairs |
+| `900px` | Two-column accounting/cheque panels become single column |
+| `720px` | Dense form grids collapse to one column |
+
+## Layout rules
+
+- Use `flex-wrap: wrap` and `grid-template-columns: repeat(auto-fit, minmax(...))` for toolbars, stat cards, and form grids.
+- Tables inside `.table-shell` must allow horizontal scroll on narrow screens (`overflow-x: auto`) rather than clipping content.
+- Modals use unified size: `width: min(1280px, 98vw)`, `max-height: 96vh`, `overflow: auto` (see popup-size-standards).
+- Touch targets: buttons and nav items should remain comfortably tappable on tablets/phones (avoid tiny-only click areas).
+- Sticky headers in long modals and workspaces should remain visible when scrolling on mobile.
+
+## When adding a new screen or workspace
+
+- [ ] Test at ~1280px, ~768px, and ~390px viewport width
+- [ ] Ensure top nav and workspace content do not overlap
+- [ ] Ensure tables scroll horizontally if columns do not fit
+- [ ] Avoid horizontal page overflow (`overflow-x` on `body` should stay hidden unless intentional)
+
+## Do not
+
+- Introduce fixed-width layouts that break below 1024px without a media query.
+- Hide critical actions on mobile without an alternative access path.
+- Create one-off modal sizes per page.

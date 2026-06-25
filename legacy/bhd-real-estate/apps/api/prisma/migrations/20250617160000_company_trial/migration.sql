@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "trial_ends_at" TIMESTAMPTZ(6);

@@ -1,0 +1,43 @@
+{
+  "extractedAt": "2026-06-24T11:03:10.232Z",
+  "sourceBackup": "bhd-real-estate.monolith.html",
+  "css": {
+    "file": "styles/bhd-main.css",
+    "sha256": "699d76c66bffb33384c53729adefed2a22f6c5fbe898689d14ba70fb55584024"
+  },
+  "js": {
+    "fullJsSha256": "c9582fa42a4dfe5d187b70a632817298b32a2e68b6eb7e66c00388e12ecef97d",
+    "chunks": [
+      {
+        "file": "01-core-data.js",
+        "lines": 2881,
+        "sha256": "2e27a1da8c62afac960934a5cb937153b73cb58103991375f47452544c2d5bc0"
+      },
+      {
+        "file": "02-data-store.js",
+        "lines": 1303,
+        "sha256": "2fdb2db6c4023c68f685d99412d0f62b3e06b8002aafbe64fc53ec26e358d1ff"
+      },
+      {
+        "file": "03-import-contracts.js",
+        "lines": 13120,
+        "sha256": "f4078800909868fa58f08e9ff751f12ccd4738d2851e8725efb18407664bdc9c"
+      },
+      {
+        "file": "04-tasks-calendar.js",
+        "lines": 3452,
+        "sha256": "32a4fe2329bddba63c12b2be380254830568c77850218b5a71f89ddfea01e301"
+      },
+      {
+        "file": "05-accounting.js",
+        "lines": 13367,
+        "sha256": "4addab14098e4ab37a1ba36994c0abf181ba93ddb5667dd45a9753b8f3363cca"
+      },
+      {
+        "file": "06-maintenance-init.js",
+        "lines": 26096,
+        "sha256": "92e8ebd38326c010019ae701d6d2ae36478433d0e65bf3e28912efe7f335d921"
+      }
+    ]
+  }
+}

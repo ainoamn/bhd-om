@@ -1,0 +1,19 @@
+{
+  "name": "bhd-rent-contracts-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "خادم محلي لنظام عقود الإيجار — SQLite + نسخ احتياطي لـ Dropbox",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "migrate": "node -e \"require('./db.js').openDatabase()\""
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
+  }
+}

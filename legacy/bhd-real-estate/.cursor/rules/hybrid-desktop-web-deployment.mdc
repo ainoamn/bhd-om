@@ -1,0 +1,27 @@
+# Hybrid Deployment — ترقية شفافة (بدون ظهور البنية)
+
+> **للمستخدم:** نظام واحد — نفس الواجهة دائماً.  
+> **للمطور:** عدة backends للتخزين — يُختار تلقائياً دون UI.
+
+## Backends (داخلية — لا تُعرض)
+
+| Backend | متى | التخزين |
+|---------|-----|---------|
+| Desktop | `window.bhdDesktop` | SQLite + قرص |
+| Legacy server | `GET /api/health` | SQLite kv |
+| Cloud API | `GET /api/v1/health` + جلسة | PostgreSQL |
+| Browser fallback | لا backend | localStorage + IndexedDB |
+
+## قواعد
+
+1. **لا UI للبنية** — انظر `transparent-upgrade-architecture.mdc`.
+2. كل كتابة تمر عبر **`scheduleBhdKvToServer()`** أو **`BhdDataStore`** (عند اكتمال 2B).
+3. المرفقات: قرص/S3 — لا base64 في localStorage للإنتاج.
+4. **`apps/api`:** JSON فقط — الواجهة تُخدم كما اليوم (Desktop أو `server/` أو CDN).
+5. لا نسخة HTML ثانية ولا منطق محاسبة مكرّر للسحابة.
+
+## ما لا تفعل
+
+- لا رسائل «Desktop / Server / Local» في الهيدر.
+- لا hardcode `localhost` في نصوص UI — same-origin في الكود فقط.
+- لا حجب Desktop عند غياب الشبكة.

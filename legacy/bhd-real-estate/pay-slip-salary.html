@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>قسيمة الراتب / Salary Pay Slip</title>
+  <style>
+    :root{
+      --brand:#8a6a1f;
+      --brand-dark:#5f4714;
+      --line:#2a2a2a;
+      --soft:#f6f0df;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      padding:16px;
+      font-family:"Tajawal","Segoe UI",Tahoma,Arial,sans-serif;
+      background:#fff;
+      color:#111;
+    }
+    .sheet{
+      max-width:210mm;
+      margin:0 auto;
+      border:2px solid var(--line);
+      border-radius:10px;
+      padding:14px;
+    }
+    .header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      border-bottom:2px solid var(--brand);
+      padding-bottom:10px;
+      margin-bottom:10px;
+    }
+    .company{
+      flex:1;
+      min-width:0;
+      font-size:12px;
+      line-height:1.45;
+    }
+    .company.ar{text-align:right}
+    .company.en{text-align:left;direction:ltr;font-family:Arial,sans-serif}
+    .company.en .name{
+      font-size:11px;
+      white-space:nowrap;
+    }
+    .company .name{
+      color:var(--brand);
+      font-weight:800;
+      margin-bottom:4px;
+      font-size:14px;
+    }
+    .logo{
+      width:128px;
+      height:92px;
+      border:1px solid #b8b8b8;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      background:#fff;
+      color:var(--brand);
+      font-weight:800;
+      font-size:18px;
+      flex:0 0 128px;
+    }
+    .logo img{width:100%;height:100%;object-fit:contain;display:none;image-rendering:auto}
+    .title{
+      text-align:center;
+      border-bottom:2px double var(--brand);
+      margin:10px 0 12px;
+      padding-bottom:8px;
+    }
+    .title h1{margin:0;color:var(--brand);font-size:24px}
+    .title h2{margin:4px 0 0;font-weight:500;font-size:16px;direction:ltr}
+    .section{
+      background:linear-gradient(135deg,var(--brand),var(--brand-dark));
+      color:#fff;
+      padding:6px 10px;
+      border:1px solid var(--line);
+      margin:10px 0 6px;
+      font-weight:700;
+      text-align:center;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      margin-bottom:8px;
+    }
+    th,td{
+      border:1px solid var(--line);
+      padding:8px;
+      vertical-align:middle;
+      font-size:13px;
+    }
+    th{
+      background:var(--soft);
+      color:var(--brand-dark);
+      width:28%;
+      text-align:right;
+    }
+    .en-h{
+      direction:ltr;
+      text-align:left;
+      font-family:Arial,sans-serif;
+      width:28%;
+    }
+    .val{
+      width:44%;
+      text-align:center;
+      font-weight:700;
+      border-left:2px solid var(--brand);
+      border-right:2px solid var(--brand);
+      background:#fdf9ee;
+    }
+    .val input{
+      width:100%;
+      border:none;
+      background:transparent;
+      text-align:center;
+      font:inherit;
+      font-weight:700;
+      color:#111;
+      outline:none;
+    }
+    .salary-table th{width:auto}
+    .salary-table .col-kind{width:20%}
+    .salary-table .col-item{width:52%}
+    .salary-table .col-amt{width:20%}
+    .salary-table .col-act{width:8%}
+    .amt-input{
+      width:100%;
+      border:none;
+      background:transparent;
+      text-align:center;
+      font:inherit;
+      font-weight:700;
+      outline:none;
+    }
+    .item-input{
+      width:100%;
+      border:none;
+      background:transparent;
+      text-align:center;
+      font:inherit;
+      outline:none;
+    }
+    .row-action{
+      border:none;
+      background:#8a6a1f;
+      color:#fff;
+      border-radius:6px;
+      padding:4px 8px;
+      cursor:pointer;
+      font-size:12px;
+    }
+    .toolbar{
+      display:flex;
+      justify-content:flex-end;
+      gap:8px;
+      margin:6px 0 8px;
+    }
+    .theme-switch{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      margin:0 0 8px;
+      font-size:12px;
+    }
+    .signature{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      margin-top:14px;
+      border-top:1px dashed #bbb;
+      padding-top:12px;
+    }
+    .sig{
+      width:48%;
+      text-align:center;
+      font-size:13px;
+      font-weight:700;
+    }
+    @media print{
+      @page{size:A4;margin:10mm}
+      body{padding:0}
+      .sheet{border:2px solid var(--line);border-radius:0}
+      .no-print{display:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header">
+      <div class="company ar">
+        <div class="name">مجموعة سيد فياض العالمية ش.م.م</div>
+        <div>ص.ب: 154، الرمز البريدي: 111، سلطنة عمان</div>
+        <div>هاتف: +968 24499484، فاكس: +968 24497482</div>
+        <div>ضريبة القيمة المضافة: OM1100300282</div>
+      </div>
+      <div class="logo" id="logoBox">
+        <img id="logoImg" alt="BHD Logo" />
+        <span id="logoFallback">BHD</span>
+      </div>
+      <div class="company en">
+        <div class="name">SYED FAYYAZ GROUP INTERNATIONAL L.L.C</div>
+        <div>P.O.Box: 154, P.C: 111, Sultanate of Oman</div>
+        <div>Tel: +968 24499484, Fax: +968 24497482</div>
+        <div>VAT No.: OM1100300282</div>
+      </div>
+    </div>
+
+    <div class="title">
+      <h1>قسيمة الراتب</h1>
+      <h2>Salary Pay Slip</h2>
+    </div>
+    <div class="theme-switch no-print">
+      <label for="themeSelect">لون النموذج / Theme color:</label>
+      <select id="themeSelect">
+        <option value="gold">ذهبي غامق / Dark Gold</option>
+        <option value="maroon">أحمر ماروني / Maroon Red</option>
+      </select>
+    </div>
+    <div class="no-print" style="margin:0 0 8px;text-align:center">
+      <label style="font-size:12px">رفع شعار واضح / Upload clear logo:</label>
+      <input id="logoUploadInput" type="file" accept="image/*" />
+    </div>
+
+    <div class="section">بيانات الموظف / Employee Details</div>
+    <table>
+      <tr><th>اسم الموظف</th><td class="val"><input placeholder="اكتب الاسم / Enter name" /></td><th class="en-h">Employee Name</th></tr>
+      <tr><th>الرقم الوظيفي</th><td class="val"><input placeholder="اكتب الرقم / Enter ID" /></td><th class="en-h">Employee ID</th></tr>
+      <tr><th>الرقم المدني</th><td class="val"><input placeholder="اكتب الرقم المدني / Enter civil ID" /></td><th class="en-h">Civil ID</th></tr>
+      <tr><th>القسم</th><td class="val"><input placeholder="اكتب القسم / Enter department" /></td><th class="en-h">Department</th></tr>
+      <tr><th>المسمى الوظيفي</th><td class="val"><input placeholder="اكتب المسمى / Enter job title" /></td><th class="en-h">Job Title</th></tr>
+      <tr><th>شهر الراتب</th><td class="val"><input placeholder="مثال: 2026-04 / Ex: 2026-04" /></td><th class="en-h">Salary Month</th></tr>
+    </table>
+
+    <div class="section">تفاصيل الراتب / Salary Details</div>
+    <div class="toolbar no-print">
+      <button class="row-action" type="button" id="addSalaryItemBtn">+ إضافة بند / Add item</button>
+    </div>
+    <table class="salary-table">
+      <thead>
+        <tr>
+          <th class="col-kind">النوع / Type</th>
+          <th class="col-item">التفصيل عربي / English Detail</th>
+          <th class="col-amt">المبلغ (ر.ع) / Amount (OMR)</th>
+          <th class="col-act no-print">حذف / Del</th>
+        </tr>
+      </thead>
+      <tbody id="salaryItemsBody"></tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2">الإجمالي الإضافات / Total Additions</th>
+          <td class="val"><input id="totalAdditions" readonly value="0.000" /></td>
+          <td class="no-print"></td>
+        </tr>
+        <tr>
+          <th colspan="2">الإجمالي الاستقطاعات / Total Deductions</th>
+          <td class="val"><input id="totalDeductions" readonly value="0.000" /></td>
+          <td class="no-print"></td>
+        </tr>
+        <tr>
+          <th colspan="2">صافي الراتب / Net Salary</th>
+          <td class="val"><input id="netSalary" readonly value="0.000" /></td>
+          <td class="no-print"></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="signature">
+      <div class="sig">توقيع الموظف / Employee Signature<br><br>_________________________</div>
+      <div class="sig">توقيع المسؤول / Authorized Signature<br><br>_________________________</div>
+    </div>
+  </div>
+
+  <div class="no-print" style="max-width:210mm;margin:10px auto 0;text-align:center">
+    <button onclick="window.print()">🖨️ طباعة / Print</button>
+  </div>
+
+  <script>
+    function applyTheme(theme){
+      const root = document.documentElement;
+      if (theme === 'maroon'){
+        root.style.setProperty('--brand', '#6b1f35');
+        root.style.setProperty('--brand-dark', '#4a1525');
+        root.style.setProperty('--soft', '#f8ecef');
+        document.querySelectorAll('.val').forEach((el) => { el.style.background = '#fcf7f8'; });
+        document.querySelectorAll('.row-action').forEach((el) => { el.style.background = '#7a001f'; });
+        return;
+      }
+      root.style.setProperty('--brand', '#8a6a1f');
+      root.style.setProperty('--brand-dark', '#5f4714');
+      root.style.setProperty('--soft', '#f6f0df');
+      document.querySelectorAll('.val').forEach((el) => { el.style.background = '#fdf9ee'; });
+      document.querySelectorAll('.row-action').forEach((el) => { el.style.background = '#8a6a1f'; });
+    }
+    function toNum(v){
+      const n = parseFloat(String(v || '').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    function recalcSalaryTotals(){
+      const rows = [...document.querySelectorAll('#salaryItemsBody tr')];
+      let adds = 0;
+      let deducts = 0;
+      rows.forEach((tr) => {
+        const kind = tr.querySelector('.kind-select')?.value || 'addition';
+        const amt = toNum(tr.querySelector('.amt-input')?.value);
+        if (kind === 'deduction') deducts += amt;
+        else adds += amt;
+      });
+      const net = adds - deducts;
+      document.getElementById('totalAdditions').value = adds.toFixed(3);
+      document.getElementById('totalDeductions').value = deducts.toFixed(3);
+      document.getElementById('netSalary').value = net.toFixed(3);
+    }
+    function addSalaryRow(item = {}){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <select class="kind-select">
+            <option value="addition"${item.kind === 'deduction' ? '' : ' selected'}>إضافة / Addition</option>
+            <option value="deduction"${item.kind === 'deduction' ? ' selected' : ''}>استقطاع / Deduction</option>
+          </select>
+        </td>
+        <td><input class="item-input" value="${item.item || ''}" placeholder="مثال: الراتب الأساسي / Basic Salary" /></td>
+        <td><input class="amt-input" type="number" step="0.001" value="${item.amount || '0'}" /></td>
+        <td class="no-print"><button type="button" class="row-action" title="حذف / Delete">حذف</button></td>
+      `;
+      tr.querySelector('.row-action')?.addEventListener('click', () => {
+        tr.remove();
+        recalcSalaryTotals();
+      });
+      tr.querySelector('.kind-select')?.addEventListener('change', recalcSalaryTotals);
+      tr.querySelector('.amt-input')?.addEventListener('input', recalcSalaryTotals);
+      document.getElementById('salaryItemsBody')?.appendChild(tr);
+      recalcSalaryTotals();
+    }
+    (function initSalaryItems(){
+      addSalaryRow({ kind:'addition', item:'الراتب الأساسي / Basic Salary', amount:'0' });
+      addSalaryRow({ kind:'addition', item:'بدلات / Allowances', amount:'0' });
+      addSalaryRow({ kind:'deduction', item:'استقطاعات / Deductions', amount:'0' });
+      document.getElementById('addSalaryItemBtn')?.addEventListener('click', () => addSalaryRow({ kind:'addition', item:'', amount:'0' }));
+      const themeSelect = document.getElementById('themeSelect');
+      if (themeSelect){
+        themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
+        applyTheme(themeSelect.value);
+      }
+    })();
+
+    (function applyLogoFromStorage(){
+      try{
+        const fixedPath = 'file:///C:/dev/%D8%B9%D9%82%D9%88%D8%AF%20%D8%A7%D9%84%D8%A7%D9%8A%D8%AC%D8%A7%D8%B1/BHD_Logo_04.png';
+        const raw = localStorage.getItem('bhd_print_logo_data_url') || '';
+        const img = document.getElementById('logoImg');
+        const fallback = document.getElementById('logoFallback');
+        if (!img) return;
+        img.src = fixedPath;
+        img.style.display = 'block';
+        if (fallback) fallback.style.display = 'none';
+        if (raw) {
+          img.src = raw;
+        }
+      }catch(e){}
+    })();
+    (function bindLogoUploader(){
+      const input = document.getElementById('logoUploadInput');
+      if (!input) return;
+      input.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const fr = new FileReader();
+        fr.onload = () => {
+          const dataUrl = String(fr.result || '');
+          const img = document.getElementById('logoImg');
+          const fallback = document.getElementById('logoFallback');
+          if (!dataUrl || !img) return;
+          img.src = dataUrl;
+          img.style.display = 'block';
+          if (fallback) fallback.style.display = 'none';
+        };
+        fr.readAsDataURL(file);
+      });
+    })();
+  </script>
+</body>
+</html>

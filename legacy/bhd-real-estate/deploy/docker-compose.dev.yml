@@ -1,0 +1,29 @@
+# تطوير المرحلة 2 — PostgreSQL + Redis
+# من مجلد المشروع: docker compose -f deploy/docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: bhd
+      POSTGRES_PASSWORD: bhd_dev_secret
+      POSTGRES_DB: bhd_cloud
+    volumes:
+      - bhd_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bhd -d bhd_cloud"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - bhd_redis_data:/data
+
+volumes:
+  bhd_pg_data:
+  bhd_redis_data:

@@ -1,0 +1,67 @@
+{
+  "name": "bhd-real-estate-desktop",
+  "version": "1.0.0",
+  "description": "BHD Real Estate — نظام إدارة العقارات / Property Management",
+  "main": "main.js",
+  "author": "BHD Real Estate",
+  "scripts": {
+    "start": "electron .",
+    "prebuild": "node copy-assets.js && npx @electron/rebuild -f -w better-sqlite3",
+    "build": "electron-builder --win --x64",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.bhd.realestate",
+    "productName": "BHD Real Estate",
+    "directories": {
+      "output": "dist"
+    },
+    "artifactName": "BHD-Real-Estate-Setup.${ext}",
+    "asar": true,
+    "asarUnpack": ["**/node_modules/better-sqlite3/**/*"],
+    "files": [
+      "main.js",
+      "preload.js",
+      "sqlite-kv.js",
+      "sync-service.js",
+      "file-storage-service.js",
+      "data-path.js",
+      "config-store.js",
+      "project-path.js",
+      "kv-keys.js",
+      "copy-assets.js",
+      "bhd-real-estate.html",
+      "app-icon.png"
+    ],
+    "extraResources": [
+      { "from": "bhd-real-estate.html", "to": "bhd-real-estate.html" },
+      { "from": "app-icon.png", "to": "app-icon.png" }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "signAndEditExecutable": false,
+      "icon": "app-icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BHD Real Estate",
+      "runAfterFinish": true,
+      "installerLanguages": ["ar_SA", "en_US"],
+      "language": "1025",
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  }
+}

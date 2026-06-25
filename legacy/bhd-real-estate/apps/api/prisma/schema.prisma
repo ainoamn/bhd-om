@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  nameAr    String?  @map("name_ar")
+  nameEn    String?  @map("name_en")
+  planCode  String   @default("trial") @map("plan_code")
+  maxUsers  Int      @default(20) @map("max_users")
+  maxUnits  Int      @default(15000) @map("max_units")
+  status    String   @default("active")
+  trialEndsAt DateTime? @map("trial_ends_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  members        CompanyUser[]
+  buildings      Building[]
+  parties        Party[]
+  contracts      Contract[]
+  dataEntries    CompanyDataEntry[]
+  fileObjects    FileObject[]
+  refreshTokens  RefreshToken[]
+  auditLogs      AuditLog[]
+
+  @@map("companies")
+}
+
+model CompanyDataEntry {
+  companyId String   @map("company_id") @db.Uuid
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, key])
+  @@index([companyId])
+  @@map("company_data_entries")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String?  @map("password_hash")
+  displayName  String?  @map("display_name")
+  locale       String   @default("ar")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  memberships   CompanyUser[]
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model CompanyUser {
+  companyId   String  @map("company_id") @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  role        String
+  permissions Json    @default("[]")
+  isActive    Boolean @default(true) @map("is_active")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, userId])
+  @@map("company_users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  companyId String?   @map("company_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model Building {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String
+  status    String?
+  profile   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  units   Unit[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("buildings")
+}
+
+model Unit {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  buildingId  String   @map("building_id") @db.Uuid
+  unitNo      String   @map("unit_no")
+  floor       String?
+  unitType    String?  @map("unit_type")
+  status      String?
+  managedMeta Json     @default("{}") @map("managed_meta")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  building  Building   @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  contracts Contract[]
+
+  @@unique([companyId, buildingId, unitNo])
+  @@index([companyId, buildingId])
+  @@map("units")
+}
+
+model Party {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  partyType String   @map("party_type")
+  data      Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contracts Contract[]
+
+  @@index([companyId, partyType])
+  @@map("parties")
+}
+
+model Contract {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  unitId      String    @map("unit_id") @db.Uuid
+  tenantId    String?   @map("tenant_id") @db.Uuid
+  agreementNo String?   @map("agreement_no")
+  status      String
+  payload     Json      @default("{}")
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  monthlyRent Decimal?  @map("monthly_rent") @db.Decimal(14, 3)
+  isCurrent   Boolean   @default(true) @map("is_current")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  unit    Unit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenant  Party?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, unitId])
+  @@index([companyId, endDate])
+  @@map("contracts")
+}
+
+model FileObject {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  storageKey  String   @map("storage_key")
+  fileName    String   @map("file_name")
+  mimeType    String?  @map("mime_type")
+  byteSize    BigInt   @default(0) @map("byte_size")
+  building    String?
+  unit        String?
+  tenant      String?
+  docType     String?  @map("doc_type")
+  category    String?
+  meta        Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, building, unit])
+  @@map("file_objects")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  companyId  String   @map("company_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  meta       Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@map("audit_log")
+}

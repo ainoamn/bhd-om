@@ -1,0 +1,14 @@
+---
+description: Enforce bilingual Arabic-English wording for all future UI additions
+alwaysApply: true
+---
+
+# Bilingual Future Changes
+
+- Any new UI text, labels, buttons, dialogs, tables, summaries, tooltips, and field names must support **both Arabic and English in code**, but the **rendered UI shows one language at a time** based on `appUiLanguage` (`bhd_ui_language`).
+- **In JavaScript (dynamic UI):** use `t(ar, en)` — e.g. `t('إدارة المستخدمين', 'User management')`.
+- **In static HTML:** use `data-ar` and `data-en` attributes; `applyAppLanguage()` swaps visible text.
+- **Do not** ship new screens with Arabic-only strings in `innerHTML` or hardcoded alerts — this creates rework when switching to English.
+- **Do not** show mixed labels like `عربي / English` in the final rendered UI (see `language-toggle-single-language-ui.mdc`).
+- When extending existing features, add bilingual support even if older neighboring text is still single-language.
+- Avoid breaking existing saved data keys unless there is a clear migration path.

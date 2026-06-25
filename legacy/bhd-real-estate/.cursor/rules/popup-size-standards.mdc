@@ -1,0 +1,16 @@
+---
+description: Standardize popup/modal sizing and usability
+alwaysApply: true
+---
+
+# Popup and Modal Size Standards
+
+- For all future popup/modal dialogs, use one unified size across the whole site.
+- Unified modal size (mandatory unless user requests exception):
+  - `width: min(1280px, 98vw)`
+  - `max-height: 96vh`
+- Do not create smaller popup variants for specific pages unless the user explicitly asks.
+- All popup cards must support vertical scrolling when content is long (`overflow: auto`).
+- Keep headers sticky when possible for long forms, so title/actions remain visible.
+- Do not use one-off inline width styles for modals unless explicitly requested by user.
+- Reuse shared modal classes (for example `details-card` + size modifier classes) to keep behavior consistent across current and future popups.

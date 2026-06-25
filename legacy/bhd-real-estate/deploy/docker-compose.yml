@@ -1,0 +1,20 @@
+# تشغيل النظام أونلاين (متصفح + قاعدة SQLite مركزية)
+# من مجلد deploy: docker compose up -d --build
+services:
+  bhd:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "${PORT:-3789}:3789"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3789
+      DATABASE_PATH: /app/data/rental.db
+      BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
+    volumes:
+      - bhd_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  bhd_data:

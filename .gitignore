@@ -55,3 +55,10 @@ prisma/dev.db
 
 # سجلات البناء المحلية (tools/build — ختم زمني + تدوير)
 /tools/build/logs/
+
+# Legacy monolith (عقود الايجار) — بيانات محلية فقط
+legacy/bhd-real-estate/**/node_modules/
+legacy/bhd-real-estate/backups/
+legacy/bhd-real-estate/data/
+legacy/bhd-real-estate/**/.env
+!legacy/bhd-real-estate/**/.env.example

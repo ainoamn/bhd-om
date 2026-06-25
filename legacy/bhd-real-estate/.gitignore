@@ -1,0 +1,11 @@
+node_modules/
+desktop/node_modules/
+desktop/dist/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+server/.env
+apps/api/.env
+deploy/.env.prod
+backups/
+apps/api/data/
