@@ -24443,6 +24443,12 @@ function getEmptyCompanySignatory() {
      */
     function recoverDefaultAdminAccess(options = {}) {
         const silent = !!(options && options.silent);
+        if (localStorage.getItem('bhd_site_integrated') === '1') {
+            if (typeof window.__bhdReapplySiteBridge === 'function') window.__bhdReapplySiteBridge();
+            syncAuthStateFromStorage();
+            updateAuthHeaderBar();
+            return !!getLoggedInUser();
+        }
         syncAuthStateFromStorage();
         if (getLoggedInUser()) return true;
         try {
@@ -24575,6 +24581,14 @@ function getEmptyCompanySignatory() {
     }
 
     function openAuthLoginModal() {
+        if (localStorage.getItem('bhd_site_integrated') === '1') {
+            if (typeof window.__bhdReapplySiteBridge === 'function') window.__bhdReapplySiteBridge();
+            syncAuthStateFromStorage();
+            if (getLoggedInUser()) {
+                updateAuthHeaderBar();
+                return;
+            }
+        }
         syncAuthStateFromStorage();
         const emailEl = document.getElementById('authLoginEmail');
         const pwEl = document.getElementById('authLoginPassword');
@@ -67013,6 +67027,10 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         if (isViewerMode) return;
         if (mode !== 'contracts') contractFullEditMode = false;
         if (!canAccessWorkspaceMode(mode)) {
+            if (localStorage.getItem('bhd_site_integrated') === '1' && typeof window.__bhdReapplySiteBridge === 'function') {
+                window.__bhdReapplySiteBridge();
+                syncAuthStateFromStorage();
+            }
             const fallbacks = ['dashboard', 'contracts', 'accounting', 'maintenance', 'addressbook', 'notifications', 'users'];
             const next = fallbacks.find((m) => canAccessWorkspaceMode(m));
             if (!next) {

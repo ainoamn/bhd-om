@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
@@ -15,7 +16,29 @@ export default function RealEstateSystemPage() {
   const ar = locale === 'ar';
   const { data: session, status } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role;
-  const allowed = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const allowed = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'COMPANY' || role === 'ORG_MANAGER';
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const pushBridgeToIframe = useCallback(async () => {
+    const frame = iframeRef.current;
+    if (!frame?.contentWindow) return;
+    try {
+      const res = await fetch(`/api/admin/legacy-bridge/bootstrap?locale=${locale}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const payload = await res.json();
+      frame.contentWindow.postMessage({ type: 'bhd-site-bridge', payload }, window.location.origin);
+    } catch {
+      /* ignore */
+    }
+  }, [locale]);
+
+  useEffect(() => {
+    if (!allowed || status !== 'authenticated') return;
+    void pushBridgeToIframe();
+  }, [allowed, status, pushBridgeToIframe]);
 
   if (status === 'loading') {
     return (
@@ -72,10 +95,14 @@ export default function RealEstateSystemPage() {
         }
       />
       <iframe
+        ref={iframeRef}
         src={LEGACY_APP_SRC}
         title={ar ? 'نظام إدارة العقارات' : 'Real estate management system'}
         className="admin-real-estate-legacy-frame"
         allow="fullscreen"
+        onLoad={() => {
+          void pushBridgeToIframe();
+        }}
       />
     </AdminSubpageShell>
   );

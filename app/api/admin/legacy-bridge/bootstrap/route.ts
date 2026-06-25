@@ -1,37 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, requireRoles } from '@/lib/auth/guard';
-import { buildLegacyBridgePayload } from '@/lib/server/legacyBridge';
+import { requireAuth } from '@/lib/auth/guard';
+import { buildLegacyBridgePayload, resolveLegacyBridgeLocale } from '@/lib/server/legacyBridge';
+import { isAdminLikeRole } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
-
-function resolveLocale(req: NextRequest): 'ar' | 'en' {
-  const q = req.nextUrl.searchParams.get('locale');
-  if (q === 'en' || q === 'ar') return q;
-  const accept = req.headers.get('accept-language') || '';
-  if (accept.toLowerCase().startsWith('en')) return 'en';
-  return 'ar';
-}
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
-    const forbidden = requireRoles(auth, ['ADMIN', 'SUPER_ADMIN', 'COMPANY', 'ORG_MANAGER']);
-    if (forbidden) return forbidden;
+
+    const roleOk = isAdminLikeRole(auth.role) || auth.role === 'ADMIN' || auth.role === 'SUPER_ADMIN';
+    if (!roleOk) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const userId = auth.userId;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = await buildLegacyBridgePayload(userId, resolveLocale(req));
+    const payload = await buildLegacyBridgePayload(userId, resolveLegacyBridgeLocale(req));
     if (!payload) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     return NextResponse.json(payload, {
       headers: {
-        'Cache-Control': 'private, no-store',
+        'Cache-Control': 'private, no-store, must-revalidate',
         Vary: 'Cookie, Authorization',
       },
     });

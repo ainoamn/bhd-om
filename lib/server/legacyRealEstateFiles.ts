@@ -1,5 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
+import type { LegacyBridgePayload } from '@/lib/server/legacyBridge';
+import { injectLegacySiteBridgeScript } from '@/lib/server/legacyBridge';
 
 const LEGACY_ROOT = path.join(process.cwd(), 'legacy', 'bhd-real-estate');
 
@@ -38,9 +40,11 @@ export async function readLegacyRealEstateFile(segments: string[] | undefined): 
   return fs.readFile(full);
 }
 
-export async function readLegacyRealEstateHtmlWithBridge(segments: string[] | undefined): Promise<Buffer> {
-  const { injectLegacySiteBridgeScript } = await import('@/lib/server/legacyBridge');
+export async function readLegacyRealEstateHtmlWithBridge(
+  segments: string[] | undefined,
+  embeddedPayload?: LegacyBridgePayload | null
+): Promise<Buffer> {
   const raw = await readLegacyRealEstateFile(segments);
-  const html = injectLegacySiteBridgeScript(raw.toString('utf-8'));
+  const html = injectLegacySiteBridgeScript(raw.toString('utf-8'), embeddedPayload ?? null);
   return Buffer.from(html, 'utf-8');
 }

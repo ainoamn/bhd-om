@@ -308,6 +308,56 @@ function buildRepName(rep: { firstName?: string; secondName?: string; thirdName?
   return rep.name || '';
 }
 
+export async function buildLegacyBridgeMinimalPayload(
+  authUserId: string,
+  locale: 'ar' | 'en' = 'ar'
+): Promise<LegacyBridgePayload | null> {
+  const currentDbUser = await prisma.user.findUnique({
+    where: { id: authUserId },
+    select: {
+      id: true,
+      serialNumber: true,
+      email: true,
+      name: true,
+      phone: true,
+      role: true,
+      isSuperAdmin: true,
+      adminPermissions: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  if (!currentDbUser) return null;
+
+  const currentUser = mapSiteUserToLegacyUser(currentDbUser);
+  const prefix = `/${locale}`;
+
+  return {
+    siteIntegrated: true,
+    version: 1,
+    syncedAt: new Date().toISOString(),
+    authSession: {
+      userId: currentUser.id,
+      loggedInAt: new Date().toISOString(),
+      source: 'bhd-om',
+    },
+    usersRegistry: [currentUser],
+    addressBook: [],
+    flags: {
+      usersSource: 'bhd-om',
+      addressBookSource: 'bhd-om',
+      preferSiteUserManagement: true,
+      preferSiteAddressBook: true,
+    },
+    siteAdminUrls: {
+      users: `${prefix}/admin/users`,
+      addressBook: `${prefix}/admin/address-book`,
+      dashboard: `${prefix}/admin`,
+    },
+    currentUser,
+  };
+}
+
 export async function buildLegacyBridgePayload(
   authUserId: string,
   locale: 'ar' | 'en' = 'ar'
@@ -398,10 +448,71 @@ export async function buildLegacyBridgePayload(
   };
 }
 
-export const LEGACY_SITE_BRIDGE_BOOT_SCRIPT = `(function(){function applyBridge(data){if(!data)return;window.__bhdSiteBridge=data;window.__bhdSiteBridgePayload=data;if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));if(data.addressBook)localStorage.setItem('bhd_address_book',JSON.stringify(data.addressBook));localStorage.setItem('bhd_site_integrated','1');if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;}window.__bhdReapplySiteBridge=function(){applyBridge(window.__bhdSiteBridgePayload);};try{var xhr=new XMLHttpRequest();xhr.open('GET','/api/admin/legacy-bridge/bootstrap',false);xhr.withCredentials=true;xhr.send(null);if(xhr.status===200){window.__bhdSiteBridgePayload=JSON.parse(xhr.responseText);applyBridge(window.__bhdSiteBridgePayload);}}catch(e){console.warn('[BHD] site bridge bootstrap failed',e);}document.addEventListener('DOMContentLoaded',function(){if(!window.__bhdSiteAdminUrls)return;var m=new URLSearchParams(location.search).get('mode');var u=window.__bhdSiteAdminUrls;function addBanner(hostId,title,url,label){setTimeout(function(){var h=document.getElementById(hostId);if(!h||h.querySelector('[data-bhd-site-banner]'))return;var b=document.createElement('div');b.setAttribute('data-bhd-site-banner','1');b.style.cssText='margin-bottom:12px;padding:12px;border:1px solid #c5a028;border-radius:10px;background:#fffdf5';b.innerHTML='<p style="margin:0 0 8px;font-weight:700">'+title+'</p><a href="'+url+'" target="_blank" rel="noopener" style="font-weight:700;color:#8B0000">'+label+'</a>';h.prepend(b);},900);}if(m==='users'&&u.users)addBanner('usersPanelHost','إدارة المستخدمين — الموقع الرئيسي هو المصدر',u.users,'فتح إدارة المستخدمين في الموقع ←');if(m==='addressbook'&&u.addressBook)addBanner('addressBookWorkspace','دفتر العناوين — الموقع الرئيسي هو المصدر',u.addressBook,'فتح دفتر العناوين في الموقع ←');},{once:true});})();`;
+export function resolveLegacyBridgeLocale(req: { nextUrl: URL; headers: Headers }): 'ar' | 'en' {
+  const q = req.nextUrl.searchParams.get('locale');
+  if (q === 'en' || q === 'ar') return q;
+  const accept = req.headers.get('accept-language') || '';
+  if (accept.toLowerCase().startsWith('en')) return 'en';
+  return 'ar';
+}
 
-export function injectLegacySiteBridgeScript(html: string): string {
+function buildBridgeBootScript(embeddedPayload: LegacyBridgePayload | null): string {
+  const embeddedLiteral = embeddedPayload
+    ? JSON.stringify(embeddedPayload).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
+    : 'null';
+
+  return `(function(){
+function applyBridge(data){
+  if(!data)return;
+  window.__bhdSiteBridge=data;
+  window.__bhdSiteBridgePayload=data;
+  if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));
+  if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));
+  if(Array.isArray(data.addressBook)&&data.addressBook.length)localStorage.setItem('bhd_address_book',JSON.stringify(data.addressBook));
+  localStorage.setItem('bhd_site_integrated','1');
+  if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
+}
+window.__bhdReapplySiteBridge=function(){applyBridge(window.__bhdSiteBridgePayload);};
+window.__bhdApplySiteBridge=function(d){if(d){window.__bhdSiteBridgePayload=d;applyBridge(d);}};
+function fetchFullBridge(){
+  return fetch('/api/admin/legacy-bridge/bootstrap',{credentials:'include',cache:'no-store'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(d){if(d)applyBridge(d);return d;})
+    .catch(function(){});
+}
+window.addEventListener('message',function(ev){
+  if(ev.origin!==location.origin)return;
+  if(ev.data&&ev.data.type==='bhd-site-bridge'&&ev.data.payload)applyBridge(ev.data.payload);
+});
+try{
+  var embedded=${embeddedLiteral};
+  if(embedded){window.__bhdSiteBridgePayload=embedded;applyBridge(embedded);}
+}catch(e){console.warn('[BHD] embedded site bridge failed',e);}
+if(!window.__bhdSiteBridgePayload){fetchFullBridge();}
+document.addEventListener('DOMContentLoaded',function(){
+  fetchFullBridge();
+  if(!window.__bhdSiteAdminUrls)return;
+  var m=new URLSearchParams(location.search).get('mode');
+  var u=window.__bhdSiteAdminUrls;
+  function addBanner(hostId,title,url,label){
+    setTimeout(function(){
+      var h=document.getElementById(hostId);
+      if(!h||h.querySelector('[data-bhd-site-banner]'))return;
+      var b=document.createElement('div');
+      b.setAttribute('data-bhd-site-banner','1');
+      b.style.cssText='margin-bottom:12px;padding:12px;border:1px solid #c5a028;border-radius:10px;background:#fffdf5';
+      b.innerHTML='<p style="margin:0 0 8px;font-weight:700">'+title+'</p><a href="'+url+'" target="_blank" rel="noopener" style="font-weight:700;color:#8B0000">'+label+'</a>';
+      h.prepend(b);
+    },900);
+  }
+  if(m==='users'&&u.users)addBanner('usersPanelHost','إدارة المستخدمين — الموقع الرئيسي هو المصدر',u.users,'فتح إدارة المستخدمين في الموقع ←');
+  if(m==='addressbook'&&u.addressBook)addBanner('addressBookWorkspace','دفتر العناوين — الموقع الرئيسي هو المصدر',u.addressBook,'فتح دفتر العناوين في الموقع ←');
+},{once:true});
+})();`;
+}
+
+export function injectLegacySiteBridgeScript(html: string, embeddedPayload?: LegacyBridgePayload | null): string {
   if (html.includes('id="bhd-site-bridge-boot"')) return html;
-  const tag = `<script id="bhd-site-bridge-boot">${LEGACY_SITE_BRIDGE_BOOT_SCRIPT}</script>`;
+  const tag = `<script id="bhd-site-bridge-boot">${buildBridgeBootScript(embeddedPayload ?? null)}</script>`;
   return html.replace(/<head([^>]*)>/i, `<head$1>\n${tag}\n`);
 }
