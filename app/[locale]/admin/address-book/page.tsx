@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -47,6 +47,7 @@ import {
   getContactLinkedContractsFromServer,
   getContactDerivedCategoriesFromServer,
   isContactLinkedFromServer,
+  buildContactLinkCache,
   type ContactLinkedBooking,
   type ContactLinkedContract,
 } from '@/lib/data/contactLinks';
@@ -273,35 +274,54 @@ export default function AdminAddressBookPage() {
   useEffect(() => setMounted(true), []);
 
   /**
-   * حجوزات + مستندات محاسبة للربط مع الجهات — تُحمَّل بعد اكتمال دفتر العناوين حتى لا تتنافس مع GET /api/address-book
-   * (ثلاثة طلبات ثقيلة بالتوازي كانت تبطّئ ظهور الأسماء 10+ ثانية).
+   * حجوزات + عقود + مستندات للربط — تُحمَّل بعد دفتر العناوين وبشكل مؤجّل حتى تظهر الأسماء فوراً.
    */
   useEffect(() => {
     if (contactsLoading) return;
     let alive = true;
-    Promise.all([
-      fetch('/api/bookings', { credentials: 'include', cache: 'no-store' }).then((r) => (r.ok ? r.json() : [])),
-      fetch('/api/contracts?limit=500&offset=0', { credentials: 'include', cache: 'no-store' }).then((r) =>
-        r.ok ? r.json() : []
-      ),
-      fetch('/api/accounting/documents?limit=400&offset=0', { credentials: 'include', cache: 'no-store' }).then((r) =>
-        r.ok ? r.json() : []
-      ),
-    ])
-      .then(([bookingsList, contractsList, docsList]) => {
-        if (!alive) return;
-        setServerBookings(Array.isArray(bookingsList) ? (bookingsList as PropertyBooking[]) : []);
-        setServerContracts(Array.isArray(contractsList) ? (contractsList as RentalContract[]) : []);
-        setServerDocuments(Array.isArray(docsList) ? (docsList as AccountingDocument[]) : []);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setServerBookings([]);
-        setServerContracts([]);
-        setServerDocuments([]);
-      });
+    let idleId: number | undefined;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    const loadSecondary = () => {
+      if (!alive) return;
+      Promise.all([
+        fetch('/api/bookings?limit=250&offset=0', { credentials: 'include', cache: 'no-store' }).then((r) =>
+          r.ok ? r.json() : []
+        ),
+        fetch('/api/contracts?limit=500&offset=0', { credentials: 'include', cache: 'no-store' }).then((r) =>
+          r.ok ? r.json() : []
+        ),
+        fetch('/api/accounting/documents?limit=200&offset=0', { credentials: 'include', cache: 'no-store' }).then(
+          (r) => (r.ok ? r.json() : [])
+        ),
+      ])
+        .then(([bookingsList, contractsList, docsList]) => {
+          if (!alive) return;
+          setServerBookings(Array.isArray(bookingsList) ? (bookingsList as PropertyBooking[]) : []);
+          setServerContracts(Array.isArray(contractsList) ? (contractsList as RentalContract[]) : []);
+          setServerDocuments(Array.isArray(docsList) ? (docsList as AccountingDocument[]) : []);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setServerBookings([]);
+          setServerContracts([]);
+          setServerDocuments([]);
+        });
+    };
+
+    const schedule = () => {
+      if (typeof requestIdleCallback !== 'undefined') {
+        idleId = requestIdleCallback(loadSecondary, { timeout: 1200 });
+      } else {
+        timerId = setTimeout(loadSecondary, 400);
+      }
+    };
+    schedule();
+
     return () => {
       alive = false;
+      if (idleId !== undefined && typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(idleId);
+      if (timerId !== undefined) clearTimeout(timerId);
     };
   }, [contactsLoading]);
 
@@ -563,7 +583,12 @@ export default function AdminAddressBookPage() {
     }
   };
 
-  const duplicateGroups = findDuplicateContactGroupsFromList(contacts);
+  const duplicateGroups = useMemo(() => findDuplicateContactGroupsFromList(contacts), [contacts]);
+
+  const contactLinkCache = useMemo(
+    () => buildContactLinkCache(contacts, serverBookings, serverContracts, serverDocuments),
+    [contacts, serverBookings, serverContracts, serverDocuments]
+  );
   const handleMergeDuplicates = async () => {
     setMergingDuplicates(true);
     try {
@@ -603,12 +628,15 @@ export default function AdminAddressBookPage() {
 
   const allTags = Array.from(new Set(contacts.flatMap((c) => c.tags || []))).sort();
 
-  const stats = {
-    total: contacts.length,
-    clients: contacts.filter((c) => c.category === 'CLIENT').length,
-    tenants: contacts.filter((c) => c.category === 'TENANT').length,
-    landlords: contacts.filter((c) => c.category === 'LANDLORD').length,
-  };
+  const stats = useMemo(
+    () => ({
+      total: contacts.length,
+      clients: contacts.filter((c) => c.category === 'CLIENT').length,
+      tenants: contacts.filter((c) => c.category === 'TENANT').length,
+      landlords: contacts.filter((c) => c.category === 'LANDLORD').length,
+    }),
+    [contacts]
+  );
 
   const openAdd = () => {
     setEditingId(null);
@@ -1732,7 +1760,7 @@ export default function AdminAddressBookPage() {
                             </div>
                           </button>
                         ) : null}
-                        {getContactDerivedCategoriesFromServer(c, serverBookings, serverContracts, serverDocuments).map((cat) => (
+                        {(contactLinkCache.derivedCategoriesByContactId.get(c.id) || []).map((cat) => (
                           <button
                             key={cat}
                             type="button"
@@ -1743,7 +1771,8 @@ export default function AdminAddressBookPage() {
                             {t(CATEGORY_KEYS[cat] as 'categoryClient')}
                           </button>
                         ))}
-                        {!isAuthorizedRepresentative(c) && getContactDerivedCategoriesFromServer(c, serverBookings, serverContracts, serverDocuments).length === 0 && (
+                        {!isAuthorizedRepresentative(c) &&
+                          (contactLinkCache.derivedCategoriesByContactId.get(c.id) || []).length === 0 && (
                           <button
                             type="button"
                             onClick={() => setFilterCategory(c.category)}
@@ -1787,7 +1816,7 @@ export default function AdminAddressBookPage() {
                         <button type="button" onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-gray-100 admin-accent-text text-xs font-medium">{t('edit')}</button>
                         {c.archived ? (
                           <button type="button" onClick={() => handleRestore(c.id)} className="p-1.5 rounded hover:bg-gray-100 text-emerald-600 text-xs font-medium">{t('restore')}</button>
-                        ) : isContactLinkedFromServer(c, serverBookings, serverContracts, serverDocuments).linked ? (
+                        ) : (contactLinkCache.linkedByContactId.get(c.id)?.linked ?? false) ? (
                           <span className="p-1.5 text-gray-400 text-xs cursor-not-allowed" title={t('cannotArchiveLinked')}>{t('archive')}</span>
                         ) : (
                           <button type="button" onClick={() => setDeleteId(c.id)} className="p-1.5 rounded hover:bg-gray-100 text-amber-600 text-xs font-medium">{t('archive')}</button>

@@ -84,9 +84,12 @@ export async function GET(req: NextRequest) {
       keptRows = rows;
     }
 
-    /** أي صف مربوط بحساب — نطبّق هوية User الحالية كما في linked-contact حتى لا يظهر دفتر العناوين باسم/هاتف قديم */
+    /** إن طُلب limit نُعالج الصفحة فقط لتسريع الاستجابة */
+    const totalCount = keptRows.length;
+    const pageRows = limit > 0 ? keptRows.slice(offset, offset + limit) : keptRows;
+
     const identityUserIds = new Set<string>();
-    for (const r of keptRows) {
+    for (const r of pageRows) {
       const d = (r.data as Record<string, unknown>) || {};
       const fromLinked = typeof r.linkedUserId === 'string' ? r.linkedUserId.trim() : '';
       const fromJson = typeof d.userId === 'string' ? String(d.userId).trim() : '';
@@ -102,7 +105,7 @@ export async function GET(req: NextRequest) {
         : [];
     const userById = new Map(identityUsers.map((u) => [u.id, u]));
 
-    const contacts = keptRows
+    const contacts = pageRows
       .map((r) => {
         const c = { ...((r.data as Record<string, unknown>) ?? {}) };
         const cid = String(r.contactId || '').trim();
@@ -123,9 +126,7 @@ export async function GET(req: NextRequest) {
       })
       .filter((c): c is Record<string, unknown> => c != null);
 
-    const totalCount = contacts.length;
-    const paged = limit > 0 ? contacts.slice(offset, offset + limit) : contacts;
-    return NextResponse.json(paged, {
+    return NextResponse.json(contacts, {
       headers: {
         'Cache-Control': CACHE_ADDRESS_BOOK_GET_NO_STORE,
         Vary: HTTP_CACHE_VARY_AUTH,

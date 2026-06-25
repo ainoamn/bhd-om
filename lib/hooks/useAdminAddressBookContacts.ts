@@ -79,7 +79,7 @@ export function useAdminAddressBookContacts(opts: {
         void getSession().catch(() => {});
 
         const fetchOnce = () =>
-          fetch(`/api/address-book?_=${Date.now()}`, {
+          fetch(`/api/address-book?limit=500&offset=0&_=${Date.now()}`, {
             credentials: 'include',
             cache: 'no-store',
             signal: ac.signal,
@@ -90,11 +90,7 @@ export function useAdminAddressBookContacts(opts: {
 
         let res = await fetchOnce();
         if (res.status === 401) {
-          await delay(200);
-          res = await fetchOnce();
-        }
-        if (res.status === 401) {
-          await delay(350);
+          await delay(150);
           res = await fetchOnce();
         }
         /** محاولتان فقط مع تأخير قصير — 5 محاولات كانت تضيف 10+ ثوانٍ دون سبب */
@@ -173,7 +169,13 @@ export function useAdminAddressBookContacts(opts: {
 
         if (isAdminLike(userRole) || userRole === undefined) {
           toDisplay = listFromApi;
-          persistAddressBookContactsLocally(listFromApi);
+          const persistList = listFromApi;
+          const runPersist = () => persistAddressBookContactsLocally(persistList);
+          if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(runPersist, { timeout: 2500 });
+          } else {
+            setTimeout(runPersist, 0);
+          }
         } else {
           const localContacts = getAllContacts(true);
           const merged = mergeAddressBookApiWithLocal(listFromApi, localContacts);

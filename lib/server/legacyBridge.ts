@@ -643,7 +643,11 @@ try{
 }catch(e){console.warn('[BHD] embedded site bridge parse failed',e);}
 if(!window.__bhdSiteBridgePayload){fetchFullBridge().then(function(){pollAuthUiRefresh(20);});}
 document.addEventListener('DOMContentLoaded',function(){
-  fetchFullBridge().then(function(){pollAuthUiRefresh(25);});
+  if(!window.__bhdSiteBridgePayload){
+    fetchFullBridge().then(function(){pollAuthUiRefresh(25);});
+  }else{
+    pollAuthUiRefresh(25);
+  }
   if(!window.__bhdSiteAdminUrls)return;
   var m=new URLSearchParams(location.search).get('mode');
   var u=window.__bhdSiteAdminUrls;

@@ -382,6 +382,129 @@ export function getContactDerivedCategoriesFromServer(
   return deriveContactCategoriesFromLinks(bookings, contracts);
 }
 
+export type BookingMatchIndex = {
+  byContactId: Map<string, PropertyBooking[]>;
+  byPhone: Map<string, PropertyBooking[]>;
+  byEmail: Map<string, PropertyBooking[]>;
+};
+
+/** فهرس O(1) للحجوزات — يُبنى مرة واحدة بدل مسح القائمة كاملة لكل جهة اتصال */
+export function buildBookingMatchIndex(serverBookings: PropertyBooking[]): BookingMatchIndex {
+  const byContactId = new Map<string, PropertyBooking[]>();
+  const byPhone = new Map<string, PropertyBooking[]>();
+  const byEmail = new Map<string, PropertyBooking[]>();
+  for (const b of Array.isArray(serverBookings) ? serverBookings : []) {
+    const cid = String((b as PropertyBooking & { contactId?: unknown }).contactId || '').trim();
+    if (cid) {
+      const arr = byContactId.get(cid) || [];
+      arr.push(b);
+      byContactId.set(cid, arr);
+    }
+    const phone = normalizePhoneForComparison(String((b as PropertyBooking & { phone?: unknown }).phone || ''));
+    if (phone.length >= 6) {
+      const arr = byPhone.get(phone) || [];
+      arr.push(b);
+      byPhone.set(phone, arr);
+    }
+    const email = normEmail(String((b as PropertyBooking & { email?: unknown }).email || ''));
+    if (email.length >= 3) {
+      const arr = byEmail.get(email) || [];
+      arr.push(b);
+      byEmail.set(email, arr);
+    }
+  }
+  return { byContactId, byPhone, byEmail };
+}
+
+function mapBookingToLinkedRow(
+  b: PropertyBooking,
+  serverDocuments?: AccountingDocument[]
+): ContactLinkedBooking {
+  const hasFinancialClaims = (serverDocuments || []).some(
+    (d) => String(d.bookingId || '') === String(b.id) && (d.status === 'PENDING' || d.status === 'DRAFT')
+  );
+  return {
+    id: String(b.id),
+    bookingId: String(b.id),
+    date: String(b.createdAt || ''),
+    propertyId: Number(b.propertyId),
+    propertyTitleAr: String(b.propertyTitleAr || ''),
+    propertyTitleEn: String(b.propertyTitleEn || ''),
+    unitKey: b.unitKey ? String(b.unitKey) : undefined,
+    unitDisplay: String((b as PropertyBooking & { unitDisplay?: unknown }).unitDisplay || ''),
+    status: b.status,
+    contractId: b.contractId ? String(b.contractId) : undefined,
+    hasFinancialClaims,
+    cardLast4: (b as PropertyBooking & { cardLast4?: string }).cardLast4,
+    cardExpiry: (b as PropertyBooking & { cardExpiry?: string }).cardExpiry,
+    cardholderName: (b as PropertyBooking & { cardholderName?: string }).cardholderName,
+  };
+}
+
+export function getContactLinkedBookingsFromIndex(
+  contact: Contact,
+  index: BookingMatchIndex,
+  serverDocuments?: AccountingDocument[]
+): ContactLinkedBooking[] {
+  const cId = String(contact.id || '').trim();
+  const cPhone = normalizePhoneForComparison(contact.phone || '');
+  const cEmail = normEmail(contact.email || '');
+  const seen = new Set<string>();
+  const matches: PropertyBooking[] = [];
+  const push = (list?: PropertyBooking[]) => {
+    for (const b of list || []) {
+      const id = String(b.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      matches.push(b);
+    }
+  };
+  if (cId) push(index.byContactId.get(cId));
+  if (cPhone.length >= 6) push(index.byPhone.get(cPhone));
+  if (cEmail.length >= 3) push(index.byEmail.get(cEmail));
+  return matches.map((b) => mapBookingToLinkedRow(b, serverDocuments));
+}
+
+export type ContactLinkCache = {
+  derivedCategoriesByContactId: Map<string, ContactCategory[]>;
+  linkedByContactId: Map<string, { linked: boolean; bookings: number; contracts: number; documents: number }>;
+};
+
+/** يُحسب مرة واحدة عند تغيّر البيانات — يُستخدم في جدول دفتر العناوين */
+export function buildContactLinkCache(
+  contacts: Contact[],
+  serverBookings: PropertyBooking[],
+  serverContracts: RentalContract[],
+  serverDocuments?: AccountingDocument[]
+): ContactLinkCache {
+  const bookingIndex = buildBookingMatchIndex(serverBookings);
+  const derivedCategoriesByContactId = new Map<string, ContactCategory[]>();
+  const linkedByContactId = new Map<
+    string,
+    { linked: boolean; bookings: number; contracts: number; documents: number }
+  >();
+
+  for (const contact of contacts) {
+    const bookings = getContactLinkedBookingsFromIndex(contact, bookingIndex, serverDocuments);
+    const contracts = getContactLinkedContractsFromServer(
+      contact,
+      serverBookings,
+      serverContracts,
+      serverDocuments
+    );
+    derivedCategoriesByContactId.set(contact.id, deriveContactCategoriesFromLinks(bookings, contracts));
+    const docs = (serverDocuments || []).filter((d) => String(d.contactId || '') === String(contact.id));
+    linkedByContactId.set(contact.id, {
+      linked: bookings.length > 0 || contracts.length > 0 || docs.length > 0,
+      bookings: bookings.length,
+      contracts: contracts.length,
+      documents: docs.length,
+    });
+  }
+
+  return { derivedCategoriesByContactId, linkedByContactId };
+}
+
 /** @deprecated استخدم isContactLinkedFromServer مع بيانات الخادم */
 export function isContactLinked(contact: Contact): { linked: boolean; bookings: number; contracts: number; documents: number } {
   return { linked: false, bookings: 0, contracts: 0, documents: 0 };
