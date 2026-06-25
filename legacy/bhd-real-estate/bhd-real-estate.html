@@ -18878,6 +18878,17 @@ function getEmptyCompanySignatory() {
             e.preventDefault();
             e.stopPropagation();
             const action = btn.getAttribute('data-ab-action');
+            if (action === 'print-site') {
+                const siteId = btn.getAttribute('data-ab-site-id');
+                if (typeof window.__bhdPrintSiteContact === 'function') window.__bhdPrintSiteContact(siteId);
+                else alert(t('تعذر الطباعة من الموقع.', 'Could not print from site.'));
+                return;
+            }
+            if (action === 'qr') {
+                const uid = btn.getAttribute('data-ab-user-id');
+                if (typeof window.__bhdShowScanQrModal === 'function') window.__bhdShowScanQrModal(uid);
+                return;
+            }
             const idx = parseInt(btn.getAttribute('data-ab-index'), 10);
             if (Number.isNaN(idx) || idx < 0 || !addressBookEntries[idx]) {
                 alert(t('لم يُعثر على السجل في دفتر العناوين.', 'Record not found in the address book.'));
@@ -18970,6 +18981,7 @@ function getEmptyCompanySignatory() {
                 ${locCol}
                 <td style="font-size:11px;color:${formatDocAlert(r) ? '#9b1c1c' : '#3b4b56'};line-height:1.45">${formatDocAlertLines(r)}</td>
                 <td>
+                    ${typeof window.__bhdAbCommActionsHtml === 'function' ? window.__bhdAbCommActionsHtml(r) : ''}
                     <div class="inline-actions">
                         ${entryIdx >= 0 ? `
                         <button type="button" class="mini-btn" data-ab-action="view" data-ab-index="${entryIdx}">${t('فتح', 'Open')}</button>

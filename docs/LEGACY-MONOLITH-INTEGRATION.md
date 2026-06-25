@@ -125,7 +125,42 @@
 | موقع عام (عقارات، مشاريع، SEO) | ✅ جاهز | ❌ | **يبقى في الجذر** |
 | تسجيل دخول + أدوار | ✅ Prisma + NextAuth | محلي | **يبقى في الجذر** |
 | محاسبة | ✅ جداول + واجهة admin | ✅ أثقل في monolith | **دمج تدريجي** — مقارنة قبل النقل |
-| دفتر العناوين | ✅ server-first | ✅ | **موحّد** — الجذر هو المرجع |
+| دفتر العناوين | ✅ server-first | ✅ `?mode=addressbook` | **موحّد** — PostgreSQL مصدر الحقيقة؛ legacy للاستخدام اليومي + استيراد للعقود |
+
+### 6.1 ربط دفتر العناوين (موقع ↔ legacy)
+
+| الواجهة | الرابط | الدور |
+|---------|--------|--------|
+| إدارة كاملة (CRUD) | `/ar/admin/address-book` | إضافة/تعديل/أرشفة — مصدر الحقيقة في PostgreSQL |
+| استخدام تشغيلي | `/api/admin/legacy-real-estate/bhd-real-estate.html?mode=addressbook` | عرض متزامن + استيراد للعقود + اتصال/واتساب/باركود/طباعة |
+
+**آلية المزامنة (موقع → legacy):**
+
+1. عند فتح HTML القديم يُحقَن سكربت `bhd-site-bridge-boot` مع بيانات الجلسة.
+2. `GET /api/admin/legacy-bridge/bootstrap` يجلب حتى 500 مستخدم + كل جهات الاتصال غير المؤرشفة من Prisma.
+3. `mapSiteContactToLegacyEntry()` يحوّل كل `AddressBookContact` إلى صيغة `bhd_address_book` في `localStorage` (مع `siteContactId`, `userId`, `serialNumber`, `extraMobile`).
+4. بعد التطبيق يُعاد تحميل `addressBookEntries` ويُحدَّث الجدول تلقائياً في وضع `addressbook`.
+
+**ميزات من الموقع في legacy:**
+
+| الميزة | السلوك |
+|--------|--------|
+| 📞 اتصال | `tel:` على رقم الجوال |
+| 💬 واتساب | `https://wa.me/968…` (نفس منطق الموقع) |
+| ✉️ بريد | `mailto:` |
+| 🖨️ طباعة | `GET /api/admin/legacy-bridge/address-book/print?id={siteContactId}` — تقرير A4 مع شعار الشركة وباركود QR إن وُجد مستخدم مربوط |
+| ▦ باركود | QR يشير إلى `https://www.bhd-om.com/{ar\|en}/scan/{userId}` |
+
+**ماذا يحدث عند مسح الباركود؟**
+
+1. الهاتف يفتح صفحة عامة: `/{locale}/scan/{userId}` (لا تتطلب تسجيل دخول).
+2. الصفحة تستدعي `GET /api/scan/{userId}` وتعرض بطاقة المستخدم: الاسم، الرقم المتسلسل، الهاتف، البريد، الاشتراك، ملخص نشاط.
+3. من البطاقة يمكن الاتصال أو فتح واتساب مباشرة.
+4. **لا علاقة لمسح الباركود بلوحة Vercel** ([deployments](https://vercel.com/bhdom89-8158s-projects/bhd-om/deployments)) — تلك لوحة نشر للمطورين فقط. الباركود يوجّه دائماً إلى الموقع العام `bhd-om.com`.
+
+**طباعة التقرير:** تُنشأ على الخادم من بيانات PostgreSQL الحالية (ليست نسخة `localStorage` القديمة). عند وجود `userId` مربوط يُضمَّن QR في التقرير المطبوع مثل صفحة `/admin/address-book`.
+
+---
 | حجوزات / عقود | ✅ API + صفحات admin | ✅ أغنى (وحدات، تجديد، إلغاء) | **نقل المنطق الناقص** من legacy |
 | طباعة A4 موحّدة | جزئي | ✅ معايير قوية | **نقل المعايير** إلى الجذر |
 | Desktop / SQLite | ❌ | ✅ | **تعطيل** |

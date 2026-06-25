@@ -1372,6 +1372,15 @@ export default function AdminAddressBookPage() {
         actions={
           <div className="flex flex-wrap gap-1.5 justify-end">
             <Link
+              href="/api/admin/legacy-real-estate/bhd-real-estate.html?mode=addressbook"
+              prefetch={false}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all no-print"
+            >
+              {locale === 'ar' ? 'فتح في نظام العقارات' : 'Open in real-estate system'}
+            </Link>
+            <Link
               href={`/${locale}/admin/users`}
               prefetch={true}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-all no-print"

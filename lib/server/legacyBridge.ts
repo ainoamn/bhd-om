@@ -70,6 +70,7 @@ export type LegacyBridgePayload = {
   siteAdminUrls: {
     users: string;
     addressBook: string;
+    legacyAddressBook: string;
     dashboard: string;
   };
   currentUser: LegacyBridgeUser;
@@ -258,6 +259,10 @@ export function mapSiteContactToLegacyEntry(
   const nameAr = getContactDisplayName(contact, 'ar');
   const nameEn = getContactDisplayName(contact, 'en');
   const linked = linkedUserId || contact.userId || contact.linkedUserId || '';
+  const address = contact.address || {};
+  const building =
+    [address.building, address.street, address.area, address.governorate].filter(Boolean).join(' — ') || '';
+  const unit = [address.floor, address.village, address.state].filter(Boolean).join(' / ') || '';
 
   if (isCompany) {
     const entry: LegacyBridgeAddressEntry = {
@@ -265,13 +270,19 @@ export function mapSiteContactToLegacyEntry(
       name: contact.companyData?.companyNameAr || nameAr,
       nameEn: contact.companyData?.companyNameEn || nameEn,
       mobile: contact.phone || '',
+      extraMobile: contact.phoneSecondary || '',
       email: contact.email || '',
       commercialRegNo: contact.companyData?.commercialRegistrationNumber || '',
       commercialRegExpiry: contact.companyData?.commercialRegistrationExpiry || '',
       linkedUserId: linked,
+      userId: linked || undefined,
       serialNumber: contact.serialNumber || '',
       siteContactId: contact.id,
       id: contact.id,
+      building,
+      unit,
+      siteManaged: true,
+      source: 'bhd-om',
       signatories: (contact.companyData?.authorizedRepresentatives || []).map((rep) => ({
         signatoryName: rep.name || buildRepName(rep),
         signatoryNameEn: rep.nameEn || '',
@@ -290,13 +301,22 @@ export function mapSiteContactToLegacyEntry(
     name: nameAr,
     nameEn: nameEn,
     mobile: contact.phone || '',
+    extraMobile: contact.phoneSecondary || '',
     email: contact.email || '',
     idNo: contact.civilId || contact.passportNumber || '',
     nationality: contact.nationality || '',
+    idExpiryDate: contact.civilIdExpiry || '',
+    passport: contact.passportNumber || '',
+    passportExpiryDate: contact.passportExpiry || '',
     linkedUserId: linked,
+    userId: linked || undefined,
     serialNumber: contact.serialNumber || '',
     siteContactId: contact.id,
     id: contact.id,
+    building,
+    unit,
+    siteManaged: true,
+    source: 'bhd-om',
   };
   entry.addressBookKey = buildLegacyAddressBookKey(entry);
   return entry;
@@ -352,6 +372,7 @@ export async function buildLegacyBridgeMinimalPayload(
     siteAdminUrls: {
       users: `${prefix}/admin/users`,
       addressBook: `${prefix}/admin/address-book`,
+      legacyAddressBook: '/api/admin/legacy-real-estate/bhd-real-estate.html?mode=addressbook',
       dashboard: `${prefix}/admin`,
     },
     currentUser,
@@ -442,6 +463,7 @@ export async function buildLegacyBridgePayload(
     siteAdminUrls: {
       users: `${prefix}/admin/users`,
       addressBook: `${prefix}/admin/address-book`,
+      legacyAddressBook: '/api/admin/legacy-real-estate/bhd-real-estate.html?mode=addressbook',
       dashboard: `${prefix}/admin`,
     },
     currentUser,
@@ -458,6 +480,66 @@ export function resolveLegacyBridgeLocale(req: { nextUrl: URL; headers: Headers 
 
 function buildBridgeBootScript(): string {
   return `(function(){
+function reloadAddressBookFromBridge(){
+  try{
+    var raw=localStorage.getItem('bhd_address_book');
+    if(!raw)return;
+    var entries=JSON.parse(raw);
+    if(!Array.isArray(entries))return;
+    if(typeof addressBookEntries!=='undefined')addressBookEntries=entries;
+    if(typeof renderAddressBookTable==='function'&&document.body&&document.body.classList.contains('mode-addressbook'))renderAddressBookTable();
+  }catch(e){console.warn('[BHD] reloadAddressBookFromBridge',e);}
+}
+window.__bhdSiteLocale=function(){
+  try{if(typeof appUiLanguage==='string'&&appUiLanguage==='en')return'en';}catch(e){}
+  return'ar';
+};
+window.__bhdWaUrl=function(phone){
+  var d=String(phone||'').replace(/\\D/g,'');
+  if(!d)return'';
+  if(!d.startsWith('968'))d='968'+d.replace(/^0+/,'');
+  return'https://wa.me/'+d;
+};
+window.__bhdScanUrl=function(userId){
+  if(!userId)return'';
+  return location.origin+'/'+window.__bhdSiteLocale()+'/scan/'+userId;
+};
+window.__bhdPrintSiteContact=function(siteContactId){
+  if(!siteContactId){alert('لا يوجد معرف جهة اتصال على الموقع / No site contact id');return;}
+  fetch('/api/admin/legacy-bridge/address-book/print?id='+encodeURIComponent(siteContactId),{credentials:'include',cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('print failed');return r.text();})
+    .then(function(html){var w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}})
+    .catch(function(){alert('تعذر طباعة التقرير من الموقع / Could not print from site');});
+};
+window.__bhdShowScanQrModal=function(userId){
+  if(!userId)return;
+  var url=window.__bhdScanUrl(userId);
+  var img='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(url);
+  var ar=window.__bhdSiteLocale()==='ar';
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:360px;width:100%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.25)"><p style="margin:0 0 12px;font-weight:700;color:#333">'+(ar?'مسح الباركود لعرض بيانات المستخدم':'Scan to view user data')+'</p><img src="'+img+'" alt="QR" style="width:220px;height:220px;display:block;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px"/><p style="margin:12px 0 0;font-size:11px;color:#6b7280;word-break:break-all" dir="ltr">'+url+'</p><button type="button" style="margin-top:14px;padding:8px 16px;border-radius:10px;border:1px solid #d1d5db;background:#f9fafb;font-weight:700;cursor:pointer">'+(ar?'إغلاق':'Close')+'</button></div>';
+  overlay.addEventListener('click',function(ev){if(ev.target===overlay||ev.target.tagName==='BUTTON')document.body.removeChild(overlay);});
+  document.body.appendChild(overlay);
+};
+window.__bhdAbCommActionsHtml=function(r){
+  if(!r)return'';
+  var phone=String(r.mobile||'').trim();
+  var email=String(r.email||'').trim();
+  var userId=String(r.userId||r.linkedUserId||'').trim();
+  var siteId=String(r.siteContactId||r.id||'').trim();
+  var parts=[];
+  if(phone){
+    parts.push('<a href="tel:'+phone.replace(/"/g,'')+'" class="mini-btn" title="Call">📞</a>');
+    var wa=window.__bhdWaUrl(phone);
+    if(wa)parts.push('<a href="'+wa+'" target="_blank" rel="noopener" class="mini-btn" title="WhatsApp">💬</a>');
+  }
+  if(email)parts.push('<a href="mailto:'+encodeURIComponent(email)+'" class="mini-btn" title="Email">✉️</a>');
+  if(siteId)parts.push('<button type="button" class="mini-btn" data-ab-action="print-site" data-ab-site-id="'+siteId.replace(/"/g,'')+'" title="Print">🖨️</button>');
+  if(userId)parts.push('<button type="button" class="mini-btn" data-ab-action="qr" data-ab-user-id="'+userId.replace(/"/g,'')+'" title="QR">▦</button>');
+  if(!parts.length)return'';
+  return'<div class="inline-actions ab-site-comm" style="margin-bottom:6px">'+parts.join('')+'</div>';
+};
 function applyBridge(data){
   if(!data)return;
   window.__bhdSiteBridge=data;
@@ -469,6 +551,7 @@ function applyBridge(data){
     if(Array.isArray(data.addressBook)&&data.addressBook.length)localStorage.setItem('bhd_address_book',JSON.stringify(data.addressBook));
     if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
     window.dispatchEvent(new Event('bhd-site-bridge-applied'));
+    reloadAddressBookFromBridge();
   }catch(e){console.warn('[BHD] applyBridge storage failed',e);}
 }
 window.__bhdReapplySiteBridge=function(){applyBridge(window.__bhdSiteBridgePayload);};
@@ -532,7 +615,21 @@ document.addEventListener('DOMContentLoaded',function(){
     },900);
   }
   if(m==='users'&&u.users)addBanner('usersPanelHost','إدارة المستخدمين — الموقع الرئيسي هو المصدر',u.users,'فتح إدارة المستخدمين في الموقع ←');
-  if(m==='addressbook'&&u.addressBook)addBanner('addressBookWorkspace','دفتر العناوين — الموقع الرئيسي هو المصدر',u.addressBook,'فتح دفتر العناوين في الموقع ←');
+  if(m==='addressbook'&&u.addressBook){
+    addBanner('addressBookWorkspace','دفتر العناوين متزامن مع الموقع — الاتصال والباركود والطباعة متاحة هنا. للتعديل والإدارة الكاملة افتح الموقع.',u.addressBook,'إدارة دفتر العناوين في الموقع ←');
+    if(u.legacyAddressBook){
+      setTimeout(function(){
+        var h=document.getElementById('addressBookWorkspace');
+        if(!h||h.querySelector('[data-bhd-site-legacy-link]'))return;
+        var a=document.createElement('p');
+        a.setAttribute('data-bhd-site-legacy-link','1');
+        a.style.cssText='margin:8px 0 0;font-size:12px;color:#5c6f7b';
+        a.innerHTML='مصدر البيانات: PostgreSQL عبر الموقع. مسح الباركود يفتح <code dir="ltr">/'+window.__bhdSiteLocale()+'/scan/{userId}</code>';
+        var banner=h.querySelector('[data-bhd-site-banner]');
+        if(banner)banner.appendChild(a);
+      },950);
+    }
+  }
 },{once:true});
 })();`;
 }
