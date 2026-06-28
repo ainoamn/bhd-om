@@ -6564,8 +6564,8 @@
             <h2 id="contractsWorkspaceTitle">📝 شاشة العقود / Contracts workspace</h2>
             <small id="contractsWorkspaceSubtitle">تحكم كامل في بيانات العقد، المستندات، المعاينة والطباعة / Full control of contract data, documents, preview, and printing</small>
             <small id="tenancyDraftFieldsLockNote" class="tenancy-draft-lock-note" hidden style="display: none"
-                data-ar="بيانات المستأجر من الحجز — للتعديل استخدم «تحديث بيانات المستأجر» لفتح الدفتر؛ بعد الحفظ تنعكس التغييرات على العقد."
-                data-en="Tenant data is from the reservation — use «Update tenant data» to edit in the address book; changes apply to the contract after you save."></small>
+                data-ar="بيانات الوحدة من العقار وبيانات المستأجر من دفتر العناوين — لا تُعدَّل هنا. يمكنك تعديل التواريخ والإيجار وطريقة الدفع والمرفقات فقط؛ لتحديث المستأجر استخدم «تحديث بيانات المستأجر»."
+                data-en="Unit data comes from property and tenant data from the address book — not editable here. You may edit dates, rent, payment method, and attachments only; use «Update tenant data» to change the tenant."></small>
             <small id="contractAdditionalDataLockNote" class="tenancy-draft-lock-note" hidden style="display: none"
                 data-ar="وضع إكمال البيانات الإضافية — الحقول المظلّلة فقط قابلة للتعديل (الشيكات والضمان). باقي بيانات العقد مقفولة."
                 data-en="Additional data completion mode — only highlighted fields are editable (cheques and deposit). Other contract data is locked."></small>
@@ -20454,7 +20454,7 @@ function getEmptyCompanySignatory() {
         const bLoc = toStr(document.getElementById('buildingNo')?.value);
         const uLoc = toStr(document.getElementById('flatNo')?.value);
         const fromReservationFlow =
-            tenancyDraftCompletionLocked ||
+            isContractWorkspaceSourceDataLocked() ||
             (isContractsWorkspaceScreenActive() &&
                 bLoc &&
                 uLoc &&
@@ -20577,7 +20577,7 @@ function getEmptyCompanySignatory() {
     }
 
     function syncUnitDerivedFieldsFromSelection() {
-        if (tenancyDraftCompletionLocked) return;
+        if (tenancyDraftCompletionLocked || isContractWorkspaceSourceDataLocked()) return;
         const building = toStr(document.getElementById('buildingNo')?.value);
         const unit = toStr(document.getElementById('flatNo')?.value);
         const matched = getUnitRecordByBuildingUnit(building, unit);
@@ -20695,7 +20695,14 @@ function getEmptyCompanySignatory() {
             'vatPaymentMode',
             'vatChequeCount'
         ];
-        coreLockIds.forEach((id) => applyLockToFieldId(id, true, lockTitle));
+        const draftOnly = isCurrentUnitTenancyContractDraftOnly();
+        coreLockIds.forEach((id) => {
+            if (draftOnly && CONTRACT_FINANCIAL_EDITABLE_FIELD_IDS.includes(id)) {
+                applyLockToFieldId(id, false);
+            } else {
+                applyLockToFieldId(id, true, lockTitle);
+            }
+        });
 
         applyLockToFieldId('municipalFormNo', true, lockTitle);
         applyLockToFieldId('municipalContractNo', true, lockTitle);
@@ -20727,8 +20734,11 @@ function getEmptyCompanySignatory() {
             abs.classList.add('field-locked-tenancy-draft');
             abs.title = lockTitle;
         }
-        document.querySelectorAll('#tenantAddressBookImportToolbar button, #tenantAddressBookUpdateToolbar button').forEach((btn) => {
+        document.querySelectorAll('#tenantAddressBookImportToolbar button').forEach((btn) => {
             btn.disabled = true;
+        });
+        document.querySelectorAll('#tenantAddressBookUpdateToolbar button').forEach((btn) => {
+            btn.disabled = false;
         });
 
         const psSec = document.getElementById('paymentScheduleSection');
@@ -20857,6 +20867,11 @@ function getEmptyCompanySignatory() {
             exitContractAdditionalDataMode();
             return false;
         }
+        const bDraft = toStr(payload.buildingNo);
+        const uDraft = toStr(payload.flatNo);
+        if (bDraft && uDraft && isUnitTenancyContractDraftOnlyUnit({ building: bDraft, unit: uDraft })) {
+            return false;
+        }
         contractAdditionalDataMode = true;
         contractAdditionalDataGaps = gaps;
         setTenancyDraftCompletionFieldLocks(false);
@@ -20955,7 +20970,14 @@ function getEmptyCompanySignatory() {
             'vatPaymentMode',
             'vatChequeCount'
         ];
-        coreLockIds.forEach((id) => applyLockToFieldId(id, true, lockTitle));
+        const draftOnlyAct = isCurrentUnitTenancyContractDraftOnly();
+        coreLockIds.forEach((id) => {
+            if (draftOnlyAct && CONTRACT_FINANCIAL_EDITABLE_FIELD_IDS.includes(id)) {
+                applyLockToFieldId(id, false);
+            } else {
+                applyLockToFieldId(id, true, lockTitle);
+            }
+        });
         applyLockToFieldId('depositReceiptRef', true, lockTitle);
         applyLockToFormField(document.getElementById('depositAttachmentInput'), true, lockTitle);
         applyLockToFieldId('municipalFormNo', !gaps.municipalFormNo, lockTitle, unlockTitle);
@@ -21137,10 +21159,17 @@ function getEmptyCompanySignatory() {
                 return;
             }
             const life = getContractLifecycleStateKey({ building: bDom, unit: fDom });
-            if (life === 'active_pending') {
+            const draftOnly = isUnitTenancyContractDraftOnlyUnit({ building: bDom, unit: fDom });
+            if (life === 'active_pending' && !draftOnly) {
                 enterContractAdditionalDataMode(collectStorableContractFullFromDom());
-            } else if (life === 'active_docs_pending') {
+            } else if (life === 'active_docs_pending' && !draftOnly) {
                 enterContractActivationDataMode(collectStorableContractFullFromDom());
+            } else if (life === 'draft' || draftOnly) {
+                exitContractAdditionalDataMode();
+                exitContractActivationDataMode();
+                try {
+                    setTenancyDraftCompletionFieldLocks(true);
+                } catch (_eDraftRestore) {}
             } else {
                 exitContractAdditionalDataMode();
                 exitContractActivationDataMode();
@@ -21154,9 +21183,10 @@ function getEmptyCompanySignatory() {
 
     function syncContractMandatoryDocsInteractionLock() {
         const deny =
-            tenancyDraftCompletionLocked ||
-            tenantIdentityLockedFromAddressBook ||
-            (contractAdditionalDataMode && !contractFullEditMode);
+            isCurrentUnitSavedContractLocked() &&
+            !contractAdditionalDataMode &&
+            !contractActivationDataMode &&
+            !contractFullEditMode;
         const host = document.getElementById('contractMandatoryDocsHost');
         if (!host) return;
         host.querySelectorAll('input[type="file"][data-contract-doc-key], [data-contract-doc-clear]').forEach((el) => {
@@ -21178,40 +21208,24 @@ function getEmptyCompanySignatory() {
             updateContractEditRequestBarUi();
             return;
         }
-        const draftLocked = tenancyDraftCompletionLocked;
+        const sourceLocked = isContractWorkspaceSourceDataLocked();
         const abLocked = tenantIdentityLockedFromAddressBook;
-        const onContractsScreen = isContractsWorkspaceScreenActive();
-        const bLoc = toStr(document.getElementById('buildingNo')?.value);
-        const uLoc = toStr(document.getElementById('flatNo')?.value);
-        const hasTenancyDraft =
-            bLoc && uLoc && unitHasTenancyDraftForUnit(bLoc, uLoc);
-        const postReservationTenantUi =
-            onContractsScreen && (draftLocked || hasTenancyDraft) && !contractFullEditMode;
-        const tenantLocked = draftLocked || abLocked || postReservationTenantUi;
-        const lockTitleDraft = t('مقفل — بيانات من مسودة الحجز', 'Locked — from reservation draft');
+        const lockTitleUnit = t('مقفل — عدّل من بيانات العقار', 'Locked — edit from property data');
+        const lockTitleTenant = t('مقفل — عدّل من دفتر العناوين', 'Locked — edit from address book');
         const lockTitleAb = t('مقفل — تم الاستيراد من دفتر العناوين', 'Locked — imported from address book');
-        const lockTitleTenant = postReservationTenantUi
-            ? t('مقفل — حدّث من دفتر العناوين', 'Locked — update via address book')
-            : draftLocked
-              ? lockTitleDraft
-              : lockTitleAb;
+        const unitLocked = sourceLocked;
+        const tenantLocked = sourceLocked || abLocked;
+        const lockTitleTenantResolved = sourceLocked ? lockTitleTenant : lockTitleAb;
 
-        const draftStructureIds = [
-            'agreementNo',
-            'contractTypeSelect',
-            'floorDetails',
-            'unitType',
-            'electricityMeter',
-            'waterMeter',
-            'usageType'
-        ];
-        draftStructureIds.forEach((id) => {
+        CONTRACT_UNIT_SOURCE_FIELD_IDS.forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
-            if (el.tagName === 'SELECT') el.disabled = draftLocked;
-            else el.readOnly = draftLocked;
-            if (draftLocked) {
-                el.title = lockTitleDraft;
+            if (el.tagName === 'SELECT') el.disabled = unitLocked;
+            else el.readOnly = unitLocked || id === 'agreementNo';
+            if (unitLocked || id === 'agreementNo') {
+                el.title = id === 'agreementNo'
+                    ? t('رقم العقد من النظام — غير قابل للتحرير', 'Contract no. from system — not editable')
+                    : lockTitleUnit;
                 el.classList.add('field-locked-tenancy-draft');
             } else {
                 el.removeAttribute('title');
@@ -21219,26 +21233,13 @@ function getEmptyCompanySignatory() {
             }
         });
 
-        const tenantFieldIds = [
-            'tenantNameAr',
-            'tenantNameEn',
-            'tenantId',
-            'tenantMobile',
-            'tenantPassport',
-            'tenantEmail',
-            'tenantEntityType',
-            'tenantCommercialRegNo',
-            'tenantCommercialRegExpiryDate',
-            'tenantCompanyExtraMobile',
-            'tenantNationality'
-        ];
-        tenantFieldIds.forEach((id) => {
+        CONTRACT_TENANT_SOURCE_FIELD_IDS.forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
             if (el.tagName === 'SELECT') el.disabled = tenantLocked;
             else el.readOnly = tenantLocked;
             if (tenantLocked) {
-                el.title = lockTitleTenant;
+                el.title = lockTitleTenantResolved;
                 el.classList.add('field-locked-tenancy-draft');
             } else {
                 el.removeAttribute('title');
@@ -21246,11 +21247,23 @@ function getEmptyCompanySignatory() {
             }
         });
 
+        const buildingSelect = document.getElementById('buildingSelect');
+        if (buildingSelect) {
+            buildingSelect.disabled = unitLocked;
+            if (unitLocked) {
+                buildingSelect.title = lockTitleUnit;
+                buildingSelect.classList.add('field-locked-tenancy-draft');
+            } else {
+                buildingSelect.removeAttribute('title');
+                buildingSelect.classList.remove('field-locked-tenancy-draft');
+            }
+        }
+
         const abs = document.getElementById('tenantAddressBookSelect');
         if (abs) {
-            abs.disabled = draftLocked;
-            if (draftLocked) {
-                abs.title = lockTitleDraft;
+            abs.disabled = tenantLocked;
+            if (tenantLocked) {
+                abs.title = lockTitleTenantResolved;
                 abs.classList.add('field-locked-tenancy-draft');
             } else {
                 abs.removeAttribute('title');
@@ -21261,16 +21274,16 @@ function getEmptyCompanySignatory() {
         const importLabel = document.getElementById('tenantAddressBookImportLabel');
         const importToolbar = document.getElementById('tenantAddressBookImportToolbar');
         const updateToolbar = document.getElementById('tenantAddressBookUpdateToolbar');
-        if (importLabel) importLabel.style.display = postReservationTenantUi ? 'none' : '';
-        if (importToolbar) importToolbar.style.display = postReservationTenantUi ? 'none' : 'flex';
-        if (updateToolbar) updateToolbar.style.display = postReservationTenantUi ? 'flex' : 'none';
+        if (importLabel) importLabel.style.display = sourceLocked ? 'none' : '';
+        if (importToolbar) importToolbar.style.display = sourceLocked ? 'none' : 'flex';
+        if (updateToolbar) updateToolbar.style.display = sourceLocked ? 'flex' : 'none';
 
         const note = document.getElementById('tenancyDraftFieldsLockNote');
         if (note) {
             const ar = toStr(note.getAttribute('data-ar'));
             const en = toStr(note.getAttribute('data-en'));
             note.textContent = ar && en ? `${ar} / ${en}` : (ar || en);
-            if (postReservationTenantUi) {
+            if (sourceLocked) {
                 note.style.display = 'block';
                 note.removeAttribute('hidden');
             } else {
@@ -21283,7 +21296,7 @@ function getEmptyCompanySignatory() {
             const arAb = toStr(noteAb.getAttribute('data-ar'));
             const enAb = toStr(noteAb.getAttribute('data-en'));
             noteAb.textContent = arAb && enAb ? `${arAb} / ${enAb}` : (arAb || enAb);
-            if (abLocked && !postReservationTenantUi) {
+            if (abLocked && !sourceLocked) {
                 noteAb.style.display = 'block';
                 noteAb.removeAttribute('hidden');
             } else {
@@ -21296,13 +21309,13 @@ function getEmptyCompanySignatory() {
         syncContractMandatoryDocsInteractionLock();
         try {
             const tenancyCompletionLockKey = 'bhd_tenancy_completion_locked_unit_v1';
-            if (draftLocked) {
+            if (sourceLocked) {
                 const bLoc = toStr(document.getElementById('buildingNo')?.value);
                 const fLoc = toStr(document.getElementById('flatNo')?.value);
                 if (bLoc && fLoc) {
                     localStorage.setItem(tenancyCompletionLockKey, JSON.stringify({ buildingNo: bLoc, flatNo: fLoc }));
                 }
-            } else {
+            } else if (!tenancyDraftCompletionLocked) {
                 localStorage.removeItem(tenancyCompletionLockKey);
             }
         } catch (eTenancyLockPersist) {}
@@ -22019,7 +22032,10 @@ function getEmptyCompanySignatory() {
     }
 
     function updateContractWorkspaceContextUi() {
-        const lockCtx = tenancyDraftCompletionLocked || contractAdditionalDataMode;
+        const lockCtx =
+            isContractWorkspaceSourceDataLocked() ||
+            contractAdditionalDataMode ||
+            contractActivationDataMode;
         const agreementNoEl = document.getElementById('agreementNo');
         if (agreementNoEl) {
             if (typeof isViewerMode === 'undefined' || !isViewerMode) {
@@ -46651,6 +46667,84 @@ function getEmptyCompanySignatory() {
         return !!getTenancyDraftMapEntry(m, building, unit);
     }
 
+    /** حقول الوحدة — تُعدَّل من بيانات العقار فقط / Unit fields — edit from property data only */
+    const CONTRACT_UNIT_SOURCE_FIELD_IDS = [
+        'agreementNo',
+        'contractTypeSelect',
+        'buildingNo',
+        'flatNo',
+        'floorDetails',
+        'unitType',
+        'usageType',
+        'electricityMeter',
+        'waterMeter'
+    ];
+
+    /** حقول المستأجر — تُعدَّل من دفتر العناوين فقط / Tenant fields — edit from address book only */
+    const CONTRACT_TENANT_SOURCE_FIELD_IDS = [
+        'tenantNameAr',
+        'tenantNameEn',
+        'tenantId',
+        'tenantMobile',
+        'tenantPassport',
+        'tenantEmail',
+        'tenantEntityType',
+        'tenantCommercialRegNo',
+        'tenantCommercialRegExpiryDate',
+        'tenantCompanyExtraMobile',
+        'tenantNationality'
+    ];
+
+    /** ما يُسمح بتعديله في شاشة العقود: تواريخ، قيمة، دفع، مرفقات / Editable on contract screen: dates, rent, payment, attachments */
+    const CONTRACT_FINANCIAL_EDITABLE_FIELD_IDS = [
+        'monthlyRent',
+        'rentCalcMode',
+        'rentAreaSqm',
+        'rentPerSqm',
+        'contractMonths',
+        'startDate',
+        'endDate',
+        'unitHandoverDate',
+        'agreedRentPaymentDay',
+        'paymentMethod',
+        'depositAmount',
+        'graceDays',
+        'graceAmount',
+        'otherDiscountAmount',
+        'contractSubjectToVat',
+        'vatPaymentMode',
+        'vatChequeCount'
+    ];
+
+    /** @deprecated alias — use CONTRACT_FINANCIAL_EDITABLE_FIELD_IDS */
+    const TENANCY_DRAFT_RENT_TERM_FIELD_IDS = CONTRACT_FINANCIAL_EDITABLE_FIELD_IDS;
+
+    /** مسودة تعاقد من الحجز فقط — لم تُسجَّل بعد في سجل العقود المحفوظة / Tenancy draft from reservation — not yet in saved contracts registry */
+    function isUnitTenancyContractDraftOnlyUnit(u) {
+        if (!u) return false;
+        const b = toStr(u.building != null ? u.building : u.buildingNo);
+        const f = toStr(u.unit != null ? u.unit : u.flatNo);
+        if (!b || !f) return false;
+        return unitHasTenancyDraftForUnit(b, f) && !unitHasSavedContractRecord(b, f);
+    }
+
+    function isCurrentUnitTenancyContractDraftOnly() {
+        const b = toStr(document.getElementById('buildingNo')?.value);
+        const f = toStr(document.getElementById('flatNo')?.value);
+        if (!b || !f) return false;
+        return isUnitTenancyContractDraftOnlyUnit({ building: b, unit: f });
+    }
+
+    /** قفل بيانات الوحدة والمستأجر — لا تُعدَّل من شاشة العقود / Lock unit & tenant — not editable on contract screen */
+    function isContractWorkspaceSourceDataLocked() {
+        if (!isContractsWorkspaceScreenActive()) return false;
+        if (contractFullEditMode) return false;
+        const b = toStr(document.getElementById('buildingNo')?.value);
+        const u = toStr(document.getElementById('flatNo')?.value);
+        if (!b || !u) return false;
+        return unitHasEligibleContractWorkflow(b, u);
+    }
+
     function unitHasSavedContractForUnit(building, unit) {
         if (getSavedContractMapEntry(loadSavedContractsByUnitMap(), building, unit)) return true;
         try {
@@ -55745,10 +55839,11 @@ function getEmptyCompanySignatory() {
             try {
                 renderDocument(0);
             } catch (e) {}
+            const isDraftOnly = isUnitTenancyContractDraftOnlyUnit(unit);
             const needsAdditional = contractPayloadNeedsAdditionalData(payload);
-            if (needsAdditional) {
+            if (needsAdditional && !isDraftOnly) {
                 enterContractAdditionalDataMode(payload);
-            } else if (!contractActivationRequirementsComplete(payload)) {
+            } else if (!isDraftOnly && !contractActivationRequirementsComplete(payload)) {
                 enterContractActivationDataMode(payload);
             } else {
                 exitContractActivationDataMode();
