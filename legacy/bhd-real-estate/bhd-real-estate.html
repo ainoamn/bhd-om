@@ -26330,6 +26330,9 @@ function getEmptyCompanySignatory() {
     const OPERATIONS_PAGE_SIZE_DEFAULT = 100;
     let _operationsPageSize = OPERATIONS_PAGE_SIZE_DEFAULT;
     let _operationsPageIndex = 0;
+    let _activeWorkspaceMode = '';
+    let _workspaceContentRenderToken = 0;
+    let _linkedRepairLastAt = 0;
 
     function bumpUnitsDataCache() {
         _unitsDataCache = null;
@@ -48507,6 +48510,15 @@ function getEmptyCompanySignatory() {
         return touched;
     }
 
+    function repairLinkedContractUnitsLifecycleConsistencyThrottled(minGapMs) {
+        const gap = minGapMs == null ? 45000 : minGapMs;
+        const now = Date.now();
+        if (now - _linkedRepairLastAt < gap) return false;
+        _linkedRepairLastAt = now;
+        repairLinkedContractUnitsLifecycleConsistency();
+        return true;
+    }
+
     function ensureOwnerLinksPlaceholder() {
         if (Object.keys(ownerBuildingMap).length > 0) return;
         const buildings = [...new Set(getUnitsData().map((x) => x.building).filter(Boolean))];
@@ -53667,7 +53679,7 @@ function getEmptyCompanySignatory() {
     function renderOperationsTable() {
         if (isViewerMode) return;
         try {
-            repairLinkedContractUnitsLifecycleConsistency();
+            repairLinkedContractUnitsLifecycleConsistencyThrottled();
         } catch (_eRepOpsLinked) {}
         const allData = getUnitsData();
         const portalUser = getLoggedInUser();
@@ -67536,9 +67548,10 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         return parts.find((p) => !hasArabic(p)) || parts[parts.length - 1];
     }
 
-    function localizeBilingualUi() {
+    function localizeBilingualUi(scopeRoot) {
         if (isViewerMode) return;
-        const roots = ['.dashboard', '.contracts-workspace', '.reservations-workspace', '.users-workspace', '.notifications-workspace', '.addressbook-workspace', '.accounting-workspace', '.maintenance-workspace', '#addressBookEntryModal', '#dashboardInsightModal', '#unitDetailsModal', '#unitDetailsCancelDraftModal', '#unitDetailsCancellationDocsModal', '#unitHistoryEventDetailModal', '#unitAccountingDetailModal', '#accountingChequeActionModal', '#accountingManualEntryModal', '#accountingApprovalModal', '#accountingContractReceiptModal', '#accountingContractChequeBulkReceiptModal', '#accountingPropertyReviewModal', '#accountingAuditCycleModal', '#appDialogModal', '#manualEntryReceivablePickerModal', '#accountingCoaEditorModal', '#accountingUnitAccountModal', '#accountingReportModal', '#maintenanceRequestModal', '#maintenanceDetailModal', '#maintenancePrintModal', '#maintenanceCatalogModal', '#maintenanceStatusActionModal', '#maintenanceUnitHistoryModal', '#authLoginModal', '#contractEditThreadModal', '#propertyPrintMenuModal', '#dataGapsModal', '#dataCleanupModal', '#storageManagementModal', '#contractRenewalGapsModal'];
+        const allRoots = ['.dashboard', '.contracts-workspace', '.reservations-workspace', '.users-workspace', '.notifications-workspace', '.addressbook-workspace', '.accounting-workspace', '.maintenance-workspace', '#addressBookEntryModal', '#dashboardInsightModal', '#unitDetailsModal', '#unitDetailsCancelDraftModal', '#unitDetailsCancellationDocsModal', '#unitHistoryEventDetailModal', '#unitAccountingDetailModal', '#accountingChequeActionModal', '#accountingManualEntryModal', '#accountingApprovalModal', '#accountingContractReceiptModal', '#accountingContractChequeBulkReceiptModal', '#accountingPropertyReviewModal', '#accountingAuditCycleModal', '#appDialogModal', '#manualEntryReceivablePickerModal', '#accountingCoaEditorModal', '#accountingUnitAccountModal', '#accountingReportModal', '#maintenanceRequestModal', '#maintenanceDetailModal', '#maintenancePrintModal', '#maintenanceCatalogModal', '#maintenanceStatusActionModal', '#maintenanceUnitHistoryModal', '#authLoginModal', '#contractEditThreadModal', '#propertyPrintMenuModal', '#dataGapsModal', '#dataCleanupModal', '#storageManagementModal', '#contractRenewalGapsModal'];
+        const roots = scopeRoot ? [scopeRoot] : allRoots;
         const selector = 'h1,h2,h3,h4,h5,h6,p,small,strong,span,label,button,th,td,option,input,textarea,select';
         roots.forEach((rootSel) => {
             const root = document.querySelector(rootSel);
@@ -67706,111 +67719,30 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         return true;
     }
 
-    function setWorkspaceMode(mode) {
-        if (isViewerMode) return;
-        if (mode !== 'contracts') contractFullEditMode = false;
-        if (!canAccessWorkspaceMode(mode)) {
-            if (localStorage.getItem('bhd_site_integrated') === '1' && typeof window.__bhdReapplySiteBridge === 'function') {
-                window.__bhdReapplySiteBridge();
-                syncAuthStateFromStorage();
-            }
-            const fallbacks = ['dashboard', 'contracts', 'accounting', 'maintenance', 'addressbook', 'notifications', 'users'];
-            const next = fallbacks.find((m) => canAccessWorkspaceMode(m));
-            if (!next) {
-                alert(t('لا تملك صلاحية الوصول. سجّل الدخول بحساب مناسب.', 'No access permission. Sign in with a suitable account.'));
-                try {
-                    openAuthLoginModal();
-                } catch (_eWsLogin) {}
-                return;
-            }
-            mode = next;
-        }
-        document.body.classList.remove('mode-dashboard', 'mode-contracts', 'mode-reservations', 'mode-forms', 'mode-users', 'mode-addressbook', 'mode-notifications', 'mode-accounting', 'mode-maintenance', 'mode-organization', 'mode-doc_templates');
-        if (mode === 'contracts') document.body.classList.add('mode-contracts');
-        else if (mode === 'reservations') document.body.classList.add('mode-reservations');
-        else if (mode === 'forms') document.body.classList.add('mode-forms');
-        else if (mode === 'users') document.body.classList.add('mode-users');
-        else if (mode === 'organization') document.body.classList.add('mode-organization');
-        else if (mode === 'doc_templates') document.body.classList.add('mode-doc_templates');
-        else if (mode === 'addressbook') document.body.classList.add('mode-addressbook');
-        else if (mode === 'notifications') document.body.classList.add('mode-notifications');
-        else if (mode === 'accounting') document.body.classList.add('mode-accounting');
-        else if (mode === 'maintenance') document.body.classList.add('mode-maintenance');
-        else document.body.classList.add('mode-dashboard');
-        if (mode === 'reservations') {
-            try { setReservationFormFlowActive(true); } catch (_swmRes) {}
-        } else if (mode === 'contracts') {
-            try { setReservationFormFlowActive(false); } catch (_swmCon) {}
-        }
-        const badge = document.getElementById('screenBadge');
-        if (badge) {
-            if (mode === 'users') badge.textContent = t('إدارة المستخدمين', 'Users');
-            else if (mode === 'notifications') badge.textContent = t('التنبيهات والمهام', 'Notifications & tasks');
-            else if (mode === 'accounting') badge.textContent = t('المحاسبة', 'Accounting');
-            else if (mode === 'maintenance') badge.textContent = t('الصيانة', 'Maintenance');
-            else if (mode === 'addressbook') badge.textContent = t('دفتر العناوين', 'Address book');
-            else if (mode === 'reservations') badge.textContent = t('صفحة الحجوزات', 'Reservations');
-            else if (mode === 'forms') badge.textContent = t('نظام المستندات', 'Documents system');
-            else if (mode === 'organization') badge.textContent = t('إعدادات المنشأة', 'Organization settings');
-            else if (mode === 'doc_templates') badge.textContent = t('قوالب المستندات', 'Document templates');
-            else badge.textContent = t('لوحة البيانات والمعلومات', 'Dashboard overview');
-        }
-        const contractsBadge = document.getElementById('contractsScreenBadge');
-        if (contractsBadge) {
-            contractsBadge.textContent = mode === 'contracts'
-                ? t('وضع العمل: بيانات العقد والمستندات', 'Work mode: contract data and documents')
-                : mode === 'forms'
-                    ? t('وضع العمل: نظام المستندات والطباعة', 'Work mode: documents system and printing')
-                    : '';
-        }
-        const reservationsBadge = document.getElementById('reservationsScreenBadge');
-        if (reservationsBadge) {
-            reservationsBadge.textContent = mode === 'reservations'
-                ? t('وضع العمل: صفحة الحجوزات المنفصلة', 'Work mode: standalone reservations page')
-                : t('إدارة الحجوزات / Reservations management', 'إدارة الحجوزات / Reservations management');
-        }
-        const baseUrl = window.location.href.split('?')[0];
-        const modeParam = mode === 'contracts'
-            ? 'contracts'
-            : mode === 'reservations'
-                ? 'reservations'
-            : mode === 'forms'
-                ? 'forms'
-            : mode === 'users'
-                ? 'users'
-                : mode === 'addressbook'
-                    ? 'addressbook'
-                : mode === 'notifications'
-                    ? 'notifications'
-                : mode === 'accounting'
-                    ? 'accounting'
-                : mode === 'maintenance'
-                    ? 'maintenance'
-                : mode === 'organization'
-                    ? 'organization'
-                : mode === 'doc_templates'
-                    ? 'doc_templates'
-                    : 'dashboard';
-        try {
-            sessionStorage.setItem('bhd_ui_last_mode', modeParam);
-            localStorage.setItem('bhd_ui_last_mode', modeParam);
-        } catch (e) {}
-        window.history.replaceState({}, '', `${baseUrl}?mode=${modeParam}`);
+    function renderWorkspaceModeContent(mode) {
         if (mode === 'contracts') {
             updateContractWorkspaceContextUi();
             updateSummaryPanel();
-            try { applyContractsWorkspaceLockState(); } catch (_eSetCws) {}
+            try {
+                applyContractsWorkspaceLockState();
+            } catch (_eSetCws) {}
             if (contractsWorkspaceSubview === 'list') {
-                try { renderContractsListPanel(); } catch (_eClR) {}
+                try {
+                    renderContractsListPanel();
+                } catch (_eClR) {}
             }
             if (isContractWorkspaceUnlockedForCurrentUnit()) {
-                try { refreshContractDocumentsForPreview(); } catch (_eDocMode) {}
+                try {
+                    refreshContractDocumentsForPreview();
+                } catch (_eDocMode) {}
             }
         } else if (mode === 'reservations') {
             updateReservationsWorkspaceUi();
             updateReservationSummaryPanel();
             if (reservationsWorkspaceSubview === 'list') {
-                try { renderReservationsListPanel(); } catch (_eRlR) {}
+                try {
+                    renderReservationsListPanel();
+                } catch (_eRlR) {}
             }
         } else if (mode === 'forms') {
             updateContractWorkspaceContextUi();
@@ -67848,17 +67780,131 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             renderMaintenanceWorkspace();
             updateAuthHeaderBar();
         }
+    }
+
+    function setWorkspaceMode(mode) {
+        if (isViewerMode) return;
+        if (mode !== 'contracts') contractFullEditMode = false;
+        if (!canAccessWorkspaceMode(mode)) {
+            if (localStorage.getItem('bhd_site_integrated') === '1' && typeof window.__bhdReapplySiteBridge === 'function') {
+                window.__bhdReapplySiteBridge();
+                syncAuthStateFromStorage();
+            }
+            const fallbacks = ['dashboard', 'contracts', 'accounting', 'maintenance', 'addressbook', 'notifications', 'users'];
+            const next = fallbacks.find((m) => canAccessWorkspaceMode(m));
+            if (!next) {
+                alert(t('لا تملك صلاحية الوصول. سجّل الدخول بحساب مناسب.', 'No access permission. Sign in with a suitable account.'));
+                try {
+                    openAuthLoginModal();
+                } catch (_eWsLogin) {}
+                return;
+            }
+            mode = next;
+        }
+        const sameMode = mode === _activeWorkspaceMode;
+        _activeWorkspaceMode = mode;
+        document.body.classList.remove('mode-dashboard', 'mode-contracts', 'mode-reservations', 'mode-forms', 'mode-users', 'mode-addressbook', 'mode-notifications', 'mode-accounting', 'mode-maintenance', 'mode-organization', 'mode-doc_templates');
+        if (mode === 'contracts') document.body.classList.add('mode-contracts');
+        else if (mode === 'reservations') document.body.classList.add('mode-reservations');
+        else if (mode === 'forms') document.body.classList.add('mode-forms');
+        else if (mode === 'users') document.body.classList.add('mode-users');
+        else if (mode === 'organization') document.body.classList.add('mode-organization');
+        else if (mode === 'doc_templates') document.body.classList.add('mode-doc_templates');
+        else if (mode === 'addressbook') document.body.classList.add('mode-addressbook');
+        else if (mode === 'notifications') document.body.classList.add('mode-notifications');
+        else if (mode === 'accounting') document.body.classList.add('mode-accounting');
+        else if (mode === 'maintenance') document.body.classList.add('mode-maintenance');
+        else document.body.classList.add('mode-dashboard');
+        if (mode === 'reservations') {
+            try {
+                setReservationFormFlowActive(true);
+            } catch (_swmRes) {}
+        } else if (mode === 'contracts') {
+            try {
+                setReservationFormFlowActive(false);
+            } catch (_swmCon) {}
+        }
+        const badge = document.getElementById('screenBadge');
+        if (badge) {
+            if (mode === 'users') badge.textContent = t('إدارة المستخدمين', 'Users');
+            else if (mode === 'notifications') badge.textContent = t('التنبيهات والمهام', 'Notifications & tasks');
+            else if (mode === 'accounting') badge.textContent = t('المحاسبة', 'Accounting');
+            else if (mode === 'maintenance') badge.textContent = t('الصيانة', 'Maintenance');
+            else if (mode === 'addressbook') badge.textContent = t('دفتر العناوين', 'Address book');
+            else if (mode === 'reservations') badge.textContent = t('صفحة الحجوزات', 'Reservations');
+            else if (mode === 'forms') badge.textContent = t('نظام المستندات', 'Documents system');
+            else if (mode === 'organization') badge.textContent = t('إعدادات المنشأة', 'Organization settings');
+            else if (mode === 'doc_templates') badge.textContent = t('قوالب المستندات', 'Document templates');
+            else badge.textContent = t('لوحة البيانات والمعلومات', 'Dashboard overview');
+        }
+        const contractsBadge = document.getElementById('contractsScreenBadge');
+        if (contractsBadge) {
+            contractsBadge.textContent =
+                mode === 'contracts'
+                    ? t('وضع العمل: بيانات العقد والمستندات', 'Work mode: contract data and documents')
+                    : mode === 'forms'
+                      ? t('وضع العمل: نظام المستندات والطباعة', 'Work mode: documents system and printing')
+                      : '';
+        }
+        const reservationsBadge = document.getElementById('reservationsScreenBadge');
+        if (reservationsBadge) {
+            reservationsBadge.textContent =
+                mode === 'reservations'
+                    ? t('وضع العمل: صفحة الحجوزات المنفصلة', 'Work mode: standalone reservations page')
+                    : t('إدارة الحجوزات / Reservations management', 'إدارة الحجوزات / Reservations management');
+        }
+        const baseUrl = window.location.href.split('?')[0];
+        const modeParam =
+            mode === 'contracts'
+                ? 'contracts'
+                : mode === 'reservations'
+                  ? 'reservations'
+                  : mode === 'forms'
+                    ? 'forms'
+                    : mode === 'users'
+                      ? 'users'
+                      : mode === 'addressbook'
+                        ? 'addressbook'
+                        : mode === 'notifications'
+                          ? 'notifications'
+                          : mode === 'accounting'
+                            ? 'accounting'
+                            : mode === 'maintenance'
+                              ? 'maintenance'
+                              : mode === 'organization'
+                                ? 'organization'
+                                : mode === 'doc_templates'
+                                  ? 'doc_templates'
+                                  : 'dashboard';
         try {
-            window.scrollTo(0, 0);
-        } catch (_eScrollWs) {}
-        scheduleAutomaticDataSync(false);
-        localizeBilingualUi();
+            sessionStorage.setItem('bhd_ui_last_mode', modeParam);
+            localStorage.setItem('bhd_ui_last_mode', modeParam);
+        } catch (e) {}
+        window.history.replaceState({}, '', `${baseUrl}?mode=${modeParam}`);
         syncTopNavOffset();
         updateSideNavActive(mode);
         requestAnimationFrame(() => {
             try {
                 applyPermissionNavUi();
             } catch (_eNavWs) {}
+        });
+        if (sameMode) {
+            try {
+                window.scrollTo(0, 0);
+            } catch (_eScrollSame) {}
+            return;
+        }
+        const renderToken = ++_workspaceContentRenderToken;
+        requestAnimationFrame(() => {
+            if (renderToken !== _workspaceContentRenderToken) return;
+            try {
+                renderWorkspaceModeContent(mode);
+            } catch (_eWsRender) {
+                console.warn('renderWorkspaceModeContent', _eWsRender);
+            }
+            try {
+                window.scrollTo(0, 0);
+            } catch (_eScrollWs) {}
         });
     }
 
@@ -68157,7 +68203,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             repairDuplicateMultiUnitAccountingEntries();
         } catch (_eRepList) {}
         try {
-            repairLinkedContractUnitsLifecycleConsistency();
+            repairLinkedContractUnitsLifecycleConsistencyThrottled();
         } catch (_eRepLinkedList) {}
         refreshContractsListBuildingFilterOptions();
         const rows = getContractsListFilteredRows();
@@ -68624,6 +68670,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             if (!canAccessWorkspaceMode(activePageMode)) {
                 activePageMode = effectivePermission('manage_dashboard') ? 'dashboard' : 'dashboard';
             }
+            _activeWorkspaceMode = activePageMode;
             document.body.classList.add(
                 activePageMode === 'contracts'
                     ? 'mode-contracts'
