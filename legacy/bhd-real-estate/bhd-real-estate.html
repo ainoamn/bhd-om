@@ -6812,6 +6812,40 @@
                 <label>عداد الماء / Water Meter</label>
                 <input type="text" id="waterMeter" value="" readonly>
             </div>
+        </div>
+
+        <div class="row-2cols" id="meterReadingsSection">
+            <div class="input-group">
+                <label data-ar="قراءة عداد الكهرباء *" data-en="Electricity meter reading *">قراءة عداد الكهرباء * / Electricity meter reading *</label>
+                <input type="text" id="electricityMeterReading" value="" inputmode="decimal" autocomplete="off" data-ar-placeholder="أدخل قراءة العداد الحالية" data-en-placeholder="Enter current meter reading" placeholder="أدخل قراءة العداد الحالية / Enter current meter reading">
+            </div>
+            <div class="input-group">
+                <label data-ar="قراءة عداد الماء *" data-en="Water meter reading *">قراءة عداد الماء * / Water meter reading *</label>
+                <input type="text" id="waterMeterReading" value="" inputmode="decimal" autocomplete="off" data-ar-placeholder="أدخل قراءة العداد الحالية" data-en-placeholder="Enter current meter reading" placeholder="أدخل قراءة العداد الحالية / Enter current meter reading">
+            </div>
+            <div class="input-group">
+                <label data-ar="صورة قراءة عداد الكهرباء *" data-en="Electricity meter reading photo *">صورة قراءة عداد الكهرباء * / Electricity meter reading photo *</label>
+                <div id="electricityMeterReadingAttachmentRow" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+                    <button type="button" class="mini-btn" onclick="document.getElementById('electricityMeterReadingAttachmentInput').click()" data-ar="📷 رفع صورة" data-en="📷 Upload photo">📷 رفع صورة / Upload photo</button>
+                    <span data-meter-reading-att-name data-preview-key="meter_electricity_reading" style="font-size:12px;color:#3b4b56;max-width:100%;word-break:break-all">—</span>
+                    <img class="contract-mand-doc-thumb" data-meter-reading-preview-thumb data-preview-key="meter_electricity_reading" style="display:none;max-height:56px" alt="" title="معاينة / Preview" onclick="openContractAttachmentPreviewFromStoreKey('meter_electricity_reading')">
+                    <button type="button" class="mini-btn contract-sched-att-preview" data-meter-reading-preview-btn data-preview-key="meter_electricity_reading" style="display:none" onclick="openContractAttachmentPreviewFromStoreKey('meter_electricity_reading')" data-ar="معاينة" data-en="Preview">معاينة / Preview</button>
+                    <input type="file" id="electricityMeterReadingAttachmentInput" accept="image/*" hidden aria-hidden="true" onclick="event.stopPropagation()" onchange="onContractMeterReadingAttachmentChange('electricity', this)">
+                </div>
+            </div>
+            <div class="input-group">
+                <label data-ar="صورة قراءة عداد الماء *" data-en="Water meter reading photo *">صورة قراءة عداد الماء * / Water meter reading photo *</label>
+                <div id="waterMeterReadingAttachmentRow" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+                    <button type="button" class="mini-btn" onclick="document.getElementById('waterMeterReadingAttachmentInput').click()" data-ar="📷 رفع صورة" data-en="📷 Upload photo">📷 رفع صورة / Upload photo</button>
+                    <span data-meter-reading-att-name data-preview-key="meter_water_reading" style="font-size:12px;color:#3b4b56;max-width:100%;word-break:break-all">—</span>
+                    <img class="contract-mand-doc-thumb" data-meter-reading-preview-thumb data-preview-key="meter_water_reading" style="display:none;max-height:56px" alt="" title="معاينة / Preview" onclick="openContractAttachmentPreviewFromStoreKey('meter_water_reading')">
+                    <button type="button" class="mini-btn contract-sched-att-preview" data-meter-reading-preview-btn data-preview-key="meter_water_reading" style="display:none" onclick="openContractAttachmentPreviewFromStoreKey('meter_water_reading')" data-ar="معاينة" data-en="Preview">معاينة / Preview</button>
+                    <input type="file" id="waterMeterReadingAttachmentInput" accept="image/*" hidden aria-hidden="true" onclick="event.stopPropagation()" onchange="onContractMeterReadingAttachmentChange('water', this)">
+                </div>
+            </div>
+        </div>
+
+        <div class="row-2cols">
             <div class="input-group">
                 <label>الإيجار الشهري / Monthly Rent (OMR)</label>
                 <input type="number" id="monthlyRent" value="">
@@ -6921,8 +6955,9 @@
                 <h5>🛡️ التأمين (الوديعة) / Insurance (deposit)</h5>
                 <div class="form-grid" style="margin-bottom:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;align-items:end">
                     <div class="input-group">
-                        <label data-ar="مبلغ التأمين (مرجعي) / ر.ع" data-en="Deposit amount (OMR)">مبلغ التأمين (مرجعي) / Deposit amount (OMR)</label>
-                        <input type="text" id="depositAmount" value="325">
+                        <label data-ar="مبلغ التأمين (مرجعي) / ر.ع" data-en="Deposit amount (reference) (OMR)">مبلغ التأمين (مرجعي) / Deposit amount (reference) (OMR)</label>
+                        <input type="text" id="depositAmount" value="325" data-ar-title="يُقفل بعد اعتماد المحاسب لاستلام التأمين" data-en-title="Locked after accountant approves deposit receipt">
+                        <small id="depositAmountLockHint" style="display:none;margin-top:6px;font-size:11px;line-height:1.45;color:#1f5a2a;background:#eef8ee;border:1px solid #b8ddb8;border-radius:8px;padding:8px 10px" data-ar="مقفل — اعتمد المحاسب مبلغ التأمين." data-en="Locked — deposit amount approved by accountant."></small>
                     </div>
                     <div class="input-group">
                         <label data-ar="رقم الإيصال" data-en="Receipt no.">رقم الإيصال / Receipt no.</label>
@@ -13363,6 +13398,10 @@
             usageType: document.getElementById('usageType')?.value || '',
             electricityMeter: v('electricityMeter'),
             waterMeter: v('waterMeter'),
+            electricityMeterReading: v('electricityMeterReading'),
+            waterMeterReading: v('waterMeterReading'),
+            ...readContractMeterReadingAttachmentFieldsFromDom('electricity'),
+            ...readContractMeterReadingAttachmentFieldsFromDom('water'),
             monthlyRent: v('monthlyRent'),
             rentCalcMode: document.getElementById('rentCalcMode')?.value || 'full',
             rentAreaSqm: document.getElementById('rentAreaSqm')?.value || '',
@@ -13535,6 +13574,10 @@
             usageType: document.getElementById('usageType')?.value || '',
             electricityMeter: document.getElementById('electricityMeter').value,
             waterMeter: document.getElementById('waterMeter').value,
+            electricityMeterReading: document.getElementById('electricityMeterReading')?.value || '',
+            waterMeterReading: document.getElementById('waterMeterReading')?.value || '',
+            ...readContractMeterReadingAttachmentFieldsFromDom('electricity'),
+            ...readContractMeterReadingAttachmentFieldsFromDom('water'),
             monthlyRent: document.getElementById('monthlyRent').value,
             rentCalcMode: document.getElementById('rentCalcMode')?.value || 'full',
             rentAreaSqm: document.getElementById('rentAreaSqm')?.value || '',
@@ -15956,6 +15999,161 @@
         };
     }
 
+    function getContractMeterReadingKindMeta(kind) {
+        if (kind === 'electricity') {
+            return {
+                kind: 'electricity',
+                prefix: 'electricityMeterReading',
+                printKey: 'meter_electricity_reading',
+                docType: 'electricity_meter_reading',
+                labelAr: 'صورة قراءة عداد الكهرباء',
+                labelEn: 'Electricity meter reading photo'
+            };
+        }
+        return {
+            kind: 'water',
+            prefix: 'waterMeterReading',
+            printKey: 'meter_water_reading',
+            docType: 'water_meter_reading',
+            labelAr: 'صورة قراءة عداد الماء',
+            labelEn: 'Water meter reading photo'
+        };
+    }
+
+    function readContractMeterReadingAttachmentFieldsFromDom(kind) {
+        const meta = getContractMeterReadingKindMeta(kind);
+        const row = document.getElementById(`${meta.prefix}AttachmentRow`);
+        const empty = {
+            [`${meta.prefix}AttachmentName`]: '',
+            [`${meta.prefix}AttachmentDataUrl`]: '',
+            [`${meta.prefix}AttachmentRelativePath`]: '',
+            [`${meta.prefix}AttachmentFileId`]: '',
+            [`${meta.prefix}AttachmentStoredOnDisk`]: false
+        };
+        if (!row?.dataset) return empty;
+        return {
+            [`${meta.prefix}AttachmentName`]: toStr(row.dataset.attachmentName),
+            [`${meta.prefix}AttachmentDataUrl`]: row.dataset.storedOnDisk === '1' ? '' : toStr(row.dataset.attachmentDataUrl),
+            [`${meta.prefix}AttachmentRelativePath`]: toStr(row.dataset.attachmentRelativePath),
+            [`${meta.prefix}AttachmentFileId`]: toStr(row.dataset.attachmentFileId),
+            [`${meta.prefix}AttachmentStoredOnDisk`]: row.dataset.storedOnDisk === '1'
+        };
+    }
+
+    function payloadHasContractMeterReadingAttachment(payload, kind) {
+        if (!payload || typeof payload !== 'object') return false;
+        const meta = getContractMeterReadingKindMeta(kind);
+        const p = meta.prefix;
+        if (toStr(payload[`${p}AttachmentName`]).trim()) return true;
+        if (pickEmbeddedDataUrl(payload[`${p}AttachmentDataUrl`])) return true;
+        if (toStr(payload[`${p}AttachmentRelativePath`]).trim()) return true;
+        return false;
+    }
+
+    function hydrateContractMeterReadingAttachmentsFromPayload(d) {
+        if (!d || typeof d !== 'object') return;
+        ['electricity', 'water'].forEach((kind) => {
+            const meta = getContractMeterReadingKindMeta(kind);
+            const row = document.getElementById(`${meta.prefix}AttachmentRow`);
+            if (!row) return;
+            const hasAny =
+                Object.prototype.hasOwnProperty.call(d, `${meta.prefix}AttachmentName`) ||
+                Object.prototype.hasOwnProperty.call(d, `${meta.prefix}AttachmentDataUrl`) ||
+                Object.prototype.hasOwnProperty.call(d, `${meta.prefix}AttachmentRelativePath`);
+            if (!hasAny) return;
+            row.dataset.attachmentName = toStr(d[`${meta.prefix}AttachmentName`]);
+            row.dataset.attachmentDataUrl = d[`${meta.prefix}AttachmentStoredOnDisk`] ? '' : toStr(d[`${meta.prefix}AttachmentDataUrl`]);
+            row.dataset.attachmentRelativePath = toStr(d[`${meta.prefix}AttachmentRelativePath`]);
+            row.dataset.attachmentFileId = toStr(d[`${meta.prefix}AttachmentFileId`]);
+            row.dataset.storedOnDisk = d[`${meta.prefix}AttachmentStoredOnDisk`] ? '1' : '0';
+            const lbl = row.querySelector('[data-meter-reading-att-name]');
+            if (lbl) lbl.textContent = toStr(d[`${meta.prefix}AttachmentName`]) || '—';
+            const inp = document.getElementById(`${meta.prefix}AttachmentInput`);
+            if (inp) inp.value = '';
+        });
+    }
+
+    function isContractDepositAmountApprovedByAccounting(payloadOpt) {
+        let data = payloadOpt;
+        if (!data) {
+            try {
+                data = collectStorableContractFullFromDom();
+            } catch (_eCol) {
+                return false;
+            }
+        }
+        if (!data || typeof data !== 'object') return false;
+        const primary = resolveContractWorkflowPrimaryUnit(data.buildingNo, data.flatNo, data);
+        if (!primary.building || !primary.unit) return false;
+        const dep = getAccountingSecurityDepositForUnit(primary.building, primary.unit);
+        return isAccountingDepositReceiptConfirmed(dep);
+    }
+
+    function applyContractDepositAmountFieldLock() {
+        if (!isContractsWorkspaceScreenActive()) return;
+        const el = document.getElementById('depositAmount');
+        const hint = document.getElementById('depositAmountLockHint');
+        if (!el) return;
+        let locked = false;
+        try {
+            locked = isContractDepositAmountApprovedByAccounting();
+        } catch (_eLockDep) {}
+        if (locked && contractFullEditMode) {
+            const b = toStr(document.getElementById('buildingNo')?.value);
+            const f = toStr(document.getElementById('flatNo')?.value);
+            if (b && f && canEditSavedContractForUnit(b, f)) locked = false;
+        }
+        if (locked) {
+            try {
+                const data = enrichPayloadDepositFromAccounting(collectStorableContractFullFromDom());
+                const primary = resolveContractWorkflowPrimaryUnit(data.buildingNo, data.flatNo, data);
+                const dep = getAccountingSecurityDepositForUnit(primary.building, primary.unit);
+                if (dep && dep.amount != null && !Number.isNaN(parseFloat(dep.amount))) {
+                    el.value = toStr(dep.amount);
+                } else if (toStr(data.depositAmount).trim()) {
+                    el.value = toStr(data.depositAmount);
+                }
+            } catch (_eSyncAmt) {}
+        }
+        el.readOnly = !!locked;
+        if (locked) {
+            el.title = t('مقفل — اعتمد المحاسب مبلغ التأمين', 'Locked — deposit amount approved by accountant');
+            el.classList.add('field-locked-tenancy-draft');
+            if (hint) {
+                hint.textContent = t(hint.getAttribute('data-ar') || '', hint.getAttribute('data-en') || '');
+                hint.style.display = 'block';
+            }
+        } else {
+            const tAr = el.getAttribute('data-ar-title');
+            const tEn = el.getAttribute('data-en-title');
+            if (tAr || tEn) el.title = t(tAr || '', tEn || '');
+            else el.removeAttribute('title');
+            el.classList.remove('field-locked-tenancy-draft');
+            if (hint) hint.style.display = 'none';
+        }
+    }
+
+    function applyContractMeterReadingAttachmentUi() {
+        if (!isContractsWorkspaceScreenActive()) return;
+        ['electricity', 'water'].forEach((kind) => {
+            const meta = getContractMeterReadingKindMeta(kind);
+            const row = document.getElementById(`${meta.prefix}AttachmentRow`);
+            const inp = document.getElementById(`${meta.prefix}AttachmentInput`);
+            const uploadBtn = row?.querySelector('button.mini-btn');
+            if (!row || !inp) return;
+            let deny = false;
+            if (contractFullEditMode) {
+                deny = false;
+            } else if (contractAdditionalDataMode || contractActivationDataMode) {
+                deny = !isCurrentUnitTenancyContractDraftOnly();
+            } else if (isCurrentUnitSavedContractLocked()) {
+                deny = true;
+            }
+            inp.disabled = deny;
+            if (uploadBtn) uploadBtn.disabled = deny;
+        });
+    }
+
     function getAccountingSecurityDepositForUnit(building, unit, regOpt) {
         const unitKey = accountingUnitKey(building, unit);
         const reg = regOpt || loadAccountingRegistry();
@@ -17621,7 +17819,7 @@
         if (!payload || typeof payload !== 'object') return;
         const store = { ...getMandatoryDocStoreObject() };
         Object.keys(store).forEach((k) => {
-            if (/^(deposit_receipt|pay_chq_|vat_chq_|ins_print_)/.test(k)) delete store[k];
+            if (/^(deposit_receipt|meter_electricity_reading|meter_water_reading|pay_chq_|vat_chq_|ins_print_)/.test(k)) delete store[k];
         });
         pushPrintAttachmentToStore(store, 'deposit_receipt', {
             name: payload.depositAttachmentName,
@@ -17678,6 +17876,13 @@
                 pushPrintAttachmentToStore(store, `ins_print_${toStr(it.id)}`, ref);
             }
         });
+        ['electricity', 'water'].forEach((kind) => {
+            const meta = getContractMeterReadingKindMeta(kind);
+            const rowRef = bhdFileRefFromDataset(document.getElementById(`${meta.prefix}AttachmentRow`));
+            if (contractAttachmentPresent(rowRef)) {
+                pushPrintAttachmentToStore(store, meta.printKey, rowRef);
+            }
+        });
         setMandatoryDocStoreObject(store);
     }
 
@@ -17686,6 +17891,14 @@
             {
                 key: 'deposit_receipt',
                 label: t('إيصال التأمين / Deposit receipt', 'Deposit receipt / إيصال التأمين')
+            },
+            {
+                key: 'meter_electricity_reading',
+                label: t('صورة قراءة عداد الكهرباء / Electricity meter reading photo', 'Electricity meter reading photo / صورة قراءة عداد الكهرباء')
+            },
+            {
+                key: 'meter_water_reading',
+                label: t('صورة قراءة عداد الماء / Water meter reading photo', 'Water meter reading photo / صورة قراءة عداد الماء')
             }
         ];
         getPaymentScheduleFromUi().forEach((r) => {
@@ -17723,7 +17936,7 @@
         const seen = new Set(slots.map((s) => s.key));
         const store = getMandatoryDocStoreObject();
         Object.keys(store).forEach((key) => {
-            if (seen.has(key) || !/^(deposit_receipt|pay_chq_|vat_chq_|ins_print_)/.test(key)) return;
+            if (seen.has(key) || !/^(deposit_receipt|meter_electricity_reading|meter_water_reading|pay_chq_|vat_chq_|ins_print_)/.test(key)) return;
             seen.add(key);
             let label = mandatoryDocKeyFallbackLabel(key);
             const payM = /^pay_chq_(\d+)$/.exec(key);
@@ -20677,6 +20890,8 @@ function getEmptyCompanySignatory() {
             'usageType',
             'electricityMeter',
             'waterMeter',
+            'electricityMeterReading',
+            'waterMeterReading',
             'monthlyRent',
             'rentCalcMode',
             'rentAreaSqm',
@@ -20839,6 +21054,10 @@ function getEmptyCompanySignatory() {
         }
 
         syncContractMandatoryDocsInteractionLock();
+        try {
+            applyContractDepositAmountFieldLock();
+            applyContractMeterReadingAttachmentUi();
+        } catch (_eAddDepMeter) {}
     }
 
     function enterContractAdditionalDataMode(payloadOrUnit) {
@@ -20952,6 +21171,8 @@ function getEmptyCompanySignatory() {
             'usageType',
             'electricityMeter',
             'waterMeter',
+            'electricityMeterReading',
+            'waterMeterReading',
             'monthlyRent',
             'rentCalcMode',
             'rentAreaSqm',
@@ -21008,6 +21229,10 @@ function getEmptyCompanySignatory() {
             refreshPropertyDocumentsBundleSectionVisibility();
         } catch (_ePdbActLock) {}
         syncContractMandatoryDocsInteractionLock();
+        try {
+            applyContractDepositAmountFieldLock();
+            applyContractMeterReadingAttachmentUi();
+        } catch (_eActDepMeter) {}
     }
 
     function enterContractActivationDataMode(payloadOrUnit) {
@@ -21319,6 +21544,10 @@ function getEmptyCompanySignatory() {
                 localStorage.removeItem(tenancyCompletionLockKey);
             }
         } catch (eTenancyLockPersist) {}
+        try {
+            applyContractDepositAmountFieldLock();
+            applyContractMeterReadingAttachmentUi();
+        } catch (_eDepMeterUi) {}
         applySavedContractEditLock();
     }
 
@@ -21619,6 +21848,13 @@ function getEmptyCompanySignatory() {
         try {
             applyContractDepositAttachmentFieldLock();
         } catch (_eDepHyLock) {}
+        try {
+            hydrateContractMeterReadingAttachmentsFromPayload(d);
+        } catch (_eMeterHy) {}
+        try {
+            applyContractDepositAmountFieldLock();
+            applyContractMeterReadingAttachmentUi();
+        } catch (_eMeterUiHy) {}
     }
 
     /** تعيين حقول نموذج الحجز المنفصل / Map logical keys to reservation workspace DOM ids */
@@ -33384,7 +33620,7 @@ function getEmptyCompanySignatory() {
         });
         const payloadStore = getMandatoryDocStoreFromPayload(payload);
         Object.keys(payloadStore).forEach((k) => {
-            if (/^(deposit_receipt|pay_chq_|vat_chq_|ins_print_)/.test(k)) {
+            if (/^(deposit_receipt|meter_electricity_reading|meter_water_reading|pay_chq_|vat_chq_|ins_print_)/.test(k)) {
                 pushPrintAttachmentToStore(store, k, payloadStore[k]);
             }
         });
@@ -46708,6 +46944,8 @@ function getEmptyCompanySignatory() {
         'agreedRentPaymentDay',
         'paymentMethod',
         'depositAmount',
+        'electricityMeterReading',
+        'waterMeterReading',
         'graceDays',
         'graceAmount',
         'otherDiscountAmount',
@@ -64830,6 +65068,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 syncContractPrintAttachmentsToStore();
             } catch (_eDepPrintSync) {}
         }
+        try {
+            applyContractDepositAmountFieldLock();
+        } catch (_eDepAmtSync) {}
     }
 
     function applyContractDepositAttachmentFieldLock() {
@@ -64864,6 +65105,62 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             hint.style.borderColor = '#b8ddb8';
             hint.style.color = '#1f5a2a';
         }
+        try {
+            applyContractDepositAmountFieldLock();
+        } catch (_eDepAmtLock) {}
+    }
+
+    async function onContractMeterReadingAttachmentChange(kind, inp) {
+        const meta = getContractMeterReadingKindMeta(kind);
+        const row = document.getElementById(`${meta.prefix}AttachmentRow`);
+        const f = inp?.files && inp.files[0];
+        if (!row) return;
+        if (!f) {
+            row.dataset.attachmentName = '';
+            row.dataset.attachmentDataUrl = '';
+            row.dataset.attachmentRelativePath = '';
+            row.dataset.attachmentFileId = '';
+            row.dataset.storedOnDisk = '0';
+            const lbl = row.querySelector('[data-meter-reading-att-name]');
+            if (lbl) lbl.textContent = '—';
+            try {
+                updateSummaryPanel();
+            } catch (_eSumClr) {}
+            try {
+                syncContractPrintAttachmentsToStore();
+            } catch (_ePrintClr) {}
+            try {
+                scheduleContractWorkspaceDraftSave();
+            } catch (_eSavClr) {}
+            try {
+                refreshLedgerAttachmentPreviewButtons().catch(() => {});
+            } catch (_ePrevClr) {}
+            return;
+        }
+        try {
+            const ref = await bhdPersistUploadedFile(f, { category: 'property', docType: meta.docType });
+            bhdApplyFileRefToDataset(row, ref);
+            const lbl = row.querySelector('[data-meter-reading-att-name]');
+            if (lbl) lbl.textContent = f.name;
+            try {
+                syncContractPrintAttachmentsToStore();
+            } catch (_ePrintSync) {}
+            try {
+                updateSummaryPanel();
+            } catch (_eSum) {}
+            try {
+                renderDocument(currentDoc);
+            } catch (_eDoc) {}
+            try {
+                scheduleContractWorkspaceDraftSave();
+            } catch (_eSav) {}
+            try {
+                refreshLedgerAttachmentPreviewButtons().catch(() => {});
+            } catch (_ePrev) {}
+        } catch (e) {
+            alert(t('تعذر قراءة الملف.', 'Could not read the file.'));
+        }
+        if (inp) inp.value = '';
     }
 
     async function onInsuranceDepositAttachmentChange(inp) {
@@ -65459,6 +65756,60 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         return false;
     }
 
+    function validateContractMeterReadingsOrAlert(d) {
+        if (!isContractsWorkspaceScreenActive()) return true;
+        const data = d && typeof d === 'object' ? d : getFormData();
+        if (!toStr(data.electricityMeterReading).trim()) {
+            alert(
+                t(
+                    '⚠️ قراءة عداد الكهرباء مطلوبة في شاشة العقود.',
+                    '⚠️ Electricity meter reading is required in the contracts workspace.'
+                )
+            );
+            try {
+                document.getElementById('electricityMeterReading')?.focus();
+            } catch (_eF1) {}
+            return false;
+        }
+        if (!toStr(data.waterMeterReading).trim()) {
+            alert(
+                t(
+                    '⚠️ قراءة عداد الماء مطلوبة في شاشة العقود.',
+                    '⚠️ Water meter reading is required in the contracts workspace.'
+                )
+            );
+            try {
+                document.getElementById('waterMeterReading')?.focus();
+            } catch (_eF2) {}
+            return false;
+        }
+        if (!payloadHasContractMeterReadingAttachment(data, 'electricity')) {
+            alert(
+                t(
+                    '⚠️ صورة قراءة عداد الكهرباء مطلوبة.',
+                    '⚠️ Electricity meter reading photo is required.'
+                )
+            );
+            try {
+                document.getElementById('electricityMeterReadingAttachmentInput')?.click();
+            } catch (_eF3) {}
+            return false;
+        }
+        if (!payloadHasContractMeterReadingAttachment(data, 'water')) {
+            alert(
+                t(
+                    '⚠️ صورة قراءة عداد الماء مطلوبة.',
+                    '⚠️ Water meter reading photo is required.'
+                )
+            );
+            try {
+                document.getElementById('waterMeterReadingAttachmentInput')?.click();
+            } catch (_eF4) {}
+            return false;
+        }
+        return true;
+    }
+
     function validateCoreData() {
         const isReservationMode = isReservationsWorkspaceScreenActive();
         if (isReservationMode) {
@@ -65497,6 +65848,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             return false;
         }
         if (!validateGraceHandoverConsistencyOrAlert(d)) return false;
+        if (!isReservationMode && !validateContractMeterReadingsOrAlert(d)) return false;
         if (!ensureRelatedDataCompleteness()) return false;
         if (!d.startDate || !d.endDate) {
             alert('⚠️ يرجى تعبئة تاريخ بداية ونهاية العقد.');
