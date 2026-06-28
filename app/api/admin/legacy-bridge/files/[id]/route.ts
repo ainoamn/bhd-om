@@ -20,7 +20,8 @@ function serveFileRow(row: FileRow): NextResponse {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const contentType = row.mimeType || 'application/octet-stream';
-  return new NextResponse(row.content, {
+  const body = Buffer.from(row.content);
+  return new NextResponse(body, {
     status: 200,
     headers: {
       'Content-Type': contentType,

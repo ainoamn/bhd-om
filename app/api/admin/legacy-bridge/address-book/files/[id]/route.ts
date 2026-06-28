@@ -34,7 +34,7 @@ export async function GET(
     }
 
     const contentType = row.mimeType || 'application/octet-stream';
-    return new NextResponse(row.content, {
+    return new NextResponse(Buffer.from(row.content), {
       status: 200,
       headers: {
         'Content-Type': contentType,
