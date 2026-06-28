@@ -175,6 +175,127 @@ export async function persistLegacyAttachmentToContactFile(
   });
 }
 
+const CONTACT_ATTACHMENT_FIELD_KEYS = new Set(['idCard', 'passport', 'commercialReg', 'leaseContract']);
+
+/** يقرأ مرفقات جهة الاتصال من جدول AddressBookContactFile */
+export async function loadContactAttachmentsFromDb(contactId: string): Promise<ContactAttachmentFiles> {
+  const cid = str(contactId);
+  if (!cid) return {};
+
+  const rows = await prisma.addressBookContactFile.findMany({
+    where: { contactId: cid },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const out: ContactAttachmentFiles = {};
+  for (const row of rows) {
+    const fk = str(row.fieldKey);
+    if (!fk || !CONTACT_ATTACHMENT_FIELD_KEYS.has(fk)) continue;
+    const key = fk as keyof ContactAttachmentFiles;
+    if (out[key]) continue;
+    out[key] = fileRefFromRow(row);
+  }
+  return out;
+}
+
+function collectAttachmentFileIdsFromEntry(
+  entry: Record<string, unknown>
+): Array<{ fileId: string; fieldKey: string }> {
+  const out: Array<{ fileId: string; fieldKey: string }> = [];
+  const bags = [entry];
+  const la = entry.legacyLocalAttachments;
+  if (la && typeof la === 'object') bags.push(la as Record<string, unknown>);
+
+  for (const bag of bags) {
+    for (const [legacyKey, contactKey] of Object.entries(LEGACY_FIELD_TO_CONTACT_KEY)) {
+      const att = bag[legacyKey];
+      const fileId = str((att as Record<string, unknown>)?.fileId);
+      if (fileId) out.push({ fileId, fieldKey: contactKey });
+    }
+  }
+  return out;
+}
+
+/** يقرأ المرفقات من PostgreSQL (بـ contactId أو fileId المخزّن في JSON) */
+export async function loadContactAttachmentsFromContactData(
+  contactId: string,
+  contactData: Record<string, unknown>
+): Promise<ContactAttachmentFiles> {
+  const cid = str(contactId);
+  if (!cid) return {};
+
+  await linkAddressBookFilesToContact(cid, contactData, null);
+  const out = await loadContactAttachmentsFromDb(cid);
+
+  for (const { fileId, fieldKey } of collectAttachmentFileIdsFromEntry(contactData)) {
+    const key = fieldKey as keyof ContactAttachmentFiles;
+    if (out[key]) continue;
+    const row = await prisma.addressBookContactFile.findUnique({ where: { id: fileId } });
+    if (!row) continue;
+    if (!str(row.contactId)) {
+      await prisma.addressBookContactFile.update({
+        where: { id: fileId },
+        data: { contactId: cid, fieldKey },
+      });
+    }
+    out[key] = fileRefFromRow(row);
+  }
+
+  return out;
+}
+
+/** يربط ملفات مرفوعة (حتى بدون contactId) بجهة الاتصال */
+export async function linkAddressBookFilesToContact(
+  contactId: string,
+  entry: Record<string, unknown>,
+  attachments?: ContactAttachmentFiles | null
+): Promise<void> {
+  const cid = str(contactId);
+  if (!cid) return;
+
+  const seen = new Set<string>();
+  const link = async (fileId: string, fieldKey: string) => {
+    if (!fileId || seen.has(fileId)) return;
+    seen.add(fileId);
+    await prisma.addressBookContactFile.updateMany({
+      where: { id: fileId },
+      data: { contactId: cid, fieldKey },
+    });
+  };
+
+  for (const [legacyKey, contactKey] of Object.entries(LEGACY_FIELD_TO_CONTACT_KEY)) {
+    const att = entry[legacyKey];
+    const fileId = str((att as Record<string, unknown>)?.fileId);
+    if (fileId) await link(fileId, contactKey);
+  }
+
+  const la = entry.legacyLocalAttachments;
+  if (la && typeof la === 'object') {
+    for (const [legacyKey, contactKey] of Object.entries(LEGACY_FIELD_TO_CONTACT_KEY)) {
+      const att = (la as Record<string, unknown>)[legacyKey];
+      const fileId = str((att as Record<string, unknown>)?.fileId);
+      if (fileId) await link(fileId, contactKey);
+    }
+  }
+
+  if (attachments) {
+    for (const [key, ref] of Object.entries(attachments)) {
+      if (ref?.fileId) await link(ref.fileId, key);
+    }
+  }
+}
+
+/** يدمج المرفقات المحفوظة في JSON مع الملفات المرتبطة في PostgreSQL */
+export async function mergeContactAttachmentsForContact(
+  contactId: string,
+  entry: Record<string, unknown>,
+  persisted: ContactAttachmentFiles
+): Promise<ContactAttachmentFiles> {
+  await linkAddressBookFilesToContact(contactId, entry, persisted);
+  const fromDb = await loadContactAttachmentsFromDb(contactId);
+  return { ...fromDb, ...persisted };
+}
+
 export async function persistContactAttachmentsFromLegacyEntry(
   entry: Record<string, unknown>,
   contactId: string,
@@ -204,7 +325,7 @@ export async function persistContactAttachmentsFromLegacyEntry(
     }
   }
 
-  return out;
+  return mergeContactAttachmentsForContact(contactId, entry, out);
 }
 
 export function legacyAttachmentRefFromFileRef(ref?: AddressBookFileRef | null): Record<string, unknown> | null {

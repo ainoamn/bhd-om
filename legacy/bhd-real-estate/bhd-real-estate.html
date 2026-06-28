@@ -11672,6 +11672,9 @@
                 if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                     await window.__bhdRefreshAddressBookFromSite();
                 }
+                try {
+                    await repairAddressBookEntriesAttachmentsFromSite();
+                } catch (_eSiteRepBoot) {}
                 loadDashboardAux(true);
                 bhdRefreshActiveWorkspaceLight();
             } catch (eHydr) {
@@ -17470,6 +17473,48 @@
         return changed;
     }
 
+    async function repairAddressBookEntriesAttachmentsFromSite() {
+        if (!bhdSiteFileStorageAvailable()) return false;
+        let changed = false;
+        for (let i = 0; i < addressBookEntries.length; i++) {
+            const entry = addressBookEntries[i];
+            if (!entry) continue;
+            const cid = toStr(entry.siteContactId || (toStr(entry.source) === 'bhd-om' ? entry.id : '')).trim();
+            if (!cid) continue;
+            const needsRepair =
+                !addressBookAttachmentPresent(entry.idAttachment) ||
+                !addressBookAttachmentPresent(entry.passportAttachment) ||
+                !toStr(entry.idExpiryDate) ||
+                (toStr(entry.passport) && !toStr(entry.passportExpiryDate));
+            if (!needsRepair) continue;
+            try {
+                const r = await fetch(
+                    `/api/admin/legacy-bridge/address-book/contact/${encodeURIComponent(cid)}`,
+                    { credentials: 'include', cache: 'no-store' }
+                );
+                if (!r.ok) continue;
+                const saved = await r.json();
+                if (!saved || typeof saved !== 'object') continue;
+                const ent = { ...entry };
+                applyLegacyLocalAttachmentsFromSaved(ent, saved);
+                if (toStr(saved.civilIdExpiry)) ent.idExpiryDate = toStr(saved.civilIdExpiry);
+                if (toStr(saved.passportExpiry)) ent.passportExpiryDate = toStr(saved.passportExpiry);
+                const merged = mergeAddressBookEntryPreferRich(entry, ent);
+                if (JSON.stringify(merged) !== JSON.stringify(entry)) {
+                    addressBookEntries[i] = merged;
+                    changed = true;
+                }
+            } catch (_eSiteRepAb) {}
+        }
+        if (changed) {
+            localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+            try {
+                await syncBhdKvToServer();
+            } catch (_eRepSiteKv) {}
+        }
+        return changed;
+    }
+
     function getAddressBookCompanyIssues(entry) {
         const issues = [];
         const requireField = (label, value) => {
@@ -20902,11 +20947,16 @@ function getEmptyCompanySignatory() {
             el.textContent = '';
             return;
         }
-        const disk = ref.storedOnDisk || ref.relativePath;
+        const onSite = bhdIsSiteStoredFileRef(ref) || (bhdSiteFileStorageAvailable() && toStr(ref.fileId));
+        const disk = !onSite && (ref.storedOnDisk || ref.relativePath);
         el.textContent =
             (toStr(ref.name) || t('مرفق', 'Attachment')) +
             ' ✓' +
-            (disk ? ` (${t('على القرص', 'on disk')})` : '');
+            (onSite
+                ? ` (${t('على الخادم', 'on server')})`
+                : disk
+                  ? ` (${t('على القرص', 'on disk')})`
+                  : '');
         el.style.color = '#2d6a4f';
     }
 
@@ -58664,7 +58714,7 @@ function getEmptyCompanySignatory() {
         let formData = {};
         let bodyHtml = '';
         if (hasForms) {
-            if (!opt.skipValidation && !validateCoreData()) {
+            if (!opt.skipValidation && !(await validateCoreData())) {
                 if (pushedOverride) popFormDataOverride();
                 return { ok: false, reason: 'validation' };
             }
@@ -66572,10 +66622,46 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
     }
 
+    async function ensureRelatedDataCompletenessAsync() {
+        try {
+            ensurePartyInAddressBookFromFormData();
+        } catch (_eEnsureParty) {}
+        if (bhdSiteFileStorageAvailable()) {
+            try {
+                await repairAddressBookEntriesAttachmentsFromSite();
+            } catch (_eRepSiteVal) {}
+        }
+        try {
+            prepareTenantAddressBookForContractValidation();
+        } catch (_ePrepAbVal) {}
+        const gaps = collectContractRelatedDataGaps();
+        if (!gaps.length) return true;
+        contractDataGapFixes = gaps;
+        const host = document.getElementById('dataGapsBody');
+        if (!host) return false;
+        host.innerHTML = `
+            <p style="font-size:13px;margin:0 0 10px">${t('يرجى استكمال البيانات التالية أولاً:', 'Please complete the following data first:')}</p>
+            <div style="display:flex;flex-direction:column;gap:8px">
+                ${gaps.map((g, i) => `
+                    <div style="border:1px solid #dde5eb;border-radius:10px;padding:10px;background:#fafcfe;display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+                        <div style="font-size:12px;line-height:1.6">${escHtml(g.text)}</div>
+                        <button type="button" class="mini-btn" onclick="openDataGapFix(${i})">${escHtml(g.fixText)}</button>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        document.getElementById('dataGapsModal')?.classList.add('open');
+        localizeBilingualUi();
+        return false;
+    }
+
     function ensureRelatedDataCompleteness() {
         try {
             ensurePartyInAddressBookFromFormData();
         } catch (_eEnsureParty) {}
+        try {
+            prepareTenantAddressBookForContractValidation();
+        } catch (_ePrepAb) {}
         const gaps = collectContractRelatedDataGaps();
         if (!gaps.length) return true;
         contractDataGapFixes = gaps;
@@ -66651,7 +66737,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         return true;
     }
 
-    function validateCoreData() {
+    async function validateCoreData() {
         const isReservationMode = isReservationsWorkspaceScreenActive();
         if (isReservationMode) {
             try { refreshReservationFinancialCalculations(); } catch (_eGraceVal) {}
@@ -66690,7 +66776,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
         if (!validateGraceHandoverConsistencyOrAlert(d)) return false;
         if (!isReservationMode && !validateContractMeterReadingsOrAlert(d)) return false;
-        if (!ensureRelatedDataCompleteness()) return false;
+        if (!(await ensureRelatedDataCompletenessAsync())) return false;
         if (!d.startDate || !d.endDate) {
             alert('⚠️ يرجى تعبئة تاريخ بداية ونهاية العقد.');
             return false;
@@ -67209,7 +67295,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
     }
     
-    function renderDocument(index) {
+    async function renderDocument(index) {
         if (!isViewerMode && isContractsWorkspaceScreenActive() && !isContractWorkspaceUnlockedForCurrentUnit()) {
             renderContractsWorkspaceLockedPlaceholder();
             return;
@@ -67267,7 +67353,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             alertContractWorkspaceLockedOrMissingUnit();
             return;
         }
-        if (!validateCoreData()) return;
+        if (!(await validateCoreData())) return;
         const d = getFormData();
         if (currentDoc === CONTRACT_CANCELLATION_FORM_07_INDEX) {
             const prefix =
@@ -67312,7 +67398,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
     }
     
-    function saveAllDataAsDraft() {
+    async function saveAllDataAsDraft() {
         if (!assertPermissionOrAlert('manage_contracts', 'لا تملك صلاحية حفظ بيانات العقود.', 'No permission to save contracts.')) return;
         if (isReservationsWorkspaceScreenActive()) return;
         if (_contractSaveInProgress) return;
@@ -67324,7 +67410,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             return;
         }
         loadDashboardAux();
-        if (!validateCoreData()) return;
+        if (!(await validateCoreData())) return;
         setContractSaveDockBusy(true);
         try {
             const data = enrichPayloadWithResolvedLinkedContractUnits(collectStorableContractFullFromDom());
@@ -67408,7 +67494,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             }
         }
         refreshAddressBookFromSystem(false);
-        if (!validateCoreData()) {
+        if (!(await validateCoreData())) {
             return;
         }
         const preSaveData = applyActorAuditStamp(collectStorableContractFullFromDom());
@@ -68211,7 +68297,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         };
     }
 
-    function openDocumentsWindow(payloadOverride = null, options = {}) {
+    async function openDocumentsWindow(payloadOverride = null, options = {}) {
         if (
             !isViewerMode &&
             !assertPermissionOrAlert(
@@ -68227,7 +68313,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             try { applyContractsWorkspaceLockState(); } catch (_eDocLock) {}
             return;
         }
-        if (!validateCoreData()) return;
+        if (!(await validateCoreData())) return;
         const payload = payloadOverride || buildRuntimePayload();
         const payloadKey = options.payloadKey || 'bhd_runtime_payload';
         localStorage.setItem(payloadKey, JSON.stringify(payload));
@@ -70216,6 +70302,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     await window.__bhdRefreshAddressBookFromSite();
                 } catch (_eAbBootPull) {}
             }
+            try {
+                await repairAddressBookEntriesAttachmentsFromSite();
+            } catch (_eAbBootRep) {}
         } else if (bhdApiAvailable && !window.bhdDesktop) {
             await bhdHydrateSiteKvFromServerIfNeeded();
             if (typeof window.__bhdReapplySiteBridge === 'function') {
@@ -70226,6 +70315,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     await window.__bhdRefreshAddressBookFromSite();
                 } catch (_eAbBootPull2) {}
             }
+            try {
+                await repairAddressBookEntriesAttachmentsFromSite();
+            } catch (_eAbBootRep2) {}
         }
         if (!refreshFastBoot) {
             await dropLegacySfgIndexedDb();
@@ -70304,6 +70396,12 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     await repairAddressBookEntriesAttachments();
                 } catch (_eRepAbAtt) {
                     console.warn('repairAddressBookEntriesAttachments', _eRepAbAtt);
+                }
+            } else if (bhdSiteFileStorageAvailable()) {
+                try {
+                    await repairAddressBookEntriesAttachmentsFromSite();
+                } catch (_eRepAbAttSite) {
+                    console.warn('repairAddressBookEntriesAttachmentsFromSite', _eRepAbAttSite);
                 }
             } else if (refreshFastBoot && window.bhdDesktop?.fileListEntries) {
                 const repairAbAtt = () => {

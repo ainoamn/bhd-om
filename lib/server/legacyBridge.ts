@@ -6,6 +6,9 @@ import type { User, UserRole } from '@prisma/client';
 import type { Contact, ContactCategory, AuthorizedRepresentative } from '@/lib/data/addressBook';
 import {
   applyContactAttachmentsToLegacyEntry,
+  loadContactAttachmentsFromContactData,
+  loadContactAttachmentsFromDb,
+  linkAddressBookFilesToContact,
   persistContactAttachmentsFromLegacyEntry,
 } from '@/lib/server/addressBookContactFiles';
 import { getContactDisplayName, newContactId, generateContactSerialNumberFromList } from '@/lib/data/addressBook';
@@ -528,6 +531,13 @@ export async function syncLegacyAddressEntryToDatabase(
   merged.id = contactId;
   merged.contactAttachments = contactAttachments;
 
+  const entryWithAttachments = { ...(entry as unknown as Record<string, unknown>) };
+  applyContactAttachmentsToLegacyEntry(entryWithAttachments, contactAttachments);
+  merged.legacyLocalAttachments = buildLegacyLocalAttachments(
+    entryWithAttachments as LegacyBridgeAddressEntry,
+    existing as unknown as Record<string, unknown> | null
+  );
+
   if (!merged.serialNumber) {
     const allRows = await findManyAddressBookContactsOrHeal(prisma);
     const allContacts = allRows
@@ -559,6 +569,32 @@ export async function syncLegacyAddressEntryToDatabase(
   );
 
   return merged;
+}
+
+/** يُحمّل جهة اتصال مع مرفقاتها من PostgreSQL (للجسر والاستعادة) */
+export async function getContactWithAttachmentsForLegacy(contactId: string): Promise<Contact | null> {
+  const cid = str(contactId);
+  if (!cid) return null;
+
+  const row = await withAddressBookSchemaHeal(prisma, () =>
+    prisma.addressBookContact.findFirst({
+      where: { OR: [{ contactId: cid }, { id: cid }] },
+    })
+  );
+  if (!row?.data) return null;
+
+  const data = { ...((row.data as Record<string, unknown>) ?? {}) } as unknown as Contact;
+  if (typeof data.id !== 'string' || !String(data.id).trim()) {
+    data.id = String(row.contactId || cid);
+  }
+
+  const fromDb = await loadContactAttachmentsFromContactData(
+    data.id,
+    data as unknown as Record<string, unknown>
+  );
+  data.contactAttachments = { ...(data.contactAttachments || {}), ...fromDb };
+
+  return data;
 }
 
 export type LegacyAddressBookWipeScope = 'all' | 'addressbook' | 'tenants' | 'owners';
@@ -715,6 +751,11 @@ export async function buildLegacyBridgePayload(
     const data = raw as unknown as Contact;
     if (!data || typeof data !== 'object' || !data.id) continue;
     if (data.archived) continue;
+
+    const attachmentsFromDb = await loadContactAttachmentsFromContactData(cid, raw);
+    if (Object.keys(attachmentsFromDb).length) {
+      data.contactAttachments = { ...(data.contactAttachments || {}), ...attachmentsFromDb };
+    }
 
     const fromLinked = typeof row.linkedUserId === 'string' ? row.linkedUserId.trim() : '';
     const fromJson = typeof raw.userId === 'string' ? String(raw.userId).trim() : '';
