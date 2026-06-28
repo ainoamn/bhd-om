@@ -10463,12 +10463,51 @@
         if (d.includes('passport')) return 'passport';
         if (d.includes('cocr') || d.includes('commercial') || d.includes('cr')) return 'commercialReg';
         if (d.includes('lease')) return 'leaseContract';
+        if (d.includes('deposit')) return 'deposit_receipt';
+        if (d.includes('meter')) return 'meter_reading';
+        if (d.includes('chq') || d.includes('cheque') || d.includes('check')) return 'cheque';
         return 'idCard';
+    }
+
+    function bhdSiteStoreContextFromCtx(ctx) {
+        const cat = toStr(ctx?.category || '').toLowerCase();
+        if (cat === 'addressbook') return 'addressbook';
+        if (cat.includes('property') || cat.includes('building') || cat === 'propertydocument') return 'property';
+        if (cat.includes('owner')) return 'property';
+        if (cat.includes('registry')) return 'registry';
+        return 'contract';
+    }
+
+    function bhdSiteStoreKeyFromCtx(ctx) {
+        const parts = [
+            toStr(ctx?.buildingNo),
+            toStr(ctx?.flatNo),
+            toStr(ctx?.agreementNo),
+            toStr(ctx?.tenantName),
+            toStr(ctx?.docType)
+        ].filter(Boolean);
+        return parts.join('|') || toStr(ctx?.contactId) || toStr(ctx?.siteContactId) || '_draft';
+    }
+
+    function bhdSiteFileServeUrl(fileId) {
+        const id = toStr(fileId).trim();
+        if (!id) return '';
+        return `/api/admin/legacy-bridge/files/${encodeURIComponent(id)}`;
+    }
+
+    function bhdIsSiteStoredFileRef(att) {
+        const url = toStr(att?.url) || toStr(att?.relativePath);
+        return (
+            url.includes('/api/admin/legacy-bridge/files/') ||
+            url.includes('/api/admin/legacy-bridge/address-book/files/')
+        );
     }
 
     async function bhdSiteUploadAttachment(file, ctx) {
         const fd = new FormData();
         fd.append('file', file);
+        fd.append('storeContext', bhdSiteStoreContextFromCtx(ctx));
+        fd.append('storeKey', bhdSiteStoreKeyFromCtx(ctx));
         fd.append('fieldKey', bhdSiteAttachmentFieldKey(ctx?.docType || ctx?.category));
         const contactId =
             toStr(ctx?.contactId) ||
@@ -10478,30 +10517,41 @@
                   toStr(addressBookEntries[addressBookEditorState.index]?.id)
                 : '');
         if (contactId) fd.append('contactId', contactId);
-        const r = await fetch('/api/admin/legacy-bridge/address-book/upload', {
+        const uploadUrl =
+            bhdSiteStoreContextFromCtx(ctx) === 'addressbook'
+                ? '/api/admin/legacy-bridge/address-book/upload'
+                : '/api/admin/legacy-bridge/files/upload';
+        if (uploadUrl.includes('address-book')) {
+            fd.set('fieldKey', bhdSiteAttachmentFieldKey(ctx?.docType || ctx?.category));
+            if (contactId) fd.set('contactId', contactId);
+        }
+        const r = await fetch(uploadUrl, {
             method: 'POST',
             credentials: 'include',
             body: fd
         });
         if (!r.ok) throw new Error('site upload failed');
         const saved = await r.json();
+        const fileUrl = toStr(saved.url) || bhdSiteFileServeUrl(saved.fileId);
         return {
             name: saved.name || file.name,
             type: saved.mimeType || file.type || 'application/octet-stream',
             size: file.size || 0,
             fileId: saved.fileId || '',
-            url: saved.url || '',
-            relativePath: saved.url || '',
+            url: fileUrl,
+            relativePath: fileUrl,
             storedOnDisk: true,
             dataUrl: ''
         };
     }
 
     async function bhdSiteReadFileAsDataUrl(fileRef) {
+        const fileId = toStr(fileRef?.fileId);
         const url =
             toStr(fileRef?.url) ||
             toStr(fileRef?.relativePath) ||
-            (toStr(fileRef?.fileId) ? `/api/admin/legacy-bridge/address-book/files/${encodeURIComponent(fileRef.fileId)}` : '');
+            (fileId ? bhdSiteFileServeUrl(fileId) : '') ||
+            (fileId ? `/api/admin/legacy-bridge/address-book/files/${encodeURIComponent(fileId)}` : '');
         if (!url) return '';
         const cacheKey = `site:${url}`;
         const cached = _bhdDiskUrlCache[cacheKey];
@@ -10517,6 +10567,27 @@
         });
         if (dataUrl) _bhdDiskUrlCache[cacheKey] = dataUrl;
         return dataUrl;
+    }
+
+    async function bhdSiteExtractKvBlobsOnce() {
+        if (!isBhdSiteKvPersistenceActive()) return false;
+        try {
+            if (sessionStorage.getItem('bhd_kv_blobs_extracted_v1') === '1') return false;
+        } catch (_eSess) {}
+        try {
+            const r = await fetch('/api/admin/legacy-bridge/kv/extract-blobs', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            if (!r.ok) return false;
+            try {
+                sessionStorage.setItem('bhd_kv_blobs_extracted_v1', '1');
+            } catch (_eSet) {}
+            await bhdHydrateSiteKvFromServerIfNeeded();
+            return true;
+        } catch (_eExt) {
+            return false;
+        }
     }
 
     function bhdIsCloudFileId(fileId) {
@@ -10701,8 +10772,7 @@
     }
 
     function bhdIsSiteAddressBookFileRef(att) {
-        const url = toStr(att?.url) || toStr(att?.relativePath);
-        return url.includes('/api/admin/legacy-bridge/address-book/files/');
+        return bhdIsSiteStoredFileRef(att);
     }
 
     async function bhdResolveAttachmentUrl(att) {
@@ -10717,7 +10787,7 @@
         if (cached) return cached;
         const inline = pickEmbeddedDataUrl(att, att.dataUrl, att.attachmentDataUrl, att.checkAttachmentDataUrl);
         if (inline) return inline;
-        if (bhdIsSiteAddressBookFileRef(att) || (bhdSiteFileStorageAvailable() && toStr(att.fileId))) {
+        if (bhdIsSiteStoredFileRef(att) || (bhdSiteFileStorageAvailable() && toStr(att.fileId))) {
             try {
                 const url = await bhdSiteReadFileAsDataUrl(att);
                 if (url) return url;
@@ -70102,6 +70172,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         if (siteIntegratedWeb) {
             await probeBhdApi();
             await bhdHydrateSiteKvFromServerIfNeeded();
+            await bhdSiteExtractKvBlobsOnce();
             if (typeof window.__bhdReapplySiteBridge === 'function') {
                 window.__bhdReapplySiteBridge();
             }

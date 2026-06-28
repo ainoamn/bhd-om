@@ -5,6 +5,7 @@ import {
   LEGACY_KV_ALL_KEYS,
   isLegacyKvKeepOnFullWipe,
 } from '@/lib/server/legacyKvKeys';
+import { extractLegacyKvInlineBlobs, deleteLegacyStoredFilesForContexts } from '@/lib/server/legacyStoredFiles';
 
 export type LegacyKvBulkPayload = Record<string, string>;
 
@@ -51,16 +52,25 @@ export async function putLegacyKvBulk(payload: LegacyKvBulkPayload): Promise<{ s
     const data = typeof raw === 'string' ? raw : JSON.stringify(raw);
     if (!data.length) continue;
 
+    let storedData = data;
+    if (data.includes('data:')) {
+      try {
+        storedData = await extractLegacyKvInlineBlobs(key, data);
+      } catch (eBlob) {
+        console.warn('extractLegacyKvInlineBlobs', key, eBlob);
+      }
+    }
+
     await prisma.legacyAppKvStore.upsert({
       where: { kvKey: key },
       create: {
         kvKey: key,
-        data,
+        data: storedData,
         category: legacyKvCategory(key),
         updatedAt: now,
       },
       update: {
-        data,
+        data: storedData,
         category: legacyKvCategory(key),
         updatedAt: now,
       },
@@ -94,6 +104,9 @@ export async function wipeLegacyKvExcept(keepKeys: string[] = []): Promise<{ rem
   const result = await prisma.legacyAppKvStore.deleteMany({
     where: { kvKey: { in: [...toRemove] } },
   });
+  try {
+    await deleteLegacyStoredFilesForContexts(['contract', 'property', 'registry', 'reservation', 'accounting']);
+  } catch (_eWipeFiles) {}
   return { removed: result.count };
 }
 

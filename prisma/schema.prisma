@@ -468,6 +468,26 @@ model LegacyAppKvStore {
   @@index([kvKey])
 }
 
+/// ملفات النظام القديم (عقود، شيكات، عقارات، سجل الملفات…) — PostgreSQL / Vercel Blob
+model LegacyStoredFile {
+  id           String   @id @default(cuid())
+  storeContext String?
+  storeKey     String?
+  fieldKey     String?
+  fileName     String
+  mimeType     String?
+  sizeBytes    Int?
+  blobUrl      String?
+  content      Bytes?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeContext])
+  @@index([storeKey])
+  @@index([storeContext, storeKey])
+  @@index([createdAt])
+}
+
 // ========== Global Intelligent Accounting ==========
 enum AccountingAccountType {
   ASSET
