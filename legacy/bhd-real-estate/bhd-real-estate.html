@@ -11669,6 +11669,9 @@
             try {
                 await bhdHydrateSiteKvFromServerIfNeeded();
                 if (typeof window.__bhdReapplySiteBridge === 'function') window.__bhdReapplySiteBridge();
+                if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+                    await window.__bhdRefreshAddressBookFromSite();
+                }
                 loadDashboardAux(true);
                 bhdRefreshActiveWorkspaceLight();
             } catch (eHydr) {
@@ -18527,6 +18530,24 @@
         } catch (_eCons) {}
     }
 
+    function findAddressBookEntryIndexFor(entry, fallbackIdx) {
+        if (!entry) return fallbackIdx >= 0 ? fallbackIdx : 0;
+        const sid = toStr(entry.siteContactId || (toStr(entry.source) === 'bhd-om' ? entry.id : '')).trim();
+        if (sid) {
+            const ix = addressBookEntries.findIndex((e) => toStr(e.siteContactId || e.id).trim() === sid);
+            if (ix >= 0) return ix;
+        }
+        if (typeof addressBookEntryKey === 'function') {
+            const key = addressBookEntryKey(entry);
+            if (key) {
+                const ix = addressBookEntries.findIndex((e) => addressBookEntryKey(e) === key);
+                if (ix >= 0) return ix;
+            }
+        }
+        if (fallbackIdx >= 0 && fallbackIdx < addressBookEntries.length) return fallbackIdx;
+        return 0;
+    }
+
     async function pushAddressBookEntryToSiteServer(entry) {
         if (localStorage.getItem('bhd_site_integrated') !== '1') return null;
         if (!entry || !toStr(entry.name)) return null;
@@ -21140,17 +21161,24 @@ function getEmptyCompanySignatory() {
                 window.__bhdDedupeAddressBook?.();
             } catch (_eDedupeCo) {}
             renderAddressBookTable();
+            const coIdx = findAddressBookEntryIndexFor(
+                finalCoEntry,
+                addressBookEditorState.mode === 'edit' && addressBookEditorState.index >= 0
+                    ? addressBookEditorState.index
+                    : 0
+            );
+            try {
+                const siteSavedCo = await pushAddressBookEntryToSiteServer(addressBookEntries[coIdx]);
+                if (siteSavedCo) {
+                    applySiteSavedContactToLegacyEntry(
+                        findAddressBookEntryIndexFor(addressBookEntries[coIdx], coIdx),
+                        siteSavedCo
+                    );
+                }
+            } catch (_eSitePushCo2) {}
             try {
                 await syncBhdKvToServer();
             } catch (_eAbCoSync) {}
-            const coIdx =
-                addressBookEditorState.mode === 'edit' && addressBookEditorState.index >= 0
-                    ? addressBookEditorState.index
-                    : 0;
-            try {
-                const siteSavedCo = await pushAddressBookEntryToSiteServer(addressBookEntries[coIdx]);
-                if (siteSavedCo) applySiteSavedContactToLegacyEntry(coIdx, siteSavedCo);
-            } catch (_eSitePushCo2) {}
             const syncedCo = syncContractTenantFromAddressBookIfPending(coIdx);
             closeAddressBookEntryModal();
             if (syncedCo) {
@@ -21227,17 +21255,24 @@ function getEmptyCompanySignatory() {
             window.__bhdDedupeAddressBook?.();
         } catch (_eDedupeSave) {}
         renderAddressBookTable();
+        const savedIdx = findAddressBookEntryIndexFor(
+            finalEntry,
+            addressBookEditorState.mode === 'edit' && addressBookEditorState.index >= 0
+                ? addressBookEditorState.index
+                : 0
+        );
+        try {
+            const siteSaved = await pushAddressBookEntryToSiteServer(addressBookEntries[savedIdx]);
+            if (siteSaved) {
+                applySiteSavedContactToLegacyEntry(
+                    findAddressBookEntryIndexFor(addressBookEntries[savedIdx], savedIdx),
+                    siteSaved
+                );
+            }
+        } catch (_eSitePushPerson) {}
         try {
             await syncBhdKvToServer();
         } catch (_eAbSync) {}
-        const savedIdx =
-            addressBookEditorState.mode === 'edit' && addressBookEditorState.index >= 0
-                ? addressBookEditorState.index
-                : 0;
-        try {
-            const siteSaved = await pushAddressBookEntryToSiteServer(addressBookEntries[savedIdx]);
-            if (siteSaved) applySiteSavedContactToLegacyEntry(savedIdx, siteSaved);
-        } catch (_eSitePushPerson) {}
         const synced = syncContractTenantFromAddressBookIfPending(savedIdx);
         closeAddressBookEntryModal();
         if (synced) {
@@ -70176,10 +70211,20 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             if (typeof window.__bhdReapplySiteBridge === 'function') {
                 window.__bhdReapplySiteBridge();
             }
+            if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+                try {
+                    await window.__bhdRefreshAddressBookFromSite();
+                } catch (_eAbBootPull) {}
+            }
         } else if (bhdApiAvailable && !window.bhdDesktop) {
             await bhdHydrateSiteKvFromServerIfNeeded();
             if (typeof window.__bhdReapplySiteBridge === 'function') {
                 window.__bhdReapplySiteBridge();
+            }
+            if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+                try {
+                    await window.__bhdRefreshAddressBookFromSite();
+                } catch (_eAbBootPull2) {}
             }
         }
         if (!refreshFastBoot) {

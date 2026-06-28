@@ -2,6 +2,10 @@ import path from 'path';
 import { put } from '@vercel/blob';
 import { prisma } from '@/lib/prisma';
 import type { AddressBookFileRef, ContactAttachmentFiles } from '@/lib/data/addressBook';
+import {
+  LEGACY_FILE_SERVE_PREFIX,
+  legacyAttachmentAlreadyOnServer as legacyStoredAttachmentOnServer,
+} from '@/lib/server/legacyStoredFiles';
 
 const ALLOWED_EXT = /\.(pdf|jpg|jpeg|png|gif|webp)$/i;
 const MAX_SIZE_MB = 12;
@@ -25,7 +29,7 @@ export function fileRefFromRow(row: {
 }): AddressBookFileRef {
   return {
     fileId: row.id,
-    url: row.blobUrl || addressBookFileServeUrl(row.id),
+    url: addressBookFileServeUrl(row.id),
     fileName: row.fileName,
     mimeType: row.mimeType || undefined,
     sizeBytes: row.sizeBytes ?? undefined,
@@ -95,28 +99,40 @@ function extractDataUrlFromLegacyAttachment(att: unknown): string {
 }
 
 function legacyAttachmentAlreadyOnServer(att: unknown): AddressBookFileRef | null {
+  const stored = legacyStoredAttachmentOnServer(att);
+  if (stored) {
+    const onAddressBook =
+      stored.url.includes(ADDRESS_BOOK_FILE_SERVE_PREFIX) || /^https?:\/\//i.test(stored.url);
+    return {
+      fileId: stored.fileId,
+      url: onAddressBook ? addressBookFileServeUrl(stored.fileId) : stored.url,
+      fileName: stored.fileName,
+      mimeType: stored.mimeType,
+      sizeBytes: stored.sizeBytes,
+    };
+  }
+
   if (!att || typeof att !== 'object') return null;
   const o = att as Record<string, unknown>;
   const fileId = str(o.fileId);
+  if (!fileId) return null;
   const url = str(o.url) || str(o.relativePath);
-  if (fileId && url.includes(ADDRESS_BOOK_FILE_SERVE_PREFIX)) {
+  const onLegacyGeneric = url.includes(LEGACY_FILE_SERVE_PREFIX);
+  if (onLegacyGeneric) {
     return {
       fileId,
-      url: url.startsWith('/') ? url : addressBookFileServeUrl(fileId),
+      url: url.startsWith('/') ? url : `${LEGACY_FILE_SERVE_PREFIX}/${encodeURIComponent(fileId)}`,
       fileName: str(o.name) || str(o.fileName) || 'attachment',
       mimeType: str(o.type) || str(o.mimeType) || undefined,
     };
   }
-  if (url.startsWith(ADDRESS_BOOK_FILE_SERVE_PREFIX)) {
-    const id = url.split('/').pop() || fileId;
-    if (id) {
-      return {
-        fileId: id,
-        url,
-        fileName: str(o.name) || 'attachment',
-        mimeType: str(o.type) || undefined,
-      };
-    }
+  if (/^https?:\/\//i.test(url) || str(o.storedOnDisk)) {
+    return {
+      fileId,
+      url: addressBookFileServeUrl(fileId),
+      fileName: str(o.name) || str(o.fileName) || 'attachment',
+      mimeType: str(o.type) || str(o.mimeType) || undefined,
+    };
   }
   return null;
 }
