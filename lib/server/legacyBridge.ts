@@ -3,10 +3,11 @@
  * تسجيل دخول موحّد، مستخدمون من Prisma، دفتر عناوين من PostgreSQL.
  */
 import type { User, UserRole } from '@prisma/client';
-import type { Contact, ContactCategory } from '@/lib/data/addressBook';
+import type { Contact, ContactCategory, AuthorizedRepresentative } from '@/lib/data/addressBook';
 import { getContactDisplayName } from '@/lib/data/addressBook';
 import { ADMIN_PERMISSIONS, type AdminPermission } from '@/lib/auth/adminPermissions';
-import { findManyAddressBookContactsOrHeal } from '@/lib/server/addressBookDbCompat';
+import { findManyAddressBookContactsOrHeal, withAddressBookSchemaHeal } from '@/lib/server/addressBookDbCompat';
+import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
 import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityToContactJson';
 import { prisma } from '@/lib/prisma';
 
@@ -252,6 +253,12 @@ function buildLegacyAddressBookKey(entry: LegacyBridgeAddressEntry): string {
   return [type, String(entry.name || '').toLowerCase(), String(entry.mobile || ''), String(entry.idNo || '')].join('|');
 }
 
+function buildRepName(rep: { firstName?: string; secondName?: string; thirdName?: string; familyName?: string; name?: string }): string {
+  const parts = [rep.firstName, rep.secondName, rep.thirdName, rep.familyName].filter(Boolean);
+  if (parts.length) return parts.join(' ');
+  return rep.name || '';
+}
+
 export function mapSiteContactToLegacyEntry(
   contact: Contact,
   linkedUserId?: string | null
@@ -323,10 +330,154 @@ export function mapSiteContactToLegacyEntry(
   return entry;
 }
 
-function buildRepName(rep: { firstName?: string; secondName?: string; thirdName?: string; familyName?: string; name?: string }): string {
-  const parts = [rep.firstName, rep.secondName, rep.thirdName, rep.familyName].filter(Boolean);
-  if (parts.length) return parts.join(' ');
-  return rep.name || '';
+const LEGACY_TYPE_TO_CATEGORY: Record<string, ContactCategory> = {
+  client: 'CLIENT',
+  tenant: 'TENANT',
+  owner: 'LANDLORD',
+  vendor: 'SUPPLIER',
+  partner: 'PARTNER',
+  government: 'GOVERNMENT',
+  employee: 'AUTHORIZED_REP',
+  other: 'OTHER',
+};
+
+function str(v: unknown): string {
+  return String(v ?? '').trim();
+}
+
+function legacyBuildingUnitToAddress(
+  building?: unknown,
+  unit?: unknown,
+  existing?: Contact['address']
+): Contact['address'] | undefined {
+  const b = str(building);
+  const u = str(unit);
+  if (!b && !u && !existing) return existing;
+  return {
+    ...(existing || {}),
+    building: b || existing?.building,
+    floor: u || existing?.floor,
+  };
+}
+
+/** يحوّل سجل دفتر العناوين القديم إلى Contact للحفظ في PostgreSQL */
+export function mapLegacyAddressEntryToContact(
+  entry: LegacyBridgeAddressEntry,
+  existing?: Contact | null
+): Contact {
+  const now = new Date().toISOString();
+  const contactId = str(entry.siteContactId) || str(entry.id) || existing?.id || '';
+  const isCompany = str(entry.type).toLowerCase() === 'company';
+
+  if (isCompany) {
+    const signatories = Array.isArray(entry.signatories)
+      ? (entry.signatories as Array<Record<string, unknown>>).map((s) => ({
+          name: str(s.signatoryName) || str(s.name),
+          nameEn: str(s.signatoryNameEn),
+          civilId: str(s.signatoryIdNo),
+          nationality: str(s.signatoryNationality),
+          phone: str(s.signatoryMobile),
+          position: str(s.signatoryPosition),
+        }))
+      : existing?.companyData?.authorizedRepresentatives || [];
+
+    return {
+      ...(existing || {}),
+      id: contactId,
+      contactType: 'COMPANY',
+      firstName: str(entry.name) || existing?.firstName || '',
+      familyName: '',
+      name: str(entry.name) || existing?.name,
+      nameEn: str(entry.nameEn) || existing?.nameEn,
+      nationality: existing?.nationality || '',
+      gender: existing?.gender || 'MALE',
+      phone: str(entry.mobile) || existing?.phone || '',
+      phoneSecondary: str(entry.extraMobile) || existing?.phoneSecondary,
+      email: str(entry.email) || existing?.email,
+      category: existing?.category || 'TENANT',
+      companyData: {
+        companyNameAr: str(entry.name) || existing?.companyData?.companyNameAr || '',
+        companyNameEn: str(entry.nameEn) || existing?.companyData?.companyNameEn,
+        commercialRegistrationNumber:
+          str(entry.commercialRegNo) || existing?.companyData?.commercialRegistrationNumber || '',
+        commercialRegistrationExpiry:
+          str(entry.commercialRegExpiryDate) ||
+          str(entry.commercialRegExpiry) ||
+          existing?.companyData?.commercialRegistrationExpiry,
+        authorizedRepresentatives: signatories as AuthorizedRepresentative[],
+      },
+      address: legacyBuildingUnitToAddress(entry.building, entry.unit, existing?.address),
+      userId: str(entry.linkedUserId) || str(entry.userId) || existing?.userId,
+      serialNumber: str(entry.serialNumber) || existing?.serialNumber,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+  }
+
+  const legacyType = str(entry.type).toLowerCase() || 'tenant';
+  const category = LEGACY_TYPE_TO_CATEGORY[legacyType] || existing?.category || 'TENANT';
+
+  return {
+    ...(existing || {}),
+    id: contactId,
+    contactType: 'PERSONAL',
+    firstName: str(entry.name) || existing?.firstName || '',
+    familyName: existing?.familyName || '',
+    name: str(entry.name) || existing?.name,
+    nameEn: str(entry.nameEn) || existing?.nameEn,
+    nationality: str(entry.nationality) || existing?.nationality || '',
+    gender: existing?.gender || 'MALE',
+    phone: str(entry.mobile) || existing?.phone || '',
+    phoneSecondary: str(entry.extraMobile) || existing?.phoneSecondary,
+    email: str(entry.email) || existing?.email,
+    civilId: str(entry.idNo) || existing?.civilId,
+    civilIdExpiry: str(entry.idExpiryDate) || existing?.civilIdExpiry,
+    passportNumber: str(entry.passport) || existing?.passportNumber,
+    passportExpiry: str(entry.passportExpiryDate) || existing?.passportExpiry,
+    category,
+    address: legacyBuildingUnitToAddress(entry.building, entry.unit, existing?.address),
+    userId: str(entry.linkedUserId) || str(entry.userId) || existing?.userId,
+    serialNumber: str(entry.serialNumber) || existing?.serialNumber,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+}
+
+/** يرفع تعديلات دفتر العناوين من النظام القديم إلى PostgreSQL */
+export async function syncLegacyAddressEntryToDatabase(
+  entry: LegacyBridgeAddressEntry
+): Promise<Contact | null> {
+  const contactId = str(entry.siteContactId) || str(entry.id);
+  if (!contactId) return null;
+
+  const row = await withAddressBookSchemaHeal(prisma, () =>
+    prisma.addressBookContact.findFirst({
+      where: { OR: [{ contactId }, { id: contactId }] },
+    })
+  );
+  const existing = row?.data ? (row.data as unknown as Contact) : null;
+  const merged = mapLegacyAddressEntryToContact(entry, existing);
+
+  const ident = await assertAddressBookIdentityUnique(
+    merged as unknown as Record<string, unknown>,
+    contactId
+  );
+  if (!ident.ok) {
+    throw new Error(ident.message || 'identity_conflict');
+  }
+
+  const linkedUserId =
+    typeof merged.userId === 'string' && merged.userId.trim() ? merged.userId.trim() : row?.linkedUserId ?? null;
+
+  await withAddressBookSchemaHeal(prisma, () =>
+    prisma.addressBookContact.upsert({
+      where: { contactId },
+      create: { contactId, linkedUserId, data: merged as object },
+      update: { data: merged as object, linkedUserId, updatedAt: new Date() },
+    })
+  );
+
+  return merged;
 }
 
 export async function buildLegacyBridgeMinimalPayload(
@@ -507,6 +658,7 @@ function reloadAddressBookFromBridge(){
     var entries=JSON.parse(raw);
     if(!Array.isArray(entries))return;
     if(typeof addressBookEntries!=='undefined')addressBookEntries=entries;
+    if(typeof window.__bhdDedupeAddressBook==='function')window.__bhdDedupeAddressBook();
     if(typeof renderAddressBookTable==='function'&&document.body&&document.body.classList.contains('mode-addressbook'))renderAddressBookTable();
     if(typeof renderAddressBookTenantSelect==='function')renderAddressBookTenantSelect();
     if(typeof updateReservationsWorkspaceUi==='function'&&document.body&&document.body.classList.contains('mode-reservations'))updateReservationsWorkspaceUi();
@@ -632,7 +784,16 @@ function abMergeEntry(local,site){
   });
   if(Array.isArray(local.signatories)&&local.signatories.length)out.signatories=local.signatories;
   else if(Array.isArray(site.signatories))out.signatories=site.signatories;
-  if(local.updatedAt&&(!site.updatedAt||String(local.updatedAt)>String(site.updatedAt)))out.updatedAt=local.updatedAt;
+  if(local.updatedAt&&site.updatedAt&&String(local.updatedAt)>String(site.updatedAt)){
+    scalars.forEach(function(f){
+      if(abStr(local[f]))out[f]=local[f];
+    });
+    ['idAttachment','passportAttachment','commercialRegAttachment','leaseContractAttachment'].forEach(function(f){
+      if(abAttachmentPresent(local[f]))out[f]=local[f];
+    });
+    if(abStr(local.name))out.name=local.name;
+    out.updatedAt=local.updatedAt;
+  }
   return out;
 }
 function abMergeAddressBooks(localArr,siteArr){
@@ -712,6 +873,12 @@ function pollAuthUiRefresh(maxTries){
     if(++tries<maxTries)setTimeout(tick,200);
   })();
 }
+function authPollMaxTries(){
+  try{
+    if(localStorage.getItem('bhd_auth_session'))return 4;
+  }catch(e){}
+  return 25;
+}
 window.addEventListener('message',function(ev){
   if(ev.origin!==location.origin)return;
   if(ev.data&&ev.data.type==='bhd-site-bridge'&&ev.data.payload){
@@ -758,7 +925,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(!shouldSkipFullBridgeFetch()&&(!window.__bhdSiteBridgePayload||bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload))){
     ensureFullAddressBookFromSite();
   }else{
-    pollAuthUiRefresh(25);
+    pollAuthUiRefresh(authPollMaxTries());
   }
   if(!window.__bhdSiteAdminUrls)return;
   var m=new URLSearchParams(location.search).get('mode');

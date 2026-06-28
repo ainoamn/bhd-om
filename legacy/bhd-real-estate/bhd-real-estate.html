@@ -6751,6 +6751,7 @@
             <div class="input-group">
                 <label id="lblTenantNameAr" data-ar="اسم المستأجر (عربي)" data-en="Tenant name (Arabic)">اسم المستأجر (عربي) / Tenant name (Arabic)</label>
                 <input type="text" id="tenantNameAr" value="">
+                <input type="hidden" id="tenantSiteContactId" value="">
             </div>
             <div class="input-group">
                 <label id="lblTenantNameEn" data-ar="اسم المستأجر بالإنجليزية" data-en="Tenant name (English)">اسم المستأجر بالإنجليزية / Tenant name (English)</label>
@@ -13496,6 +13497,7 @@
             municipalContractNo: document.getElementById('municipalContractNo')?.value || '',
             tenantNameAr: v('tenantNameAr'),
             tenantNameEn: v('tenantNameEn'),
+            tenantSiteContactId: v('tenantSiteContactId'),
             tenantEntityType: document.getElementById('tenantEntityType')?.value || 'person',
             tenantCommercialRegNo: v('tenantCommercialRegNo'),
             tenantCommercialRegExpiryDate: v('tenantCommercialRegExpiryDate'),
@@ -13945,7 +13947,7 @@
             if (bhdFileStorageAvailable() && (att.storedOnDisk || att.relativePath)) {
                 return { ...att, dataUrl: '' };
             }
-            return { ...att, dataUrl: typeof att.dataUrl === 'string' ? '' : att.dataUrl };
+            return att;
         };
         return entries.map((e) => {
             if (!e || typeof e !== 'object') return e;
@@ -16888,7 +16890,7 @@
 
     function scheduleUnitsDataFullRebuild() {
         clearTimeout(_unitsDataFullRebuildTimer);
-        _unitsDataFullRebuildTimer = setTimeout(() => {
+        const runFull = () => {
             _unitsDataFullRebuildTimer = 0;
             getUnitsData({ forceFull: true });
             if (_activeWorkspaceMode === 'dashboard') {
@@ -16896,7 +16898,15 @@
                     renderOperationsTable();
                 } catch (_eDashFull) {}
             }
-        }, 500);
+        };
+        const deferMs = window.__bhdBootRefreshFast ? 4500 : 500;
+        if (window.__bhdBootRefreshFast && typeof requestIdleCallback === 'function') {
+            _unitsDataFullRebuildTimer = setTimeout(() => {
+                requestIdleCallback(runFull, { timeout: 12000 });
+            }, deferMs);
+        } else {
+            _unitsDataFullRebuildTimer = setTimeout(runFull, deferMs);
+        }
     }
 
     function getUnitsData(options) {
@@ -17088,6 +17098,72 @@
         }
         return addressBookRowKey(r.type, r.name, r.mobile, r.idNo);
     }
+
+    function addressBookEntryRichnessScore(e) {
+        if (!e) return 0;
+        let n = 0;
+        if (toStr(e.mobile)) n += 3;
+        if (toStr(e.idNo)) n += 3;
+        if (toStr(e.building)) n += 2;
+        if (toStr(e.idExpiryDate)) n += 2;
+        if (addressBookAttachmentPresent(e.idAttachment)) n += 4;
+        if (toStr(e.siteContactId)) n += 1;
+        return n;
+    }
+
+    function mergeAddressBookEntryPreferRich(local, remote) {
+        if (!local) return remote;
+        if (!remote) return local;
+        const pickLocal = addressBookEntryRichnessScore(local) >= addressBookEntryRichnessScore(remote);
+        const rich = pickLocal ? local : remote;
+        const poor = pickLocal ? remote : local;
+        const out = { ...poor, ...rich };
+        out.siteContactId = rich.siteContactId || poor.siteContactId || rich.id || poor.id;
+        out.id = rich.id || poor.id || out.siteContactId;
+        ['idAttachment', 'passportAttachment', 'commercialRegAttachment', 'leaseContractAttachment'].forEach((f) => {
+            out[f] = addressBookAttachmentPresent(rich[f]) ? rich[f] : poor[f] || null;
+        });
+        if (Array.isArray(rich.signatories) && rich.signatories.length) out.signatories = rich.signatories;
+        out.updatedAt = rich.updatedAt || poor.updatedAt || new Date().toISOString();
+        return out;
+    }
+
+    function dedupeAddressBookEntries(entries) {
+        if (!Array.isArray(entries) || entries.length < 2) return Array.isArray(entries) ? entries : [];
+        const kept = [];
+        const drop = new Set();
+        entries.forEach((e, i) => {
+            if (!e || drop.has(i)) return;
+            let merged = { ...e };
+            entries.forEach((other, j) => {
+                if (i === j || !other || drop.has(j)) return;
+                const sidA = toStr(merged.siteContactId || (toStr(merged.source) === 'bhd-om' ? merged.id : '')).trim();
+                const sidB = toStr(other.siteContactId || (toStr(other.source) === 'bhd-om' ? other.id : '')).trim();
+                const sameSite = sidA && sidB && sidA === sidB;
+                const samePerson =
+                    !sameSite &&
+                    toStr(merged.type).toLowerCase() === toStr(other.type).toLowerCase() &&
+                    addressBookPartyNamesMatch(merged.name, other.name) &&
+                    (!toStr(merged.idNo) || !toStr(other.idNo) || toStr(merged.idNo) === toStr(other.idNo));
+                if (sameSite || samePerson) {
+                    merged = mergeAddressBookEntryPreferRich(merged, other);
+                    drop.add(j);
+                }
+            });
+            kept.push(merged);
+        });
+        return kept;
+    }
+
+    window.__bhdDedupeAddressBook = function () {
+        try {
+            const deduped = dedupeAddressBookEntries(addressBookEntries);
+            if (deduped.length !== addressBookEntries.length || JSON.stringify(deduped) !== JSON.stringify(addressBookEntries)) {
+                addressBookEntries = deduped;
+                localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+            }
+        } catch (_eDedupe) {}
+    };
 
     function isOmaniNationality(v) {
         const n = toStr(v).toLowerCase();
@@ -17310,7 +17386,8 @@
         requireField(t('الجوال', 'Mobile'), entry?.mobile);
         requireField(t('الرقم المدني', 'ID'), entry?.idNo);
         if (!isOwner && toStr(entry?.source) !== 'manual') {
-            requireField(t('العقار', 'Property'), entry?.building);
+            const buildingVal = toStr(entry?.building) || toStr(options.contractBuilding);
+            requireField(t('العقار', 'Property'), buildingVal);
         }
 
         checkDate(t('البطاقة', 'ID'), entry?.idExpiryDate, { required: true });
@@ -17512,6 +17589,7 @@
     function canFullyEditAddressBookEntry(entry, user) {
         if (!user || !entry) return false;
         if (canAdminFullyEditAddressBook(user)) return true;
+        if (userHasPermission(user, 'manage_contracts') && isAddressBookReservationPartyEntry(entry)) return true;
         return !!getActiveAddressBookEditGrant(entry, user.id);
     }
 
@@ -18108,6 +18186,13 @@
 
     /** يطابق المستأجر في حمولة العقد مع سجل دفتر العناوين / Match contract tenant payload to address book row */
     function findAddressBookTenantIndexForData(d) {
+        const siteId = toStr(d?.tenantSiteContactId).trim();
+        if (siteId) {
+            const bySite = addressBookEntries.findIndex(
+                (e) => toStr(e.siteContactId) === siteId || toStr(e.id) === siteId
+            );
+            if (bySite >= 0) return bySite;
+        }
         const name = toStr(d?.tenantNameAr);
         if (!name) return -1;
         const isCo = toStr(d.tenantEntityType) === 'company';
@@ -18129,7 +18214,25 @@
             const mob = pool.find(({ e }) => toStr(e.mobile) === mobile || toStr(e.extraMobile) === mobile);
             if (mob) return mob.i;
         }
+        pool.sort((a, b) => addressBookEntryRichnessScore(b.e) - addressBookEntryRichnessScore(a.e));
         return pool[0].i;
+    }
+
+    async function pushAddressBookEntryToSiteServer(entry) {
+        if (localStorage.getItem('bhd_site_integrated') !== '1') return null;
+        if (!entry || !(toStr(entry.siteContactId) || toStr(entry.id))) return null;
+        try {
+            const r = await fetch('/api/admin/legacy-bridge/address-book/sync', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entry })
+            });
+            if (!r.ok) return null;
+            return await r.json();
+        } catch (_ePush) {
+            return null;
+        }
     }
 
     function findAddressBookTenantIndexForContract() {
@@ -20576,6 +20679,12 @@ function getEmptyCompanySignatory() {
             localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
             rememberLearnedNamePhrase(finalCoEntry.name, finalCoEntry.nameEn);
             addressBookEditorPendingAttachments = {};
+            try {
+                window.__bhdDedupeAddressBook?.();
+            } catch (_eDedupeCo) {}
+            try {
+                await pushAddressBookEntryToSiteServer(finalCoEntry);
+            } catch (_eSitePushCo) {}
             renderAddressBookTable();
             try {
                 await syncBhdKvToServer();
@@ -20618,8 +20727,8 @@ function getEmptyCompanySignatory() {
             passportExpiryDate: read('abPassportExpiryDate'),
             idAttachment,
             passportAttachment,
-            building: read('abBuilding'),
-            unit: read('abUnit'),
+            building: read('abBuilding') || (isContractsWorkspaceScreenActive() ? toStr(getFormData().buildingNo) : ''),
+            unit: read('abUnit') || (isContractsWorkspaceScreenActive() ? toStr(getFormData().flatNo) : ''),
             source: read('abSource') || 'manual',
             updatedAt: new Date().toISOString()
         };
@@ -20656,6 +20765,12 @@ function getEmptyCompanySignatory() {
         localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
         rememberLearnedNamePhrase(finalEntry.name, finalEntry.nameEn);
         addressBookEditorPendingAttachments = {};
+        try {
+            window.__bhdDedupeAddressBook?.();
+        } catch (_eDedupeSave) {}
+        try {
+            await pushAddressBookEntryToSiteServer(finalEntry);
+        } catch (_eSitePush) {}
         renderAddressBookTable();
         try {
             await syncBhdKvToServer();
@@ -20844,6 +20959,7 @@ function getEmptyCompanySignatory() {
         set('tenantEntityType', isCo ? 'company' : 'person');
         set('tenantNameAr', toStr(entry.name));
         set('tenantNameEn', toStr(entry.nameEn || entry.name));
+        set('tenantSiteContactId', toStr(entry.siteContactId || entry.id));
         set('tenantMobile', toStr(entry.mobile));
         set('tenantEmail', toStr(entry.email));
         if (isCo) {
@@ -46667,6 +46783,10 @@ function getEmptyCompanySignatory() {
         try {
             addressBookEntries = JSON.parse(localStorage.getItem('bhd_address_book') || '[]');
             if (!Array.isArray(addressBookEntries)) addressBookEntries = [];
+            addressBookEntries = dedupeAddressBookEntries(addressBookEntries);
+            if (addressBookEntries.length) {
+                localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+            }
         } catch (e) {
             addressBookEntries = [];
         }
@@ -65743,10 +65863,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         if (isReservationsWorkspaceScreenActive()) {
             const entry = findTenantAddressBookEntryForReservation(null, d);
             if (!entry) return -1;
-            const idx = addressBookEntries.indexOf(entry);
-            return idx >= 0 ? idx : -1;
+            return resolveAddressBookEntryIndex(entry);
         }
-        return addressBookEntries.findIndex((x) => addressBookEntryMatchesReservationForm(x, d));
+        return findAddressBookTenantIndexForData(d);
     }
 
     function extractValidationBullets(msg) {
@@ -65846,7 +65965,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             });
         } else {
             const tenantEntry = addressBookEntries[tenantIdx];
-            const tenantIssues = isReservationMode ? getAddressBookIssuesForReservation(tenantEntry) : getAddressBookIssues(tenantEntry);
+            const tenantIssues = isReservationMode
+                ? getAddressBookIssuesForReservation(tenantEntry)
+                : getAddressBookIssues(tenantEntry, { contractBuilding: building, contractUnit: unit });
             tenantIssues.forEach((issue) => {
                 gaps.push({
                     text: `${t('المستأجر', 'Tenant')} (${toStr(tenantEntry.name)}): ${issue}`,
@@ -67631,7 +67752,8 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         });
     }
 
-    function applyAppLanguage() {
+    function applyAppLanguage(options) {
+        const fast = options && options.fast === true;
         document.documentElement.lang = appUiLanguage === 'en' ? 'en' : 'ar';
         document.documentElement.dir = appUiLanguage === 'en' ? 'ltr' : 'rtl';
         document.body.style.direction = appUiLanguage === 'en' ? 'ltr' : 'rtl';
@@ -67651,6 +67773,21 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             langToggleBtn.title = appUiLanguage === 'en'
                 ? 'Change language to Arabic'
                 : 'تغيير اللغة إلى الإنجليزية';
+        }
+        if (fast) {
+            syncTopNavOffset();
+            const finishLang = () => {
+                try {
+                    localizeBilingualUi();
+                    updateAuthHeaderBar();
+                } catch (_eLangIdle) {}
+            };
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(finishLang, { timeout: 4000 });
+            } else {
+                setTimeout(finishLang, 80);
+            }
+            return;
         }
         localizeBilingualUi();
         updateAuthHeaderBar();
@@ -67943,6 +68080,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         window.history.replaceState({}, '', `${baseUrl}?mode=${modeParam}`);
         syncTopNavOffset();
         updateSideNavActive(mode);
+        if ((mode === 'contracts' || mode === 'forms') && window.__bhdContractRestorePending) {
+            window.__bhdContractRestorePending = false;
+            requestAnimationFrame(() => {
+                try {
+                    restoreContractWorkspaceOnStartup();
+                } catch (_eWsRestore) {}
+            });
+        }
         requestAnimationFrame(() => {
             try {
                 applyPermissionNavUi();
@@ -68695,31 +68840,33 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         try {
             applyTheme(localStorage.getItem('bhd_theme_mode') || 'maroon');
             document.body.classList.add(isViewerMode ? 'viewer-mode' : 'entry-mode');
-            applyAppLanguage();
+            applyAppLanguage(window.__bhdBootRefreshFast ? { fast: true } : undefined);
             syncTopNavOffset();
         } catch (e) {
             console.error('initializeMode (theme/language/nav) failed:', e);
         }
         if (!isViewerMode) {
             try {
-                let hasSavedContract = false;
-                try {
-                    hasSavedContract = !!localStorage.getItem('bhd_contract_full');
-                } catch (_eHasCon) {}
-                const deferRestore = !!window.__bhdBootRefreshFast && !hasSavedContract;
-                const runRestore = () => {
-                    try {
-                        restoreContractWorkspaceOnStartup();
-                    } catch (_eRestore) {}
-                };
-                if (deferRestore) {
-                    if (typeof requestIdleCallback === 'function') {
-                        requestIdleCallback(runRestore, { timeout: 4000 });
-                    } else {
-                        setTimeout(runRestore, 80);
-                    }
+                const startupMode = pageMode;
+                const needsContractRestore =
+                    startupMode === 'contracts' || startupMode === 'forms';
+                if (!needsContractRestore) {
+                    window.__bhdContractRestorePending = true;
                 } else {
-                    runRestore();
+                    const runRestore = () => {
+                        try {
+                            restoreContractWorkspaceOnStartup();
+                        } catch (_eRestore) {}
+                    };
+                    if (window.__bhdBootRefreshFast) {
+                        if (typeof requestIdleCallback === 'function') {
+                            requestIdleCallback(runRestore, { timeout: 8000 });
+                        } else {
+                            setTimeout(runRestore, 400);
+                        }
+                    } else {
+                        runRestore();
+                    }
                 }
             } catch (e) {}
         }
@@ -69440,23 +69587,31 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     await probeBhdApi();
                     if (siteIntegratedWeb) scheduleBhdSiteBootHydrationOnce(0);
                     probeBhdCloudApi().then(() => bhdCloudTryRestoreSession()).catch(() => {});
-                    try {
-                        if (repairReservationMultiUnitRows()) {
-                            localStorage.setItem('bhd_unit_reservations', JSON.stringify(unitReservations));
-                        }
-                        repairLinkedContractUnitsLifecycleConsistency();
-                    } catch (_eWarmRepair) {}
-                    loadDashboardAux(true);
-                    bhdRefreshActiveWorkspaceLight();
                     scheduleAutomaticDataSync(false);
                 } catch (_eWarmBg) {
                     console.warn('warm reload background', _eWarmBg);
-                } finally {
-                    try {
-                        delete window.__bhdBootRefreshFast;
-                    } catch (_eClrFast) {}
                 }
             }, 60);
+            const runWarmIdleMaintenance = () => {
+                try {
+                    if (repairReservationMultiUnitRows()) {
+                        localStorage.setItem('bhd_unit_reservations', JSON.stringify(unitReservations));
+                    }
+                    repairLinkedContractUnitsLifecycleConsistencyThrottled(60000);
+                } catch (_eWarmRepair) {}
+                try {
+                    loadDashboardAux(true);
+                    bhdRefreshActiveWorkspaceLight();
+                } catch (_eWarmAux) {}
+                try {
+                    delete window.__bhdBootRefreshFast;
+                } catch (_eClrFast) {}
+            };
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(runWarmIdleMaintenance, { timeout: 20000 });
+            } else {
+                setTimeout(runWarmIdleMaintenance, 3000);
+            }
             return;
         }
 
