@@ -46544,8 +46544,9 @@ function getEmptyCompanySignatory() {
         }
     }
 
-    function loadDashboardAux(force) {
+    function loadDashboardAux(force, options) {
         const now = Date.now();
+        const fast = (options && options.fast === true) || window.__bhdBootRefreshFast === true;
         if (!force && _loadDashboardAuxLastAt && now - _loadDashboardAuxLastAt < 2500) return;
         _loadDashboardAuxLastAt = now;
         try {
@@ -46603,11 +46604,13 @@ function getEmptyCompanySignatory() {
                 }
             });
             buildingProfilesShadow = { ...buildingProfiles };
-            try {
-                if (repairOversizedBuildingProfilesInMemory()) {
-                    localStorage.setItem('bhd_building_profiles', JSON.stringify(buildingProfiles));
-                }
-            } catch (_eRepairBp) {}
+            if (!fast) {
+                try {
+                    if (repairOversizedBuildingProfilesInMemory()) {
+                        localStorage.setItem('bhd_building_profiles', JSON.stringify(buildingProfiles));
+                    }
+                } catch (_eRepairBp) {}
+            }
         } catch (e) {
             buildingProfiles = {};
         }
@@ -46633,10 +46636,19 @@ function getEmptyCompanySignatory() {
             managedUnitsData = [];
         }
         if (buildingProfiles && typeof buildingProfiles === 'object') {
-            try {
-                syncManagedUnitsFromProfiles();
-                localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
-            } catch (e) {}
+            if (fast) {
+                setTimeout(() => {
+                    try {
+                        syncManagedUnitsFromProfiles();
+                        localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
+                    } catch (_eSyncMuDefer) {}
+                }, 800);
+            } else {
+                try {
+                    syncManagedUnitsFromProfiles();
+                    localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
+                } catch (e) {}
+            }
         }
         try {
             usersRegistry = JSON.parse(localStorage.getItem('bhd_users_registry') || '[]');
@@ -46654,7 +46666,7 @@ function getEmptyCompanySignatory() {
             authSession = null;
         }
         validateAuthSession();
-        scheduleAutomaticDataSync(false);
+        if (!fast) scheduleAutomaticDataSync(false);
     }
 
     function scheduleAppBackgroundMaintenance() {
@@ -69297,7 +69309,55 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             window.__bhdBootRefreshFast = true;
         }
         const siteIntegratedWeb = isBhdSiteIntegratedWebClient();
+        const warmReload = (refreshFastBoot || siteIntegratedWeb) && bhdLocalStorageHasSubstantiveData();
         const dataWasWiped = !!localStorage.getItem('bhd_last_data_wipe') || localStorage.getItem('bhd_hide_demo_units') === '1';
+
+        if (warmReload) {
+            window.__bhdBootRefreshFast = true;
+            bhdAuditMute();
+            try {
+                syncAuthStateFromStorage();
+                tryAutoSignInDefaultAdminIfNeeded();
+                updateAuthHeaderBar();
+            } catch (_eAuthWarm) {}
+            try {
+                loadDashboardAux(true, { fast: true });
+                initializeMode();
+            } catch (_eWarmUi) {
+                console.warn('warm reload UI', _eWarmUi);
+            }
+            bhdAuditUnmute();
+            try {
+                initContractEditRequestNotifications();
+                updateNotificationsNavBadge();
+                wireRenewalMunicipalFieldHandlers();
+                wireRenewalCustomRentFieldHandlers();
+            } catch (_eWarmPost) {}
+            setTimeout(async () => {
+                try {
+                    await probeBhdApi();
+                    if (siteIntegratedWeb) scheduleBhdSiteBootHydrationOnce(0);
+                    probeBhdCloudApi().then(() => bhdCloudTryRestoreSession()).catch(() => {});
+                    try {
+                        if (repairReservationMultiUnitRows()) {
+                            localStorage.setItem('bhd_unit_reservations', JSON.stringify(unitReservations));
+                        }
+                        repairLinkedContractUnitsLifecycleConsistency();
+                    } catch (_eWarmRepair) {}
+                    loadDashboardAux(true);
+                    bhdRefreshActiveWorkspaceLight();
+                    scheduleAutomaticDataSync(false);
+                } catch (_eWarmBg) {
+                    console.warn('warm reload background', _eWarmBg);
+                } finally {
+                    try {
+                        delete window.__bhdBootRefreshFast;
+                    } catch (_eClrFast) {}
+                }
+            }, 60);
+            return;
+        }
+
         bhdAuditMute();
         if (window.bhdDesktop) {
             try {
@@ -69440,7 +69500,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             const skipAbRebuild = dataWasWiped || localStorage.getItem('bhd_address_book') === '[]';
                 const siteIntegrated = localStorage.getItem('bhd_site_integrated') === '1';
                 const needsSiteAbFetch = siteIntegrated && !addressBookEntriesIncludeSiteContacts(addressBookEntries);
-                if (!skipAbRebuild && (needsSiteAbFetch || !Array.isArray(addressBookEntries) || !addressBookEntries.length)) {
+                if (!refreshFastBoot && !skipAbRebuild && (needsSiteAbFetch || !Array.isArray(addressBookEntries) || !addressBookEntries.length)) {
                     refreshAddressBookFromSystem(false);
                 } else {
                     renderAddressBookTable();

@@ -729,8 +729,22 @@ try{
     if(embedded){window.__bhdSiteBridgePayload=embedded;applyBridge(embedded);}
   }
 }catch(e){console.warn('[BHD] embedded site bridge parse failed',e);}
+function localAddressBookLooksWarm(){
+  try{
+    var raw=localStorage.getItem('bhd_address_book');
+    if(!raw||raw.length<3)return false;
+    var arr=JSON.parse(raw);
+    return Array.isArray(arr)&&arr.length>0;
+  }catch(e){return false;}
+}
+function shouldSkipFullBridgeFetch(){
+  if(!window.__bhdSiteBridgePayload)return!localAddressBookLooksWarm();
+  if(bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload))return!localAddressBookLooksWarm();
+  return true;
+}
 var _bhdFullBridgePending=null;
 function ensureFullAddressBookFromSite(){
+  if(shouldSkipFullBridgeFetch())return Promise.resolve(window.__bhdSiteBridgePayload||null);
   if(_bhdFullBridgePending)return _bhdFullBridgePending;
   _bhdFullBridgePending=fetchFullBridge().then(function(d){
     pollAuthUiRefresh(20);
@@ -738,10 +752,10 @@ function ensureFullAddressBookFromSite(){
   }).finally(function(){_bhdFullBridgePending=null;});
   return _bhdFullBridgePending;
 }
-if(!window.__bhdSiteBridgePayload){ensureFullAddressBookFromSite();}
-else if(bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload)){ensureFullAddressBookFromSite();}
+if(!shouldSkipFullBridgeFetch()&&!window.__bhdSiteBridgePayload){ensureFullAddressBookFromSite();}
+else if(!shouldSkipFullBridgeFetch()&&bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload)){ensureFullAddressBookFromSite();}
 document.addEventListener('DOMContentLoaded',function(){
-  if(!window.__bhdSiteBridgePayload||bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload)){
+  if(!shouldSkipFullBridgeFetch()&&(!window.__bhdSiteBridgePayload||bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload))){
     ensureFullAddressBookFromSite();
   }else{
     pollAuthUiRefresh(25);
