@@ -11,14 +11,84 @@ const ENV_KEYS = [
   'PRISMA_DATABASE_URL',
 ] as const;
 
+/** اتصال مباشر (بدون pooler) — مطلوب لـ prisma migrate deploy على Neon */
+const MIGRATE_DIRECT_ENV_KEYS = [
+  'DATABASE_URL_UNPOOLED',
+  'DIRECT_URL',
+  'POSTGRES_URL_NON_POOLING',
+  'NEON_DATABASE_URL_UNPOOLED',
+  /** على Vercel Postgres غالباً direct؛ POSTGRES_PRISMA_URL = pooled */
+  'POSTGRES_URL',
+] as const;
+
+function isPostgresUrl(v: string): boolean {
+  return v.startsWith('postgresql://') || v.startsWith('postgres://');
+}
+
 function firstPostgresUrl(): string | null {
   for (const key of ENV_KEYS) {
     const v = process.env[key]?.trim();
-    if (v && (v.startsWith('postgresql://') || v.startsWith('postgres://'))) {
+    if (v && isPostgresUrl(v)) {
       return v;
     }
   }
   return null;
+}
+
+function firstDirectPostgresUrl(): string | null {
+  for (const key of MIGRATE_DIRECT_ENV_KEYS) {
+    const v = process.env[key]?.trim();
+    if (v && isPostgresUrl(v)) {
+      return v;
+    }
+  }
+  return null;
+}
+
+/** Neon pooler → direct host (ep-xxx-pooler.region → ep-xxx.region) */
+function neonPoolerHostToDirect(urlStr: string): string {
+  return urlStr.replace(/-pooler(\.[a-z0-9-]+\.neon\.tech)/i, '$1');
+}
+
+function stripPgbouncerQueryParams(urlStr: string): string {
+  const trimmed = urlStr.trim();
+  if (!trimmed) return trimmed;
+  try {
+    const usePostgresScheme = trimmed.startsWith('postgres://');
+    const forParse = trimmed.replace(/^postgres:\/\//i, 'postgresql://');
+    const u = new URL(forParse);
+    u.searchParams.delete('pgbouncer');
+    let out = u.toString();
+    if (usePostgresScheme) {
+      out = out.replace(/^postgresql:\/\//i, 'postgres://');
+    }
+    return out;
+  } catch {
+    return trimmed;
+  }
+}
+
+function applyMigrateConnectionParams(urlStr: string): string {
+  const trimmed = urlStr.trim();
+  if (!trimmed) return trimmed;
+  try {
+    const usePostgresScheme = trimmed.startsWith('postgres://');
+    const forParse = trimmed.replace(/^postgres:\/\//i, 'postgresql://');
+    const u = new URL(forParse);
+    const host = u.hostname.toLowerCase();
+    if (host !== 'localhost' && host !== '127.0.0.1' && host !== '::1') {
+      if (!u.searchParams.has('connect_timeout')) {
+        u.searchParams.set('connect_timeout', '60');
+      }
+    }
+    let out = u.toString();
+    if (usePostgresScheme) {
+      out = out.replace(/^postgresql:\/\//i, 'postgres://');
+    }
+    return out;
+  } catch {
+    return trimmed;
+  }
 }
 
 const LOCAL_DEV_DEFAULT = 'postgresql://postgres:postgres@127.0.0.1:5432/bhd_om';
@@ -86,9 +156,25 @@ export function getDatabaseUrlForRuntime(): string {
   return LOCAL_DEV_DEFAULT;
 }
 
-/** لأداة Prisma CLI (migrate / db push): دائماً عنوان صالح للتطوير المحلي عند الغياب */
-export function getDatabaseUrlForPrismaCli(): string {
-  const found = firstPostgresUrl();
-  if (found) return applyServerlessPostgresParams(appendSslModeRequireForRemoteHosts(found));
+/** لأداة Prisma CLI (migrate): اتصال مباشر — لا pooler (advisory locks) */
+export function getDatabaseUrlForPrismaMigrate(): string {
+  const direct = firstDirectPostgresUrl();
+  if (direct) {
+    return applyMigrateConnectionParams(
+      appendSslModeRequireForRemoteHosts(stripPgbouncerQueryParams(direct))
+    );
+  }
+  const pooled = firstPostgresUrl();
+  if (pooled) {
+    const unpooled = neonPoolerHostToDirect(pooled);
+    return applyMigrateConnectionParams(
+      appendSslModeRequireForRemoteHosts(stripPgbouncerQueryParams(unpooled))
+    );
+  }
   return LOCAL_DEV_DEFAULT;
+}
+
+/** لأداة Prisma CLI (generate / studio): نفس اتصال migrate — direct على Neon */
+export function getDatabaseUrlForPrismaCli(): string {
+  return getDatabaseUrlForPrismaMigrate();
 }
