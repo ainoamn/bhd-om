@@ -480,6 +480,48 @@ export async function syncLegacyAddressEntryToDatabase(
   return merged;
 }
 
+export type LegacyAddressBookWipeScope = 'all' | 'addressbook' | 'tenants' | 'owners';
+
+function contactMatchesLegacyWipeScope(contact: Contact, scope: LegacyAddressBookWipeScope): boolean {
+  if (scope === 'all' || scope === 'addressbook') return true;
+  const cat = contact.category;
+  if (scope === 'tenants') {
+    return cat === 'TENANT' || cat === 'CLIENT';
+  }
+  if (scope === 'owners') {
+    return cat === 'LANDLORD';
+  }
+  return false;
+}
+
+/** يحذف جهات دفتر العناوين من PostgreSQL عند التصفية من النظام القديم */
+export async function wipeSiteAddressBookFromLegacy(
+  scope: LegacyAddressBookWipeScope
+): Promise<{ removed: number }> {
+  const rows = await findManyAddressBookContactsOrHeal(prisma);
+  const contactIds: string[] = [];
+
+  for (const row of rows) {
+    const raw = { ...((row.data as Record<string, unknown>) ?? {}) } as unknown as Contact;
+    if (!raw || typeof raw !== 'object') continue;
+    if (!contactMatchesLegacyWipeScope(raw, scope)) continue;
+    const cid = String(row.contactId || raw.id || '').trim();
+    if (cid) contactIds.push(cid);
+  }
+
+  if (!contactIds.length) {
+    return { removed: 0 };
+  }
+
+  const result = await withAddressBookSchemaHeal(prisma, () =>
+    prisma.addressBookContact.deleteMany({
+      where: { contactId: { in: contactIds } },
+    })
+  );
+
+  return { removed: result.count };
+}
+
 export async function buildLegacyBridgeMinimalPayload(
   authUserId: string,
   locale: 'ar' | 'en' = 'ar'
@@ -832,7 +874,7 @@ function applyBridge(data){
     localStorage.setItem('bhd_site_integrated','1');
     if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));
     if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));
-    if(Array.isArray(data.addressBook)&&data.addressBook.length){
+    if(Array.isArray(data.addressBook)&&data.addressBook.length&&!legacyAddressBookRecentlyWiped()){
       var existing=[];
       try{existing=JSON.parse(localStorage.getItem('bhd_address_book')||'[]');}catch(e){existing=[];}
       if(!Array.isArray(existing))existing=[];
@@ -904,7 +946,19 @@ function localAddressBookLooksWarm(){
     return Array.isArray(arr)&&arr.length>0;
   }catch(e){return false;}
 }
+function legacyAddressBookRecentlyWiped(){
+  try{
+    var ts=parseInt(localStorage.getItem('bhd_last_data_wipe')||'0',10);
+    if(!Number.isFinite(ts)||ts<=0)return false;
+    if(Date.now()-ts>180000)return false;
+    var raw=localStorage.getItem('bhd_address_book');
+    if(!raw||raw==='[]')return true;
+    var arr=JSON.parse(raw);
+    return Array.isArray(arr)&&arr.length===0;
+  }catch(e){return false;}
+}
 function shouldSkipFullBridgeFetch(){
+  if(legacyAddressBookRecentlyWiped())return true;
   if(!window.__bhdSiteBridgePayload)return!localAddressBookLooksWarm();
   if(bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload))return!localAddressBookLooksWarm();
   return true;

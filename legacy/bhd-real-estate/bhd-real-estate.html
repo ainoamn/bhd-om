@@ -47001,8 +47001,8 @@ function getEmptyCompanySignatory() {
         }
         const scopeConfirm = scope === 'all'
             ? t(
-                'سيتم حذف كل بيانات العقود والحجوزات والملاك والمباني ودفتر العناوين من المتصفح وقاعدة SQLite.\n\nيُحتفظ فقط بحسابات المستخدمين والمظهر.\n\nهل أنت متأكد؟',
-                'All contracts, reservations, owners, buildings, and address book data will be removed from browser storage and SQLite.\n\nOnly user accounts and theme are kept.\n\nAre you sure?'
+                'سيتم حذف كل بيانات العقود والحجوزات والملاك والمباني ودفتر العناوين من المتصفح وقاعدة PostgreSQL على الموقع (شامل /admin/address-book).\n\nيُحتفظ فقط بحسابات المستخدمين والمظهر.\n\nهل أنت متأكد؟',
+                'All contracts, reservations, owners, buildings, and address book data will be removed from browser storage and the site PostgreSQL database (including /admin/address-book).\n\nOnly user accounts and theme are kept.\n\nAre you sure?'
             )
             : scope === 'accounting'
               ? t(
@@ -47021,6 +47021,32 @@ function getEmptyCompanySignatory() {
                     )
                   : t('تأكيد تنفيذ التصفية؟', 'Confirm cleanup?');
         if (!confirm(scopeConfirm)) return;
+
+        const siteWipeScopes = ['all', 'addressbook', 'tenants', 'owners'];
+        if (siteWipeScopes.includes(scope) && localStorage.getItem('bhd_site_integrated') === '1') {
+            try {
+                const wipeRes = await fetch('/api/admin/legacy-bridge/address-book/wipe', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope })
+                });
+                if (!wipeRes.ok) {
+                    const failMsg = await wipeRes.text().catch(() => '');
+                    console.warn('site address book wipe failed', wipeRes.status, failMsg);
+                    alert(
+                        t(
+                            '⚠️ تم تصفير البيانات المحلية، لكن تعذّر حذف دفتر العناوين من قاعدة الموقع. جرّب الحذف من /admin/address-book أو أعد المحاولة.',
+                            '⚠️ Local data was cleared, but the site address book in PostgreSQL could not be wiped. Try /admin/address-book or retry.'
+                        )
+                    );
+                } else if (window.__bhdSiteBridgePayload) {
+                    window.__bhdSiteBridgePayload.addressBook = [];
+                }
+            } catch (_eSiteWipe) {
+                console.warn('site address book wipe', _eSiteWipe);
+            }
+        }
 
         if (scope === 'all') {
             clearDemoContractFormFields();
