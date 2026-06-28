@@ -13889,12 +13889,13 @@
                 const p = raw[k];
                 if (!p || typeof p !== 'object') return;
                 if (!p.idCardAttachment || typeof p.idCardAttachment !== 'object') return;
+                const att = p.idCardAttachment;
                 raw[k] = {
                     ...p,
-                    idCardAttachment: {
-                        ...p.idCardAttachment,
-                        dataUrl: ''
-                    }
+                    idCardAttachment:
+                        bhdFileStorageAvailable() && (att.storedOnDisk || toStr(att.relativePath))
+                            ? { ...att, dataUrl: '' }
+                            : { ...att, dataUrl: '' }
                 };
             });
             return raw;
@@ -48990,7 +48991,10 @@ function getEmptyCompanySignatory() {
             return {
                 name: toStr(raw.name),
                 type: toStr(raw.type),
-                dataUrl: toStr(raw.dataUrl || raw.url || '')
+                dataUrl: toStr(raw.dataUrl || raw.url || ''),
+                relativePath: toStr(raw.relativePath),
+                fileId: toStr(raw.fileId),
+                storedOnDisk: !!raw.storedOnDisk
             };
         }
         return null;
@@ -50292,8 +50296,7 @@ function getEmptyCompanySignatory() {
         if (!t(profile.phone)) add('رقم الهاتف', 'Phone');
         if (!t(profile.email)) add('البريد الإلكتروني', 'Email');
         if (!t(profile.idExpiryDate)) add('تاريخ انتهاء البطاقة', 'ID expiry date');
-        const idc = normalizeOwnerAttachment(profile.idCardAttachment);
-        if (!idc || !idc.dataUrl) add('نسخة من البطاقة الشخصية', 'ID card copy');
+        if (!addressBookAttachmentPresent(profile.idCardAttachment)) add('نسخة من البطاقة الشخصية', 'ID card copy');
         if (missing.length) {
             const msg = 'يرجى إكمال الحقول الإلزامية للمالك:\nPlease complete required owner fields:\n\n• ' + missing.join('\n• ');
             return { ok: false, message: msg };
@@ -69216,6 +69219,16 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             if (localStorage.getItem('bhd_site_integrated') !== '1') {
                 await hydrateLocalStorageFromIndexedDb();
             }
+        }
+        if (localStorage.getItem('bhd_site_integrated') === '1' && bhdApiAvailable && !window.bhdDesktop) {
+            try {
+                const r = await fetch('/api/kv?prefix=bhd_', { cache: 'no-store' });
+                if (r.ok) {
+                    const all = await r.json();
+                    hydrateBhdKvFromExternalStore(all || {});
+                    await mirrorKvFromLocalStorageToIndexedDb();
+                }
+            } catch (_eKvSiteBoot) {}
         }
         if (typeof window.__bhdReapplySiteBridge === 'function') {
             window.__bhdReapplySiteBridge();

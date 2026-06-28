@@ -586,6 +586,79 @@ window.__bhdAbCommActionsHtml=function(r){
   if(!parts.length)return'';
   return'<div class="inline-actions ab-site-comm" style="margin-bottom:6px">'+parts.join('')+'</div>';
 };
+function abStr(v){return String(v||'').trim();}
+function abAttachmentPresent(att){
+  if(!att||typeof att!=='object')return false;
+  if(abStr(att.dataUrl))return true;
+  if(abStr(att.relativePath))return true;
+  if(abStr(att.checkAttachmentRelativePath))return true;
+  if(abStr(att.attachmentRelativePath))return true;
+  if(abStr(att.fileId))return true;
+  if(abStr(att.checkAttachmentFileId))return true;
+  if(abStr(att.attachmentFileId))return true;
+  return!!(att.storedOnDisk&&abStr(att.name));
+}
+function abEntryStableKey(r){
+  if(!r)return'';
+  var sid=abStr(r.siteContactId||r.id);
+  if(sid)return'site:'+sid;
+  var abk=abStr(r.addressBookKey);
+  if(abk)return'abk:'+abk;
+  var type=abStr(r.type).toLowerCase();
+  if(type==='company')return['company',abStr(r.commercialRegNo).toLowerCase(),abStr(r.name).toLowerCase(),abStr(r.mobile)].join('|');
+  return[type,abStr(r.name).toLowerCase(),abStr(r.mobile),abStr(r.idNo)].join('|');
+}
+function abMergeEntry(local,site){
+  if(!local)return site||null;
+  if(!site)return local;
+  var out=Object.assign({},site,local);
+  out.siteContactId=site.siteContactId||local.siteContactId;
+  out.id=site.id||local.id;
+  out.serialNumber=site.serialNumber||local.serialNumber;
+  out.linkedUserId=site.linkedUserId||local.linkedUserId;
+  out.userId=site.userId||local.userId;
+  out.siteManaged=site.siteManaged!=null?site.siteManaged:local.siteManaged;
+  out.source=site.source||local.source;
+  out.addressBookKey=site.addressBookKey||local.addressBookKey;
+  var scalars=['mobile','extraMobile','email','idNo','nationality','idExpiryDate','passport','passportExpiryDate','building','unit','birthDate','nameEn','commercialRegNo','commercialRegExpiry','commercialRegExpiryDate'];
+  scalars.forEach(function(f){
+    if(abStr(local[f]))out[f]=local[f];
+    else if(abStr(site[f]))out[f]=site[f];
+  });
+  if(abStr(local.name))out.name=local.name;
+  else if(abStr(site.name))out.name=site.name;
+  ['idAttachment','passportAttachment','commercialRegAttachment','leaseContractAttachment'].forEach(function(f){
+    out[f]=abAttachmentPresent(local[f])?local[f]:(site[f]||local[f]||null);
+  });
+  if(Array.isArray(local.signatories)&&local.signatories.length)out.signatories=local.signatories;
+  else if(Array.isArray(site.signatories))out.signatories=site.signatories;
+  if(local.updatedAt&&(!site.updatedAt||String(local.updatedAt)>String(site.updatedAt)))out.updatedAt=local.updatedAt;
+  return out;
+}
+function abMergeAddressBooks(localArr,siteArr){
+  localArr=Array.isArray(localArr)?localArr:[];
+  siteArr=Array.isArray(siteArr)?siteArr:[];
+  var localMap=new Map();
+  localArr.forEach(function(r){var k=abEntryStableKey(r);if(k)localMap.set(k,r);});
+  var used=new Set();
+  var merged=siteArr.map(function(site){
+    var key=abEntryStableKey(site);
+    var local=key?localMap.get(key):null;
+    if(!local&&abStr(site.name)){
+      local=localArr.find(function(l){
+        return abStr(l.type).toLowerCase()===abStr(site.type).toLowerCase()&&abStr(l.name).toLowerCase()===abStr(site.name).toLowerCase();
+      })||null;
+      if(local&&key)used.add(abEntryStableKey(local));
+    }
+    if(key)used.add(key);
+    return abMergeEntry(local,site);
+  });
+  localArr.forEach(function(r){
+    var key=abEntryStableKey(r);
+    if(key&&!used.has(key))merged.push(r);
+  });
+  return merged;
+}
 function applyBridge(data){
   if(!data)return;
   window.__bhdSiteBridge=data;
@@ -594,7 +667,13 @@ function applyBridge(data){
     localStorage.setItem('bhd_site_integrated','1');
     if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));
     if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));
-    if(Array.isArray(data.addressBook)&&data.addressBook.length)localStorage.setItem('bhd_address_book',JSON.stringify(data.addressBook));
+    if(Array.isArray(data.addressBook)&&data.addressBook.length){
+      var existing=[];
+      try{existing=JSON.parse(localStorage.getItem('bhd_address_book')||'[]');}catch(e){existing=[];}
+      if(!Array.isArray(existing))existing=[];
+      var mergedAb=abMergeAddressBooks(existing,data.addressBook);
+      localStorage.setItem('bhd_address_book',JSON.stringify(mergedAb));
+    }
     if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
     window.dispatchEvent(new Event('bhd-site-bridge-applied'));
     reloadAddressBookFromBridge();
