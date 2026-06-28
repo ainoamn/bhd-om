@@ -10036,9 +10036,9 @@
     /** تُبقى عند «تصفية كل البيانات» (حسابات + مظهر) / Kept on full data wipe */
     const BHD_KEYS_KEEP_ON_FULL_WIPE = ['bhd_users_registry', 'bhd_auth_session', 'bhd_theme_mode'];
 
-    /** على bhd-om.com: PostgreSQL مصدر الحقيقة لهذه المفاتيح (عقود → عقارات → مرفقات → نظام) */
+    /** على bhd-om.com: PostgreSQL مصدر الحقيقة — دفتر العناوين يُزامَن عبر الجسر لا KV مباشرة */
     const BHD_KV_SITE_AUTHORITATIVE_KEYS = BHD_KV_KEYS.filter(
-        (k) => !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k)
+        (k) => !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k) && k !== 'bhd_address_book'
     );
 
     function isBhdSiteKvPersistenceActive() {
@@ -11668,13 +11668,18 @@
             _bhdSiteBootHydrationDone = true;
             try {
                 await bhdHydrateSiteKvFromServerIfNeeded();
-                if (typeof window.__bhdReapplySiteBridge === 'function') window.__bhdReapplySiteBridge();
                 if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                     await window.__bhdRefreshAddressBookFromSite();
                 }
                 try {
                     await repairAddressBookEntriesAttachmentsFromSite();
                 } catch (_eSiteRepBoot) {}
+                try {
+                    window.__bhdDedupeAddressBook?.();
+                } catch (_eDedBoot) {}
+                try {
+                    await syncBhdKvToServer();
+                } catch (_eKvBoot) {}
                 loadDashboardAux(true);
                 bhdRefreshActiveWorkspaceLight();
             } catch (eHydr) {
@@ -47409,7 +47414,9 @@ function getEmptyCompanySignatory() {
         try {
             addressBookEntries = JSON.parse(localStorage.getItem('bhd_address_book') || '[]');
             if (!Array.isArray(addressBookEntries)) addressBookEntries = [];
-            addressBookEntries = dedupeAddressBookEntries(addressBookEntries);
+            addressBookEntries = dedupeAddressBookEntries(addressBookEntries).map((e) =>
+                normalizeAddressBookEntryIdentityFields(e)
+            );
             if (addressBookEntries.length) {
                 localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
             }
@@ -70368,9 +70375,6 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             await probeBhdApi();
             await bhdHydrateSiteKvFromServerIfNeeded();
             await bhdSiteExtractKvBlobsOnce();
-            if (typeof window.__bhdReapplySiteBridge === 'function') {
-                window.__bhdReapplySiteBridge();
-            }
             if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                 try {
                     await window.__bhdRefreshAddressBookFromSite();
@@ -70379,11 +70383,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             try {
                 await repairAddressBookEntriesAttachmentsFromSite();
             } catch (_eAbBootRep) {}
+            try {
+                window.__bhdDedupeAddressBook?.();
+            } catch (_eDedBootFull) {}
+            try {
+                await syncBhdKvToServer();
+            } catch (_eKvBootFull) {}
         } else if (bhdApiAvailable && !window.bhdDesktop) {
             await bhdHydrateSiteKvFromServerIfNeeded();
-            if (typeof window.__bhdReapplySiteBridge === 'function') {
-                window.__bhdReapplySiteBridge();
-            }
             if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                 try {
                     await window.__bhdRefreshAddressBookFromSite();
@@ -70392,6 +70399,12 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             try {
                 await repairAddressBookEntriesAttachmentsFromSite();
             } catch (_eAbBootRep2) {}
+            try {
+                window.__bhdDedupeAddressBook?.();
+            } catch (_eDedBootFull2) {}
+            try {
+                await syncBhdKvToServer();
+            } catch (_eKvBootFull2) {}
         }
         if (!refreshFastBoot) {
             await dropLegacySfgIndexedDb();

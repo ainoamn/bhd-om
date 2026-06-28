@@ -935,37 +935,25 @@ function abEntryStableKey(r){
 function abMergeEntry(local,site){
   if(!local)return site||null;
   if(!site)return local;
-  var out=Object.assign({},site,local);
-  out.siteContactId=site.siteContactId||local.siteContactId;
-  out.id=site.id||local.id;
-  out.serialNumber=site.serialNumber||local.serialNumber;
-  out.linkedUserId=site.linkedUserId||local.linkedUserId;
-  out.userId=site.userId||local.userId;
+  var out={};
+  out.siteContactId=abStr(site.siteContactId)||abStr(local.siteContactId);
+  out.id=abStr(site.id)||abStr(local.id)||out.siteContactId;
+  out.serialNumber=abStr(site.serialNumber)||abStr(local.serialNumber);
+  out.linkedUserId=abStr(site.linkedUserId)||abStr(local.linkedUserId);
+  out.userId=abStr(site.userId)||abStr(local.userId);
   out.siteManaged=site.siteManaged!=null?site.siteManaged:local.siteManaged;
-  out.source=site.source||local.source;
-  out.addressBookKey=site.addressBookKey||local.addressBookKey;
-  var scalars=['mobile','extraMobile','email','idNo','nationality','idExpiryDate','passport','passportExpiryDate','building','unit','birthDate','nameEn','commercialRegNo','commercialRegExpiry','commercialRegExpiryDate'];
+  out.source=abStr(site.source)||abStr(local.source);
+  out.addressBookKey=abStr(site.addressBookKey)||abStr(local.addressBookKey);
+  var scalars=['type','mobile','extraMobile','email','idNo','nationality','idExpiryDate','passport','passportExpiryDate','building','unit','birthDate','name','nameEn','commercialRegNo','commercialRegExpiry','commercialRegExpiryDate','civilIdExpiry','passportExpiry'];
   scalars.forEach(function(f){
-    if(abStr(local[f]))out[f]=local[f];
-    else if(abStr(site[f]))out[f]=site[f];
+    out[f]=abStr(local[f])||abStr(site[f])||'';
   });
-  if(abStr(local.name))out.name=local.name;
-  else if(abStr(site.name))out.name=site.name;
   ['idAttachment','passportAttachment','commercialRegAttachment','leaseContractAttachment'].forEach(function(f){
-    out[f]=abAttachmentPresent(local[f])?local[f]:(site[f]||local[f]||null);
+    out[f]=abAttachmentPresent(local[f])?local[f]:(abAttachmentPresent(site[f])?site[f]:null);
   });
   if(Array.isArray(local.signatories)&&local.signatories.length)out.signatories=local.signatories;
-  else if(Array.isArray(site.signatories))out.signatories=site.signatories;
-  if(local.updatedAt&&site.updatedAt&&String(local.updatedAt)>String(site.updatedAt)){
-    scalars.forEach(function(f){
-      if(abStr(local[f]))out[f]=local[f];
-    });
-    ['idAttachment','passportAttachment','commercialRegAttachment','leaseContractAttachment'].forEach(function(f){
-      if(abAttachmentPresent(local[f]))out[f]=local[f];
-    });
-    if(abStr(local.name))out.name=local.name;
-    out.updatedAt=local.updatedAt;
-  }
+  else if(Array.isArray(site.signatories)&&site.signatories.length)out.signatories=site.signatories;
+  out.updatedAt=abStr(local.updatedAt)>abStr(site.updatedAt)?local.updatedAt:(site.updatedAt||local.updatedAt||new Date().toISOString());
   return out;
 }
 function abMergeAddressBooks(localArr,siteArr){
