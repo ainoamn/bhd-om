@@ -661,6 +661,10 @@ function abMergeAddressBooks(localArr,siteArr){
 }
 function applyBridge(data){
   if(!data)return;
+  var syncKey=String(data.syncedAt||'')+':'+(Array.isArray(data.addressBook)?data.addressBook.length:0);
+  if(syncKey&&syncKey===window.__bhdLastBridgeSyncKey&&(Date.now()-(window.__bhdLastBridgeApplyAt||0))<2500)return;
+  window.__bhdLastBridgeSyncKey=syncKey;
+  window.__bhdLastBridgeApplyAt=Date.now();
   window.__bhdSiteBridge=data;
   window.__bhdSiteBridgePayload=data;
   try{
