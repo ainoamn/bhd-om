@@ -10006,11 +10006,18 @@
     /** استرجاع من SQLite أو IndexedDB عند غياب البيانات أو كونها قشرة فارغة في localStorage */
     function hydrateBhdKvFromExternalStore(store) {
         if (!store || typeof store !== 'object') return false;
+        const siteAuth = isBhdSiteKvPersistenceActive();
         let any = false;
         Object.keys(store).forEach((k) => {
+            if (k === '_meta') return;
             if (!BHD_KV_KEYS.includes(k)) return;
             const val = store[k];
             if (typeof val !== 'string') return;
+            if (siteAuth && BHD_KV_SITE_AUTHORITATIVE_KEYS.includes(k) && !bhdKvIsEmptyShell(val)) {
+                localStorage.setItem(k, val);
+                any = true;
+                return;
+            }
             const local = localStorage.getItem(k);
             const propertyMerged = hydrateBhdKvPropertyKey(k, local, val);
             if (propertyMerged !== null) {
@@ -10028,6 +10035,29 @@
 
     /** تُبقى عند «تصفية كل البيانات» (حسابات + مظهر) / Kept on full data wipe */
     const BHD_KEYS_KEEP_ON_FULL_WIPE = ['bhd_users_registry', 'bhd_auth_session', 'bhd_theme_mode'];
+
+    /** على bhd-om.com: PostgreSQL مصدر الحقيقة لهذه المفاتيح (عقود → عقارات → مرفقات → نظام) */
+    const BHD_KV_SITE_AUTHORITATIVE_KEYS = BHD_KV_KEYS.filter(
+        (k) => !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k)
+    );
+
+    function isBhdSiteKvPersistenceActive() {
+        try {
+            return localStorage.getItem('bhd_site_integrated') === '1' && !window.bhdDesktop;
+        } catch (_eSkv) {
+            return false;
+        }
+    }
+
+    /** مسار API التخزين — PostgreSQL على الموقع، SQLite محلي للتطبيق المكتبي */
+    function bhdKvRemoteBase() {
+        return isBhdSiteKvPersistenceActive() ? '/api/admin/legacy-bridge/kv' : '/api/kv';
+    }
+
+    function bhdRemoteKvSyncEnabled() {
+        return !!(window.bhdDesktop || bhdApiAvailable || isBhdSiteKvPersistenceActive());
+    }
+
     let bhdApiAvailable = false;
     const BHD_LOCAL_DB_NAME = 'bhd_local_db_v1';
     const BHD_LOCAL_DB_STORE = 'kv';
@@ -10189,15 +10219,17 @@
                 await window.bhdDesktop.kvWipeAllExcept(options.wipeAllExcept);
             } else if (window.bhdDesktop && window.bhdDesktop.kvClearKeys && keys.length) {
                 await window.bhdDesktop.kvClearKeys(keys);
-            } else if (bhdApiAvailable && doFullDbWipe) {
-                await fetch('/api/kv/wipe-all-except', {
+            } else if (bhdRemoteKvSyncEnabled() && doFullDbWipe) {
+                await fetch(`${bhdKvRemoteBase()}/wipe-all-except`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ keepKeys: options.wipeAllExcept || BHD_KEYS_KEEP_ON_FULL_WIPE })
                 });
-            } else if (bhdApiAvailable && keys.length) {
-                await fetch('/api/kv/clear-keys', {
+            } else if (bhdRemoteKvSyncEnabled() && keys.length) {
+                await fetch(`${bhdKvRemoteBase()}/clear-keys`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ keys })
                 });
@@ -11432,7 +11464,8 @@
         try {
             const r = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
             bhdApiAvailable = r.ok;
-            console.debug('[BHD] persistence ready', { backend: 'kv-server', ok: bhdApiAvailable });
+            const backend = isBhdSiteKvPersistenceActive() ? 'postgresql-kv' : 'kv-server';
+            console.debug('[BHD] persistence ready', { backend, ok: bhdApiAvailable });
         } catch (e) {
             bhdApiAvailable = false;
             console.debug('[BHD] persistence ready', { backend: 'browser' });
@@ -11524,9 +11557,9 @@
     }
 
     async function bhdHydrateSiteKvFromServerIfNeeded() {
-        if (!bhdApiAvailable || !isBhdSiteIntegratedWebClient()) return false;
+        if (!bhdRemoteKvSyncEnabled() || (!isBhdSiteIntegratedWebClient() && !bhdApiAvailable)) return false;
         try {
-            const r = await fetch('/api/kv?prefix=bhd_', { cache: 'no-store' });
+            const r = await fetch(`${bhdKvRemoteBase()}?prefix=bhd_`, { credentials: 'include', cache: 'no-store' });
             if (!r.ok) return false;
             const all = await r.json();
             hydrateBhdKvFromExternalStore(all || {});
@@ -12083,10 +12116,11 @@
             scheduleDesktopIdbMirror();
             return;
         }
-        if (!bhdApiAvailable) return;
+        if (!bhdRemoteKvSyncEnabled()) return;
         try {
-            await fetch('/api/kv/bulk', {
+            await fetch(`${bhdKvRemoteBase()}/bulk`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
@@ -12125,18 +12159,20 @@
                 return false;
             }
         }
-        if (!bhdApiAvailable) return false;
+        if (!bhdRemoteKvSyncEnabled()) return false;
         try {
-            const r = await fetch('/api/kv?prefix=bhd_', { cache: 'no-store' });
+            const r = await fetch(`${bhdKvRemoteBase()}?prefix=bhd_`, { credentials: 'include', cache: 'no-store' });
             if (!r.ok) return false;
             const all = await r.json();
             let any = false;
             Object.keys(all).forEach((k) => {
+                if (k === '_meta') return;
                 if (BHD_KV_KEYS.includes(k) && typeof all[k] === 'string') {
                     localStorage.setItem(k, all[k]);
                     any = true;
                 }
             });
+            if (!any) any = hydrateBhdKvFromExternalStore(all);
             await mirrorKvFromLocalStorageToIndexedDb();
             return any;
         } catch (e) {
@@ -47484,9 +47520,10 @@ function getEmptyCompanySignatory() {
                 } catch (_eAcctPersist) {}
                 if (window.bhdDesktop && window.bhdDesktop.kvPutBulk) {
                     await window.bhdDesktop.kvPutBulk({ [ACCOUNTING_REGISTRY_KEY]: emptyJson });
-                } else if (bhdApiAvailable) {
-                    await fetch('/api/kv/bulk', {
+                } else if (bhdRemoteKvSyncEnabled()) {
+                    await fetch(`${bhdKvRemoteBase()}/bulk`, {
                         method: 'POST',
+                        credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ [ACCOUNTING_REGISTRY_KEY]: emptyJson })
                     });
@@ -67470,8 +67507,20 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                   ) + '\n\n'
                 : '';
         const okSaved = t(
-            `✅ تم حفظ جميع البيانات بنجاح!${bhdApiAvailable ? ' (تم حفظها في قاعدة البيانات المحلية أيضاً)' : ''}`,
-            `✅ All data saved successfully!${bhdApiAvailable ? ' (Also stored in the local database.)' : ''}`
+            `✅ تم حفظ جميع البيانات بنجاح!${
+                isBhdSiteKvPersistenceActive()
+                    ? ' (تم حفظها في PostgreSQL على الخادم)'
+                    : bhdApiAvailable
+                      ? ' (تم حفظها في قاعدة البيانات المحلية أيضاً)'
+                      : ''
+            }`,
+            `✅ All data saved successfully!${
+                isBhdSiteKvPersistenceActive()
+                    ? ' (Saved to PostgreSQL on the server.)'
+                    : bhdApiAvailable
+                      ? ' (Also stored in the local database.)'
+                      : ''
+            }`
         );
         const lsReliefAny =
             lsBundle.relievedAddressBook ||
@@ -70050,12 +70099,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         if (!dataWasWiped && !refreshFastBoot && !window.bhdDesktop && !siteIntegratedWeb) {
             await hydrateLocalStorageFromIndexedDb();
         }
-        if (siteIntegratedWeb && bhdLocalStorageHasSubstantiveData()) {
-            scheduleBhdSiteBootHydrationOnce(200);
-        } else {
-            if (siteIntegratedWeb && bhdApiAvailable && !window.bhdDesktop) {
-                await bhdHydrateSiteKvFromServerIfNeeded();
+        if (siteIntegratedWeb) {
+            await probeBhdApi();
+            await bhdHydrateSiteKvFromServerIfNeeded();
+            if (typeof window.__bhdReapplySiteBridge === 'function') {
+                window.__bhdReapplySiteBridge();
             }
+        } else if (bhdApiAvailable && !window.bhdDesktop) {
+            await bhdHydrateSiteKvFromServerIfNeeded();
             if (typeof window.__bhdReapplySiteBridge === 'function') {
                 window.__bhdReapplySiteBridge();
             }

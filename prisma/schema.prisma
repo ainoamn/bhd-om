@@ -454,6 +454,20 @@ model AddressBookContactFile {
   @@index([createdAt])
 }
 
+/// تخزين دائم لبيانات النظام القديم (عقود، عقارات، شيكات، …) — بديل localStorage على bhd-om.com
+model LegacyAppKvStore {
+  id        String   @id @default(cuid())
+  kvKey     String   @unique
+  category  String?
+  data      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([updatedAt])
+  @@index([kvKey])
+}
+
 // ========== Global Intelligent Accounting ==========
 enum AccountingAccountType {
   ASSET
