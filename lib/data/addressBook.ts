@@ -137,6 +137,22 @@ export function validatePassportExpiry(expiryStr: string): { valid: boolean } {
   }
 }
 
+/** مرجع ملف مرفق محفوظ على الخادم */
+export interface AddressBookFileRef {
+  fileId: string;
+  url: string;
+  fileName: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
+
+export interface ContactAttachmentFiles {
+  idCard?: AddressBookFileRef;
+  passport?: AddressBookFileRef;
+  commercialReg?: AddressBookFileRef;
+  leaseContract?: AddressBookFileRef;
+}
+
 export interface Contact {
   id: string;
   /** الرقم المتسلسل (سيريل نبر) مثل CNT-C-2025-0001-S1 */
@@ -215,6 +231,15 @@ export interface Contact {
   userId?: string;
   /** يطابق عمود linkedUserId في قاعدة البيانات — يُعبأ من GET /api/address-book للتمييز في الدمج */
   linkedUserId?: string | null;
+  /** مرفقات محلية من النظام القديم (بطاقة، جواز، سجل…) — تُزامَن مع PostgreSQL عبر الجسر */
+  legacyLocalAttachments?: {
+    idAttachment?: unknown;
+    passportAttachment?: unknown;
+    commercialRegAttachment?: unknown;
+    leaseContractAttachment?: unknown;
+  };
+  /** مرفقات دائمة على الخادم (PostgreSQL / Blob) */
+  contactAttachments?: ContactAttachmentFiles;
   createdAt: string;
   updatedAt: string;
 }

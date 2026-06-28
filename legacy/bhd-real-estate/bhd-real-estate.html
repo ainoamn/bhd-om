@@ -10418,8 +10418,73 @@
         return !!window.__bhdCloudApiActive;
     }
 
+    function bhdSiteFileStorageAvailable() {
+        return localStorage.getItem('bhd_site_integrated') === '1';
+    }
+
     function bhdExternalFileStorageAvailable() {
-        return bhdFileStorageAvailable() || bhdCloudFileStorageAvailable();
+        return bhdFileStorageAvailable() || bhdCloudFileStorageAvailable() || bhdSiteFileStorageAvailable();
+    }
+
+    function bhdSiteAttachmentFieldKey(docType) {
+        const d = toStr(docType).toLowerCase();
+        if (d.includes('passport')) return 'passport';
+        if (d.includes('cocr') || d.includes('commercial') || d.includes('cr')) return 'commercialReg';
+        if (d.includes('lease')) return 'leaseContract';
+        return 'idCard';
+    }
+
+    async function bhdSiteUploadAttachment(file, ctx) {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('fieldKey', bhdSiteAttachmentFieldKey(ctx?.docType || ctx?.category));
+        const contactId =
+            toStr(ctx?.contactId) ||
+            toStr(ctx?.siteContactId) ||
+            (addressBookEditorState?.index >= 0
+                ? toStr(addressBookEntries[addressBookEditorState.index]?.siteContactId) ||
+                  toStr(addressBookEntries[addressBookEditorState.index]?.id)
+                : '');
+        if (contactId) fd.append('contactId', contactId);
+        const r = await fetch('/api/admin/legacy-bridge/address-book/upload', {
+            method: 'POST',
+            credentials: 'include',
+            body: fd
+        });
+        if (!r.ok) throw new Error('site upload failed');
+        const saved = await r.json();
+        return {
+            name: saved.name || file.name,
+            type: saved.mimeType || file.type || 'application/octet-stream',
+            size: file.size || 0,
+            fileId: saved.fileId || '',
+            url: saved.url || '',
+            relativePath: saved.url || '',
+            storedOnDisk: true,
+            dataUrl: ''
+        };
+    }
+
+    async function bhdSiteReadFileAsDataUrl(fileRef) {
+        const url =
+            toStr(fileRef?.url) ||
+            toStr(fileRef?.relativePath) ||
+            (toStr(fileRef?.fileId) ? `/api/admin/legacy-bridge/address-book/files/${encodeURIComponent(fileRef.fileId)}` : '');
+        if (!url) return '';
+        const cacheKey = `site:${url}`;
+        const cached = _bhdDiskUrlCache[cacheKey];
+        if (cached) return cached;
+        const r = await fetch(url, { credentials: 'include' });
+        if (!r.ok) return '';
+        const blob = await r.blob();
+        const dataUrl = await new Promise((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(String(fr.result || ''));
+            fr.onerror = () => reject(fr.error || new Error('read blob failed'));
+            fr.readAsDataURL(blob);
+        });
+        if (dataUrl) _bhdDiskUrlCache[cacheKey] = dataUrl;
+        return dataUrl;
     }
 
     function bhdIsCloudFileId(fileId) {
@@ -10542,6 +10607,14 @@
         if (!file) return null;
         const ctx = { ...bhdGetContractFileContext(), ...(context || {}) };
         const dataUrl = await bhdReadFileAsDataUrl(file);
+        if (bhdSiteFileStorageAvailable()) {
+            try {
+                const saved = await bhdSiteUploadAttachment(file, ctx);
+                if (saved?.fileId || saved?.url) return saved;
+            } catch (eSiteUp) {
+                console.warn('bhdPersistUploadedFile site failed, fallback', eSiteUp);
+            }
+        }
         if (bhdFileStorageAvailable()) {
             try {
                 const saved = await window.bhdDesktop.fileSaveAttachment({
@@ -10595,6 +10668,11 @@
         };
     }
 
+    function bhdIsSiteAddressBookFileRef(att) {
+        const url = toStr(att?.url) || toStr(att?.relativePath);
+        return url.includes('/api/admin/legacy-bridge/address-book/files/');
+    }
+
     async function bhdResolveAttachmentUrl(att) {
         if (!att) return '';
         if (typeof att === 'string') {
@@ -10607,6 +10685,14 @@
         if (cached) return cached;
         const inline = pickEmbeddedDataUrl(att, att.dataUrl, att.attachmentDataUrl, att.checkAttachmentDataUrl);
         if (inline) return inline;
+        if (bhdIsSiteAddressBookFileRef(att) || (bhdSiteFileStorageAvailable() && toStr(att.fileId))) {
+            try {
+                const url = await bhdSiteReadFileAsDataUrl(att);
+                if (url) return url;
+            } catch (eSiteRd) {
+                console.warn('bhdResolveAttachmentUrl site', att?.fileId, eSiteRd);
+            }
+        }
         const rel =
             toStr(att.relativePath) ||
             toStr(att.checkAttachmentRelativePath) ||
@@ -17173,6 +17259,7 @@
     function addressBookAttachmentPresent(att) {
         if (!att || typeof att !== 'object') return false;
         if (toStr(att.dataUrl).trim()) return true;
+        if (toStr(att.url).trim()) return true;
         if (toStr(att.relativePath).trim()) return true;
         if (toStr(att.checkAttachmentRelativePath).trim()) return true;
         if (toStr(att.attachmentRelativePath).trim()) return true;
@@ -18218,6 +18305,122 @@
         return pool[0].i;
     }
 
+    /** كل السجلات المطابقة للمستأجر (قد يكون أكثر من واحد: موقع + محلي) */
+    function findAllAddressBookTenantMatchesForData(d) {
+        const indices = new Set();
+        const siteId = toStr(d?.tenantSiteContactId).trim();
+        if (siteId) {
+            addressBookEntries.forEach((e, i) => {
+                if (toStr(e.siteContactId) === siteId || toStr(e.id) === siteId) indices.add(i);
+            });
+        }
+        const name = toStr(d?.tenantNameAr);
+        if (name) {
+            const isCo = toStr(d.tenantEntityType) === 'company';
+            addressBookEntries.forEach((e, i) => {
+                if (toStr(e.type) !== 'tenant' && toStr(e.type) !== 'company') return;
+                if ((isCo && e.type !== 'company') || (!isCo && e.type !== 'tenant')) return;
+                if (toStr(e.name) !== name) return;
+                const civilOk = isCo
+                    ? (!toStr(d.tenantCommercialRegNo) || toStr(e.commercialRegNo) === toStr(d.tenantCommercialRegNo))
+                    : (!toStr(d.tenantId) || toStr(e.idNo) === toStr(d.tenantId));
+                if (civilOk) indices.add(i);
+            });
+        }
+        return [...indices].sort((a, b) => a - b);
+    }
+
+    function getMergedTenantAddressBookEntryForForm(d) {
+        const indices = findAllAddressBookTenantMatchesForData(d);
+        if (!indices.length) return null;
+        let merged = { ...addressBookEntries[indices[0]] };
+        for (let k = 1; k < indices.length; k++) {
+            merged = mergeAddressBookEntryPreferRich(merged, addressBookEntries[indices[k]]);
+        }
+        return merged;
+    }
+
+    function consolidateTenantAddressBookDuplicatesForForm(d) {
+        const indices = findAllAddressBookTenantMatchesForData(d);
+        if (!indices.length) return -1;
+        if (indices.length === 1) return indices[0];
+        let merged = { ...addressBookEntries[indices[0]] };
+        for (let k = 1; k < indices.length; k++) {
+            merged = mergeAddressBookEntryPreferRich(merged, addressBookEntries[indices[k]]);
+        }
+        const keepIx = indices[0];
+        addressBookEntries[keepIx] = merged;
+        for (let j = indices.length - 1; j >= 1; j--) {
+            addressBookEntries.splice(indices[j], 1);
+        }
+        localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+        pushAddressBookEntryToSiteServer(addressBookEntries[keepIx])
+            .then((saved) => {
+                if (saved) applySiteSavedContactToLegacyEntry(keepIx, saved);
+            })
+            .catch(() => {});
+        return keepIx;
+    }
+
+    function syncContractMandatoryDocsIntoAddressBookEntry(d) {
+        const fd = d && typeof d === 'object' ? d : getFormDataReservationSafeOrFallback();
+        let ix = findAddressBookTenantIndexForData(fd);
+        if (ix < 0) return -1;
+        const store = getMandatoryDocStoreObject();
+        let ent = { ...addressBookEntries[ix] };
+        let changed = false;
+        if (toStr(ent.type) !== 'company') {
+            if (!addressBookAttachmentPresent(ent.idAttachment) && contractAttachmentPresent(store.tenant_person_id)) {
+                ent.idAttachment = cloneContractDocMeta(store.tenant_person_id);
+                changed = true;
+            }
+            if (
+                !addressBookAttachmentPresent(ent.passportAttachment) &&
+                contractAttachmentPresent(store.tenant_person_passport)
+            ) {
+                ent.passportAttachment = cloneContractDocMeta(store.tenant_person_passport);
+                changed = true;
+            }
+        } else {
+            if (
+                !addressBookAttachmentPresent(ent.commercialRegAttachment) &&
+                contractAttachmentPresent(store.tenant_company_cr)
+            ) {
+                ent.commercialRegAttachment = cloneContractDocMeta(store.tenant_company_cr);
+                changed = true;
+            }
+        }
+        if (changed) {
+            ent.updatedAt = new Date().toISOString();
+            addressBookEntries[ix] = ent;
+            localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+            pushAddressBookEntryToSiteServer(ent)
+                .then((saved) => {
+                    if (saved) applySiteSavedContactToLegacyEntry(ix, saved);
+                })
+                .catch(() => {});
+        }
+        return ix;
+    }
+
+    function prepareTenantAddressBookForContractValidation() {
+        try {
+            window.__bhdDedupeAddressBook?.();
+        } catch (_eDed) {}
+        let d;
+        try {
+            d = getActiveWorkspaceFormData();
+        } catch (_eFd) {
+            d = getFormDataReservationSafeOrFallback();
+        }
+        try {
+            syncContractMandatoryDocsIntoAddressBookEntry(d);
+        } catch (_eSync) {}
+        try {
+            consolidateTenantAddressBookDuplicatesForForm(d);
+        } catch (_eCons) {}
+    }
+
     async function pushAddressBookEntryToSiteServer(entry) {
         if (localStorage.getItem('bhd_site_integrated') !== '1') return null;
         if (!entry || !toStr(entry.name)) return null;
@@ -18235,9 +18438,42 @@
         }
     }
 
+    function applyLegacyLocalAttachmentsFromSaved(ent, saved) {
+        const la = saved?.legacyLocalAttachments;
+        if (la && typeof la === 'object') {
+            ['idAttachment', 'passportAttachment', 'commercialRegAttachment', 'leaseContractAttachment'].forEach((k) => {
+                if (addressBookAttachmentPresent(la[k])) ent[k] = la[k];
+            });
+        }
+        const ca = saved?.contactAttachments;
+        if (ca && typeof ca === 'object') {
+            const map = {
+                idCard: 'idAttachment',
+                passport: 'passportAttachment',
+                commercialReg: 'commercialRegAttachment',
+                leaseContract: 'leaseContractAttachment'
+            };
+            Object.keys(map).forEach((ck) => {
+                const ref = ca[ck];
+                if (!ref || !toStr(ref.fileId)) return;
+                const leg = map[ck];
+                ent[leg] = {
+                    name: toStr(ref.fileName) || 'attachment',
+                    type: toStr(ref.mimeType) || '',
+                    fileId: toStr(ref.fileId),
+                    url: toStr(ref.url),
+                    relativePath: toStr(ref.url),
+                    storedOnDisk: true,
+                    dataUrl: ''
+                };
+            });
+        }
+    }
+
     function applySiteSavedContactToLegacyEntry(idx, saved) {
         if (idx < 0 || !saved || !addressBookEntries[idx]) return;
-        const ent = addressBookEntries[idx];
+        const prev = addressBookEntries[idx];
+        const ent = { ...prev };
         if (saved.id) {
             ent.siteContactId = toStr(saved.id);
             ent.id = toStr(saved.id);
@@ -18245,7 +18481,10 @@
         ent.siteManaged = true;
         ent.source = 'bhd-om';
         if (saved.serialNumber) ent.serialNumber = toStr(saved.serialNumber);
-        addressBookEntries[idx] = ent;
+        if (toStr(saved.civilIdExpiry)) ent.idExpiryDate = toStr(saved.civilIdExpiry);
+        if (toStr(saved.passportExpiry)) ent.passportExpiryDate = toStr(saved.passportExpiry);
+        applyLegacyLocalAttachmentsFromSaved(ent, saved);
+        addressBookEntries[idx] = mergeAddressBookEntryPreferRich(prev, ent);
         localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
     }
 
@@ -20503,9 +20742,23 @@ function getEmptyCompanySignatory() {
                 tenantName: readName()
             });
             if (!ref) throw new Error('empty ref');
-            return bhdStripInlineBlobFromFileRef(ref);
+            if (addressBookAttachmentPresent(ref)) return bhdStripInlineBlobFromFileRef(ref);
+            throw new Error('empty attachment ref');
         } catch (e) {
             console.warn('readAddressBookAttachment', inputId, e);
+            if (bhdSiteFileStorageAvailable()) return null;
+            try {
+                const dataUrl = await bhdReadFileAsDataUrl(file);
+                if (toStr(dataUrl).length > 120) {
+                    return {
+                        name: file.name,
+                        type: file.type || 'application/octet-stream',
+                        size: file.size || 0,
+                        dataUrl,
+                        storedOnDisk: false
+                    };
+                }
+            } catch (_eInline) {}
             return null;
         }
     }
@@ -20540,8 +20793,8 @@ function getEmptyCompanySignatory() {
         if (!ref) {
             alert(
                 t(
-                    'تعذر حفظ المرفق. تأكد من تشغيل التطبيق المكتبي واختيار مجلد البيانات.',
-                    'Could not save the attachment. Ensure the desktop app is running with a data folder selected.'
+                    'تعذر حفظ المرفق على الخادم. تأكد من تسجيل الدخول وحجم الملف (PDF أو صورة، حتى 12 م.ب).',
+                    'Could not save the attachment on the server. Ensure you are signed in and the file is PDF/image up to 12 MB.'
                 )
             );
             input.value = '';
@@ -66093,15 +66346,18 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             }
         }
 
+        prepareTenantAddressBookForContractValidation();
         const tenantIdx = findTenantAddressBookIndexByFormName();
-        if (tenantIdx < 0) {
+        const tenantEntry =
+            getMergedTenantAddressBookEntryForForm(d) ||
+            (tenantIdx >= 0 ? addressBookEntries[tenantIdx] : null);
+        if (!tenantEntry) {
             gaps.push({
                 text: t('المستأجر غير موجود في دفتر العناوين.', 'Tenant not found in address book.'),
                 fixText: t('إضافة مستأجر جديد', 'Add new tenant'),
                 action: { type: 'newTenant' }
             });
         } else {
-            const tenantEntry = addressBookEntries[tenantIdx];
             const tenantIssues = isReservationMode
                 ? getAddressBookIssuesForReservation(tenantEntry)
                 : getAddressBookIssues(tenantEntry, { contractBuilding: building, contractUnit: unit });

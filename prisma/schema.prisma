@@ -436,6 +436,24 @@ model AddressBookContact {
   @@index([linkedUserId])
 }
 
+/// مرفقات دفتر العناوين (بطاقة، جواز، سجل تجاري…) — تخزين دائم في PostgreSQL أو Vercel Blob
+model AddressBookContactFile {
+  id        String   @id @default(cuid())
+  contactId String?
+  fieldKey  String?
+  fileName  String
+  mimeType  String?
+  sizeBytes Int?
+  blobUrl   String?
+  content   Bytes?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contactId])
+  @@index([contactId, fieldKey])
+  @@index([createdAt])
+}
+
 // ========== Global Intelligent Accounting ==========
 enum AccountingAccountType {
   ASSET

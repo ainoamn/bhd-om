@@ -4,6 +4,10 @@
  */
 import type { User, UserRole } from '@prisma/client';
 import type { Contact, ContactCategory, AuthorizedRepresentative } from '@/lib/data/addressBook';
+import {
+  applyContactAttachmentsToLegacyEntry,
+  persistContactAttachmentsFromLegacyEntry,
+} from '@/lib/server/addressBookContactFiles';
 import { getContactDisplayName, newContactId, generateContactSerialNumberFromList } from '@/lib/data/addressBook';
 import { ADMIN_PERMISSIONS, type AdminPermission } from '@/lib/auth/adminPermissions';
 import { findManyAddressBookContactsOrHeal, withAddressBookSchemaHeal } from '@/lib/server/addressBookDbCompat';
@@ -300,6 +304,8 @@ export function mapSiteContactToLegacyEntry(
         signatoryPosition: rep.position || '',
       })),
     };
+    applyLegacyLocalAttachmentsToEntry(entry as LegacyBridgeAddressEntry, contact as unknown as Record<string, unknown>);
+    applyContactAttachmentsToLegacyEntry(entry as unknown as Record<string, unknown>, contact.contactAttachments);
     entry.addressBookKey = buildLegacyAddressBookKey(entry);
     return entry;
   }
@@ -326,6 +332,8 @@ export function mapSiteContactToLegacyEntry(
     siteManaged: true,
     source: 'bhd-om',
   };
+  applyLegacyLocalAttachmentsToEntry(entry, contact as unknown as Record<string, unknown>);
+  applyContactAttachmentsToLegacyEntry(entry as unknown as Record<string, unknown>, contact.contactAttachments);
   entry.addressBookKey = buildLegacyAddressBookKey(entry);
   return entry;
 }
@@ -343,6 +351,45 @@ const LEGACY_TYPE_TO_CATEGORY: Record<string, ContactCategory> = {
 
 function str(v: unknown): string {
   return String(v ?? '').trim();
+}
+
+type LegacyLocalAttachments = {
+  idAttachment?: unknown;
+  passportAttachment?: unknown;
+  commercialRegAttachment?: unknown;
+  leaseContractAttachment?: unknown;
+};
+
+function buildLegacyLocalAttachments(
+  entry: LegacyBridgeAddressEntry,
+  existing?: Record<string, unknown> | null
+): LegacyLocalAttachments | undefined {
+  const prev =
+    existing && typeof existing.legacyLocalAttachments === 'object'
+      ? (existing.legacyLocalAttachments as LegacyLocalAttachments)
+      : {};
+  const out: LegacyLocalAttachments = { ...prev };
+  (['idAttachment', 'passportAttachment', 'commercialRegAttachment', 'leaseContractAttachment'] as const).forEach(
+    (key) => {
+      const val = entry[key];
+      if (val && typeof val === 'object') out[key] = val;
+    }
+  );
+  return Object.keys(out).length ? out : undefined;
+}
+
+function applyLegacyLocalAttachmentsToEntry(
+  entry: LegacyBridgeAddressEntry,
+  contact: Record<string, unknown>
+): void {
+  const la = contact.legacyLocalAttachments;
+  if (!la || typeof la !== 'object') return;
+  const bag = la as LegacyLocalAttachments;
+  (['idAttachment', 'passportAttachment', 'commercialRegAttachment', 'leaseContractAttachment'] as const).forEach(
+    (key) => {
+      if (bag[key] && typeof bag[key] === 'object') entry[key] = bag[key];
+    }
+  );
 }
 
 function legacyBuildingUnitToAddress(
@@ -411,6 +458,10 @@ export function mapLegacyAddressEntryToContact(
       serialNumber: str(entry.serialNumber) || existing?.serialNumber,
       createdAt: existing?.createdAt || now,
       updatedAt: now,
+      legacyLocalAttachments: buildLegacyLocalAttachments(
+        entry,
+        existing as unknown as Record<string, unknown> | null
+      ),
     };
   }
 
@@ -440,6 +491,10 @@ export function mapLegacyAddressEntryToContact(
     serialNumber: str(entry.serialNumber) || existing?.serialNumber,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
+    legacyLocalAttachments: buildLegacyLocalAttachments(
+      entry,
+      existing as unknown as Record<string, unknown> | null
+    ),
   };
 }
 
@@ -463,8 +518,15 @@ export async function syncLegacyAddressEntryToDatabase(
     contactId = newContactId();
   }
 
+  const contactAttachments = await persistContactAttachmentsFromLegacyEntry(
+    entry as unknown as Record<string, unknown>,
+    contactId,
+    existing?.contactAttachments
+  );
+
   const merged = mapLegacyAddressEntryToContact(entry, existing);
   merged.id = contactId;
+  merged.contactAttachments = contactAttachments;
 
   if (!merged.serialNumber) {
     const allRows = await findManyAddressBookContactsOrHeal(prisma);
@@ -537,6 +599,14 @@ export async function wipeSiteAddressBookFromLegacy(
       where: { contactId: { in: contactIds } },
     })
   );
+
+  try {
+    await prisma.addressBookContactFile.deleteMany({
+      where: { contactId: { in: contactIds } },
+    });
+  } catch (eFiles) {
+    console.warn('wipeSiteAddressBookFromLegacy files', eFiles);
+  }
 
   return { removed: result.count };
 }
