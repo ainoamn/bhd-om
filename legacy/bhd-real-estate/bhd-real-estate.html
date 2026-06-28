@@ -18862,7 +18862,27 @@ function getEmptyCompanySignatory() {
         const type = toStr(r.type).toLowerCase();
         if (type === 'company') return true;
         if (type === 'owner' || type === 'vendor') return false;
+        if (!type && (r.siteManaged || toStr(r.siteContactId).trim())) return true;
+        if (!type) return true;
         return type === 'tenant' || type === 'client' || type === 'employee' || type === 'partner' || type === 'government' || type === 'other';
+    }
+
+    function getAddressBookEntriesSnapshot() {
+        if (Array.isArray(addressBookEntries) && addressBookEntries.length) return addressBookEntries;
+        try {
+            const raw = localStorage.getItem('bhd_address_book');
+            if (!raw) return addressBookEntries || [];
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length) {
+                addressBookEntries = parsed;
+                return addressBookEntries;
+            }
+        } catch (_eAbSnap) {}
+        return Array.isArray(addressBookEntries) ? addressBookEntries : [];
+    }
+
+    function addressBookEntriesIncludeSiteContacts(entries) {
+        return Array.isArray(entries) && entries.some((r) => r && (r.siteManaged || toStr(r.siteContactId).trim()));
     }
 
     function addressBookEntryMatchesReservationForm(entry, fd) {
@@ -18895,7 +18915,8 @@ function getEmptyCompanySignatory() {
     }
 
     function buildAddressBookTenantSelectOptionsHtml() {
-        const partyRows = addressBookEntries
+        const entries = getAddressBookEntriesSnapshot();
+        const partyRows = entries
             .map((r, ix) => ({ r, ix }))
             .filter(({ r }) => isAddressBookReservationPartyEntry(r));
         return [
@@ -20289,6 +20310,7 @@ function getEmptyCompanySignatory() {
             if (localStorage.getItem('bhd_site_integrated') === '1') {
                 const finish = () => {
                     renderAddressBookTable();
+                    try { renderAddressBookTenantSelect(); } catch (_eAbSel) {}
                     if (showAlert) {
                         alert(
                             t(
@@ -67324,6 +67346,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             try {
                 applyReservationDepositAttachmentFieldLock();
             } catch (_eResDepLock) {}
+            try { renderAddressBookTenantSelect(); } catch (_eAbResForm) {}
         }
     }
 
@@ -68692,6 +68715,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
     (async function startup() {
         closeAllDetailsModalsOnBoot();
         migrateLegacySfgStorageKeysToBhd();
+        try {
+            window.addEventListener('bhd-site-bridge-applied', () => {
+                try { renderAddressBookTenantSelect(); } catch (_eBridgeAbSel) {}
+                try {
+                    if (document.body.classList.contains('mode-addressbook')) renderAddressBookTable();
+                } catch (_eBridgeAbTbl) {}
+            });
+        } catch (_eBridgeAbWire) {}
         const refreshFastBoot = isBhdAppRefreshFastBoot();
         if (refreshFastBoot) {
             clearBhdAppRefreshFastBoot();
@@ -68833,10 +68864,13 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 }
             }
             const skipAbRebuild = dataWasWiped || localStorage.getItem('bhd_address_book') === '[]';
-            if (!skipAbRebuild && (!Array.isArray(addressBookEntries) || !addressBookEntries.length)) {
+            const siteIntegrated = localStorage.getItem('bhd_site_integrated') === '1';
+            const needsSiteAbFetch = siteIntegrated && !addressBookEntriesIncludeSiteContacts(addressBookEntries);
+            if (!skipAbRebuild && (needsSiteAbFetch || !Array.isArray(addressBookEntries) || !addressBookEntries.length)) {
                 refreshAddressBookFromSystem(false);
             } else {
                 renderAddressBookTable();
+                try { renderAddressBookTenantSelect(); } catch (_eAbBootSel) {}
             }
         } catch (abErr) {
             console.error('Address book init failed:', abErr);

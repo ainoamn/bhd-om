@@ -497,6 +497,9 @@ export function resolveLegacyBridgeLocale(req: { nextUrl: URL; headers: Headers 
 
 function buildBridgeBootScript(): string {
   return `(function(){
+function bridgeNeedsAddressBookFetch(payload){
+  return !payload||!Array.isArray(payload.addressBook)||!payload.addressBook.length;
+}
 function reloadAddressBookFromBridge(){
   try{
     var raw=localStorage.getItem('bhd_address_book');
@@ -505,7 +508,8 @@ function reloadAddressBookFromBridge(){
     if(!Array.isArray(entries))return;
     if(typeof addressBookEntries!=='undefined')addressBookEntries=entries;
     if(typeof renderAddressBookTable==='function'&&document.body&&document.body.classList.contains('mode-addressbook'))renderAddressBookTable();
-    if(typeof renderAddressBookTenantSelect==='function'&&(document.body.classList.contains('mode-reservations')||document.body.classList.contains('mode-contracts')))renderAddressBookTenantSelect();
+    if(typeof renderAddressBookTenantSelect==='function')renderAddressBookTenantSelect();
+    if(typeof updateReservationsWorkspaceUi==='function'&&document.body&&document.body.classList.contains('mode-reservations'))updateReservationsWorkspaceUi();
   }catch(e){console.warn('[BHD] reloadAddressBookFromBridge',e);}
 }
 window.__bhdSiteLocale=function(){
@@ -642,10 +646,20 @@ try{
     if(embedded){window.__bhdSiteBridgePayload=embedded;applyBridge(embedded);}
   }
 }catch(e){console.warn('[BHD] embedded site bridge parse failed',e);}
-if(!window.__bhdSiteBridgePayload){fetchFullBridge().then(function(){pollAuthUiRefresh(20);});}
+var _bhdFullBridgePending=null;
+function ensureFullAddressBookFromSite(){
+  if(_bhdFullBridgePending)return _bhdFullBridgePending;
+  _bhdFullBridgePending=fetchFullBridge().then(function(d){
+    pollAuthUiRefresh(20);
+    return d;
+  }).finally(function(){_bhdFullBridgePending=null;});
+  return _bhdFullBridgePending;
+}
+if(!window.__bhdSiteBridgePayload){ensureFullAddressBookFromSite();}
+else if(bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload)){ensureFullAddressBookFromSite();}
 document.addEventListener('DOMContentLoaded',function(){
-  if(!window.__bhdSiteBridgePayload){
-    fetchFullBridge().then(function(){pollAuthUiRefresh(25);});
+  if(!window.__bhdSiteBridgePayload||bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload)){
+    ensureFullAddressBookFromSite();
   }else{
     pollAuthUiRefresh(25);
   }
