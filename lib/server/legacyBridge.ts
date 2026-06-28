@@ -967,8 +967,17 @@ function abMergeAddressBooks(localArr,siteArr){
     var local=key?localMap.get(key):null;
     if(!local&&abStr(site.name)){
       local=localArr.find(function(l){
-        return abStr(l.type).toLowerCase()===abStr(site.type).toLowerCase()&&abStr(l.name).toLowerCase()===abStr(site.name).toLowerCase();
+        if(abStr(l.name).toLowerCase()!==abStr(site.name).toLowerCase())return false;
+        var snA=abStr(l.serialNumber),snB=abStr(site.serialNumber);
+        if(snA&&snB&&snA!==snB)return false;
+        var lt=abStr(l.type).toLowerCase(),st=abStr(site.type).toLowerCase();
+        if(lt&&st&&lt!==st)return false;
+        return true;
       })||null;
+      if(!local){
+        var siteSn=abStr(site.serialNumber);
+        if(siteSn)local=localArr.find(function(l){return abStr(l.serialNumber)===siteSn;})||null;
+      }
       if(local&&key)used.add(abEntryStableKey(local));
     }
     if(key)used.add(key);

@@ -10011,6 +10011,7 @@
         Object.keys(store).forEach((k) => {
             if (k === '_meta') return;
             if (!BHD_KV_KEYS.includes(k)) return;
+            if (siteAuth && k === 'bhd_address_book') return;
             const val = store[k];
             if (typeof val !== 'string') return;
             if (siteAuth && BHD_KV_SITE_AUTHORITATIVE_KEYS.includes(k) && !bhdKvIsEmptyShell(val)) {
@@ -11667,16 +11668,16 @@
             if (_bhdSiteBootHydrationDone) return;
             _bhdSiteBootHydrationDone = true;
             try {
-                await bhdHydrateSiteKvFromServerIfNeeded();
                 if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                     await window.__bhdRefreshAddressBookFromSite();
                 }
                 try {
-                    await repairAddressBookEntriesAttachmentsFromSite();
+                    await repairAddressBookEntriesFromSite();
                 } catch (_eSiteRepBoot) {}
                 try {
                     window.__bhdDedupeAddressBook?.();
                 } catch (_eDedBoot) {}
+                await bhdHydrateSiteKvFromServerIfNeeded();
                 try {
                     await syncBhdKvToServer();
                 } catch (_eKvBoot) {}
@@ -11692,10 +11693,16 @@
 
     function bhdBridgeAppliedLightRefresh() {
         clearTimeout(_bhdBridgeLightRefreshTimer);
-        _bhdBridgeLightRefreshTimer = setTimeout(() => {
+        _bhdBridgeLightRefreshTimer = setTimeout(async () => {
             _bhdBridgeLightRefreshTimer = 0;
             try {
                 loadDashboardAux(true);
+                if (isBhdSiteIntegratedWebClient()) {
+                    try {
+                        await repairAddressBookEntriesFromSite();
+                        window.__bhdDedupeAddressBook?.();
+                    } catch (_eBrRep) {}
+                }
                 try {
                     renderAddressBookTenantSelect();
                 } catch (_eAbSel) {}
@@ -12160,7 +12167,9 @@
     function buildBhdKvPayload(keys) {
         const payload = {};
         const list = keys && keys.length ? keys : BHD_KV_KEYS;
+        const skipAddressBookKv = isBhdSiteKvPersistenceActive();
         list.forEach((k) => {
+            if (skipAddressBookKv && k === 'bhd_address_book') return;
             const v = localStorage.getItem(k);
             if (v !== null) payload[k] = v;
         });
@@ -12245,15 +12254,7 @@
             const r = await fetch(`${bhdKvRemoteBase()}?prefix=bhd_`, { credentials: 'include', cache: 'no-store' });
             if (!r.ok) return false;
             const all = await r.json();
-            let any = false;
-            Object.keys(all).forEach((k) => {
-                if (k === '_meta') return;
-                if (BHD_KV_KEYS.includes(k) && typeof all[k] === 'string') {
-                    localStorage.setItem(k, all[k]);
-                    any = true;
-                }
-            });
-            if (!any) any = hydrateBhdKvFromExternalStore(all);
+            const any = hydrateBhdKvFromExternalStore(all || {});
             await mirrorKvFromLocalStorageToIndexedDb();
             return any;
         } catch (e) {
@@ -17305,6 +17306,7 @@
     function addressBookEntryRichnessScore(e) {
         if (!e) return 0;
         let n = 0;
+        if (toStr(e.type)) n += 2;
         if (toStr(e.mobile)) n += 3;
         if (toStr(e.idNo)) n += 3;
         if (toStr(e.building)) n += 2;
@@ -17312,6 +17314,73 @@
         if (addressBookAttachmentPresent(e.idAttachment)) n += 4;
         if (toStr(e.siteContactId)) n += 1;
         return n;
+    }
+
+    const SITE_CATEGORY_TO_LEGACY_TYPE = {
+        CLIENT: 'client',
+        TENANT: 'tenant',
+        LANDLORD: 'owner',
+        SUPPLIER: 'vendor',
+        PARTNER: 'partner',
+        GOVERNMENT: 'government',
+        AUTHORIZED_REP: 'employee',
+        OTHER: 'other'
+    };
+
+    function applySiteContactJsonToLegacyEntry(ent, saved) {
+        if (!ent || !saved || typeof saved !== 'object') return ent;
+        if (saved.contactType === 'COMPANY') {
+            ent.type = 'company';
+            if (toStr(saved.companyData?.companyNameAr) || toStr(saved.name)) {
+                ent.name = toStr(saved.companyData?.companyNameAr) || toStr(saved.name);
+            }
+            if (toStr(saved.companyData?.companyNameEn)) ent.nameEn = toStr(saved.companyData.companyNameEn);
+            if (toStr(saved.companyData?.commercialRegistrationNumber)) {
+                ent.commercialRegNo = toStr(saved.companyData.commercialRegistrationNumber);
+            }
+            if (toStr(saved.companyData?.commercialRegistrationExpiry)) {
+                ent.commercialRegExpiryDate = toStr(saved.companyData.commercialRegistrationExpiry);
+            }
+        } else {
+            if (toStr(saved.category)) {
+                ent.type = SITE_CATEGORY_TO_LEGACY_TYPE[toStr(saved.category)] || ent.type || 'tenant';
+            }
+            if (toStr(saved.name)) ent.name = toStr(saved.name);
+            if (toStr(saved.nameEn)) ent.nameEn = toStr(saved.nameEn);
+            if (toStr(saved.nationality)) ent.nationality = toStr(saved.nationality);
+            if (toStr(saved.civilId)) ent.idNo = toStr(saved.civilId);
+            else if (toStr(saved.passportNumber)) ent.idNo = toStr(saved.passportNumber);
+            if (toStr(saved.passportNumber)) ent.passport = toStr(saved.passportNumber);
+        }
+        if (toStr(saved.phone)) ent.mobile = toStr(saved.phone);
+        if (toStr(saved.phoneSecondary)) ent.extraMobile = toStr(saved.phoneSecondary);
+        if (toStr(saved.email)) ent.email = toStr(saved.email);
+        if (toStr(saved.civilIdExpiry)) ent.idExpiryDate = toStr(saved.civilIdExpiry);
+        if (toStr(saved.passportExpiry)) ent.passportExpiryDate = toStr(saved.passportExpiry);
+        if (toStr(saved.serialNumber)) ent.serialNumber = toStr(saved.serialNumber);
+        if (toStr(saved.id)) {
+            ent.siteContactId = toStr(saved.id);
+            ent.id = toStr(saved.id);
+        }
+        ent.siteManaged = true;
+        ent.source = 'bhd-om';
+        applyLegacyLocalAttachmentsFromSaved(ent, saved);
+        return ent;
+    }
+
+    function addressBookEntryNeedsSiteEnrich(entry) {
+        if (!entry) return false;
+        const cid = toStr(entry.siteContactId || (toStr(entry.source) === 'bhd-om' ? entry.id : '')).trim();
+        if (!cid) return false;
+        return (
+            !toStr(entry.type) ||
+            !toStr(entry.mobile) ||
+            !toStr(entry.idNo) ||
+            !addressBookAttachmentPresent(entry.idAttachment) ||
+            !addressBookAttachmentPresent(entry.passportAttachment) ||
+            !toStr(entry.idExpiryDate) ||
+            (toStr(entry.passport) && !toStr(entry.passportExpiryDate))
+        );
     }
 
     function mergeAddressBookEntryPreferRich(local, remote) {
@@ -17323,6 +17392,11 @@
         const out = { ...poor, ...rich };
         out.siteContactId = rich.siteContactId || poor.siteContactId || rich.id || poor.id;
         out.id = rich.id || poor.id || out.siteContactId;
+        out.type = toStr(rich.type) || toStr(poor.type) || '';
+        out.serialNumber = toStr(rich.serialNumber) || toStr(poor.serialNumber) || '';
+        out.source = toStr(rich.source) || toStr(poor.source) || '';
+        if (rich.siteManaged != null) out.siteManaged = rich.siteManaged;
+        else if (poor.siteManaged != null) out.siteManaged = poor.siteManaged;
         [
             'mobile',
             'extraMobile',
@@ -17428,11 +17502,19 @@
                 const sidA = toStr(merged.siteContactId || (toStr(merged.source) === 'bhd-om' ? merged.id : '')).trim();
                 const sidB = toStr(other.siteContactId || (toStr(other.source) === 'bhd-om' ? other.id : '')).trim();
                 const sameSite = sidA && sidB && sidA === sidB;
+                const sameSerial =
+                    toStr(merged.serialNumber) &&
+                    toStr(merged.serialNumber) === toStr(other.serialNumber);
+                const typesCompatible =
+                    !toStr(merged.type) ||
+                    !toStr(other.type) ||
+                    toStr(merged.type).toLowerCase() === toStr(other.type).toLowerCase();
                 const samePerson =
                     !sameSite &&
-                    toStr(merged.type).toLowerCase() === toStr(other.type).toLowerCase() &&
-                    addressBookPartyNamesMatch(merged.name, other.name) &&
-                    (!toStr(merged.idNo) || !toStr(other.idNo) || toStr(merged.idNo) === toStr(other.idNo));
+                    (sameSerial ||
+                        (typesCompatible &&
+                            addressBookPartyNamesMatch(merged.name, other.name) &&
+                            (!toStr(merged.idNo) || !toStr(other.idNo) || toStr(merged.idNo) === toStr(other.idNo))));
                 if (sameSite || samePerson) {
                     merged = mergeAddressBookEntryPreferRich(merged, other);
                     drop.add(j);
@@ -17563,20 +17645,15 @@
         return changed;
     }
 
-    async function repairAddressBookEntriesAttachmentsFromSite() {
+    async function repairAddressBookEntriesFromSite() {
         if (!bhdSiteFileStorageAvailable()) return false;
         let changed = false;
         for (let i = 0; i < addressBookEntries.length; i++) {
             const entry = addressBookEntries[i];
             if (!entry) continue;
+            if (!addressBookEntryNeedsSiteEnrich(entry)) continue;
             const cid = toStr(entry.siteContactId || (toStr(entry.source) === 'bhd-om' ? entry.id : '')).trim();
             if (!cid) continue;
-            const needsRepair =
-                !addressBookAttachmentPresent(entry.idAttachment) ||
-                !addressBookAttachmentPresent(entry.passportAttachment) ||
-                !toStr(entry.idExpiryDate) ||
-                (toStr(entry.passport) && !toStr(entry.passportExpiryDate));
-            if (!needsRepair) continue;
             try {
                 const r = await fetch(
                     `/api/admin/legacy-bridge/address-book/contact/${encodeURIComponent(cid)}`,
@@ -17585,10 +17662,7 @@
                 if (!r.ok) continue;
                 const saved = await r.json();
                 if (!saved || typeof saved !== 'object') continue;
-                const ent = { ...entry };
-                applyLegacyLocalAttachmentsFromSaved(ent, saved);
-                if (toStr(saved.civilIdExpiry)) ent.idExpiryDate = toStr(saved.civilIdExpiry);
-                if (toStr(saved.passportExpiry)) ent.passportExpiryDate = toStr(saved.passportExpiry);
+                const ent = applySiteContactJsonToLegacyEntry({ ...entry }, saved);
                 const merged = mergeAddressBookEntryPreferRich(entry, ent);
                 if (JSON.stringify(merged) !== JSON.stringify(entry)) {
                     addressBookEntries[i] = merged;
@@ -17597,12 +17671,16 @@
             } catch (_eSiteRepAb) {}
         }
         if (changed) {
+            addressBookEntries = dedupeAddressBookEntries(addressBookEntries).map((e) =>
+                normalizeAddressBookEntryIdentityFields(e)
+            );
             localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
-            try {
-                await syncBhdKvToServer();
-            } catch (_eRepSiteKv) {}
         }
         return changed;
+    }
+
+    async function repairAddressBookEntriesAttachmentsFromSite() {
+        return repairAddressBookEntriesFromSite();
     }
 
     function getAddressBookCompanyIssues(entry) {
@@ -18736,17 +18814,7 @@
     function applySiteSavedContactToLegacyEntry(idx, saved) {
         if (idx < 0 || !saved || !addressBookEntries[idx]) return;
         const prev = addressBookEntries[idx];
-        const ent = { ...prev };
-        if (saved.id) {
-            ent.siteContactId = toStr(saved.id);
-            ent.id = toStr(saved.id);
-        }
-        ent.siteManaged = true;
-        ent.source = 'bhd-om';
-        if (saved.serialNumber) ent.serialNumber = toStr(saved.serialNumber);
-        if (toStr(saved.civilIdExpiry)) ent.idExpiryDate = toStr(saved.civilIdExpiry);
-        if (toStr(saved.passportExpiry)) ent.passportExpiryDate = toStr(saved.passportExpiry);
-        applyLegacyLocalAttachmentsFromSaved(ent, saved);
+        const ent = applySiteContactJsonToLegacyEntry({ ...prev }, saved);
         addressBookEntries[idx] = mergeAddressBookEntryPreferRich(prev, ent);
         localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
     }
@@ -21430,7 +21498,8 @@ function getEmptyCompanySignatory() {
                     window.__bhdForceAddressBookBridgeMerge = true;
                     try {
                         await window.__bhdRefreshAddressBookFromSite();
-                        await repairAddressBookEntriesAttachmentsFromSite();
+                        await repairAddressBookEntriesFromSite();
+                        window.__bhdDedupeAddressBook?.();
                     } finally {
                         try {
                             delete window.__bhdForceAddressBookBridgeMerge;
@@ -70373,31 +70442,32 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
         if (siteIntegratedWeb) {
             await probeBhdApi();
-            await bhdHydrateSiteKvFromServerIfNeeded();
-            await bhdSiteExtractKvBlobsOnce();
             if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                 try {
                     await window.__bhdRefreshAddressBookFromSite();
                 } catch (_eAbBootPull) {}
             }
             try {
-                await repairAddressBookEntriesAttachmentsFromSite();
+                await repairAddressBookEntriesFromSite();
             } catch (_eAbBootRep) {}
             try {
                 window.__bhdDedupeAddressBook?.();
             } catch (_eDedBootFull) {}
+            await bhdHydrateSiteKvFromServerIfNeeded();
+            await bhdSiteExtractKvBlobsOnce();
             try {
                 await syncBhdKvToServer();
             } catch (_eKvBootFull) {}
         } else if (bhdApiAvailable && !window.bhdDesktop) {
-            await bhdHydrateSiteKvFromServerIfNeeded();
             if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                 try {
                     await window.__bhdRefreshAddressBookFromSite();
                 } catch (_eAbBootPull2) {}
             }
             try {
-                await repairAddressBookEntriesAttachmentsFromSite();
+                await repairAddressBookEntriesFromSite();
+            } catch (_eAbRep2) {}
+            await bhdHydrateSiteKvFromServerIfNeeded();
             } catch (_eAbBootRep2) {}
             try {
                 window.__bhdDedupeAddressBook?.();
