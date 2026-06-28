@@ -16868,8 +16868,47 @@
         return Math.floor((target - now) / 86400000);
     }
 
-    function getUnitsData() {
-        if (_unitsDataCache) return _unitsDataCache;
+    let _unitsDataFullBuildDone = false;
+    let _unitsDataFullRebuildTimer = 0;
+
+    function buildUnitsDataQuickFromMemory() {
+        if (!Array.isArray(managedUnitsData) || !managedUnitsData.length) {
+            loadDashboardAux(true, { fast: true });
+        }
+        const combined = [];
+        (managedUnitsData || []).forEach((u) => {
+            if (!u) return;
+            combined.push({
+                ...u,
+                ownerNames: u.ownerNames || formatOwnerNamesForBuilding(u.building)
+            });
+        });
+        return filterUnitsToActiveBuildingsOnly(applyForcedVacancyPatchesToUnitsRows(combined));
+    }
+
+    function scheduleUnitsDataFullRebuild() {
+        clearTimeout(_unitsDataFullRebuildTimer);
+        _unitsDataFullRebuildTimer = setTimeout(() => {
+            _unitsDataFullRebuildTimer = 0;
+            getUnitsData({ forceFull: true });
+            if (_activeWorkspaceMode === 'dashboard') {
+                try {
+                    renderOperationsTable();
+                } catch (_eDashFull) {}
+            }
+        }, 500);
+    }
+
+    function getUnitsData(options) {
+        const forceFull = options && options.forceFull === true;
+        if (_unitsDataCache && !forceFull) return _unitsDataCache;
+        if (!forceFull && !_unitsDataFullBuildDone) {
+            loadDashboardAux(true, { fast: true });
+            _unitsDataCache = buildUnitsDataQuickFromMemory();
+            scheduleUnitsDataFullRebuild();
+            return _unitsDataCache;
+        }
+        _unitsDataCache = null;
         loadDashboardAux();
         try {
             migrateLegacySavedContractToRegistry();
@@ -17027,6 +17066,7 @@
             deduped.push(row);
         });
         _unitsDataCache = filterUnitsToActiveBuildingsOnly(applyForcedVacancyPatchesToUnitsRows(deduped));
+        _unitsDataFullBuildDone = true;
         return _unitsDataCache;
     }
 
@@ -26337,6 +26377,7 @@ function getEmptyCompanySignatory() {
     function bumpUnitsDataCache() {
         _unitsDataCache = null;
         _loadDashboardAuxLastAt = 0;
+        _unitsDataFullBuildDone = false;
     }
 
     function resetOperationsPageAndRender() {
@@ -67719,6 +67760,28 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         return true;
     }
 
+    function renderDashboardWorkspaceStaged() {
+        try {
+            renderOperationsTable();
+        } catch (_eDashOps) {}
+        requestAnimationFrame(() => {
+            try {
+                renderRegistryTable();
+            } catch (_eDashReg) {}
+            const idle = () => {
+                try {
+                    renderDashboardModuleHub();
+                    renderDashboardCalendar();
+                } catch (_eDashIdle) {}
+            };
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(idle, { timeout: 2500 });
+            } else {
+                setTimeout(idle, 60);
+            }
+        });
+    }
+
     function renderWorkspaceModeContent(mode) {
         if (mode === 'contracts') {
             updateContractWorkspaceContextUi();
@@ -67749,10 +67812,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             updateSummaryPanel();
             renderDocument(currentDoc);
         } else if (mode === 'dashboard') {
-            renderOperationsTable();
-            renderRegistryTable();
-            renderDashboardModuleHub();
-            renderDashboardCalendar();
+            renderDashboardWorkspaceStaged();
         } else if (mode === 'users') {
             loadDashboardAux();
             renderUsersManagementPage();
@@ -68802,14 +68862,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             }
             if (activePageMode === 'dashboard') {
                 try {
-                    renderOperationsTable();
+                    renderDashboardWorkspaceStaged();
                 } catch (e) {
-                    console.error('renderOperationsTable failed:', e);
-                }
-                try {
-                    renderRegistryTable();
-                } catch (e) {
-                    console.error('renderRegistryTable failed:', e);
+                    console.error('renderDashboardWorkspaceStaged failed:', e);
                 }
             } else if (activePageMode === 'contracts') {
                 try {
