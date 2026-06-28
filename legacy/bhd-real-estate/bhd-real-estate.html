@@ -17318,12 +17318,97 @@
         const out = { ...poor, ...rich };
         out.siteContactId = rich.siteContactId || poor.siteContactId || rich.id || poor.id;
         out.id = rich.id || poor.id || out.siteContactId;
+        [
+            'mobile',
+            'extraMobile',
+            'email',
+            'idNo',
+            'nationality',
+            'idExpiryDate',
+            'passport',
+            'passportExpiryDate',
+            'building',
+            'unit',
+            'birthDate',
+            'nameEn',
+            'commercialRegNo',
+            'commercialRegExpiryDate',
+            'commercialRegExpiry',
+            'civilIdExpiry',
+            'passportExpiry'
+        ].forEach((f) => {
+            out[f] = toStr(rich[f]) || toStr(poor[f]) || '';
+        });
+        if (toStr(rich.name)) out.name = toStr(rich.name);
+        else if (toStr(poor.name)) out.name = toStr(poor.name);
         ['idAttachment', 'passportAttachment', 'commercialRegAttachment', 'leaseContractAttachment'].forEach((f) => {
             out[f] = addressBookAttachmentPresent(rich[f]) ? rich[f] : poor[f] || null;
         });
         if (Array.isArray(rich.signatories) && rich.signatories.length) out.signatories = rich.signatories;
         out.updatedAt = rich.updatedAt || poor.updatedAt || new Date().toISOString();
         return out;
+    }
+
+    function normalizeAddressBookEntryIdentityFields(entry) {
+        if (!entry || typeof entry !== 'object') return entry;
+        const out = { ...entry };
+        if (!toStr(out.idExpiryDate) && toStr(out.civilIdExpiry)) out.idExpiryDate = toStr(out.civilIdExpiry);
+        if (!toStr(out.passportExpiryDate) && toStr(out.passportExpiry)) {
+            out.passportExpiryDate = toStr(out.passportExpiry);
+        }
+        const la = out.legacyLocalAttachments;
+        if (la && typeof la === 'object') {
+            ['idAttachment', 'passportAttachment', 'commercialRegAttachment', 'leaseContractAttachment'].forEach((f) => {
+                if (!addressBookAttachmentPresent(out[f]) && addressBookAttachmentPresent(la[f])) out[f] = la[f];
+            });
+        }
+        const ca = out.contactAttachments;
+        if (ca && typeof ca === 'object') {
+            const map = {
+                idCard: 'idAttachment',
+                passport: 'passportAttachment',
+                commercialReg: 'commercialRegAttachment',
+                leaseContract: 'leaseContractAttachment'
+            };
+            Object.keys(map).forEach((ck) => {
+                const leg = map[ck];
+                const ref = ca[ck];
+                if (addressBookAttachmentPresent(out[leg]) || !ref || !toStr(ref.fileId)) return;
+                out[leg] = {
+                    name: toStr(ref.fileName) || 'attachment',
+                    type: toStr(ref.mimeType) || '',
+                    fileId: toStr(ref.fileId),
+                    url: toStr(ref.url),
+                    relativePath: toStr(ref.url),
+                    storedOnDisk: true,
+                    dataUrl: ''
+                };
+            });
+        }
+        return out;
+    }
+
+    function getEffectiveTenantEntryForContractValidation(d) {
+        prepareTenantAddressBookForContractValidation();
+        let entry =
+            getMergedTenantAddressBookEntryForForm(d) ||
+            (() => {
+                const idx = findAddressBookTenantIndexForData(d);
+                return idx >= 0 ? addressBookEntries[idx] : null;
+            })();
+        if (!entry) return { entry: null, index: -1 };
+        entry = normalizeAddressBookEntryIdentityFields(entry);
+        const store = getMandatoryDocStoreObject();
+        if (!addressBookAttachmentPresent(entry.idAttachment) && contractAttachmentPresent(store.tenant_person_id)) {
+            entry = { ...entry, idAttachment: cloneContractDocMeta(store.tenant_person_id) };
+        }
+        if (
+            !addressBookAttachmentPresent(entry.passportAttachment) &&
+            contractAttachmentPresent(store.tenant_person_passport)
+        ) {
+            entry = { ...entry, passportAttachment: cloneContractDocMeta(store.tenant_person_passport) };
+        }
+        return { entry, index: findAddressBookTenantIndexForData(d) };
     }
 
     function dedupeAddressBookEntries(entries) {
@@ -17594,6 +17679,7 @@
     }
 
     function getAddressBookIssues(entry, options = {}) {
+        entry = normalizeAddressBookEntryIdentityFields(entry);
         if (options.forReservation === true) {
             return getAddressBookIssuesForReservation(entry);
         }
@@ -21332,35 +21418,35 @@ function getEmptyCompanySignatory() {
         }
     }
 
-    function refreshAddressBookFromSystem(showAlert = false) {
+    async function refreshAddressBookFromSystemAsync(showAlert = false) {
         try {
             if (localStorage.getItem('bhd_site_integrated') === '1') {
-                const finish = () => {
-                    renderAddressBookTable();
-                    try { renderAddressBookTenantSelect(); } catch (_eAbSel) {}
-                    if (showAlert) {
-                        alert(
-                            t(
-                                `✅ تم تحديث دفتر العناوين من الموقع. إجمالي السجلات: ${addressBookEntries.length}`,
-                                `✅ Address book updated from site. Total records: ${addressBookEntries.length}`
-                            )
-                        );
-                    }
-                };
                 if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                     window.__bhdForceAddressBookBridgeMerge = true;
-                    window.__bhdRefreshAddressBookFromSite().then(finish).catch(finish).finally(() => {
+                    try {
+                        await window.__bhdRefreshAddressBookFromSite();
+                        await repairAddressBookEntriesAttachmentsFromSite();
+                    } finally {
                         try {
                             delete window.__bhdForceAddressBookBridgeMerge;
                         } catch (_eClrForce) {}
-                    });
-                    return;
-                }
-                if (typeof window.__bhdReapplySiteBridge === 'function') {
+                    }
+                } else if (typeof window.__bhdReapplySiteBridge === 'function') {
                     window.__bhdReapplySiteBridge();
-                    finish();
-                    return;
                 }
+                renderAddressBookTable();
+                try {
+                    renderAddressBookTenantSelect();
+                } catch (_eAbSel) {}
+                if (showAlert) {
+                    alert(
+                        t(
+                            `✅ تم تحديث دفتر العناوين من الموقع. إجمالي السجلات: ${addressBookEntries.length}`,
+                            `✅ Address book updated from site. Total records: ${addressBookEntries.length}`
+                        )
+                    );
+                }
+                return;
             }
         } catch (_eSiteAbRefresh) {}
         const oldRows = Array.isArray(addressBookEntries) ? addressBookEntries : [];
@@ -21371,22 +21457,7 @@ function getEmptyCompanySignatory() {
         const fromSystem = collectAddressBookRowsFromSystem();
         const merged = fromSystem.map((r) => {
             const old = oldMap.get(addressBookEntryKey(r)) || {};
-            return {
-                ...old,
-                ...r,
-                nationality: toStr(old.nationality || r.nationality || 'عماني / Omani'),
-                nameEn: toStr(old.nameEn || r.nameEn),
-                extraMobile: toStr(old.extraMobile || r.extraMobile),
-                idExpiryDate: toStr(old.idExpiryDate || r.idExpiryDate),
-                passportExpiryDate: toStr(old.passportExpiryDate || r.passportExpiryDate),
-                idAttachment: old.idAttachment || r.idAttachment || null,
-                passportAttachment: old.passportAttachment || r.passportAttachment || null,
-                commercialRegNo: toStr(old.commercialRegNo || r.commercialRegNo),
-                commercialRegExpiryDate: toStr(old.commercialRegExpiryDate || r.commercialRegExpiryDate),
-                companyAttachmentSchema: Number(old.companyAttachmentSchema || r.companyAttachmentSchema) || 1,
-                commercialRegAttachment: old.commercialRegAttachment || r.commercialRegAttachment || null,
-                leaseContractAttachment: old.leaseContractAttachment || r.leaseContractAttachment || null,
-                signatories: mergeAddressBookCompanySignatories(old, r)            };
+            return mergeAddressBookEntryPreferRich(old, r);
         });
         oldRows.forEach((r) => {
             const key = addressBookEntryKey(r);
@@ -21398,6 +21469,12 @@ function getEmptyCompanySignatory() {
         localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
         renderAddressBookTable();
         if (showAlert) alert(`✅ تم تحديث دفتر العناوين. إجمالي السجلات: ${addressBookEntries.length}`);
+    }
+
+    function refreshAddressBookFromSystem(showAlert = false) {
+        refreshAddressBookFromSystemAsync(showAlert).catch((e) => {
+            console.warn('refreshAddressBookFromSystem', e);
+        });
     }
 
     function isContractTenantAddressBookSyncPending() {
@@ -66539,10 +66616,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
 
         prepareTenantAddressBookForContractValidation();
-        const tenantIdx = findTenantAddressBookIndexByFormName();
-        const tenantEntry =
-            getMergedTenantAddressBookEntryForForm(d) ||
-            (tenantIdx >= 0 ? addressBookEntries[tenantIdx] : null);
+        const { entry: tenantEntry, index: tenantIdx } = getEffectiveTenantEntryForContractValidation(d);
         if (!tenantEntry) {
             gaps.push({
                 text: t('المستأجر غير موجود في دفتر العناوين.', 'Tenant not found in address book.'),
@@ -67493,7 +67567,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 return;
             }
         }
-        refreshAddressBookFromSystem(false);
+        await refreshAddressBookFromSystemAsync(false);
         if (!(await validateCoreData())) {
             return;
         }
