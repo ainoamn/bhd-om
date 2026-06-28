@@ -156,21 +156,18 @@ export function getDatabaseUrlForRuntime(): string {
   return LOCAL_DEV_DEFAULT;
 }
 
+/** يحوّل أي رابط Neon pooler إلى direct — migrate deploy يتطلب advisory locks */
+function normalizeMigratePostgresUrl(urlStr: string): string {
+  const directHost = neonPoolerHostToDirect(stripPgbouncerQueryParams(urlStr.trim()));
+  return applyMigrateConnectionParams(appendSslModeRequireForRemoteHosts(directHost));
+}
+
 /** لأداة Prisma CLI (migrate): اتصال مباشر — لا pooler (advisory locks) */
 export function getDatabaseUrlForPrismaMigrate(): string {
   const direct = firstDirectPostgresUrl();
-  if (direct) {
-    return applyMigrateConnectionParams(
-      appendSslModeRequireForRemoteHosts(stripPgbouncerQueryParams(direct))
-    );
-  }
+  if (direct) return normalizeMigratePostgresUrl(direct);
   const pooled = firstPostgresUrl();
-  if (pooled) {
-    const unpooled = neonPoolerHostToDirect(pooled);
-    return applyMigrateConnectionParams(
-      appendSslModeRequireForRemoteHosts(stripPgbouncerQueryParams(unpooled))
-    );
-  }
+  if (pooled) return normalizeMigratePostgresUrl(pooled);
   return LOCAL_DEV_DEFAULT;
 }
 
