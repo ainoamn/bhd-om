@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { updateBookingStatus, createBooking, updateBooking, deleteBooking, hasBookingFinancialLinkage, syncPaidBookingsToAccounting, getBookingDisplayName, isCompanyBooking, requestBookingCancellation, hasPendingCancellationRequest, canCreateBooking, type PropertyBooking, type BookingStatus } from '@/lib/data/bookings';
@@ -13,7 +13,8 @@ import { migrateLegacyBookingIdentityDocumentsForBookings } from '@/lib/data/mig
 import { getChecksByBooking, areAllChecksApproved } from '@/lib/data/bookingChecks';
 import { getDocumentUploadLink, openWhatsAppWithMessage, openEmailWithMessage } from '@/lib/documentUploadLink';
 import { getPropertyBookingTerms } from '@/lib/data/bookingTerms';
-import { searchContacts, getContactDisplayName, getContactById, findContactByPhoneOrEmail, isOmaniNationality, isCompanyContact } from '@/lib/data/addressBook';
+import { searchContacts, getContactDisplayName, isOmaniNationality, isCompanyContact, type Contact } from '@/lib/data/addressBook';
+import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
 import { getActiveBankAccounts, getDefaultBankAccount, getBankAccountById } from '@/lib/data/bankAccounts';
 import ContactFormModal from '@/components/admin/ContactFormModal';
 import AddUnitModal from '@/components/admin/AddUnitModal';
@@ -125,6 +126,17 @@ export default function AdminBookingsPage() {
   const unitDropdownRef = useRef<HTMLDivElement>(null);
   const contactDropdownRef = useRef<HTMLDivElement>(null);
 
+  const {
+    contacts: addressBookContacts,
+    loading: addressBookLoading,
+    refresh: refreshAddressBookContacts,
+  } = useServerAddressBookContacts();
+
+  const contactById = useCallback(
+    (id: string): Contact | undefined => addressBookContacts.find((c) => c.id === id),
+    [addressBookContacts]
+  );
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (propertyDropdownRef.current && !propertyDropdownRef.current.contains(e.target as Node)) setPropertyDropdownOpen(false);
@@ -202,7 +214,10 @@ export default function AdminBookingsPage() {
   const bankAccounts = typeof window !== 'undefined' ? getActiveBankAccounts() : [];
   const defaultBankAccount = typeof window !== 'undefined' ? getDefaultBankAccount() : null;
 
-  const contacts = showManualBooking && typeof window !== 'undefined' ? searchContacts(contactSearch) : [];
+  const contacts = useMemo(() => {
+    if (!showManualBooking) return [];
+    return searchContacts(contactSearch, false, addressBookContacts);
+  }, [showManualBooking, contactSearch, addressBookContacts]);
 
   const getUnitDisplay = (propertyId: number, unitKey?: string) => {
     const dataOverrides = getPropertyDataOverrides();
@@ -972,7 +987,7 @@ export default function AdminBookingsPage() {
                 e.preventDefault();
                 const propId = parseInt(manualForm.propertyId, 10);
                 const prop = getPropertyById(propId, dataOverrides);
-                const contact = manualForm.contactId ? getContactById(manualForm.contactId) : null;
+                const contact = manualForm.contactId ? contactById(manualForm.contactId) : null;
                 if (!prop || !manualForm.propertyId || !contact) {
                   alert(ar ? 'يرجى اختيار العميل من دفتر العناوين أو إضافة جهة اتصال جديدة.' : 'Please select a client from the address book or add a new contact.');
                   return;
@@ -1301,7 +1316,7 @@ export default function AdminBookingsPage() {
                   <input
                     type="text"
                     value={manualForm.contactId ? (() => {
-                      const c = getContactById(manualForm.contactId);
+                      const c = contactById(manualForm.contactId);
                       if (!c) return contactSearch;
                       const parts = [getContactDisplayName(c, locale), c.phone];
                       if (c.civilId?.trim()) parts.push(c.civilId);
@@ -1335,7 +1350,9 @@ export default function AdminBookingsPage() {
                 </div>
                 {contactDropdownOpen && (
                   <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
-                    {contacts.length === 0 ? (
+                    {addressBookLoading ? (
+                      <div className="p-4 text-center text-gray-500 text-sm">{ar ? 'جاري تحميل دفتر العناوين…' : 'Loading address book…'}</div>
+                    ) : contacts.length === 0 ? (
                       <div className="p-4 text-center text-gray-500 text-sm">{ar ? 'لا توجد نتائج' : 'No results'}</div>
                     ) : (
                       contacts.slice(0, 20).map((c) => (
@@ -1535,11 +1552,13 @@ export default function AdminBookingsPage() {
           });
           setContactDataConfirmedForBooking(true);
           setShowAddContact(false);
+          void refreshAddressBookContacts();
         }}
         initialName={contactSearch}
         initialEmail=""
         initialPhone=""
         locale={locale}
+        existingContacts={addressBookContacts}
       />
       <ContactFormModal
         open={!!showEditContactForBooking}
@@ -1551,9 +1570,11 @@ export default function AdminBookingsPage() {
           });
           setContactDataConfirmedForBooking(true);
           setShowEditContactForBooking(null);
+          void refreshAddressBookContacts();
         }}
         editContactId={showEditContactForBooking}
         locale={locale}
+        existingContacts={addressBookContacts}
       />
       <AddUnitModal
         open={showAddUnit}
