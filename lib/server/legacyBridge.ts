@@ -4,7 +4,7 @@
  */
 import type { User, UserRole } from '@prisma/client';
 import type { Contact, ContactCategory, AuthorizedRepresentative } from '@/lib/data/addressBook';
-import { getContactDisplayName } from '@/lib/data/addressBook';
+import { getContactDisplayName, newContactId, generateContactSerialNumberFromList } from '@/lib/data/addressBook';
 import { ADMIN_PERMISSIONS, type AdminPermission } from '@/lib/auth/adminPermissions';
 import { findManyAddressBookContactsOrHeal, withAddressBookSchemaHeal } from '@/lib/server/addressBookDbCompat';
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
@@ -443,20 +443,39 @@ export function mapLegacyAddressEntryToContact(
   };
 }
 
-/** يرفع تعديلات دفتر العناوين من النظام القديم إلى PostgreSQL */
+/** يرفع تعديلات دفتر العناوين من النظام القديم إلى PostgreSQL (إنشاء أو تحديث) */
 export async function syncLegacyAddressEntryToDatabase(
   entry: LegacyBridgeAddressEntry
 ): Promise<Contact | null> {
-  const contactId = str(entry.siteContactId) || str(entry.id);
-  if (!contactId) return null;
+  if (!str(entry.name) && !str(entry.commercialRegNo)) return null;
 
-  const row = await withAddressBookSchemaHeal(prisma, () =>
-    prisma.addressBookContact.findFirst({
-      where: { OR: [{ contactId }, { id: contactId }] },
-    })
-  );
+  let contactId = str(entry.siteContactId) || str(entry.id);
+  const row = contactId
+    ? await withAddressBookSchemaHeal(prisma, () =>
+        prisma.addressBookContact.findFirst({
+          where: { OR: [{ contactId }, { id: contactId }] },
+        })
+      )
+    : null;
   const existing = row?.data ? (row.data as unknown as Contact) : null;
+
+  if (!contactId) {
+    contactId = newContactId();
+  }
+
   const merged = mapLegacyAddressEntryToContact(entry, existing);
+  merged.id = contactId;
+
+  if (!merged.serialNumber) {
+    const allRows = await findManyAddressBookContactsOrHeal(prisma);
+    const allContacts = allRows
+      .map((r) => r.data as unknown as Contact)
+      .filter((c) => c && typeof c === 'object');
+    merged.serialNumber = generateContactSerialNumberFromList(merged.category || 'TENANT', allContacts);
+  }
+
+  merged.createdAt = merged.createdAt || new Date().toISOString();
+  merged.updatedAt = new Date().toISOString();
 
   const ident = await assertAddressBookIdentityUnique(
     merged as unknown as Record<string, unknown>,
@@ -874,12 +893,15 @@ function applyBridge(data){
     localStorage.setItem('bhd_site_integrated','1');
     if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));
     if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));
-    if(Array.isArray(data.addressBook)&&data.addressBook.length&&!legacyAddressBookRecentlyWiped()){
+    if(Array.isArray(data.addressBook)&&data.addressBook.length){
+      var skipAb=legacyAddressBookRecentlyWiped()&&!window.__bhdForceAddressBookBridgeMerge;
+      if(!skipAb){
       var existing=[];
       try{existing=JSON.parse(localStorage.getItem('bhd_address_book')||'[]');}catch(e){existing=[];}
       if(!Array.isArray(existing))existing=[];
       var mergedAb=abMergeAddressBooks(existing,data.addressBook);
       localStorage.setItem('bhd_address_book',JSON.stringify(mergedAb));
+      }
     }
     if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
     window.dispatchEvent(new Event('bhd-site-bridge-applied'));
@@ -903,7 +925,11 @@ function fetchFullBridge(){
   return fetch('/api/admin/legacy-bridge/bootstrap',{credentials:'include',cache:'no-store'})
     .then(function(r){return r.ok?r.json():null;})
     .then(function(d){
-      if(d)applyBridge(d);
+      if(d){
+        window.__bhdForceAddressBookBridgeMerge=true;
+        applyBridge(d);
+        window.__bhdForceAddressBookBridgeMerge=false;
+      }
       return d;
     })
     .catch(function(){return null;});

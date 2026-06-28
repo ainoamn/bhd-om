@@ -18220,7 +18220,7 @@
 
     async function pushAddressBookEntryToSiteServer(entry) {
         if (localStorage.getItem('bhd_site_integrated') !== '1') return null;
-        if (!entry || !(toStr(entry.siteContactId) || toStr(entry.id))) return null;
+        if (!entry || !toStr(entry.name)) return null;
         try {
             const r = await fetch('/api/admin/legacy-bridge/address-book/sync', {
                 method: 'POST',
@@ -18233,6 +18233,104 @@
         } catch (_ePush) {
             return null;
         }
+    }
+
+    function applySiteSavedContactToLegacyEntry(idx, saved) {
+        if (idx < 0 || !saved || !addressBookEntries[idx]) return;
+        const ent = addressBookEntries[idx];
+        if (saved.id) {
+            ent.siteContactId = toStr(saved.id);
+            ent.id = toStr(saved.id);
+        }
+        ent.siteManaged = true;
+        ent.source = 'bhd-om';
+        if (saved.serialNumber) ent.serialNumber = toStr(saved.serialNumber);
+        addressBookEntries[idx] = ent;
+        localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+    }
+
+    function buildAddressBookEntryFromPartyFormData(d) {
+        const fd = d && typeof d === 'object' ? d : getFormDataReservationSafeOrFallback();
+        const isCo = toStr(fd.tenantEntityType) === 'company';
+        if (isCo) {
+            return {
+                type: 'company',
+                name: toStr(fd.tenantNameAr),
+                nameEn: toStr(fd.tenantNameEn),
+                commercialRegNo: toStr(fd.tenantCommercialRegNo),
+                commercialRegExpiryDate: toStr(fd.tenantCommercialRegExpiryDate),
+                mobile: toStr(fd.tenantMobile),
+                extraMobile: toStr(fd.tenantCompanyExtraMobile),
+                email: toStr(fd.tenantEmail),
+                building: toStr(fd.buildingNo),
+                unit: toStr(fd.flatNo),
+                source: 'manual',
+                updatedAt: new Date().toISOString()
+            };
+        }
+        return {
+            type: 'tenant',
+            name: toStr(fd.tenantNameAr),
+            nameEn: toStr(fd.tenantNameEn),
+            mobile: toStr(fd.tenantMobile),
+            extraMobile: toStr(fd.tenantCompanyExtraMobile),
+            idNo: toStr(fd.tenantId),
+            email: toStr(fd.tenantEmail),
+            passport: toStr(fd.tenantPassport),
+            nationality: toStr(fd.tenantNationality) || 'عماني / Omani',
+            building: toStr(fd.buildingNo),
+            unit: toStr(fd.flatNo),
+            source: 'manual',
+            updatedAt: new Date().toISOString()
+        };
+    }
+
+    function upsertAddressBookPartyFromFormData(formData) {
+        const d = formData && typeof formData === 'object' ? formData : getFormDataReservationSafeOrFallback();
+        const built = buildAddressBookEntryFromPartyFormData(d);
+        if (!toStr(built.name)) return -1;
+        let idx = findAddressBookTenantIndexForData(d);
+        if (idx >= 0) {
+            const prev = addressBookEntries[idx];
+            addressBookEntries[idx] = mergeAddressBookEntryPreferRich(prev, {
+                ...prev,
+                ...built,
+                updatedAt: new Date().toISOString()
+            });
+        } else {
+            addressBookEntries.unshift(built);
+            idx = 0;
+        }
+        try {
+            window.__bhdDedupeAddressBook?.();
+            idx = findAddressBookTenantIndexForData(d);
+        } catch (_eDed) {}
+        localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+        pushAddressBookEntryToSiteServer(addressBookEntries[idx >= 0 ? idx : 0]).then((saved) => {
+            if (saved) applySiteSavedContactToLegacyEntry(idx >= 0 ? idx : 0, saved);
+        }).catch(() => {});
+        try {
+            renderAddressBookTable();
+            renderAddressBookTenantSelect();
+        } catch (_eAbUi) {}
+        return idx;
+    }
+
+    function ensurePartyInAddressBookFromFormData(formData) {
+        try {
+            loadDashboardAux(true, { fast: true });
+        } catch (_eLd) {}
+        const d = formData && typeof formData === 'object' ? formData : getFormDataReservationSafeOrFallback();
+        if (findAddressBookTenantIndexForData(d) >= 0) return true;
+        const name = toStr(d.tenantNameAr) || toStr(d.tenantNameEn);
+        if (!name) return false;
+        if (toStr(d.tenantEntityType) === 'company') {
+            if (!toStr(d.tenantCommercialRegNo) && !toStr(d.tenantMobile)) return false;
+        } else if (!toStr(d.tenantMobile) && !toStr(d.tenantId)) {
+            return false;
+        }
+        upsertAddressBookPartyFromFormData(d);
+        return findAddressBookTenantIndexForData(d) >= 0;
     }
 
     function findAddressBookTenantIndexForContract() {
@@ -20682,9 +20780,6 @@ function getEmptyCompanySignatory() {
             try {
                 window.__bhdDedupeAddressBook?.();
             } catch (_eDedupeCo) {}
-            try {
-                await pushAddressBookEntryToSiteServer(finalCoEntry);
-            } catch (_eSitePushCo) {}
             renderAddressBookTable();
             try {
                 await syncBhdKvToServer();
@@ -20693,6 +20788,10 @@ function getEmptyCompanySignatory() {
                 addressBookEditorState.mode === 'edit' && addressBookEditorState.index >= 0
                     ? addressBookEditorState.index
                     : 0;
+            try {
+                const siteSavedCo = await pushAddressBookEntryToSiteServer(addressBookEntries[coIdx]);
+                if (siteSavedCo) applySiteSavedContactToLegacyEntry(coIdx, siteSavedCo);
+            } catch (_eSitePushCo2) {}
             const syncedCo = syncContractTenantFromAddressBookIfPending(coIdx);
             closeAddressBookEntryModal();
             if (syncedCo) {
@@ -20768,9 +20867,6 @@ function getEmptyCompanySignatory() {
         try {
             window.__bhdDedupeAddressBook?.();
         } catch (_eDedupeSave) {}
-        try {
-            await pushAddressBookEntryToSiteServer(finalEntry);
-        } catch (_eSitePush) {}
         renderAddressBookTable();
         try {
             await syncBhdKvToServer();
@@ -20779,6 +20875,10 @@ function getEmptyCompanySignatory() {
             addressBookEditorState.mode === 'edit' && addressBookEditorState.index >= 0
                 ? addressBookEditorState.index
                 : 0;
+        try {
+            const siteSaved = await pushAddressBookEntryToSiteServer(addressBookEntries[savedIdx]);
+            if (siteSaved) applySiteSavedContactToLegacyEntry(savedIdx, siteSaved);
+        } catch (_eSitePushPerson) {}
         const synced = syncContractTenantFromAddressBookIfPending(savedIdx);
         closeAddressBookEntryModal();
         if (synced) {
@@ -20804,7 +20904,12 @@ function getEmptyCompanySignatory() {
                     }
                 };
                 if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
-                    window.__bhdRefreshAddressBookFromSite().then(finish).catch(finish);
+                    window.__bhdForceAddressBookBridgeMerge = true;
+                    window.__bhdRefreshAddressBookFromSite().then(finish).catch(finish).finally(() => {
+                        try {
+                            delete window.__bhdForceAddressBookBridgeMerge;
+                        } catch (_eClrForce) {}
+                    });
                     return;
                 }
                 if (typeof window.__bhdReapplySiteBridge === 'function') {
@@ -47455,6 +47560,9 @@ function getEmptyCompanySignatory() {
 
     function validateReservationTenantAddressBookCompleteOrAlert(formData) {
         const d = formData || getReservationFormData();
+        if (!findTenantAddressBookEntryForReservation(null, d)) {
+            ensurePartyInAddressBookFromFormData(d);
+        }
         const entry = findTenantAddressBookEntryForReservation(null, d);
         if (!entry) {
             alert(
@@ -53258,6 +53366,9 @@ function getEmptyCompanySignatory() {
             setReservationFormFlowActive(false);
         } catch (_eClrConv) {}
         applyObjectToContractFormFields(d);
+        try {
+            ensurePartyInAddressBookFromFormData(d);
+        } catch (_eConvAb) {}
         if (!toStr(document.getElementById('buildingNo')?.value)) {
             const bel = document.getElementById('buildingNo');
             if (bel) bel.value = toStr(r.building);
@@ -66064,6 +66175,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
     }
 
     function ensureRelatedDataCompleteness() {
+        try {
+            ensurePartyInAddressBookFromFormData();
+        } catch (_eEnsureParty) {}
         const gaps = collectContractRelatedDataGaps();
         if (!gaps.length) return true;
         contractDataGapFixes = gaps;
