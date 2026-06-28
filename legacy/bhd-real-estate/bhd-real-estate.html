@@ -7173,6 +7173,7 @@
                 <label data-ar="استيراد المستأجر أو شركة من دفتر العناوين" data-en="Import tenant or company from address book">استيراد المستأجر أو شركة من دفتر العناوين / Import tenant or company from address book</label>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
                     <select id="resTenantAddressBookSelect" style="min-width:260px;flex:1 1 300px"></select>
+                    <input type="hidden" id="resTenantSiteContactId" value="">
                     <button type="button" class="btn-outline" onclick="applySelectedAddressBookTenantToReservationForm()" data-ar="تعبئة البيانات" data-en="Fill details">⬇️ تعبئة البيانات / Fill party details</button>
                     <button type="button" class="btn-outline" onclick="openQuickAddTenantForContract()" data-ar="إضافة شخص كمستأجر" data-en="Add tenant person">➕ إضافة شخص كمستأجر / Add tenant (person)</button>
                     <button type="button" class="btn-outline" onclick="openQuickAddCompanyTenantForContract()" data-ar="إضافة شركة كمستأجر" data-en="Add tenant company">➕ إضافة شركة كمستأجر / Add tenant (company)</button>
@@ -16923,7 +16924,9 @@
     }
 
     function getAddressBookIssues(entry, options = {}) {
-        const forReservation = options.forReservation === true;
+        if (options.forReservation === true) {
+            return getAddressBookIssuesForReservation(entry);
+        }
         const issues = [];
         if (toStr(entry?.type) === 'company') {
             return getAddressBookCompanyIssues(entry);
@@ -16953,7 +16956,7 @@
         requireField(t('الاسم', 'Name'), entry?.name);
         requireField(t('الجوال', 'Mobile'), entry?.mobile);
         requireField(t('الرقم المدني', 'ID'), entry?.idNo);
-        if (!isOwner && !forReservation && toStr(entry?.source) !== 'manual') {
+        if (!isOwner && toStr(entry?.source) !== 'manual') {
             requireField(t('العقار', 'Property'), entry?.building);
         }
 
@@ -16973,7 +16976,7 @@
     }
 
     function getAddressBookIssuesForReservation(entry) {
-        if (!entry || !toStr(entry.name)) {
+        if (!isAddressBookReservationPartyEntry(entry)) {
             return [`${t('المستأجر', 'Tenant')}: ${t('غير موجود في الدفتر أو النوع غير صالح.', 'Not found in address book or invalid.')}`];
         }
         if (toStr(entry.type) === 'company') {
@@ -18834,10 +18837,67 @@ function getEmptyCompanySignatory() {
         });
     }
 
+    function normalizeAddressBookPartyMatchText(s) {
+        return toStr(s)
+            .trim()
+            .replace(/\s+/g, ' ')
+            .toLowerCase()
+            .replace(/[أإآٱ]/g, 'ا')
+            .replace(/[ة]/g, 'ه')
+            .replace(/[ى]/g, 'ي');
+    }
+
+    function addressBookPartyNamesMatch(abName, formName) {
+        const a = normalizeAddressBookPartyMatchText(abName);
+        const b = normalizeAddressBookPartyMatchText(formName);
+        if (!a || !b) return false;
+        if (a === b) return true;
+        if (a.includes(b) || b.includes(a)) return true;
+        return false;
+    }
+
+    /** جهات دفتر العناوين (PostgreSQL أو محلي) القابلة للحجز — عميل/مستأجر/شركة… وليس مالك/مورد */
+    function isAddressBookReservationPartyEntry(r) {
+        if (!r || !toStr(r.name).trim()) return false;
+        const type = toStr(r.type).toLowerCase();
+        if (type === 'company') return true;
+        if (type === 'owner' || type === 'vendor') return false;
+        return type === 'tenant' || type === 'client' || type === 'employee' || type === 'partner' || type === 'government' || type === 'other';
+    }
+
+    function addressBookEntryMatchesReservationForm(entry, fd) {
+        const tenantId = toStr(fd.tenantId).trim();
+        const tenantNameAr = toStr(fd.tenantNameAr).trim();
+        const tenantNameEn = toStr(fd.tenantNameEn).trim().toLowerCase();
+        const tenantMobile = toStr(fd.tenantMobile).trim();
+        const tenantCr = toStr(fd.tenantCommercialRegNo).trim();
+        const tenantCrNorm = normalizeCommercialRegComparable(tenantCr);
+        const wantCo = toStr(fd.tenantEntityType) === 'company';
+        const siteId = toStr(fd.tenantSiteContactId).trim();
+        if (siteId && (toStr(entry.siteContactId) === siteId || toStr(entry.id) === siteId)) return true;
+        if (!isAddressBookReservationPartyEntry(entry)) return false;
+        if (wantCo) {
+            if (toStr(entry.type) !== 'company') return false;
+            const crAb = normalizeCommercialRegComparable(entry.commercialRegNo);
+            if (tenantCrNorm && crAb && tenantCrNorm === crAb) return true;
+            if (tenantCr && toStr(entry.commercialRegNo).trim() === tenantCr) return true;
+            if (addressBookPartyNamesMatch(entry.name, tenantNameAr)) return true;
+            if (tenantNameEn && normalizeAddressBookPartyMatchText(entry.nameEn) === tenantNameEn) return true;
+            if (tenantMobile && toStr(entry.mobile).trim() === tenantMobile) return true;
+            return false;
+        }
+        if (toStr(entry.type) === 'company') return false;
+        if (tenantId && toStr(entry.idNo).trim() === tenantId) return true;
+        if (addressBookPartyNamesMatch(entry.name, tenantNameAr)) return true;
+        if (tenantNameEn && normalizeAddressBookPartyMatchText(entry.nameEn) === tenantNameEn) return true;
+        if (tenantMobile && toStr(entry.mobile).trim() === tenantMobile) return true;
+        return false;
+    }
+
     function buildAddressBookTenantSelectOptionsHtml() {
         const partyRows = addressBookEntries
             .map((r, ix) => ({ r, ix }))
-            .filter(({ r }) => (r.type === 'tenant' || r.type === 'company') && toStr(r.name));
+            .filter(({ r }) => isAddressBookReservationPartyEntry(r));
         return [
             `<option value="">${t('اختر جهة من دفتر العناوين — شخص أو شركة', 'Select from address book — person or company')}</option>`,
             ...partyRows.map(({ r, ix }) => {
@@ -20366,7 +20426,7 @@ function getEmptyCompanySignatory() {
     }
 
     function applyAddressBookTenantToForm(entry, opt = {}) {
-        if (!entry || (toStr(entry.type) !== 'tenant' && toStr(entry.type) !== 'company')) return;
+        if (!isAddressBookReservationPartyEntry(entry)) return;
         const allowWhenDraftLocked = opt.allowWhenDraftLocked === true;
         const skipBuildingUnit = opt.skipBuildingUnit === true;
         const bLoc = toStr(document.getElementById('buildingNo')?.value);
@@ -21556,7 +21616,8 @@ function getEmptyCompanySignatory() {
         graceDays: 'resGraceDays',
         startDate: 'resStartDate',
         graceAmount: 'resGraceAmount',
-        tenantNationality: 'resTenantNationality'
+        tenantNationality: 'resTenantNationality',
+        tenantSiteContactId: 'resTenantSiteContactId'
     };
 
     function resFormEl(key) {
@@ -21637,6 +21698,7 @@ function getEmptyCompanySignatory() {
             paymentSchedule: [],
             paymentScheduleJson: '[]',
             tenantNationality: resFormVal('tenantNationality'),
+            tenantSiteContactId: resFormVal('tenantSiteContactId'),
             contractMandatoryDocsJson: '{}',
             contractOtherDocsJson: '[]'
         };
@@ -21816,9 +21878,10 @@ function getEmptyCompanySignatory() {
     }
 
     function applyAddressBookTenantToReservationForm(entry) {
-        if (!entry || (toStr(entry.type) !== 'tenant' && toStr(entry.type) !== 'company')) return;
+        if (!isAddressBookReservationPartyEntry(entry)) return;
         const isCo = toStr(entry.type) === 'company';
         resFormSet('tenantEntityType', isCo ? 'company' : 'person');
+        resFormSet('tenantSiteContactId', toStr(entry.siteContactId || entry.id));
         resFormSet('tenantNameAr', toStr(entry.name));
         resFormSet('tenantNameEn', toStr(entry.nameEn || entry.name));
         resFormSet('tenantMobile', toStr(entry.mobile));
@@ -52596,32 +52659,11 @@ function getEmptyCompanySignatory() {
         );
     }
     function findTenantAddressBookEntryForReservation(reservation, formData) {
-        const fd = formData || {};
-        const tenantId = toStr(fd.tenantId).trim();
-        const tenantNameAr = toStr(fd.tenantNameAr).trim();
-        const tenantNameEn = toStr(fd.tenantNameEn).trim().toLowerCase();
-        const tenantMobile = toStr(fd.tenantMobile || reservation?.phone).trim();
-        const tenantCr = toStr(fd.tenantCommercialRegNo).trim();
-        const tenantCrNorm = normalizeCommercialRegComparable(tenantCr);
-        const wantCo = toStr(fd.tenantEntityType) === 'company';
-        return addressBookEntries.find((x) => {
-            if (wantCo) {
-                if (toStr(x.type) !== 'company') return false;
-                const crAb = normalizeCommercialRegComparable(x.commercialRegNo);
-                if (tenantCrNorm && crAb && tenantCrNorm === crAb) return true;
-                if (tenantCr && toStr(x.commercialRegNo).trim() === tenantCr) return true;
-                if (tenantNameAr && toStr(x.name).trim() === tenantNameAr) return true;
-                if (tenantNameEn && toStr(x.nameEn).trim().toLowerCase() === tenantNameEn) return true;
-                if (tenantMobile && toStr(x.mobile).trim() === tenantMobile) return true;
-                return false;
-            }
-            if (toStr(x.type) !== 'tenant') return false;
-            if (tenantId && toStr(x.idNo).trim() === tenantId) return true;
-            if (tenantNameAr && toStr(x.name).trim() === tenantNameAr) return true;
-            if (tenantNameEn && toStr(x.nameEn).trim().toLowerCase() === tenantNameEn) return true;
-            if (tenantMobile && toStr(x.mobile).trim() === tenantMobile) return true;
-            return false;
-        }) || null;
+        const fd = { ...(formData || {}) };
+        if (!toStr(fd.tenantMobile).trim() && reservation?.phone) {
+            fd.tenantMobile = toStr(reservation.phone);
+        }
+        return addressBookEntries.find((x) => addressBookEntryMatchesReservationForm(x, fd)) || null;
     }
 
     function buildReservationDocumentHtml(r) {
@@ -65108,31 +65150,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             const idx = addressBookEntries.indexOf(entry);
             return idx >= 0 ? idx : -1;
         }
-        const wantCo = toStr(d.tenantEntityType) === 'company';
-        const nameAr = toStr(d.tenantNameAr);
-        const nameEn = toStr(d.tenantNameEn).toLowerCase();
-        const civil = toStr(d.tenantId);
-        const cr = toStr(d.tenantCommercialRegNo);
-        const crNorm = normalizeCommercialRegComparable(cr);
-        const mobile = toStr(d.tenantMobile);
-        return addressBookEntries.findIndex((x) => {
-            if (wantCo) {
-                if (toStr(x.type) !== 'company') return false;
-                const abCr = normalizeCommercialRegComparable(x.commercialRegNo);
-                if (crNorm && abCr && abCr === crNorm) return true;
-                if (cr && toStr(x.commercialRegNo) === cr) return true;
-                if (nameAr && toStr(x.name) === nameAr) return true;
-                if (nameEn && toStr(x.nameEn).toLowerCase() === nameEn) return true;
-                if (mobile && toStr(x.mobile) === mobile) return true;
-                return false;
-            }
-            if (toStr(x.type) !== 'tenant') return false;
-            if (civil && toStr(x.idNo) === civil) return true;
-            if (nameAr && toStr(x.name) === nameAr) return true;
-            if (nameEn && toStr(x.nameEn).toLowerCase() === nameEn) return true;
-            if (mobile && toStr(x.mobile) === mobile) return true;
-            return false;
-        });
+        return addressBookEntries.findIndex((x) => addressBookEntryMatchesReservationForm(x, d));
     }
 
     function extractValidationBullets(msg) {

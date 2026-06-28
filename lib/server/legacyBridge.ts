@@ -505,6 +505,7 @@ function reloadAddressBookFromBridge(){
     if(!Array.isArray(entries))return;
     if(typeof addressBookEntries!=='undefined')addressBookEntries=entries;
     if(typeof renderAddressBookTable==='function'&&document.body&&document.body.classList.contains('mode-addressbook'))renderAddressBookTable();
+    if(typeof renderAddressBookTenantSelect==='function'&&(document.body.classList.contains('mode-reservations')||document.body.classList.contains('mode-contracts')))renderAddressBookTenantSelect();
   }catch(e){console.warn('[BHD] reloadAddressBookFromBridge',e);}
 }
 window.__bhdSiteLocale=function(){
