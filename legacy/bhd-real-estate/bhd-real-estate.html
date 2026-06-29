@@ -10243,8 +10243,18 @@
         return any;
     }
 
-    /** تُبقى عند «تصفية كل البيانات» (حسابات + مظهر) / Kept on full data wipe */
-    const BHD_KEYS_KEEP_ON_FULL_WIPE = ['bhd_users_registry', 'bhd_auth_session', 'bhd_theme_mode', 'bhd_kv_wipe_guard'];
+    /** تُبقى عند «تصفية كل البيانات» (حسابات + مظهر + علامات التصفية) / Kept on full data wipe */
+    const BHD_KEYS_KEEP_ON_FULL_WIPE = [
+        'bhd_users_registry',
+        'bhd_auth_session',
+        'bhd_theme_mode',
+        'bhd_kv_wipe_guard',
+        'bhd_last_data_wipe',
+        'bhd_cloud_wipe_confirmed_at',
+        'bhd_last_data_wipe_scope',
+        'bhd_hide_demo_units',
+        'bhd_use_empty_base_units'
+    ];
 
     /**
      * على bhd-om.com + Neon: PostgreSQL (LegacyAppKvStore) مصدر الحقيقة عند السحب.
@@ -10559,7 +10569,11 @@
 
     function markBhdCloudWipeConfirmed() {
         try {
-            localStorage.setItem(BHD_CLOUD_WIPE_CONFIRMED_KEY, String(Date.now()));
+            const now = Date.now();
+            localStorage.setItem(BHD_CLOUD_WIPE_CONFIRMED_KEY, String(now));
+            if (!localStorage.getItem('bhd_last_data_wipe')) {
+                localStorage.setItem('bhd_last_data_wipe', String(now));
+            }
         } catch (_eWipeMark) {}
     }
 
@@ -10568,8 +10582,13 @@
         try {
             const wipedAt = parseInt(localStorage.getItem('bhd_last_data_wipe') || '0', 10);
             const confirmedAt = parseInt(localStorage.getItem(BHD_CLOUD_WIPE_CONFIRMED_KEY) || '0', 10);
+            const windowMs = 24 * 60 * 60 * 1000;
+            const now = Date.now();
+            if (confirmedAt && Number.isFinite(confirmedAt) && now - confirmedAt < windowMs) {
+                if (!wipedAt || !Number.isFinite(wipedAt) || confirmedAt >= wipedAt - 5000) return true;
+            }
             if (!wipedAt || !Number.isFinite(wipedAt)) return false;
-            if (Date.now() - wipedAt > 24 * 60 * 60 * 1000) return false;
+            if (now - wipedAt > windowMs) return false;
             if (confirmedAt >= wipedAt) return true;
             if (bhdLocalStorageHasSubstantiveData()) return false;
             return true;
@@ -10578,8 +10597,11 @@
         }
     }
 
+    function bhdIsPostWipeQuarantineActive() {
+        return bhdWipeInProgressActive() || shouldSkipSiteKvPullAfterLocalWipe();
+    }
+
     function bhdShouldBlockNeonKvPull(opt) {
-        if (opt && opt.force === true) return false;
         if (bhdWipeInProgressActive()) return true;
         return shouldSkipSiteKvPullAfterLocalWipe();
     }
@@ -10607,6 +10629,18 @@
                 if (typeof renderOperationsTable === 'function') renderOperationsTable();
             } catch (_eXTabEmpty) {}
         }
+    }
+
+    function finalizeBhdWipeQuarantineMarkers(scope) {
+        const now = Date.now();
+        try {
+            localStorage.setItem('bhd_last_data_wipe', String(now));
+            localStorage.setItem('bhd_last_data_wipe_scope', toStr(scope || 'all'));
+            if (scope === 'all') {
+                localStorage.setItem('bhd_hide_demo_units', '1');
+                localStorage.setItem('bhd_use_empty_base_units', '1');
+            }
+        } catch (_eWipeFinalize) {}
     }
 
     function bhdLocalHasSubstantiveDataForScope(scope) {
@@ -12449,12 +12483,14 @@
         if (_bhdSiteKvHydrationPromise) return _bhdSiteKvHydrationPromise;
         _bhdSiteKvHydrationPromise = (async () => {
             try {
-                if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+                if (typeof window.__bhdRefreshAddressBookFromSite === 'function' && !bhdIsPostWipeQuarantineActive()) {
                     await window.__bhdRefreshAddressBookFromSite();
                 }
-                try {
-                    await repairAddressBookEntriesFromSite();
-                } catch (_eSiteRepBoot) {}
+                if (!bhdIsPostWipeQuarantineActive()) {
+                    try {
+                        await repairAddressBookEntriesFromSite();
+                    } catch (_eSiteRepBoot) {}
+                }
                 try {
                     window.__bhdDedupeAddressBook?.();
                 } catch (_eDedBoot) {}
@@ -49144,6 +49180,7 @@ function getEmptyCompanySignatory() {
                     return;
                 }
                 markBhdCloudWipeConfirmed();
+                finalizeBhdWipeQuarantineMarkers(scope);
             } else if (siteKvActive && !purgeResult.remoteSkipped && purgeResult.remoteOk === false) {
                 cloudWipeOk = false;
                 alert(
@@ -49156,6 +49193,7 @@ function getEmptyCompanySignatory() {
                 return;
             } else if (purgeResult.remoteOk) {
                 markBhdCloudWipeConfirmed();
+                finalizeBhdWipeQuarantineMarkers(scope);
             }
 
             if (scope === 'accounting') {
@@ -49212,6 +49250,7 @@ function getEmptyCompanySignatory() {
         } catch (_eClrBridge) {}
 
         try {
+            finalizeBhdWipeQuarantineMarkers(scope);
             loadDashboardAux(true);
             if (typeof renderOperationsTable === 'function') renderOperationsTable();
         } catch (_eUiPostWipe) {}
@@ -72122,14 +72161,16 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
         if (siteIntegratedWeb) {
             await probeBhdApi();
-            if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+            if (!bhdIsPostWipeQuarantineActive()) {
+                if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+                    try {
+                        await window.__bhdRefreshAddressBookFromSite();
+                    } catch (_eAbBootPull) {}
+                }
                 try {
-                    await window.__bhdRefreshAddressBookFromSite();
-                } catch (_eAbBootPull) {}
+                    await repairAddressBookEntriesFromSite();
+                } catch (_eAbBootRep) {}
             }
-            try {
-                await repairAddressBookEntriesFromSite();
-            } catch (_eAbBootRep) {}
             try {
                 window.__bhdDedupeAddressBook?.();
             } catch (_eDedBootFull) {}
@@ -72140,14 +72181,16 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 _bhdKvDirtyKeys.clear();
             } catch (_eClrBootDirty) {}
         } else if (bhdApiAvailable && !window.bhdDesktop) {
-            if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+            if (!bhdIsPostWipeQuarantineActive()) {
+                if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
+                    try {
+                        await window.__bhdRefreshAddressBookFromSite();
+                    } catch (_eAbBootPull2) {}
+                }
                 try {
-                    await window.__bhdRefreshAddressBookFromSite();
-                } catch (_eAbBootPull2) {}
+                    await repairAddressBookEntriesFromSite();
+                } catch (_eAbRep2) {}
             }
-            try {
-                await repairAddressBookEntriesFromSite();
-            } catch (_eAbRep2) {}
             await bhdHydrateSiteKvFromServerIfNeeded({ deferIdbMirror: true });
             try {
                 window.__bhdDedupeAddressBook?.();

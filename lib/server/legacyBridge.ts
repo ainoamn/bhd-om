@@ -1034,7 +1034,7 @@ function applyBridge(data){
       }
     }
     if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
-    if(data.contractLifecycle&&typeof data.contractLifecycle==='object'){
+    if(data.contractLifecycle&&typeof data.contractLifecycle==='object'&&!legacyKvRecentlyWipedQuarantine()){
       window._bhdServerContractStatuses=data.contractLifecycle.statuses||{};
       window._bhdServerContractStatusesByUnit=data.contractLifecycle.byUnit||{};
       window._bhdServerContractLifecycleAt=data.contractLifecycle.reconciledAt||'';
@@ -1054,6 +1054,7 @@ function refreshLegacyAuthUiFromBridge(){
   return false;
 }
 window.__bhdRefreshAddressBookFromSite=function(){
+  if(legacyKvRecentlyWipedQuarantine())return Promise.resolve(window.__bhdSiteBridgePayload||null);
   return fetchFullBridge();
 };
 function fetchFullBridge(){
@@ -1125,7 +1126,25 @@ function legacyAddressBookRecentlyWiped(){
     return Array.isArray(arr)&&arr.length===0;
   }catch(e){return false;}
 }
+function legacyKvRecentlyWipedQuarantine(){
+  try{
+    var confirmed=parseInt(localStorage.getItem('bhd_cloud_wipe_confirmed_at')||'0',10);
+    var wiped=parseInt(localStorage.getItem('bhd_last_data_wipe')||'0',10);
+    var now=Date.now();
+    var win=86400000;
+    if(confirmed&&Number.isFinite(confirmed)&&now-confirmed<win&&(!wiped||!Number.isFinite(wiped)||confirmed>=wiped-5000))return true;
+    if(wiped&&Number.isFinite(wiped)&&now-wiped<win){
+      if(confirmed>=wiped)return true;
+      try{
+        var sc=localStorage.getItem('bhd_saved_contracts_by_unit');
+        if(!sc||sc==='{}'||sc==='[]')return true;
+      }catch(e2){}
+    }
+  }catch(e){}
+  return false;
+}
 function shouldSkipFullBridgeFetch(){
+  if(legacyKvRecentlyWipedQuarantine())return true;
   if(legacyAddressBookRecentlyWiped())return true;
   if(!window.__bhdSiteBridgePayload)return!localAddressBookLooksWarm();
   if(bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload))return!localAddressBookLooksWarm();
