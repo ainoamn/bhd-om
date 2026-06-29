@@ -258,6 +258,16 @@ function acctStatusScore(status: unknown, r?: AcctRecord): number {
 }
 
 function acctRecordMergeKey(r: AcctRecord): string {
+  const sourceType = str(r.sourceType);
+  if (sourceType === 'rent' || sourceType === 'vat') {
+    const idx =
+      sourceType === 'vat'
+        ? parseInt(str(r.chequeIndex), 10) || 0
+        : parseInt(str(r.monthIndex), 10) || 0;
+    const unitKey = str(r.unitKey).trim();
+    const ag = str(r.agreementNo).trim();
+    if (unitKey && ag) return `chq:${unitKey}:${ag}:${sourceType}:${idx}`;
+  }
   const linked = str(r.linkedKey).trim();
   if (linked) return `lk:${linked}`;
   const id = str(r.id).trim();

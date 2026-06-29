@@ -12025,6 +12025,12 @@
         muteBhdKvAutoPush(12000);
         invalidateBhdSiteKvRuntimeCaches();
         try {
+            repairDuplicateMultiUnitAccountingEntries();
+        } catch (_eAcctRepMulti) {}
+        try {
+            repairLinkedContractUnitsLifecycleConsistency();
+        } catch (_eAcctRepLinked) {}
+        try {
             loadAccountingRegistry(true);
             loadSavedContractsByUnitMap(true);
         } catch (_eAcctReload) {}
@@ -17315,10 +17321,20 @@
         return !vatChequeRowHasGap(row);
     }
 
+    function isAccountingChequeReceiptApprovedRecord(c) {
+        if (!c) return false;
+        if (c.receiptApprovedAt) return true;
+        return (
+            Array.isArray(c.actions) &&
+            c.actions.some((a) => a && toStr(a.actionType) === 'receipt_confirmed')
+        );
+    }
+
     function resolveAccountingChequeStatusOnContractSync(existing, incoming) {
         const inc = toStr(incoming?.status) || 'awaiting_contract_data';
         if (!existing) return inc;
         const ex = toStr(existing.status);
+        if (isAccountingChequeReceiptApprovedRecord(existing)) return ex || 'pending';
         if (inc === 'awaiting_contract_data') {
             if (ex === 'pending_receipt' || ex === 'awaiting_contract_data' || ex === 'receipt_rejected') return 'awaiting_contract_data';
             return ex || 'awaiting_contract_data';
@@ -36030,13 +36046,16 @@ function getEmptyCompanySignatory() {
     }
 
     function finalizeAccountingContractReceiptSideEffects(building, unit, ref, decision, note) {
+        const primary = resolveContractWorkflowPrimaryUnit(building, unit);
+        const b = primary.building;
+        const u = primary.unit;
         const reg = loadAccountingRegistry();
-        const unitKey = accountingUnitKey(building, unit);
+        const unitKey = accountingUnitKey(b, u);
         recomputeAccountingAccountSummary(reg, unitKey);
         reg._journalLedgerDirty = true;
         saveAccountingRegistry(reg, { deferJournalRebuild: true });
-        mirrorAccountingStatusToContractPayload(building, unit);
-        refreshContractLifecycleAfterAccountingApproval(building, unit);
+        mirrorAccountingStatusToContractPayload(b, u);
+        refreshContractLifecycleAfterAccountingApproval(b, u);
         (async () => {
             try {
                 await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
@@ -40265,6 +40284,7 @@ function getEmptyCompanySignatory() {
                 return true;
             }
             purgeDuplicateLinkedUnitAccountingEntries(reg, b, agreementNo, linked);
+            dedupeAccountingChequesForUnitKey(reg, accountingUnitKey(b, primaryU), agreementNo);
         }
         const unitKey = accountingUnitKey(b, u);
         const existingChequeMap = new Map(reg.cheques.map((c) => [c.linkedKey, c]));
@@ -44374,6 +44394,9 @@ function getEmptyCompanySignatory() {
             </div>`;
             return;
         }
+        try {
+            repairDuplicateMultiUnitAccountingEntries();
+        } catch (_eRepMultiAcct) {}
         const reg = loadAccountingRegistry(true);
         try {
             if (repairAccountingChequesPendingWithoutContractData(reg)) {
@@ -50143,9 +50166,58 @@ function getEmptyCompanySignatory() {
         return touched;
     }
 
+    function accountingChequeLogicalDedupeKey(c) {
+        const idx =
+            toStr(c?.sourceType) === 'vat'
+                ? parseInt(c.chequeIndex, 10) || 0
+                : parseInt(c.monthIndex, 10) || 0;
+        return `${toStr(c.unitKey)}|${toStr(c.agreementNo)}|${toStr(c.sourceType)}|${idx}`;
+    }
+
+    function accountingChequeStatusRank(status, c) {
+        if (isAccountingChequeReceiptApprovedRecord(c)) return 100;
+        const s = toStr(status);
+        if (s === 'pending' || isAccountingChequePaidStatus(s)) return 95;
+        if (s === 'paid_partial' || s === 'paid_cash' || s === 'deferred') return 85;
+        if (s === 'pending_receipt') return 10;
+        if (s === 'awaiting_contract_data') return 5;
+        if (s === 'receipt_rejected') return 0;
+        return 50;
+    }
+
+    function pickBetterAccountingChequeRecord(a, b) {
+        const ra = accountingChequeStatusRank(a?.status, a);
+        const rb = accountingChequeStatusRank(b?.status, b);
+        if (ra !== rb) return ra > rb ? a : b;
+        const ta = Date.parse(toStr(a?.updatedAt) || toStr(a?.receiptApprovedAt) || '') || 0;
+        const tb = Date.parse(toStr(b?.updatedAt) || toStr(b?.receiptApprovedAt) || '') || 0;
+        return ta >= tb ? a : b;
+    }
+
+    /** إزالة شيكات مكررة لنفس الوحدة/العقد/الفهرس — يبقي السجل الأعلى اعتماداً / Drop duplicate cheques for same unit+contract+index */
+    function dedupeAccountingChequesForUnitKey(reg, unitKey, agreementNoOpt) {
+        const ag = toStr(agreementNoOpt);
+        const groups = new Map();
+        (reg.cheques || []).forEach((c) => {
+            if (c.unitKey !== unitKey) return;
+            if (ag && toStr(c.agreementNo) && toStr(c.agreementNo) !== ag) return;
+            const dk = accountingChequeLogicalDedupeKey(c);
+            const prev = groups.get(dk);
+            groups.set(dk, prev ? pickBetterAccountingChequeRecord(prev, c) : c);
+        });
+        if (!groups.size) return false;
+        const keepIds = new Set([...groups.values()].map((c) => c.id));
+        const before = (reg.cheques || []).length;
+        reg.cheques = (reg.cheques || []).filter((c) => {
+            if (c.unitKey !== unitKey) return true;
+            if (ag && toStr(c.agreementNo) && toStr(c.agreementNo) !== ag) return true;
+            return keepIds.has(c.id);
+        });
+        return reg.cheques.length !== before;
+    }
+
     function purgeDuplicateLinkedUnitAccountingEntries(reg, building, agreementNo, linkedUnits) {
         const b = toStr(building);
-        const ag = toStr(agreementNo);
         const linked = Array.isArray(linkedUnits) ? linkedUnits : [];
         if (!b || linked.length <= 1) return false;
         let touched = false;
@@ -50153,14 +50225,17 @@ function getEmptyCompanySignatory() {
             const secUk = accountingUnitKey(b, lu.unit);
             const beforeDep = (reg.deposits || []).length;
             const beforeChq = (reg.cheques || []).length;
-            reg.deposits = (reg.deposits || []).filter((d) => {
-                if (d.unitKey !== secUk) return true;
-                if (ag && toStr(d.agreementNo) === ag) return false;
-                return d.type !== 'security' && d.type !== 'insurance';
-            });
-            reg.cheques = (reg.cheques || []).filter((c) => !(c.unitKey === secUk && (!ag || toStr(c.agreementNo) === ag)));
-            reg.entries = (reg.entries || []).filter((e) => !(e.unitKey === secUk && (!ag || toStr(e.agreementNo) === ag)));
-            if ((reg.deposits || []).length !== beforeDep || (reg.cheques || []).length !== beforeChq) touched = true;
+            const beforeEnt = (reg.entries || []).length;
+            reg.deposits = (reg.deposits || []).filter((d) => d.unitKey !== secUk);
+            reg.cheques = (reg.cheques || []).filter((c) => c.unitKey !== secUk);
+            reg.entries = (reg.entries || []).filter((e) => e.unitKey !== secUk);
+            if (
+                (reg.deposits || []).length !== beforeDep ||
+                (reg.cheques || []).length !== beforeChq ||
+                (reg.entries || []).length !== beforeEnt
+            ) {
+                touched = true;
+            }
         });
         return touched;
     }
@@ -50176,7 +50251,14 @@ function getEmptyCompanySignatory() {
             const gk = getMultiUnitContractGroupKey(p.buildingNo, p.flatNo, p);
             if (processed.has(gk)) return;
             processed.add(gk);
-            if (purgeDuplicateLinkedUnitAccountingEntries(reg, p.buildingNo, toStr(p.agreementNo), linked)) touched = true;
+            const b = toStr(p.buildingNo);
+            const ag = toStr(p.agreementNo);
+            const primaryU = normalizeUnit(linked[0]?.unit || p.flatNo);
+            if (purgeDuplicateLinkedUnitAccountingEntries(reg, b, ag, linked)) touched = true;
+            if (dedupeAccountingChequesForUnitKey(reg, accountingUnitKey(b, primaryU), ag)) touched = true;
+            try {
+                if (syncAccountingFromContractPayload(b, primaryU, p, reg, { skipSave: true })) touched = true;
+            } catch (_eRepSync) {}
         };
         try {
             Object.values(loadTenancyContractDraftsMap()).forEach((e) => scanPayload(e?.payload));
@@ -50243,16 +50325,23 @@ function getEmptyCompanySignatory() {
             perUnitFn(basePayload, b, toStr(basePayload?.flatNo));
             return;
         }
-        linked.forEach((lu) => {
+        const combinedMonthlyRent = sumLinkedContractUnitsMonthlyRent(basePayload);
+        linked.forEach((lu, idx) => {
+            const isPrimary = idx === 0;
             const unitPayload = {
                 ...basePayload,
                 flatNo: toStr(lu.unit),
                 floorDetails: toStr(lu.floorDetails),
                 unitType: toStr(lu.unitType),
-                monthlyRent: toStr(lu.monthlyRent),
+                monthlyRent: isPrimary
+                    ? toStr(combinedMonthlyRent > 0 ? combinedMonthlyRent : lu.monthlyRent)
+                    : toStr(lu.monthlyRent),
                 electricityMeter: toStr(lu.electricityMeter),
                 waterMeter: toStr(lu.waterMeter)
             };
+            if (isPrimary && combinedMonthlyRent > 0) {
+                unitPayload.agreementRent = toStr(combinedMonthlyRent);
+            }
             perUnitFn(unitPayload, b, lu.unit);
         });
     }
@@ -50303,8 +50392,18 @@ function getEmptyCompanySignatory() {
                 };
             });
             const status = baseItem.entry.lifecycleStatus || resolveContractLifecycleStatus(p0);
+            const linkedPayload = { ...p0, linkedContractUnits: linked, linkedContractUnitsJson: JSON.stringify(linked) };
+            const combinedRent = sumLinkedContractUnitsMonthlyRent(linkedPayload);
             const shared = {
                 ...p0,
+                monthlyRent:
+                    combinedRent > 0
+                        ? formatRentAmountForInput(combinedRent)
+                        : toStr(p0.monthlyRent),
+                agreementRent:
+                    combinedRent > 0
+                        ? formatRentAmountForInput(combinedRent)
+                        : toStr(p0.agreementRent || p0.monthlyRent),
                 linkedContractUnits: linked,
                 linkedContractUnitsJson: JSON.stringify(linked)
             };
@@ -61165,7 +61264,7 @@ function getEmptyCompanySignatory() {
         const fallbackMonths = Math.max(1, parseInt(toStr(payload.contractMonths), 10) || 12);
         const n = Math.max(1, period.months || fallbackMonths);
         const extraDays = period.extraDays || 0;
-        const rentRaw = parseFloat(toStr(payload.monthlyRent)) || 0;
+        const rentRaw = getMonthlyRentBaseFromPayload(payload);
         const dayOfMonth = getAgreedRentPaymentDayFromPayload(payload);
         const startStr = toStr(payload.startDate);
         if (!startStr) return [];
@@ -62246,7 +62345,7 @@ function getEmptyCompanySignatory() {
     }
 
     function getSmartTotalsFromPayload(d) {
-        const monthly = parseFloat(d.monthlyRent) || 0;
+        const monthly = getMonthlyRentBaseFromPayload(d);
         const months = parseInt(d.contractMonths, 10) || 0;
         const municipal = parseFloat(calcMunicipalFeesFromPayload(d)) || 0;
         const paymentSchedule = parsePayloadJsonArrayField(d, 'paymentScheduleJson', 'paymentSchedule');
