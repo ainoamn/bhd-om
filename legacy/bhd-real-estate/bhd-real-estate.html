@@ -7594,6 +7594,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="crnLinkedUnitsWrap" style="display:none"></div>
                 <div class="crn-block">
                     <div class="crn-block-title" id="crnNewContractBlockTitle" data-ar="العقد الجديد / New contract" data-en="New contract">العقد الجديد / New contract</div>
                     <p class="crn-summary-line" id="crnNewContractHint" data-ar="يبدأ العقد الجديد في اليوم التالي لانتهاء العقد السابق." data-en="The new contract starts the day after the previous contract ends.">يبدأ العقد الجديد في اليوم التالي لانتهاء العقد السابق. / The new contract starts the day after the previous contract ends.</p>
@@ -10014,7 +10015,14 @@
             }
             if (!ext.payload || typeof ext.payload !== 'object') return;
             const payload = mergeContractPayloadPreferRich(loc.payload, ext.payload);
-            const status = resolveContractLifecycleStatus(payload);
+            const status = pickMergedContractLifecycleStatus(
+                payload,
+                resolveContractLifecycleStatus(payload),
+                loc.lifecycleStatus,
+                loc.payload?.contractSavedStatus,
+                ext.lifecycleStatus,
+                ext.payload?.contractSavedStatus
+            );
             merged[key] = {
                 ...loc,
                 ...ext,
@@ -11707,6 +11715,9 @@
             } else if (document.body.classList.contains('mode-contracts')) {
                 updateContractWorkspaceContextUi();
                 updateSummaryPanel();
+                try {
+                    if (contractsWorkspaceSubview === 'list') renderContractsListPanel();
+                } catch (_eCListLight) {}
             } else if (document.body.classList.contains('mode-reservations')) {
                 updateReservationsWorkspaceUi();
             } else if (document.body.classList.contains('mode-dashboard')) {
@@ -14739,6 +14750,12 @@
 
     function contractPropertyDocumentsComplete(payload) {
         if (!payload || typeof payload !== 'object') return false;
+        if (payload.propertyDocumentsComplete === true || toStr(payload.propertyDocumentsComplete) === 'true') {
+            const docs = parsePropertyDocumentsBundle(payload);
+            if (hasPropertyDocumentCombinedBundle(docs)) return true;
+            if (docs.some((d) => contractAttachmentPresent(d))) return true;
+            if (toStr(payload.propertyDocumentsCompletedAt)) return true;
+        }
         return getMissingPropertyDocumentCategories(payload).length === 0;
     }
 
@@ -15834,7 +15851,7 @@
                 agreementNo: toStr(p.agreementNo),
                 startDate: toStr(p.startDate),
                 endDate: toStr(p.endDate),
-                monthlyRent: formatOMR(p.monthlyRent),
+                monthlyRent: formatContractPayloadRentDisplay(p),
                 statusBilingual: t('مؤرشف / منتهي / Archived / ended', 'Archived / ended / مؤرشف / منتهي'),
                 archivedAt: toStr(row.archivedAt),
                 supersededBy: toStr(row.supersededBy),
@@ -15851,7 +15868,7 @@
                 agreementNo: toStr(currentPayload.agreementNo),
                 startDate: toStr(currentPayload.startDate),
                 endDate: toStr(currentPayload.endDate),
-                monthlyRent: formatOMR(currentPayload.monthlyRent),
+                monthlyRent: formatContractPayloadRentDisplay(currentPayload),
                 statusBilingual: t('حالي / نشط / Current / active', 'Current / active / حالي / نشط'),
                 archivedAt: '',
                 supersededBy: toStr(currentPayload.previousAgreementNo),
@@ -15868,7 +15885,7 @@
                 agreementNo: toStr(draft.renewal?.agreementNo || p.agreementNo),
                 startDate: toStr(draft.renewal?.newStart || p.startDate),
                 endDate: toStr(draft.renewal?.newEnd || p.endDate),
-                monthlyRent: formatOMR(p.monthlyRent),
+                monthlyRent: formatContractPayloadRentDisplay(p),
                 statusBilingual: t('مسودة تجديد / Renewal draft', 'Renewal draft / مسودة تجديد'),
                 archivedAt: '',
                 supersededBy: toStr(draft.previousSnapshot?.agreementNo || p.previousAgreementNo),
@@ -16859,6 +16876,9 @@
     }
 
     function preferRichContractJsonArray(richPayload, poorPayload, jsonKey, arrayKey) {
+        if (jsonKey === 'propertyDocumentsBundleJson' || arrayKey === 'propertyDocumentsBundle') {
+            return mergePropertyDocumentsBundles(richPayload, poorPayload);
+        }
         const a = parsePayloadJsonArrayField(richPayload, jsonKey, arrayKey);
         const b = parsePayloadJsonArrayField(poorPayload, jsonKey, arrayKey);
         if (!a.length && b.length) return b;
@@ -16872,6 +16892,82 @@
                 return s + x;
             }, 0);
         return scoreOf(a) >= scoreOf(b) ? a : b;
+    }
+
+    /** دمج أوراق العقار دون فقدان أي مرفق / Union-merge property papers without losing uploads */
+    function mergePropertyDocumentsBundles(payloadA, payloadB) {
+        const a = parsePropertyDocumentsBundle(payloadA || {});
+        const b = parsePropertyDocumentsBundle(payloadB || {});
+        if (hasPropertyDocumentCombinedBundle(a)) return a;
+        if (hasPropertyDocumentCombinedBundle(b)) return b;
+        const byKey = new Map();
+        const docKey = (d) => toStr(d.category) || toStr(d.titleAr) || toStr(d.titleEn) || toStr(d.name) || '__misc';
+        const docScore = (d) => {
+            let s = contractAttachmentPresent(d) ? 10 : 0;
+            if (toStr(d.relativePath) || toStr(d.fileId) || toStr(d.attachmentRelativePath)) s += 5;
+            if (toStr(d.name)) s += 1;
+            return s;
+        };
+        [...a, ...b].forEach((d) => {
+            if (!d || typeof d !== 'object') return;
+            const k = docKey(d);
+            const prev = byKey.get(k);
+            if (!prev || docScore(d) > docScore(prev)) byKey.set(k, { ...prev, ...d });
+        });
+        return [...byKey.values()];
+    }
+
+    function pickMergedContractLifecycleStatus(mergedPayload, computedStatus, ...storedStatuses) {
+        const computed = toStr(computedStatus) || resolveContractLifecycleStatus(mergedPayload);
+        if (computed === 'active_pending') return computed;
+        let best = computed;
+        let bestRank = getContractLifecycleStateRank(computed);
+        (storedStatuses || []).forEach((s) => {
+            const st = toStr(s);
+            if (!st || st === 'active_pending') return;
+            const r = getContractLifecycleStateRank(st);
+            if (r <= bestRank) return;
+            if (st === 'active' && computed === 'active_docs_pending') {
+                if (
+                    mergedPayload?.propertyDocumentsComplete === true ||
+                    toStr(mergedPayload?.propertyDocumentsComplete) === 'true' ||
+                    toStr(mergedPayload?.propertyDocumentsCompletedAt)
+                ) {
+                    best = st;
+                    bestRank = r;
+                }
+                return;
+            }
+            if (r > bestRank) {
+                best = st;
+                bestRank = r;
+            }
+        });
+        return best;
+    }
+
+    function resolveContractLifecycleStatusFromSavedEntry(saved) {
+        if (!saved?.payload) return 'active_pending';
+        const payload = saved.payload;
+        let computed = 'active_pending';
+        if (!contractFinancialDataComplete(payload)) {
+            computed = 'active_pending';
+        } else if (!contractActivationRequirementsComplete(payload)) {
+            computed = 'active_docs_pending';
+        } else {
+            const acct = resolveContractWorkflowPrimaryUnit(payload.buildingNo, payload.flatNo, payload);
+            if (acct.building && acct.unit && !contractAccountingApprovalsComplete(acct.building, acct.unit, payload)) {
+                computed = 'active_accounting_pending';
+            } else {
+                computed = 'active';
+            }
+        }
+        return pickMergedContractLifecycleStatus(
+            payload,
+            computed,
+            saved.lifecycleStatus,
+            payload.contractSavedStatus
+        );
     }
 
     function mergeContractPayloadPreferRich(existing, incoming) {
@@ -16891,6 +16987,14 @@
             'contractSavedStatus',
             'propertyDocumentsComplete'
         ].forEach((f) => {
+            if (f === 'propertyDocumentsComplete') {
+                out[f] =
+                    rich.propertyDocumentsComplete === true ||
+                    poor.propertyDocumentsComplete === true ||
+                    toStr(rich.propertyDocumentsComplete) === 'true' ||
+                    toStr(poor.propertyDocumentsComplete) === 'true';
+                return;
+            }
             out[f] = toStr(rich[f]) || toStr(poor[f]) || '';
         });
         [
@@ -16921,6 +17025,18 @@
         out.contractSavedAt = toStr(rich.contractSavedAt) || toStr(poor.contractSavedAt) || new Date().toISOString();
         if (rich.propertyDocumentsCompletedAt || poor.propertyDocumentsCompletedAt) {
             out.propertyDocumentsCompletedAt = rich.propertyDocumentsCompletedAt || poor.propertyDocumentsCompletedAt;
+        }
+        const mergedDocs = mergePropertyDocumentsBundles(rich, poor);
+        if (mergedDocs.length) {
+            out.propertyDocumentsBundle = mergedDocs;
+            out.propertyDocumentsBundleJson = JSON.stringify(mergedDocs);
+            if (getMissingPropertyDocumentCategoriesFromDocs(mergedDocs).length === 0) {
+                out.propertyDocumentsComplete = true;
+                if (!out.propertyDocumentsCompletedAt) {
+                    out.propertyDocumentsCompletedAt =
+                        rich.propertyDocumentsCompletedAt || poor.propertyDocumentsCompletedAt || new Date().toISOString();
+                }
+            }
         }
         return out;
     }
@@ -17182,14 +17298,7 @@
         if (cancelReq && toStr(cancelReq.status) === 'pending') return 'cancellation_pending';
         const saved = getSavedContractEntryForUnit(u);
         if (saved) {
-            const payload = saved.payload;
-            if (payload && !contractFinancialDataComplete(payload)) return 'active_pending';
-            if (payload && !contractActivationRequirementsComplete(payload)) return 'active_docs_pending';
-            const acct = resolveContractWorkflowPrimaryUnit(u.building, u.unit, payload);
-            if (acct.building && acct.unit && !contractAccountingApprovalsComplete(acct.building, acct.unit, payload)) {
-                return 'active_accounting_pending';
-            }
-            return 'active';
+            return resolveContractLifecycleStatusFromSavedEntry(saved);
         }
         if (isUnitInTenancyContractDraftMap(u)) return 'draft';
         const rv = findUnitReservationRecordFromRow(u);
@@ -49151,6 +49260,145 @@ function getEmptyCompanySignatory() {
             .join(t('، ', ', '));
     }
 
+    /** إجمالي الإيجار الشهري لعقد مرتبط بعدة وحدات / Total monthly rent for multi-unit linked contract */
+    function sumLinkedContractUnitsMonthlyRent(payload) {
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length <= 1) {
+            return Math.max(0, parseFloat(toStr(payload?.monthlyRent)) || 0);
+        }
+        return linked.reduce((s, lu) => s + (parseFloat(toStr(lu.monthlyRent)) || 0), 0);
+    }
+
+    /** عرض الإيجار في سجل العقود — إجمالي + تفصيل لكل وحدة عند الحاجة / Rent display for contract versions table */
+    function formatContractPayloadRentDisplay(payload) {
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length <= 1) return formatOMR(payload?.monthlyRent);
+        const total = sumLinkedContractUnitsMonthlyRent(payload);
+        const breakdown = linked
+            .map((lu) => `${toStr(lu.unit)}: ${formatOMR(lu.monthlyRent)}`)
+            .join(t(' · ', ' · '));
+        return `${formatOMR(total)} (${breakdown})`;
+    }
+
+    function getRenewalWizardLocationLabel(unit, payloadOpt) {
+        const payload =
+            payloadOpt ||
+            (unit ? getSavedContractPayloadForUnit(unit) || getContractPayloadForUnit(unit) : null) ||
+            {};
+        const unitsLabel = formatLinkedContractUnitsLabel(payload) || toStr(unit?.unit);
+        const building = toStr(payload.buildingNo || unit?.building);
+        return building ? `${unitsLabel} | ${building}` : unitsLabel;
+    }
+
+    /** الوحدة الأساسية لمعالج التجديد عند فتحه من وحدة ثانوية / Primary unit when renewal opens from secondary unit */
+    function resolveContractRenewalWorkflowUnit(unit) {
+        if (!unit) return { unit: null, payload: null };
+        const payload = getSavedContractPayloadForUnit(unit) || getContractPayloadForUnit(unit) || {};
+        const primary = resolveContractWorkflowPrimaryUnit(unit.building, unit.unit, payload);
+        if (normalizeUnit(primary.unit) === normalizeUnit(unit.unit)) {
+            return { unit, payload };
+        }
+        const primaryRow = getUnitsData().find(
+            (x) =>
+                normalizeReservationBuildingKey(x.building) === normalizeReservationBuildingKey(primary.building) &&
+                normalizeUnit(x.unit) === normalizeUnit(primary.unit)
+        );
+        const workflowUnit = primaryRow || {
+            ...unit,
+            building: primary.building,
+            unit: primary.unit,
+            agreementNo: toStr(payload.agreementNo || unit.agreementNo),
+            startDate: toStr(payload.startDate || unit.startDate),
+            endDate: toStr(payload.endDate || unit.endDate)
+        };
+        return { unit: workflowUnit, payload: primary.payload || payload };
+    }
+
+    function buildRenewalLinkedUnitsPanelHtml(payload) {
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length <= 1) return '';
+        const rows = linked
+            .map((lu) => {
+                const isPrimary = normalizeUnit(lu.unit) === normalizeUnit(linked[0]?.unit);
+                return `<tr${isPrimary ? ' style="background:#f3f8fc;font-weight:700"' : ''}>
+                    <td>${escHtml(lu.unit)}${isPrimary ? ` <span style="font-size:10px">(${t('أساسية', 'Primary')})</span>` : ''}</td>
+                    <td>${escHtml(lu.floorDetails || lu.floor || '—')}</td>
+                    <td>${escHtml(lu.unitType || '—')}</td>
+                    <td>${escHtml(formatOMR(lu.monthlyRent))}</td>
+                </tr>`;
+            })
+            .join('');
+        const total = sumLinkedContractUnitsMonthlyRent(payload);
+        return `<div class="crn-block">
+            <div class="crn-block-title">${t('الوحدات المرتبطة بالعقد / Linked contract units', 'Linked contract units / الوحدات المرتبطة')}</div>
+            <p class="crn-summary-line" style="margin:0 0 8px">${t(
+                'عقد واحد يشمل الوحدات التالية — الإيجار أدناه هو الإجمالي الشهري لجميع الوحدات.',
+                'One contract covers the units below — rent fields above use the combined monthly total.'
+            )}</p>
+            <div class="table-wrap"><table class="data-table" style="width:100%;font-size:11px">
+                <thead><tr>
+                    <th>${t('الوحدة', 'Unit')}</th><th>${t('الطابق', 'Floor')}</th><th>${t('النوع', 'Type')}</th>
+                    <th>${t('الإيجار الشهري', 'Monthly rent')}</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table></div>
+            <p class="crn-summary-line" style="margin:8px 0 0"><b>${t('إجمالي الإيجار الشهري:', 'Total monthly rent:')}</b> ${escHtml(formatOMR(total))}</p>
+        </div>`;
+    }
+
+    function renderRenewalLinkedUnitsPanel(payload) {
+        const wrap = document.getElementById('crnLinkedUnitsWrap');
+        if (!wrap) return;
+        const html = buildRenewalLinkedUnitsPanelHtml(payload);
+        wrap.innerHTML = html;
+        wrap.style.display = html ? '' : 'none';
+        const rentLabel = document.querySelector('label[for="crnNewMonthlyRent"]');
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (rentLabel && linked.length > 1) {
+            rentLabel.textContent = t(
+                'إجمالي الإيجار الشهري للعقد (ر.ع) / Total contract monthly rent (OMR)',
+                'Total contract monthly rent (OMR) / إجمالي الإيجار الشهري'
+            );
+        }
+    }
+
+    function applyRenewalRentToLinkedUnits(payload, newTotalRent) {
+        if (!payload || typeof payload !== 'object') return;
+        const rentNum = parseRentAmountInput(newTotalRent);
+        if (rentNum === '') return;
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length <= 1) {
+            payload.monthlyRent = formatRentAmountForInput(rentNum);
+            payload.agreementRent = payload.monthlyRent;
+            return;
+        }
+        const oldTotal = sumLinkedContractUnitsMonthlyRent(payload);
+        const newTotal = Math.max(0, rentNum);
+        if (oldTotal <= 0) {
+            payload.monthlyRent = formatRentAmountForInput(newTotal);
+            payload.agreementRent = payload.monthlyRent;
+            return;
+        }
+        const ratio = newTotal / oldTotal;
+        const updated = linked.map((lu) => ({
+            ...lu,
+            monthlyRent: formatRentAmountForInput((parseFloat(toStr(lu.monthlyRent)) || 0) * ratio)
+        }));
+        payload.linkedContractUnits = updated;
+        payload.linkedContractUnitsJson = JSON.stringify(updated);
+        payload.monthlyRent = formatRentAmountForInput(newTotal);
+        payload.agreementRent = payload.monthlyRent;
+    }
+
+    function mirrorRenewalPayloadToLinkedUnits(payload, perUnitFn) {
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length <= 1) {
+            perUnitFn(payload, toStr(payload.buildingNo), toStr(payload.flatNo));
+            return;
+        }
+        mirrorTenancyPayloadToLinkedUnits(payload, perUnitFn);
+    }
+
     function getLinkedContractUnitSlice(payload, unit) {
         const u = normalizeUnit(unit || payload?.flatNo);
         const linked = getLinkedContractUnitsFromPayload(payload);
@@ -59456,6 +59704,11 @@ function getEmptyCompanySignatory() {
     let _contractRenewalPeriodSyncBusy = false;
 
     function resolvePreviousContractMonthlyRent(payload, unit) {
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length > 1) {
+            const total = sumLinkedContractUnitsMonthlyRent(payload);
+            return total > 0 ? formatRentAmountForInput(total) : '';
+        }
         const n = parseRentAmountInput(payload?.monthlyRent ?? unit?.monthlyRent);
         return n === '' ? '' : formatRentAmountForInput(n);
     }
@@ -59839,7 +60092,9 @@ function getEmptyCompanySignatory() {
     }
 
     function initContractRenewalWizardFromUnit(unit, opt = {}) {
-        const payload = getSavedContractPayloadForUnit(unit) || getContractPayloadForUnit(unit) || {};
+        const workflow = resolveContractRenewalWorkflowUnit(unit);
+        unit = workflow.unit || unit;
+        const payload = workflow.payload || getSavedContractPayloadForUnit(unit) || getContractPayloadForUnit(unit) || {};
         const prevStart = toStr(unit.startDate || payload.startDate);
         const prevEnd = toStr(unit.endDate || payload.endDate);
         const prevAgreement = toStr(unit.agreementNo || payload.agreementNo);
@@ -59875,7 +60130,7 @@ function getEmptyCompanySignatory() {
         };
         const title = document.getElementById('contractRenewalTitle');
         if (title) {
-            title.textContent = `${t('تجديد عقد الإيجار', 'Renew lease contract')} — ${toStr(unit.unit)} | ${toStr(unit.building)}`;
+            title.textContent = `${t('تجديد عقد الإيجار', 'Renew lease contract')} — ${getRenewalWizardLocationLabel(unit, payload)}`;
         }
         const setVal = (id, v) => {
             const el = document.getElementById(id);
@@ -59897,6 +60152,7 @@ function getEmptyCompanySignatory() {
         applyRenewalMunicipalValuesToAllFields({ municipalFormNo, municipalContractNo }, { force: true });
         setVal('crnRemainingMonthsDisplay', formatContractRemainingMonthsLabel(prevEnd));
         ensureRenewalMunicipalFieldsEditable();
+        renderRenewalLinkedUnitsPanel(payload);
         renderContractRenewalSummary();
         syncRenewalStepPills(1);
     }
@@ -59909,6 +60165,7 @@ function getEmptyCompanySignatory() {
     function openContractRenewalEditForUnit(unit) {
         unit = unit || selectedUnitDetailsRecord;
         if (!unit) return;
+        unit = resolveContractRenewalWorkflowUnit(unit).unit || unit;
         if (
             !assertPermissionOrAlert(
                 'manage_contracts',
@@ -59952,7 +60209,7 @@ function getEmptyCompanySignatory() {
             document.getElementById('contractRenewalModal')?.classList.add('open');
             const title = document.getElementById('contractRenewalTitle');
             if (title) {
-                title.textContent = `${t('تعديل تجديد العقد', 'Edit contract renewal')} — ${toStr(unit.unit)} | ${toStr(unit.building)}`;
+                title.textContent = `${t('تعديل تجديد العقد', 'Edit contract renewal')} — ${getRenewalWizardLocationLabel(unit)}`;
             }
             ensureRenewalMunicipalFieldsEditable();
             refreshRenewalWizardEditModeUi();
@@ -59984,7 +60241,7 @@ function getEmptyCompanySignatory() {
         }
         const title = document.getElementById('contractRenewalTitle');
         if (title) {
-            title.textContent = `${t('تعديل تجديد العقد', 'Edit contract renewal')} — ${toStr(unit.unit)} | ${toStr(unit.building)}`;
+            title.textContent = `${t('تعديل تجديد العقد', 'Edit contract renewal')} — ${getRenewalWizardLocationLabel(unit)}`;
         }
         document.getElementById('contractRenewalStepPill1')?.classList.add('active');
         document.getElementById('contractRenewalStepPill2')?.classList.remove('active');
@@ -59994,8 +60251,9 @@ function getEmptyCompanySignatory() {
     }
 
     function openContractRenewalModal(unitOpt) {
-        const unit = unitOpt || selectedUnitDetailsRecord;
+        let unit = unitOpt || selectedUnitDetailsRecord;
         if (!unit) return;
+        unit = resolveContractRenewalWorkflowUnit(unit).unit || unit;
         if (
             !assertPermissionOrAlert(
                 'manage_contracts',
@@ -60214,6 +60472,11 @@ function getEmptyCompanySignatory() {
     }
 
     function getMonthlyRentBaseFromPayload(payload) {
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length > 1) {
+            const sum = sumLinkedContractUnitsMonthlyRent(payload);
+            if (sum > 0) return sum;
+        }
         return Math.max(0, parseFloat(toStr(payload?.monthlyRent)) || 0);
     }
 
@@ -60373,8 +60636,7 @@ function getEmptyCompanySignatory() {
         p.municipalContractNo = renewal.municipalContractNo;
         const rent = parseRentAmountInput(renewal.monthlyRent);
         if (rent !== '' && rent > 0) {
-            p.monthlyRent = String(rent);
-            p.agreementRent = String(rent);
+            applyRenewalRentToLinkedUnits(p, rent);
         }
         const customRentItems = getCustomRentScheduleFromUi(RENEWAL_CUSTOM_RENT_WRAP_ID);
         p.customRentItems = customRentItems;
@@ -60401,7 +60663,7 @@ function getEmptyCompanySignatory() {
         if (opt.clearPropertyDocuments) {
             resetPropertyDocumentsForNewRenewal(p);
         }
-        const prevRent = parseRentAmountInput(basePayload.monthlyRent);
+        const prevRent = parseRentAmountInput(resolvePreviousContractMonthlyRent(basePayload));
         if (prevRent !== '') {
             p.previousMonthlyRent = formatRentAmountForInput(prevRent);
         }
@@ -60502,8 +60764,7 @@ function getEmptyCompanySignatory() {
         p.contractMonths = String(r.newMonths);
         const rent = parseRentAmountInput(r.monthlyRent);
         if (rent !== '' && rent > 0) {
-            p.monthlyRent = String(rent);
-            p.agreementRent = String(rent);
+            applyRenewalRentToLinkedUnits(p, rent);
         }
         p.municipalFormNo = r.municipalFormNo;
         p.municipalContractNo = r.municipalContractNo;
@@ -60607,12 +60868,13 @@ function getEmptyCompanySignatory() {
             isCurrentContractEdit: isCurrentEdit
         };
         const title = document.getElementById('crnfTitle');
+        const locationLabel = getRenewalWizardLocationLabel(unit, basePayload);
         if (title) {
             title.textContent = isCurrentEdit
-                ? `${t('تعديل العقد الحالي — الفترة والشيكات والإيجار', 'Edit current contract — period, cheques & rent')} — ${toStr(unit.unit)} | ${toStr(unit.building)}`
+                ? `${t('تعديل العقد الحالي — الفترة والشيكات والإيجار', 'Edit current contract — period, cheques & rent')} — ${locationLabel}`
                 : isEditExisting
-                  ? `${t('تعديل التجديد — الشيكات والمبالغ', 'Edit renewal — cheques & amounts')} — ${toStr(unit.unit)} | ${toStr(unit.building)}`
-                  : `${t('تجديد — الشيكات والمبالغ', 'Renewal — cheques & amounts')} — ${toStr(unit.unit)} | ${toStr(unit.building)}`;
+                  ? `${t('تعديل التجديد — الشيكات والمبالغ', 'Edit renewal — cheques & amounts')} — ${locationLabel}`
+                  : `${t('تجديد — الشيكات والمبالغ', 'Renewal — cheques & amounts')} — ${locationLabel}`;
         }
         refreshRenewalFinancialModalToolbar();
         renderContractRenewalFinancialSummary();
@@ -60797,11 +61059,30 @@ function getEmptyCompanySignatory() {
         }
 
         if (saveAsDraft) {
-            upsertContractRenewalDraft(ctx.unit.building, ctx.unit.unit, {
-                payload,
-                renewal: ctx.renewal,
-                previousSnapshot: ctx.previousSnapshot,
-                lifecycleStatus: 'renewal_pending'
+            mirrorRenewalPayloadToLinkedUnits(payload, (unitPayload, bKey, uKey) => {
+                if (!bKey || !uKey) return;
+                const linked = getLinkedContractUnitsFromPayload(payload);
+                const merged =
+                    linked.length > 1
+                        ? {
+                              ...payload,
+                              ...unitPayload,
+                              flatNo: toStr(uKey),
+                              linkedContractUnits: linked,
+                              linkedContractUnitsJson: JSON.stringify(linked)
+                          }
+                        : payload;
+                const prevSnap =
+                    normalizeUnit(uKey) === normalizeUnit(ctx.unit.unit)
+                        ? ctx.previousSnapshot
+                        : cloneContractPayloadForArchive(getSavedContractPayloadForUnit({ building: bKey, unit: uKey })) ||
+                          ctx.previousSnapshot;
+                upsertContractRenewalDraft(bKey, uKey, {
+                    payload: merged,
+                    renewal: ctx.renewal,
+                    previousSnapshot: prevSnap,
+                    lifecycleStatus: 'renewal_pending'
+                });
             });
             try {
                 syncBhdKvToServer();
@@ -60830,11 +61111,23 @@ function getEmptyCompanySignatory() {
             const prevAg = toStr(prev.agreementNo);
             const newAg = toStr(payload.agreementNo);
             if (!ctx.isEditExistingRenewal && !ctx.isCurrentContractEdit) {
-                const prevToArchive = cloneContractPayloadForArchive(prev);
-                if (prevToArchive) {
-                    normalizeRenewalPayloadUnitKeys(prevToArchive, ctx.unit);
-                    archiveSupersededContractPayload(prevToArchive, { reason: 'renewal', supersededBy: newAg });
-                }
+                const linked = getLinkedContractUnitsFromPayload(prev);
+                const unitRefs =
+                    linked.length > 1
+                        ? linked.map((lu) => ({ building: toStr(prev.buildingNo || ctx.unit.building), unit: lu.unit }))
+                        : [{ building: ctx.unit.building, unit: ctx.unit.unit }];
+                const archivedKeys = new Set();
+                unitRefs.forEach((uRef) => {
+                    const ak = _tenancyDraftStorageKey(uRef.building, uRef.unit);
+                    if (archivedKeys.has(ak)) return;
+                    archivedKeys.add(ak);
+                    const prevPayload = getSavedContractPayloadForUnit(uRef) || prev;
+                    const prevToArchive = cloneContractPayloadForArchive(prevPayload);
+                    if (prevToArchive) {
+                        normalizeRenewalPayloadUnitKeys(prevToArchive, uRef);
+                        archiveSupersededContractPayload(prevToArchive, { reason: 'renewal', supersededBy: newAg });
+                    }
+                });
             }
             if (payload.agreementNo && /^TC-\d{2}-\d{4}-\d+$/i.test(toStr(payload.agreementNo))) {
                 const seqMatch = toStr(payload.agreementNo).match(/^TC-\d{2}-\d{4}-(\d+)$/i);
@@ -60861,7 +61154,32 @@ function getEmptyCompanySignatory() {
                     localStorage.setItem('bhd_contract_full', JSON.stringify(persist.saved || payload));
                 }
             } catch (_eFullRen) {}
-            upsertSavedContractForUnit(ctx.unit.building, ctx.unit.unit, payload, lifecycleStatus);
+            try {
+                mirrorRenewalPayloadToLinkedUnits(payload, (unitPayload, bKey, uKey) => {
+                    if (!bKey || !uKey) return;
+                    const linked = getLinkedContractUnitsFromPayload(payload);
+                    const merged =
+                        linked.length > 1
+                            ? {
+                                  ...payload,
+                                  ...unitPayload,
+                                  flatNo: toStr(uKey),
+                                  linkedContractUnits: linked,
+                                  linkedContractUnitsJson: JSON.stringify(linked),
+                                  isRenewalContract: payload.isRenewalContract,
+                                  isRenewalDraft: false,
+                                  contractSavedStatus: lifecycleStatus,
+                                  contractSavedAt: payload.contractSavedAt
+                              }
+                            : { ...payload, flatNo: toStr(uKey) };
+                    upsertSavedContractForUnit(bKey, uKey, merged, lifecycleStatus);
+                });
+            } catch (_eMirrorRenSave) {
+                upsertSavedContractForUnit(ctx.unit.building, ctx.unit.unit, payload, lifecycleStatus);
+            }
+            try {
+                repairLinkedContractUnitsLifecycleConsistency();
+            } catch (_eRenLinkedSync) {}
             logContractRenewalEvent('completed', ctx.unit, {
                 ...renewalLogDetailsFromCtx(ctx, payload),
                 note: ctx.isCurrentContractEdit
@@ -60874,6 +61192,12 @@ function getEmptyCompanySignatory() {
                         )
             });
             removeContractRenewalDraft(ctx.unit.building, ctx.unit.unit);
+            const linkedDraft = getLinkedContractUnitsFromPayload(payload);
+            if (linkedDraft.length > 1) {
+                linkedDraft.slice(1).forEach((lu) => {
+                    removeContractRenewalDraft(ctx.unit.building, lu.unit);
+                });
+            }
             try {
                 syncManagedUnitsFromProfiles();
             } catch (_eMuRen) {}
@@ -60996,8 +61320,8 @@ function getEmptyCompanySignatory() {
         if (rentVal === '' || rentVal <= 0) {
             alert(
                 t(
-                    'أدخل القيمة الإيجارية الشهرية للعقد الجديد (أكبر من صفر).',
-                    'Enter the new contract monthly rent (greater than zero).'
+                    'أدخل إجمالي القيمة الإيجارية الشهرية للعقد الجديد (أكبر من صفر).',
+                    'Enter the new contract total monthly rent (greater than zero).'
                 )
             );
             return;
@@ -62025,10 +62349,17 @@ function getEmptyCompanySignatory() {
             return cfvSectionWrap(t('بيانات المستأجر / Tenant data', 'Tenant data / بيانات المستأجر'), cfvGridHtml(rows));
         }
         if (key === 'contract_terms') {
+            const linked = getLinkedContractUnitsFromPayload(p);
+            const rentDisplay =
+                linked.length > 1
+                    ? `${formatOMR(sumLinkedContractUnitsMonthlyRent(p))} (${linked
+                          .map((lu) => `${lu.unit}: ${formatOMR(lu.monthlyRent)}`)
+                          .join(t(' · ', ' · '))})`
+                    : p.monthlyRent || u.monthlyRent;
             return cfvSectionWrap(
                 t('شروط العقد والإيجار / Contract & rent terms', 'Contract & rent terms / شروط العقد'),
                 cfvGridHtml([
-                    [t('الإيجار الشهري / Monthly rent', 'Monthly rent / الإيجار'), p.monthlyRent || u.monthlyRent],
+                    [t('الإيجار الشهري / Monthly rent', 'Monthly rent / الإيجار'), rentDisplay],
                     [t('مدة العقد (أشهر) / Term (months)', 'Term (months) / المدة'), p.contractMonths],
                     [t('طريقة الدفع / Payment method', 'Payment method / الدفع'), p.paymentMethod],
                     [t('يوم دفع الإيجار / Rent payment day', 'Rent payment day / يوم الدفع'), p.agreedRentPaymentDay],
