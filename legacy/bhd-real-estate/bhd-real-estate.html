@@ -10450,14 +10450,16 @@
         } catch (_eWipeMark) {}
     }
 
-    /** بعد تصفية محلية دون تأكيد سحابي — لا نعيد سحب بيانات Neon القديمة */
+    /** بعد تصفية محلية دون تأكيد سحابي — لا نعيد سحب بيانات Neon القديمة إلا إذا كان التخزين المحلي فارغاً */
     function shouldSkipSiteKvPullAfterLocalWipe() {
         try {
             const wipedAt = parseInt(localStorage.getItem('bhd_last_data_wipe') || '0', 10);
             const confirmedAt = parseInt(localStorage.getItem(BHD_CLOUD_WIPE_CONFIRMED_KEY) || '0', 10);
             if (!wipedAt || !Number.isFinite(wipedAt)) return false;
             if (Date.now() - wipedAt > 6 * 60 * 60 * 1000) return false;
-            return confirmedAt < wipedAt;
+            if (confirmedAt >= wipedAt) return false;
+            if (bhdLocalStorageHasSubstantiveData()) return false;
+            return true;
         } catch (_eSkipWipe) {
             return false;
         }
@@ -11969,11 +11971,14 @@
                 credentials: 'include',
                 cache: 'no-store'
             });
-            if (!r.ok) return false;
+            if (!r.ok) {
+                if (applyBhdServerContractLifecycleMaps(window.__bhdSiteBridgePayload)) return true;
+                return false;
+            }
             const data = await r.json();
             return applyBhdServerContractLifecycleMaps(data);
         } catch (_eSrvSt) {
-            return false;
+            return applyBhdServerContractLifecycleMaps(window.__bhdSiteBridgePayload);
         }
     }
 
@@ -11996,7 +12001,7 @@
         return null;
     }
 
-    /** حالة العقد في قائمة العقود — من Neon فقط على الموقع المدمج */
+    /** حالة العقد في قائمة العقود — من Neon عند التوفر، وإلا من البيانات المحلية */
     function getContractListRowLifecycleStateKey(row) {
         if (!row) return 'active_pending';
         if (isBhdSiteKvPersistenceActive()) {
@@ -12004,6 +12009,7 @@
             if (byAg) return byAg;
             const byUnit = getBhdServerContractLifecycleForUnit(row._unitRef);
             if (byUnit) return byUnit;
+            if (row._unitRef) return getContractLifecycleStateKey(row._unitRef);
             return 'active_pending';
         }
         return getContractLifecycleStateKey(row._unitRef);
@@ -12041,21 +12047,40 @@
         return false;
     }
 
+    function bhdHasLocalSavedContractsData() {
+        try {
+            return !bhdKvIsEmptyShell(localStorage.getItem('bhd_saved_contracts_by_unit'));
+        } catch (_eLocSc) {
+            return false;
+        }
+    }
+
     /** سحب سريع لقائمة العقود — بدون دفتر العناوين وبدون كل مفاتيح bhd_* */
     async function ensureBhdSiteKvHydratedForContractsList() {
         if (!isBhdSiteKvPersistenceActive()) return false;
         if (!window._bhdServerContractStatuses || !Object.keys(window._bhdServerContractStatuses).length) {
             const statusesOk = await fetchBhdServerContractStatuses(true);
-            if (!statusesOk) return false;
+            if (!statusesOk && !applyBhdServerContractLifecycleMaps(window.__bhdSiteBridgePayload) && !bhdHasLocalSavedContractsData()) {
+                return false;
+            }
         }
         try {
-            await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
+            if (!shouldSkipSiteKvPullAfterLocalWipe()) {
+                await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
+            }
             invalidateBhdSiteKvRuntimeCaches();
         } catch (_eWipePull) {}
         const pulled = await pullBhdKvFromNeonWithRetry(2, {
             keys: BHD_KV_CONTRACTS_LIST_PULL_KEYS,
             deferIdbMirror: true
         });
+        if (!pulled && bhdHasLocalSavedContractsData()) {
+            try {
+                loadSavedContractsByUnitMap(true);
+                loadAccountingRegistry(true);
+            } catch (_eLocalFallback) {}
+            return true;
+        }
         if (!pulled) return false;
         try {
             _bhdKvDirtyKeys.clear();
@@ -54147,10 +54172,10 @@ function getEmptyCompanySignatory() {
                 ${sorted.map((u, i) => {
                     const isSec = isLinkedContractSecondaryUnitForDisplay(u);
                     const k = getContractLifecycleStateKey(u);
-                    const lbl = isSec ? t('مؤجرة — عقد مزدوج', 'Rented — dual contract') : getContractLifecycleLabelForKey(k);
-                    const chipCls = isSec ? 'contract-state-active' : `contract-state-${k}`;
+                    const lbl = getContractLifecycleLabelForKey(k);
+                    const chipCls = `contract-state-${k}`;
                     const btnLbl = isSec ? t('تفاصيل', 'Details') : t('عقد', 'Contract');
-                    return `<tr><td>${escHtml(u.building)}</td><td>${escHtml(u.unit)}</td><td>${escHtml(u.tenant)}</td><td>${escHtml(u.endDate)}</td><td><span class="chip ${chipCls}">${escHtml(lbl)}</span></td><td><button type="button" class="mini-btn" onclick="openInsightUnitAt(${i})">${btnLbl}</button></td></tr>`;
+                    return `<tr><td>${escHtml(u.building)}</td><td>${escHtml(u.unit)}</td><td>${escHtml(u.tenant)}</td><td>${escHtml(u.endDate)}</td><td><span class="chip ${chipCls}">${escHtml(lbl)}</span>${isSec ? `<div style="font-size:10px;color:#555;margin-top:4px">${t('وحدة مرتبطة بعقد مزدوج', 'Linked dual-contract unit')}</div>` : ''}</td><td><button type="button" class="mini-btn" onclick="openInsightUnitAt(${i})">${btnLbl}</button></td></tr>`;
                 }).join('')}
             </tbody></table>`;
             return;
