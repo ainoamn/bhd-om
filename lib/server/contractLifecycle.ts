@@ -432,21 +432,36 @@ export async function loadCanonicalContractStatusesFromNeon(
 
   let persisted = false;
   if (persist && result.changed) {
-    const updatedJson = JSON.stringify(result.updatedMap);
-    await prisma.legacyAppKvStore.upsert({
-      where: { kvKey: 'bhd_saved_contracts_by_unit' },
-      create: {
-        kvKey: 'bhd_saved_contracts_by_unit',
-        data: updatedJson,
-        category: 'contracts',
-      },
-      update: {
-        data: updatedJson,
-        category: 'contracts',
-        updatedAt: new Date(),
-      },
+    const guardRow = await prisma.legacyAppKvStore.findUnique({
+      where: { kvKey: 'bhd_kv_wipe_guard' },
+      select: { data: true },
     });
-    persisted = true;
+    let wipeGuardActive = false;
+    if (guardRow?.data) {
+      try {
+        const o = JSON.parse(guardRow.data) as { until?: number };
+        wipeGuardActive = typeof o?.until === 'number' && o.until > Date.now();
+      } catch {
+        wipeGuardActive = false;
+      }
+    }
+    if (!wipeGuardActive) {
+      const updatedJson = JSON.stringify(result.updatedMap);
+      await prisma.legacyAppKvStore.upsert({
+        where: { kvKey: 'bhd_saved_contracts_by_unit' },
+        create: {
+          kvKey: 'bhd_saved_contracts_by_unit',
+          data: updatedJson,
+          category: 'contracts',
+        },
+        update: {
+          data: updatedJson,
+          category: 'contracts',
+          updatedAt: new Date(),
+        },
+      });
+      persisted = true;
+    }
   }
 
   return {

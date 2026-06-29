@@ -10244,7 +10244,7 @@
     }
 
     /** تُبقى عند «تصفية كل البيانات» (حسابات + مظهر) / Kept on full data wipe */
-    const BHD_KEYS_KEEP_ON_FULL_WIPE = ['bhd_users_registry', 'bhd_auth_session', 'bhd_theme_mode'];
+    const BHD_KEYS_KEEP_ON_FULL_WIPE = ['bhd_users_registry', 'bhd_auth_session', 'bhd_theme_mode', 'bhd_kv_wipe_guard'];
 
     /**
      * على bhd-om.com + Neon: PostgreSQL (LegacyAppKvStore) مصدر الحقيقة عند السحب.
@@ -10540,6 +10540,22 @@
     }
 
     const BHD_CLOUD_WIPE_CONFIRMED_KEY = 'bhd_cloud_wipe_confirmed_at';
+    const BHD_WIPE_IN_PROGRESS_KEY = 'bhd_data_wipe_in_progress';
+
+    function bhdWipeInProgressActive() {
+        try {
+            return sessionStorage.getItem(BHD_WIPE_IN_PROGRESS_KEY) === '1';
+        } catch (_eWipeProgRead) {
+            return false;
+        }
+    }
+
+    function setBhdWipeInProgress(active) {
+        try {
+            if (active) sessionStorage.setItem(BHD_WIPE_IN_PROGRESS_KEY, '1');
+            else sessionStorage.removeItem(BHD_WIPE_IN_PROGRESS_KEY);
+        } catch (_eWipeProgWrite) {}
+    }
 
     function markBhdCloudWipeConfirmed() {
         try {
@@ -10564,10 +10580,33 @@
 
     function bhdShouldBlockNeonKvPull(opt) {
         if (opt && opt.force === true) return false;
-        try {
-            if (localStorage.getItem('bhd_data_wipe_in_progress') === '1') return true;
-        } catch (_eWipeProg) {}
+        if (bhdWipeInProgressActive()) return true;
         return shouldSkipSiteKvPullAfterLocalWipe();
+    }
+
+    /** بعد تصفية — يمنع أي تبويب من دفع بيانات قديمة إلى Neon */
+    function bhdShouldBlockNeonKvPush() {
+        if (bhdWipeInProgressActive()) return true;
+        return shouldSkipSiteKvPullAfterLocalWipe();
+    }
+
+    function applyBhdCrossTabWipeQuarantine(scope) {
+        muteBhdKvAutoPush(24 * 60 * 60 * 1000);
+        try {
+            _bhdKvDirtyKeys.clear();
+        } catch (_eClrDirtyX) {}
+        try {
+            clearTimeout(_bhdKvSyncTimer);
+            _bhdKvSyncTimer = 0;
+        } catch (_eClrSyncX) {}
+        const wipeScope = toStr(scope || localStorage.getItem('bhd_last_data_wipe_scope') || 'all');
+        if (wipeScope && wipeScope !== 'addressbook') {
+            try {
+                forceWriteEmptyBhdLocalState(wipeScope);
+                loadDashboardAux(true);
+                if (typeof renderOperationsTable === 'function') renderOperationsTable();
+            } catch (_eXTabEmpty) {}
+        }
     }
 
     function bhdLocalHasSubstantiveDataForScope(scope) {
@@ -10589,19 +10628,23 @@
         if (!isBhdSiteKvPersistenceActive() || !bhdRemoteKvSyncEnabled()) {
             return { ok: true, skipped: true };
         }
-        const keys =
-            scope === 'all'
-                ? BHD_CLOUD_WIPE_PROBE_KEYS
-                : getBhdKeysForCleanupScope(scope).filter((k) => k !== 'bhd_address_book');
-        if (!keys.length) return { ok: true, skipped: true };
+        const keep = new Set([...BHD_KEYS_KEEP_ON_FULL_WIPE, 'bhd_address_book']);
         try {
-            const r = await fetch(`${bhdKvRemoteBase()}?keys=${encodeURIComponent(keys.join(','))}`, {
+            const r = await fetch(`${bhdKvRemoteBase()}?prefix=bhd_`, {
                 credentials: 'include',
                 cache: 'no-store'
             });
             if (!r.ok) return { ok: false, skipped: false, status: r.status };
             const data = await r.json();
-            const dirty = keys.filter((k) => bhdKvHasSubstantiveUserData(k, data[k]));
+            const scopeKeys =
+                scope === 'all'
+                    ? null
+                    : new Set(getBhdKeysForCleanupScope(scope).filter((k) => k !== 'bhd_address_book'));
+            const dirty = Object.keys(data || {}).filter((k) => {
+                if (k === '_meta' || keep.has(k)) return false;
+                if (scopeKeys && !scopeKeys.has(k)) return false;
+                return bhdKvHasSubstantiveUserData(k, data[k]);
+            });
             return { ok: dirty.length === 0, skipped: false, dirtyKeys: dirty };
         } catch (_eVerCloud) {
             return { ok: false, skipped: false };
@@ -10668,12 +10711,13 @@
             payload[k] = v;
         });
         if (!Object.keys(payload).length) return { ok: true };
-        return bhdKvPutBulkRemote(payload, { replace: true });
+        return bhdKvPutBulkRemote(payload, { replace: true, allowDuringWipeQuarantine: true });
     }
 
     async function bhdKvPutBulkRemote(payload, options) {
         const opts = options || {};
         if (!payload || !Object.keys(payload).length) return { ok: false };
+        if (!opts.allowDuringWipeQuarantine && bhdShouldBlockNeonKvPush()) return { ok: false, blocked: true };
         if (window.bhdDesktop && window.bhdDesktop.kvPutBulk) {
             await window.bhdDesktop.kvPutBulk(payload);
             return { ok: true };
@@ -12266,6 +12310,7 @@
 
     async function fetchBhdServerContractStatuses(reconcile) {
         if (!isBhdSiteKvPersistenceActive()) return false;
+        if (bhdShouldBlockNeonKvPull()) return false;
         try {
             const q = reconcile ? '?reconcile=1' : '';
             const r = await fetch(`/api/admin/legacy-bridge/contract-statuses${q}`, {
@@ -12972,6 +13017,8 @@
         const forceAll = options.forceAll === true;
         const force = options.force === true;
         const replace = options.replace === true;
+        const allowDuringWipeQuarantine = options.allowDuringWipeQuarantine === true;
+        if (!allowDuringWipeQuarantine && bhdShouldBlockNeonKvPush()) return;
         const onlyKeys = Array.isArray(options.keys) && options.keys.length ? options.keys.filter((k) => BHD_KV_KEYS.includes(k)) : null;
         if (!forceAll && !force && isBhdKvAutoPushMuted()) return;
         if (!window.bhdDesktop) {
@@ -13010,6 +13057,7 @@
 
     let _bhdKvSyncTimer = 0;
     function scheduleBhdKvToServer(delayMs) {
+        if (bhdShouldBlockNeonKvPush()) return;
         clearTimeout(_bhdKvSyncTimer);
         _bhdKvSyncTimer = setTimeout(() => {
             _bhdKvSyncTimer = 0;
@@ -13024,6 +13072,29 @@
         list.forEach((k) => markBhdKvDirty(k));
         await syncBhdKvToServer({ keys: list, force: true, replace: !!(options && options.replace) });
     }
+
+    try {
+        window.addEventListener('storage', (e) => {
+            if (!e || !e.key) return;
+            if (
+                e.key === 'bhd_last_data_wipe' ||
+                e.key === BHD_CLOUD_WIPE_CONFIRMED_KEY ||
+                e.key === 'bhd_last_data_wipe_scope'
+            ) {
+                muteBhdKvAutoPush(24 * 60 * 60 * 1000);
+                try {
+                    _bhdKvDirtyKeys.clear();
+                } catch (_eClrDirtySt) {}
+                try {
+                    clearTimeout(_bhdKvSyncTimer);
+                    _bhdKvSyncTimer = 0;
+                } catch (_eClrSyncSt) {}
+                if (e.key === BHD_CLOUD_WIPE_CONFIRMED_KEY && e.newValue) {
+                    applyBhdCrossTabWipeQuarantine(localStorage.getItem('bhd_last_data_wipe_scope'));
+                }
+            }
+        });
+    } catch (_eWipeStorageWire) {}
 
     async function pullBhdKvFromServer() {
         bhdAuditMute();
@@ -48909,7 +48980,8 @@ function getEmptyCompanySignatory() {
         const cleanupWarnings = [];
         try {
             localStorage.setItem('bhd_last_data_wipe', String(Date.now()));
-            localStorage.setItem('bhd_data_wipe_in_progress', '1');
+            localStorage.setItem('bhd_last_data_wipe_scope', scope);
+            setBhdWipeInProgress(true);
             if (scope === 'all') {
                 localStorage.setItem('bhd_hide_demo_units', '1');
                 localStorage.setItem('bhd_use_empty_base_units', '1');
@@ -49043,9 +49115,7 @@ function getEmptyCompanySignatory() {
                             '⚠️ Could not reach the cloud database to delete data. Cleanup was not completed.'
                         )
                     );
-                    try {
-                        localStorage.removeItem('bhd_data_wipe_in_progress');
-                    } catch (_eClrWipeProgSkip) {}
+                    setBhdWipeInProgress(false);
                     return;
                 }
                 cloudWipeOk = cloudRes.ok;
@@ -49056,9 +49126,7 @@ function getEmptyCompanySignatory() {
                             '⚠️ Cloud data deletion failed. Ensure you are signed in with a system admin account on the site, then retry.'
                         )
                     );
-                    try {
-                        localStorage.removeItem('bhd_data_wipe_in_progress');
-                    } catch (_eClrWipeProg) {}
+                    setBhdWipeInProgress(false);
                     return;
                 }
                 const cloudVerify = await verifyBhdCloudDataClearedForScope(scope);
@@ -49072,9 +49140,7 @@ function getEmptyCompanySignatory() {
                                 ? '\n' + cloudVerify.dirtyKeys.join(', ')
                                 : '')
                     );
-                    try {
-                        localStorage.removeItem('bhd_data_wipe_in_progress');
-                    } catch (_eClrWipeVer) {}
+                    setBhdWipeInProgress(false);
                     return;
                 }
                 markBhdCloudWipeConfirmed();
@@ -49086,9 +49152,7 @@ function getEmptyCompanySignatory() {
                         '⚠️ Data was cleared locally but cloud deletion failed. The wipe will not stick until it succeeds — ensure you are signed in on the site with a system admin account.'
                     )
                 );
-                try {
-                    localStorage.removeItem('bhd_data_wipe_in_progress');
-                } catch (_eClrWipeProg2) {}
+                setBhdWipeInProgress(false);
                 return;
             } else if (purgeResult.remoteOk) {
                 markBhdCloudWipeConfirmed();
@@ -49107,6 +49171,7 @@ function getEmptyCompanySignatory() {
             }
         } catch (ePurge) {
             console.error('purge failed', ePurge);
+            setBhdWipeInProgress(false);
             alert(
                 t(
                     'تعذّر حذف بعض البيانات من قاعدة التخزين. أعد تشغيل التطبيق وحاول مرة أخرى.',
@@ -49126,16 +49191,12 @@ function getEmptyCompanySignatory() {
                     '⚠️ Could not clear data in this browser. Close all site tabs and try again.'
                 )
             );
-            try {
-                localStorage.removeItem('bhd_data_wipe_in_progress');
-            } catch (_eClrWipeLocal) {}
+            setBhdWipeInProgress(false);
             return;
         }
 
         if (!cloudWipeOk) {
-            try {
-                localStorage.removeItem('bhd_data_wipe_in_progress');
-            } catch (_eClrWipeProg3) {}
+            setBhdWipeInProgress(false);
             return;
         }
 
@@ -49145,11 +49206,15 @@ function getEmptyCompanySignatory() {
         } catch (_eClrPostWipe) {}
 
         try {
-            localStorage.removeItem('bhd_data_wipe_in_progress');
             if (window.__bhdSiteBridgePayload && (scope === 'all' || scope === 'addressbook')) {
                 window.__bhdSiteBridgePayload.addressBook = [];
             }
         } catch (_eClrBridge) {}
+
+        try {
+            loadDashboardAux(true);
+            if (typeof renderOperationsTable === 'function') renderOperationsTable();
+        } catch (_eUiPostWipe) {}
 
         closeDataCleanupModal();
         let doneMsg =

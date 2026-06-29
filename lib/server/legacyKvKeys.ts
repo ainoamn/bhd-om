@@ -88,7 +88,12 @@ export const LEGACY_KV_KEEP_ON_FULL_WIPE = [
   'bhd_users_registry',
   'bhd_auth_session',
   'bhd_theme_mode',
+  /** يمنع تبويباً آخر من إعادة دفع البيانات بعد التصفية */
+  'bhd_kv_wipe_guard',
 ] as const;
+
+/** يُحدَّث عند كل تصفية ناجحة — يرفض الكتابة التشغيلية لمدة 24 ساعة */
+export const LEGACY_KV_WIPE_GUARD_KEY = 'bhd_kv_wipe_guard' as const;
 
 export function isLegacyKvKeepOnFullWipe(key: string): boolean {
   return (LEGACY_KV_KEEP_ON_FULL_WIPE as readonly string[]).includes(key);

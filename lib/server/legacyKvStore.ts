@@ -1,11 +1,48 @@
 import { prisma } from '@/lib/prisma';
 import {
   isLegacyKvKey,
+  isLegacyKvKeepOnFullWipe,
   legacyKvCategory,
   LEGACY_KV_KEEP_ON_FULL_WIPE,
+  LEGACY_KV_WIPE_GUARD_KEY,
 } from '@/lib/server/legacyKvKeys';
 import { extractLegacyKvInlineBlobs, deleteLegacyStoredFilesForContexts } from '@/lib/server/legacyStoredFiles';
 import { mergeLegacyKvOnPut } from '@/lib/server/legacyKvMerge';
+import { legacyKvHasSubstantiveUserData } from '@/lib/server/legacyKvSubstantive';
+
+const WIPE_GUARD_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function readLegacyKvWipeGuardUntil(): Promise<number> {
+  const row = await prisma.legacyAppKvStore.findUnique({
+    where: { kvKey: LEGACY_KV_WIPE_GUARD_KEY },
+    select: { data: true },
+  });
+  if (!row?.data) return 0;
+  try {
+    const o = JSON.parse(row.data) as { until?: number };
+    const until = typeof o?.until === 'number' ? o.until : 0;
+    return Number.isFinite(until) ? until : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function writeLegacyKvWipeGuard(): Promise<void> {
+  const until = Date.now() + WIPE_GUARD_TTL_MS;
+  await prisma.legacyAppKvStore.upsert({
+    where: { kvKey: LEGACY_KV_WIPE_GUARD_KEY },
+    create: {
+      kvKey: LEGACY_KV_WIPE_GUARD_KEY,
+      data: JSON.stringify({ until }),
+      category: 'system',
+    },
+    update: {
+      data: JSON.stringify({ until }),
+      category: 'system',
+      updatedAt: new Date(),
+    },
+  });
+}
 
 export type LegacyKvBulkPayload = Record<string, string>;
 
@@ -57,12 +94,24 @@ export async function putLegacyKvBulk(
   let saved = 0;
   const now = new Date();
   const replace = options?.replace === true;
+  const wipeGuardUntil = await readLegacyKvWipeGuardUntil();
+  const wipeGuardActive = wipeGuardUntil > Date.now();
 
   for (const [key, raw] of Object.entries(payload || {})) {
     if (!isLegacyKvKey(key)) continue;
     if (raw === null || raw === undefined) continue;
     const data = typeof raw === 'string' ? raw : JSON.stringify(raw);
     if (!data.length) continue;
+
+    if (
+      wipeGuardActive &&
+      key !== (LEGACY_KV_WIPE_GUARD_KEY as string) &&
+      !isLegacyKvKeepOnFullWipe(key) &&
+      key !== 'bhd_address_book' &&
+      legacyKvHasSubstantiveUserData(key, data)
+    ) {
+      continue;
+    }
 
     let storedData = data;
     if (data.includes('data:')) {
@@ -130,6 +179,9 @@ export async function wipeLegacyKvExcept(keepKeys: string[] = []): Promise<{ rem
   try {
     await deleteLegacyStoredFilesForContexts(['contract', 'property', 'registry', 'reservation', 'accounting']);
   } catch (_eWipeFiles) {}
+  try {
+    await writeLegacyKvWipeGuard();
+  } catch (_eWipeGuard) {}
   return { removed: result.count };
 }
 
