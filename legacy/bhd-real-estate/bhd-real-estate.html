@@ -7789,6 +7789,19 @@
         </div>
         <div class="details-body" style="display:flex;flex-direction:column;gap:14px">
             <p id="pdbSubtitle" style="font-size:12px;color:#555;margin:0;line-height:1.5">—</p>
+            <div id="pdbMunicipalFieldsBlock" class="property-docs-municipal-block" style="display:none;padding:12px 14px;border:1px solid #e8c4c4;border-radius:10px;background:#fff8f8">
+                <p id="pdbMunicipalFieldsHint" style="font-size:12px;font-weight:700;color:#8B0000;margin:0 0 10px;line-height:1.5" data-ar="أدخل بيانات البلدية قبل إكمال أوراق العقار وتفعيل العقد." data-en="Enter municipal contract numbers before completing property papers and activating the contract.">أدخل بيانات البلدية قبل إكمال أوراق العقار وتفعيل العقد. / Enter municipal contract numbers before completing property papers and activating the contract.</p>
+                <div class="form-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+                    <div class="input-group" id="pdbMunicipalFormNoGroup">
+                        <label for="pdbMunicipalFormNo" data-ar="رقم استمارة العقد البلدي" data-en="Municipal contract form no.">رقم استمارة العقد البلدي / Municipal contract form no.</label>
+                        <input type="text" id="pdbMunicipalFormNo" value="" placeholder="— / —" autocomplete="off">
+                    </div>
+                    <div class="input-group" id="pdbMunicipalContractNoGroup">
+                        <label for="pdbMunicipalContractNo" data-ar="رقم العقد البلدي" data-en="Municipal contract no.">رقم العقد البلدي / Municipal contract no.</label>
+                        <input type="text" id="pdbMunicipalContractNo" value="" placeholder="— / —" autocomplete="off">
+                    </div>
+                </div>
+            </div>
             <div class="property-docs-pending-banner" id="pdbModeBanner" style="margin:0">
                 <strong id="pdbModeBannerTitle" data-ar="مطلوب — جزء لا يتجزأ من العقد" data-en="Required — integral part of contract">مطلوب — جزء لا يتجزأ من العقد / Required — integral part of contract</strong>
                 <span id="pdbModeBannerText" data-ar="ارفع نسخاً ممسوحة ضوئياً لكل الأوراق: العقد، البلدية، الهويات، البطاقات، الشيكات، الإيصالات، وأي مستند آخر." data-en="Upload scanned copies of all papers: contract, municipal, IDs, cards, cheques, receipts, and any other document.">ارفع نسخاً ممسوحة ضوئياً لكل الأوراق: العقد، البلدية، الهويات، البطاقات، الشيكات، الإيصالات، وأي مستند آخر. / Upload scanned copies of all property papers.</span>
@@ -14877,6 +14890,73 @@
         host.innerHTML = rows + missBlock;
     }
 
+    function readPropertyDocsMunicipalFormNo(payload) {
+        return (
+            toStr(document.getElementById('pdbMunicipalFormNo')?.value).trim() ||
+            toStr(document.getElementById('municipalFormNo')?.value).trim() ||
+            toStr(payload?.municipalFormNo).trim()
+        );
+    }
+
+    function readPropertyDocsMunicipalContractNo(payload) {
+        return (
+            toStr(document.getElementById('pdbMunicipalContractNo')?.value).trim() ||
+            toStr(document.getElementById('municipalContractNo')?.value).trim() ||
+            toStr(payload?.municipalContractNo).trim()
+        );
+    }
+
+    function syncPropertyDocsMunicipalFieldsToModal(payload) {
+        const mf = readPropertyDocsMunicipalFormNo(payload);
+        const mc = readPropertyDocsMunicipalContractNo(payload);
+        const mfEl = document.getElementById('pdbMunicipalFormNo');
+        const mcEl = document.getElementById('pdbMunicipalContractNo');
+        if (mfEl) mfEl.value = mf;
+        if (mcEl) mcEl.value = mc;
+    }
+
+    function syncPropertyDocsMunicipalFieldsToMainForm(municipalFormNo, municipalContractNo) {
+        const mfEl = document.getElementById('municipalFormNo');
+        const mcEl = document.getElementById('municipalContractNo');
+        if (mfEl && municipalFormNo) mfEl.value = municipalFormNo;
+        if (mcEl && municipalContractNo) mcEl.value = municipalContractNo;
+    }
+
+    function refreshPropertyDocsMunicipalFieldsUi(mode, payload) {
+        const block = document.getElementById('pdbMunicipalFieldsBlock');
+        if (!block) return;
+        const show = mode !== 'additional';
+        block.style.display = show ? 'block' : 'none';
+        if (!show) return;
+        const mfMissing = !readPropertyDocsMunicipalFormNo(payload);
+        const mcMissing = !readPropertyDocsMunicipalContractNo(payload);
+        const mfGrp = document.getElementById('pdbMunicipalFormNoGroup');
+        const mcGrp = document.getElementById('pdbMunicipalContractNoGroup');
+        if (mfGrp) {
+            mfGrp.classList.toggle('input-group--additional-gap', mfMissing);
+            mfGrp.classList.toggle('input-group--additional-editable', mfMissing);
+        }
+        if (mcGrp) {
+            mcGrp.classList.toggle('input-group--additional-gap', mcMissing);
+            mcGrp.classList.toggle('input-group--additional-editable', mcMissing);
+        }
+    }
+
+    function focusPropertyDocsMunicipalGap(payload) {
+        refreshPropertyDocsMunicipalFieldsUi('required', payload);
+        const block = document.getElementById('pdbMunicipalFieldsBlock');
+        if (block) block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const target = !readPropertyDocsMunicipalFormNo(payload)
+            ? document.getElementById('pdbMunicipalFormNo')
+            : document.getElementById('pdbMunicipalContractNo');
+        if (target) {
+            try {
+                target.focus();
+                target.select();
+            } catch (_eFocus) {}
+        }
+    }
+
     function refreshPropertyDocumentsBundleModalChrome(mode, payload) {
         const isAdditional = mode === 'additional';
         const isRenewal = !!(payload?.isRenewalContract || toStr(payload?.previousAgreementNo));
@@ -14920,6 +15000,8 @@
                 ? t('💾 حفظ المستندات الإضافية / Save additional documents', '💾 Save additional documents / حفظ المستندات الإضافية')
                 : t('💾 إكمال أوراق العقار وحفظها / Complete & save property papers', '💾 Complete & save property papers / إكمال أوراق العقار وحفظها');
         }
+        syncPropertyDocsMunicipalFieldsToModal(payload);
+        refreshPropertyDocsMunicipalFieldsUi(mode, payload);
     }
 
     function renderPropertyDocumentsBundleModalRows(rows = []) {
@@ -15209,17 +15291,16 @@
         }
         const unit = ctx.unit;
         const payload = getSavedContractPayloadForUnit(unit) || {};
-        const municipalFormNo =
-            toStr(document.getElementById('municipalFormNo')?.value).trim() || toStr(payload.municipalFormNo).trim();
-        const municipalContractNo =
-            toStr(document.getElementById('municipalContractNo')?.value).trim() || toStr(payload.municipalContractNo).trim();
+        const municipalFormNo = readPropertyDocsMunicipalFormNo(payload);
+        const municipalContractNo = readPropertyDocsMunicipalContractNo(payload);
         if (mode === 'required' && (!municipalFormNo || !municipalContractNo)) {
             alert(
                 t(
-                    'يجب إدخال رقم استمارة العقد البلدي ورقم العقد البلدي قبل إتمام المستندات وتفعيل العقد.',
-                    'Enter municipal contract form no. and municipal contract no. before completing documents and activating the contract.'
+                    'أدخل رقم استمارة العقد البلدي ورقم العقد البلدي في الحقول أعلى نافذة رفع الأوراق، ثم أعد الحفظ.',
+                    'Enter municipal contract form no. and municipal contract no. in the fields at the top of this window, then save again.'
                 )
             );
+            focusPropertyDocsMunicipalGap(payload);
             return;
         }
         const missing = getMissingPropertyDocumentCategoriesFromDocs(docs);
@@ -15246,6 +15327,7 @@
         merged.contractSavedStatus = lifecycle;
         upsertSavedContractForUnit(unit.building, unit.unit, merged, lifecycle);
         setPropertyDocBundleStoreArray(docs);
+        syncPropertyDocsMunicipalFieldsToMainForm(municipalFormNo, municipalContractNo);
         const mfEl = document.getElementById('municipalFormNo');
         const mcEl = document.getElementById('municipalContractNo');
         if (mfEl && municipalFormNo) mfEl.value = municipalFormNo;
