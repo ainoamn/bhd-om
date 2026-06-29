@@ -10189,6 +10189,7 @@
             if (siteAuth && k === 'bhd_address_book') return;
             const val = store[k];
             if (typeof val !== 'string') return;
+            const local = localStorage.getItem(k);
             if (siteAuth && BHD_KV_SITE_AUTHORITATIVE_KEYS.includes(k) && !bhdKvIsEmptyShell(val)) {
                 const propertyMerged = hydrateBhdKvPropertyKey(k, local, val);
                 if (propertyMerged !== null) {
@@ -10200,7 +10201,6 @@
                 any = true;
                 return;
             }
-            const local = localStorage.getItem(k);
             const propertyMerged = hydrateBhdKvPropertyKey(k, local, val);
             if (propertyMerged !== null) {
                 localStorage.setItem(k, propertyMerged);
@@ -11993,12 +11993,6 @@
         }
         try {
             await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
-            BHD_KV_CONTRACTS_LIST_PULL_KEYS.forEach((k) => {
-                if (k === 'bhd_accounting_registry') return;
-                try {
-                    localStorage.removeItem(k);
-                } catch (_eWipeK) {}
-            });
             invalidateBhdSiteKvRuntimeCaches();
         } catch (_eWipePull) {}
         const pulled = await pullBhdKvFromNeonWithRetry(2, {
