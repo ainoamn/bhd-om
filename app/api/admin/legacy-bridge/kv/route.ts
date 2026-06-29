@@ -17,7 +17,14 @@ export async function GET(req: NextRequest) {
     }
 
     const prefix = req.nextUrl.searchParams.get('prefix') || 'bhd_';
-    const data = await getLegacyKvBulk(prefix);
+    const keysParam = req.nextUrl.searchParams.get('keys') || '';
+    const keys = keysParam
+      ? keysParam
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean)
+      : undefined;
+    const data = await getLegacyKvBulk(prefix, keys);
 
     return NextResponse.json(data, {
       headers: {

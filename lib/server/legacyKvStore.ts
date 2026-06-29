@@ -22,10 +22,13 @@ function rowToEntry(row: { kvKey: string; data: string; updatedAt: Date }) {
   };
 }
 
-/** جلب مفاتيح bhd_* من PostgreSQL */
-export async function getLegacyKvBulk(prefix = 'bhd_'): Promise<LegacyKvPullResult> {
+/** جلب مفاتيح bhd_* من PostgreSQL — يمكن تمرير keys لسحب جزئي أسرع */
+export async function getLegacyKvBulk(prefix = 'bhd_', keys?: string[]): Promise<LegacyKvPullResult> {
+  const validKeys = (keys || []).filter((k) => isLegacyKvKey(k));
   const rows = await prisma.legacyAppKvStore.findMany({
-    where: { kvKey: { startsWith: prefix } },
+    where: validKeys.length
+      ? { kvKey: { in: validKeys } }
+      : { kvKey: { startsWith: prefix } },
     orderBy: { kvKey: 'asc' },
   });
 
