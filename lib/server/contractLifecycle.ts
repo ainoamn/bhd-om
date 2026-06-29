@@ -206,6 +206,7 @@ function payloadDepositSatisfiedByAccounting(
   if (payloadHasDepositAttachment(payload) && dep) return true;
   if (!dep) return false;
   if (isAccountingDepositPendingReceipt(dep.status)) {
+    if (str(dep.reference).trim() && parseFloat(str(dep.amount)) > 0) return true;
     return (
       payloadHasDepositAttachment(payload) ||
       !!(str(dep.attachmentRelativePath).trim() || str(dep.attachmentName).trim())

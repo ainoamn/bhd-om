@@ -16909,6 +16909,7 @@
         if (payloadHasDepositAttachment(payload) && dep) return true;
         if (!dep) return false;
         if (isAccountingDepositPendingReceipt(dep.status)) {
+            if (toStr(dep.reference).trim() && parseFloat(dep.amount) > 0) return true;
             return (
                 payloadHasDepositAttachment(payload) ||
                 !!(toStr(dep.attachmentRelativePath).trim() || toStr(dep.attachmentName).trim())
@@ -22651,6 +22652,15 @@ function getEmptyCompanySignatory() {
         const gaps = analyzeContractAdditionalDataGaps(payload);
         if (!hasAnyContractAdditionalDataGaps(gaps)) {
             exitContractAdditionalDataMode();
+            if (isBhdSiteKvPersistenceActive()) {
+                fetchBhdServerContractStatuses(true)
+                    .then(() => {
+                        try {
+                            if (contractsWorkspaceSubview === 'list') renderContractsListPanel();
+                        } catch (_eReList) {}
+                    })
+                    .catch(() => {});
+            }
             return false;
         }
         const bDraft = toStr(payload.buildingNo);
