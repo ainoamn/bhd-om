@@ -6,6 +6,7 @@ import {
   isLegacyKvKeepOnFullWipe,
 } from '@/lib/server/legacyKvKeys';
 import { extractLegacyKvInlineBlobs, deleteLegacyStoredFilesForContexts } from '@/lib/server/legacyStoredFiles';
+import { mergeLegacyKvOnPut } from '@/lib/server/legacyKvMerge';
 
 export type LegacyKvBulkPayload = Record<string, string>;
 
@@ -61,16 +62,22 @@ export async function putLegacyKvBulk(payload: LegacyKvBulkPayload): Promise<{ s
       }
     }
 
+    const existing = await prisma.legacyAppKvStore.findUnique({
+      where: { kvKey: key },
+      select: { data: true },
+    });
+    const mergedData = mergeLegacyKvOnPut(key, existing?.data ?? null, storedData);
+
     await prisma.legacyAppKvStore.upsert({
       where: { kvKey: key },
       create: {
         kvKey: key,
-        data: storedData,
+        data: mergedData,
         category: legacyKvCategory(key),
         updatedAt: now,
       },
       update: {
-        data: storedData,
+        data: mergedData,
         category: legacyKvCategory(key),
         updatedAt: now,
       },

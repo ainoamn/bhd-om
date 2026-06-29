@@ -9875,6 +9875,12 @@
     }
 
     /** مزامنة مع الخادم المحلي (SQLite) عند فتح الصفحة عبر http://localhost:3789 */
+    try {
+        if (/bhd-om\.com$/i.test(String(location.hostname || '').replace(/^www\./i, ''))) {
+            localStorage.setItem('bhd_site_integrated', '1');
+        }
+    } catch (_eSiteHostFlag) {}
+
     const BHD_KV_KEYS = [
         'bhd_contract_full',
         'bhd_tenancy_contract_drafts',
@@ -11729,11 +11735,27 @@
     let _bhdSiteBootHydrationTimer = 0;
     let _bhdSiteBootHydrationDone = false;
     let _bhdSiteKvHydrationPromise = null;
+    let _bhdContractsListNeonSyncedThisPage = false;
+
+    async function pullBhdKvFromNeonWithRetry(maxAttempts) {
+        const attempts = Math.max(1, maxAttempts || 3);
+        for (let i = 0; i < attempts; i++) {
+            try {
+                const pulled = await bhdHydrateSiteKvFromServerIfNeeded();
+                if (pulled) return true;
+            } catch (_ePullTry) {}
+            if (i < attempts - 1) {
+                await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+            }
+        }
+        return false;
+    }
 
     /** سحب كل بيانات bhd_* من Neon قبل عرض الشاشات — مصدر الحقيقة السحابي */
-    function ensureBhdSiteKvHydratedFromNeon() {
+    function ensureBhdSiteKvHydratedFromNeon(opt = {}) {
+        const force = opt.force === true;
         if (!isBhdSiteKvPersistenceActive()) return Promise.resolve(false);
-        if (_bhdSiteBootHydrationDone) return Promise.resolve(true);
+        if (!force && _bhdSiteBootHydrationDone) return Promise.resolve(true);
         if (_bhdSiteKvHydrationPromise) return _bhdSiteKvHydrationPromise;
         _bhdSiteKvHydrationPromise = (async () => {
             try {
@@ -11746,13 +11768,20 @@
                 try {
                     window.__bhdDedupeAddressBook?.();
                 } catch (_eDedBoot) {}
-                const pulled = await bhdHydrateSiteKvFromServerIfNeeded();
+                const pulled = await pullBhdKvFromNeonWithRetry(3);
                 if (pulled) {
                     try {
                         _bhdKvDirtyKeys.clear();
                     } catch (_eClrDirty) {}
+                    muteBhdKvAutoPush(10000);
+                    invalidateSavedContractsMapCache();
+                    try {
+                        loadSavedContractsByUnitMap(true);
+                    } catch (_eScReload) {}
                 }
-                _bhdSiteBootHydrationDone = true;
+                if (pulled || !isBhdSiteKvPersistenceActive()) {
+                    _bhdSiteBootHydrationDone = true;
+                }
                 try {
                     loadDashboardAux(true);
                     bumpUnitsDataCache();
@@ -12232,6 +12261,15 @@
 
     const _bhdKvDirtyKeys = new Set();
     let _bhdKvDirtyHookInstalled = false;
+    let _bhdKvPushMutedUntil = 0;
+
+    function muteBhdKvAutoPush(ms) {
+        _bhdKvPushMutedUntil = Date.now() + Math.max(0, ms || 0);
+    }
+
+    function isBhdKvAutoPushMuted() {
+        return Date.now() < _bhdKvPushMutedUntil;
+    }
 
     function ensureBhdKvDirtyTracking() {
         if (_bhdKvDirtyHookInstalled) return;
@@ -12284,6 +12322,7 @@
 
     async function syncBhdKvToServer(options = {}) {
         const forceAll = options.forceAll === true;
+        if (!forceAll && isBhdKvAutoPushMuted()) return;
         if (!window.bhdDesktop) {
             await mirrorKvFromLocalStorageToIndexedDb();
         }
@@ -14480,6 +14519,11 @@
 
     let _savedContractsMapCache = null;
     let _savedContractsMapCacheRaw = null;
+
+    function invalidateSavedContractsMapCache() {
+        _savedContractsMapCache = null;
+        _savedContractsMapCacheRaw = null;
+    }
 
     function loadSavedContractsByUnitMap(forceReload) {
         try {
@@ -69773,12 +69817,19 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
     async function renderContractsListPanel() {
         const tbody = document.getElementById('contractsListTableBody');
         if (!tbody) return;
-        if (isBhdSiteKvPersistenceActive() && !_bhdSiteBootHydrationDone) {
+        if (isBhdSiteKvPersistenceActive() && !_bhdContractsListNeonSyncedThisPage) {
             tbody.innerHTML = `<tr><td colspan="8">${t('جاري تحميل البيانات من قاعدة السحابة…', 'Loading data from cloud database…')}</td></tr>`;
-            try {
-                await ensureBhdSiteKvHydratedFromNeon();
-            } catch (_eCListHydr) {}
+            const pulled = await ensureBhdSiteKvHydratedFromNeon({ force: true });
+            if (!pulled) {
+                tbody.innerHTML = `<tr><td colspan="8">${t(
+                    'تعذّر تحميل البيانات من قاعدة السحابة. تأكد من تسجيل الدخول ثم حدّث الصفحة.',
+                    'Could not load data from the cloud database. Sign in and refresh the page.'
+                )} <button type="button" class="mini-btn" onclick="_bhdContractsListNeonSyncedThisPage=false;renderContractsListPanel()">${t('إعادة المحاولة', 'Retry')}</button></td></tr>`;
+                return;
+            }
+            _bhdContractsListNeonSyncedThisPage = true;
         }
+        muteBhdKvAutoPush(6000);
         try {
             repairDuplicateMultiUnitAccountingEntries();
         } catch (_eRepList) {}
