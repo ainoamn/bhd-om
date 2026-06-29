@@ -11782,6 +11782,18 @@
     let _bhdContractsListNeonSyncedThisPage = false;
     let _bhdServerContractStatusesByUnit = null;
 
+    function applyBhdServerContractLifecycleMaps(data) {
+        if (!data || typeof data !== 'object') return false;
+        const statuses = data.statuses || data.contractLifecycle?.statuses;
+        const byUnit = data.byUnit || data.contractLifecycle?.byUnit;
+        if (!statuses && !byUnit) return false;
+        _bhdServerContractStatusesByUnit = byUnit && typeof byUnit === 'object' ? byUnit : {};
+        window._bhdServerContractStatuses = statuses && typeof statuses === 'object' ? statuses : {};
+        window._bhdServerContractStatusesByUnit = _bhdServerContractStatusesByUnit;
+        window._bhdServerContractLifecycleAt = data.reconciledAt || data.contractLifecycle?.reconciledAt || new Date().toISOString();
+        return true;
+    }
+
     async function fetchBhdServerContractStatuses(reconcile) {
         if (!isBhdSiteKvPersistenceActive()) return false;
         try {
@@ -11792,14 +11804,42 @@
             });
             if (!r.ok) return false;
             const data = await r.json();
-            _bhdServerContractStatusesByUnit =
-                data.byUnit && typeof data.byUnit === 'object' ? data.byUnit : {};
-            window._bhdServerContractStatuses = data.statuses || {};
-            window._bhdServerContractStatusesByUnit = _bhdServerContractStatusesByUnit;
-            return true;
+            return applyBhdServerContractLifecycleMaps(data);
         } catch (_eSrvSt) {
             return false;
         }
+    }
+
+    function getBhdServerContractLifecycleForAgreement(building, agreementNo) {
+        if (!_bhdServerContractStatusesByUnit && !window._bhdServerContractStatuses) return null;
+        const ag = toStr(agreementNo).trim();
+        const b = toStr(building).trim();
+        if (!ag) return null;
+        const statuses = window._bhdServerContractStatuses || {};
+        const exact = b + '\t' + ag;
+        if (statuses[exact]) return toStr(statuses[exact]);
+        const bNorm = normalizeReservationBuildingKey(b);
+        for (const sk of Object.keys(statuses)) {
+            const tab = sk.lastIndexOf('\t');
+            if (tab < 0) continue;
+            const sb = sk.slice(0, tab);
+            const sag = sk.slice(tab + 1);
+            if (sag === ag && normalizeReservationBuildingKey(sb) === bNorm) return toStr(statuses[sk]);
+        }
+        return null;
+    }
+
+    /** حالة العقد في قائمة العقود — من Neon فقط على الموقع المدمج */
+    function getContractListRowLifecycleStateKey(row) {
+        if (!row) return 'active_pending';
+        if (isBhdSiteKvPersistenceActive()) {
+            const byAg = getBhdServerContractLifecycleForAgreement(row.building, row.agreementNo);
+            if (byAg) return byAg;
+            const byUnit = getBhdServerContractLifecycleForUnit(row._unitRef);
+            if (byUnit) return byUnit;
+            return 'active_pending';
+        }
+        return getContractLifecycleStateKey(row._unitRef);
     }
 
     function getBhdServerContractLifecycleForUnit(u) {
@@ -11837,8 +11877,18 @@
     /** سحب سريع لقائمة العقود — بدون دفتر العناوين وبدون كل مفاتيح bhd_* */
     async function ensureBhdSiteKvHydratedForContractsList() {
         if (!isBhdSiteKvPersistenceActive()) return false;
-        const statusesOk = await fetchBhdServerContractStatuses(true);
-        if (!statusesOk) return false;
+        if (!window._bhdServerContractStatuses || !Object.keys(window._bhdServerContractStatuses).length) {
+            const statusesOk = await fetchBhdServerContractStatuses(true);
+            if (!statusesOk) return false;
+        }
+        try {
+            BHD_KV_CONTRACTS_LIST_PULL_KEYS.forEach((k) => {
+                try {
+                    localStorage.removeItem(k);
+                } catch (_eWipeK) {}
+            });
+            invalidateBhdSiteKvRuntimeCaches();
+        } catch (_eWipePull) {}
         const pulled = await pullBhdKvFromNeonWithRetry(2, {
             keys: BHD_KV_CONTRACTS_LIST_PULL_KEYS,
             deferIdbMirror: true
@@ -69932,8 +69982,8 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 va = a.endDate;
                 vb = b.endDate;
             } else if (key === 'contractState') {
-                va = getContractLifecycleStateRank(getContractLifecycleStateKey(a._unitRef));
-                vb = getContractLifecycleStateRank(getContractLifecycleStateKey(b._unitRef));
+                va = getContractLifecycleStateRank(getContractListRowLifecycleStateKey(a));
+                vb = getContractLifecycleStateRank(getContractListRowLifecycleStateKey(b));
                 return (va - vb) * dir;
             } else {
                 va = a.building;
@@ -69994,7 +70044,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
         tbody.innerHTML = rows
             .map((r, i) => {
-                const stateKey = getContractLifecycleStateKey(r._unitRef);
+                const stateKey = getContractListRowLifecycleStateKey(r);
                 return `<tr>
                     <td>${escHtml(r.building)}</td>
                     <td>${escHtml(r.ownerNames || '-')}</td>

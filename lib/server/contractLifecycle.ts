@@ -402,6 +402,53 @@ export type ReconcileContractsResult = ContractStatusMaps & {
   groupsProcessed: number;
 };
 
+/** جلب وحساب حالات العقود من Neon — مع خيار الحفظ */
+export async function loadCanonicalContractStatusesFromNeon(
+  persist: boolean
+): Promise<ContractStatusMaps & { persisted: boolean; groupsProcessed: number }> {
+  const { prisma } = await import('@/lib/prisma');
+  const [contractsRow, accountingRow] = await Promise.all([
+    prisma.legacyAppKvStore.findUnique({
+      where: { kvKey: 'bhd_saved_contracts_by_unit' },
+      select: { data: true },
+    }),
+    prisma.legacyAppKvStore.findUnique({
+      where: { kvKey: 'bhd_accounting_registry' },
+      select: { data: true },
+    }),
+  ]);
+
+  const contractsRaw = contractsRow?.data ?? '{}';
+  const accountingRaw = accountingRow?.data ?? '{}';
+  const result = reconcileSavedContractsLifecycle(contractsRaw, accountingRaw);
+
+  let persisted = false;
+  if (persist && result.changed) {
+    const updatedJson = JSON.stringify(result.updatedMap);
+    await prisma.legacyAppKvStore.upsert({
+      where: { kvKey: 'bhd_saved_contracts_by_unit' },
+      create: {
+        kvKey: 'bhd_saved_contracts_by_unit',
+        data: updatedJson,
+        category: 'contracts',
+      },
+      update: {
+        data: updatedJson,
+        category: 'contracts',
+        updatedAt: new Date(),
+      },
+    });
+    persisted = true;
+  }
+
+  return {
+    statuses: result.statuses,
+    byUnit: result.byUnit,
+    persisted,
+    groupsProcessed: result.groupsProcessed,
+  };
+}
+
 /** توحيد العقود في KV: دمج أغنى payload + lifecycle واحد لكل اتفاقية */
 export function reconcileSavedContractsLifecycle(
   contractsRaw: string,

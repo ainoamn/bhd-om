@@ -1,7 +1,7 @@
 # Neon PostgreSQL — مصدر الحقيقة الوحيد
 
 **المشروع:** [bhd-om](https://github.com/ainoamn/bhd-om) على [bhd-om.com](https://www.bhd-om.com)  
-**قاعدة البيانات:** [Neon](https://console.neon.tech) — `org-broad-surf-16375800`  
+**قاعدة البيانات:** [Neon](https://console.neon.tech) — تحقق أن `DATABASE_URL` في Vercel يشير لنفس المشروع (مثلاً [calm-star-78416849](https://console.neon.tech/app/projects/calm-star-78416849))  
 **السياسة:** أي بيانات تشغيلية **لا تُخزَّن في المتصفح كمصدر نهائي** — PostgreSQL على Neon هو المرجع.
 
 ---
@@ -38,6 +38,7 @@
 - **مفاتيح سحابية إلزامية:** كل `bhd_*` ما عدا `bhd_auth_session`, `bhd_theme_mode`, `bhd_users_registry` (جلسة/مظهر) و`bhd_address_book` (جدول Contacts).
 - **التحقق:** `GET /api/admin/legacy-bridge/data-health`
 - **حالات العقود الرسمية (كل المتصفحات):** `GET /api/admin/legacy-bridge/contract-statuses?reconcile=1`
+- **تُحقَن أيضاً في HTML** عند فتح النظام القديم (`contractLifecycle` داخل جسر الموقع)
 
 ---
 

@@ -17,6 +17,7 @@ import { findManyAddressBookContactsOrHeal, withAddressBookSchemaHeal } from '@/
 import { assertAddressBookIdentityUnique } from '@/lib/server/addressBookIdentity';
 import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityToContactJson';
 import { prisma } from '@/lib/prisma';
+import { loadCanonicalContractStatusesFromNeon } from '@/lib/server/contractLifecycle';
 
 export const BHD_SITE_SSO_PASSWORD = '__BHD_SITE_SSO__';
 
@@ -83,6 +84,13 @@ export type LegacyBridgePayload = {
     dashboard: string;
   };
   currentUser: LegacyBridgeUser;
+  /** حالات العقود الرسمية من Neon — تُعرض في كل المتصفحات بدون حساب محلي */
+  contractLifecycle?: {
+    statuses: Record<string, string>;
+    byUnit: Record<string, string>;
+    reconciledAt: string;
+    groupsProcessed: number;
+  };
 };
 
 const CATEGORY_TO_LEGACY_TYPE: Record<ContactCategory, string> = {
@@ -671,6 +679,19 @@ export async function buildLegacyBridgeMinimalPayload(
   const currentUser = mapSiteUserToLegacyUser(currentDbUser);
   const prefix = `/${locale}`;
 
+  let contractLifecycle: LegacyBridgePayload['contractLifecycle'];
+  try {
+    const canon = await loadCanonicalContractStatusesFromNeon(true);
+    contractLifecycle = {
+      statuses: canon.statuses,
+      byUnit: canon.byUnit,
+      reconciledAt: new Date().toISOString(),
+      groupsProcessed: canon.groupsProcessed,
+    };
+  } catch (eCanon) {
+    console.warn('buildLegacyBridgeMinimalPayload contractLifecycle', eCanon);
+  }
+
   return {
     siteIntegrated: true,
     version: 1,
@@ -688,6 +709,7 @@ export async function buildLegacyBridgeMinimalPayload(
       preferSiteUserManagement: true,
       preferSiteAddressBook: true,
     },
+    contractLifecycle,
     siteAdminUrls: {
       users: `${prefix}/admin/users`,
       addressBook: `${prefix}/admin/address-book`,
@@ -1012,6 +1034,11 @@ function applyBridge(data){
       }
     }
     if(data.siteAdminUrls)window.__bhdSiteAdminUrls=data.siteAdminUrls;
+    if(data.contractLifecycle&&typeof data.contractLifecycle==='object'){
+      window._bhdServerContractStatuses=data.contractLifecycle.statuses||{};
+      window._bhdServerContractStatusesByUnit=data.contractLifecycle.byUnit||{};
+      window._bhdServerContractLifecycleAt=data.contractLifecycle.reconciledAt||'';
+    }
     window.dispatchEvent(new Event('bhd-site-bridge-applied'));
     reloadAddressBookFromBridge();
   }catch(e){console.warn('[BHD] applyBridge storage failed',e);}
@@ -1064,6 +1091,13 @@ window.addEventListener('message',function(ev){
 });
 window.addEventListener('bhd-site-bridge-applied',function(){
   setTimeout(function(){pollAuthUiRefresh(10);},0);
+  try{
+    if(window.__bhdSiteBridgePayload&&window.__bhdSiteBridgePayload.contractLifecycle){
+      window._bhdServerContractStatuses=window.__bhdSiteBridgePayload.contractLifecycle.statuses||{};
+      window._bhdServerContractStatusesByUnit=window.__bhdSiteBridgePayload.contractLifecycle.byUnit||{};
+      window._bhdServerContractLifecycleAt=window.__bhdSiteBridgePayload.contractLifecycle.reconciledAt||'';
+    }
+  }catch(_eClBridge){}
 });
 try{
   var dataEl=document.getElementById('bhd-site-bridge-data');
