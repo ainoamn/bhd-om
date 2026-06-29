@@ -10460,6 +10460,43 @@
         }
     }
 
+    /** بعد تصفية ناجحة — لا ندفع محلياً إلى Neon قبل السحب (كان يعيد البيانات المحذوفة) */
+    function shouldSkipSiteKvPushBeforePull() {
+        try {
+            const confirmedAt = parseInt(localStorage.getItem(BHD_CLOUD_WIPE_CONFIRMED_KEY) || '0', 10);
+            if (!confirmedAt || !Number.isFinite(confirmedAt)) return false;
+            return Date.now() - confirmedAt < 24 * 60 * 60 * 1000;
+        } catch (_eSkipPush) {
+            return false;
+        }
+    }
+
+    function defaultEmptyLegacyKvValue(key) {
+        if (key === ACCOUNTING_REGISTRY_KEY) return JSON.stringify(emptyAccountingRegistry());
+        if (key === MAINTENANCE_REGISTRY_KEY) return JSON.stringify(emptyMaintenanceRegistry());
+        if (key === TASKS_REGISTRY_KEY) return JSON.stringify(defaultTasksRegistry());
+        if (key.endsWith('_map') || key.includes('profiles') || key === 'bhd_owner_building_map') return '{}';
+        if (key.endsWith('_list') || key.includes('reservations') || key.includes('cancellations')) return '[]';
+        if (key.includes('registry') && key !== 'bhd_users_registry') return '[]';
+        return '{}';
+    }
+
+    async function pushEmptyKvPayloadForScopeToCloud(scope) {
+        const empties = getEmptyStorageDefaultsForScope(scope);
+        const payload = {};
+        const keys =
+            scope === 'all'
+                ? BHD_KV_KEYS.filter((k) => !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k) && k !== 'bhd_address_book')
+                : getBhdKeysForCleanupScope(scope);
+        keys.forEach((k) => {
+            if (k === 'bhd_ui_language') return;
+            const v = empties[k] ?? localStorage.getItem(k) ?? defaultEmptyLegacyKvValue(k);
+            payload[k] = v;
+        });
+        if (!Object.keys(payload).length) return { ok: true };
+        return bhdKvPutBulkRemote(payload, { replace: true });
+    }
+
     async function bhdKvPutBulkRemote(payload, options) {
         const opts = options || {};
         if (!payload || !Object.keys(payload).length) return { ok: false };
@@ -10549,7 +10586,14 @@
             return {
                 ...base,
                 bhd_hide_demo_units: '1',
-                bhd_use_empty_base_units: '1'
+                bhd_use_empty_base_units: '1',
+                bhd_saved_contracts_by_unit: '{}',
+                bhd_contract_full: '{}',
+                bhd_tenancy_contract_drafts: '{}',
+                bhd_contract_history_by_unit: '{}',
+                bhd_accounting_registry: JSON.stringify(emptyAccountingRegistry()),
+                bhd_maintenance_registry: JSON.stringify(emptyMaintenanceRegistry()),
+                bhd_tasks_registry: JSON.stringify(defaultTasksRegistry())
             };
         }
         if (scope === 'buildings') {
@@ -11890,13 +11934,15 @@
         const keys = Array.isArray(opt.keys) && opt.keys.length ? opt.keys : null;
         const deferIdbMirror = opt.deferIdbMirror === true;
         const siteKv = isBhdSiteKvPersistenceActive();
-        if (siteKv) {
+        if (siteKv && !shouldSkipSiteKvPushBeforePull()) {
             const pushKeys = keys && keys.length
-                ? keys
-                : ['bhd_accounting_registry', 'bhd_saved_contracts_by_unit', 'bhd_managed_units', 'bhd_buildings_list'];
-            try {
-                await flushBhdKvToServerNow(pushKeys);
-            } catch (_ePrePush) {}
+                ? keys.filter((k) => _bhdKvDirtyKeys.has(k))
+                : [..._bhdKvDirtyKeys].filter((k) => BHD_KV_KEYS.includes(k));
+            if (pushKeys.length) {
+                try {
+                    await flushBhdKvToServerNow(pushKeys);
+                } catch (_ePrePush) {}
+            }
             if (!keys || keys.includes('bhd_saved_contracts_by_unit')) {
                 try {
                     await fetchBhdServerContractStatuses(true);
@@ -12747,10 +12793,10 @@
     }
 
     /** رفع فوري لمفاتيح حرجة (اعتماد محاسبة) — يتجاوز كتم الدفع بعد السحب */
-    async function flushBhdKvToServerNow(keys) {
+    async function flushBhdKvToServerNow(keys, options) {
         const list = Array.isArray(keys) && keys.length ? keys : ['bhd_accounting_registry'];
         list.forEach((k) => markBhdKvDirty(k));
-        await syncBhdKvToServer({ keys: list, force: true });
+        await syncBhdKvToServer({ keys: list, force: true, replace: !!(options && options.replace) });
     }
 
     async function pullBhdKvFromServer() {
@@ -48598,6 +48644,7 @@ function getEmptyCompanySignatory() {
         if (!confirm(scopeConfirm)) return;
 
         const siteWipeScopes = ['all', 'addressbook', 'tenants', 'owners'];
+        let addressBookWipeOk = true;
         if (siteWipeScopes.includes(scope) && localStorage.getItem('bhd_site_integrated') === '1') {
             try {
                 const wipeRes = await fetch('/api/admin/legacy-bridge/address-book/wipe', {
@@ -48607,20 +48654,25 @@ function getEmptyCompanySignatory() {
                     body: JSON.stringify({ scope })
                 });
                 if (!wipeRes.ok) {
+                    addressBookWipeOk = false;
                     const failMsg = await wipeRes.text().catch(() => '');
                     console.warn('site address book wipe failed', wipeRes.status, failMsg);
                     alert(
                         t(
-                            '⚠️ تم تصفير البيانات المحلية، لكن تعذّر حذف دفتر العناوين من قاعدة الموقع. جرّب الحذف من /admin/address-book أو أعد المحاولة.',
-                            '⚠️ Local data was cleared, but the site address book in PostgreSQL could not be wiped. Try /admin/address-book or retry.'
+                            '⚠️ تعذّر حذف دفتر العناوين من قاعدة السحابة. لم يُكمل التصفير — أعد المحاولة أو احذف من /admin/address-book.',
+                            '⚠️ Could not wipe the address book in the cloud database. Cleanup was aborted — retry or delete from /admin/address-book.'
                         )
                     );
                 } else if (window.__bhdSiteBridgePayload) {
                     window.__bhdSiteBridgePayload.addressBook = [];
                 }
             } catch (_eSiteWipe) {
+                addressBookWipeOk = false;
                 console.warn('site address book wipe', _eSiteWipe);
             }
+        }
+        if (!addressBookWipeOk && (scope === 'all' || scope === 'addressbook')) {
+            return;
         }
 
         if (scope === 'all') {
@@ -48729,6 +48781,11 @@ function getEmptyCompanySignatory() {
             }
             if (siteKvActive && purgeResult.remoteOk) {
                 markBhdCloudWipeConfirmed();
+                try {
+                    window._bhdServerContractStatuses = {};
+                    window._bhdServerContractStatusesByUnit = {};
+                    _bhdServerContractStatusesByUnit = {};
+                } catch (_eClrSt) {}
             }
             if (window.bhdDesktop && !window.bhdDesktop.kvClearKeys && !window.bhdDesktop.kvWipeAllExcept) {
                 console.warn('Desktop wipe API missing — restart desktop app');
@@ -48744,11 +48801,26 @@ function getEmptyCompanySignatory() {
 
         try {
             await mirrorKvFromLocalStorageToIndexedDb();
-            if (scope === 'all' || scope === 'buildings' || scope === 'contracts' || scope === 'accounting') {
+            if (siteKvActive && bhdRemoteKvSyncEnabled()) {
+                const putRes = await pushEmptyKvPayloadForScopeToCloud(scope);
+                if (!putRes.ok) {
+                    alert(
+                        t(
+                            '⚠️ تم الحذف محلياً لكن تعذّر كتابة الحالة الفارغة في السحابة. أعد المحاولة.',
+                            '⚠️ Cleared locally but could not write empty state to the cloud. Please retry.'
+                        )
+                    );
+                    return;
+                }
+            } else if (scope === 'all' || scope === 'buildings' || scope === 'contracts' || scope === 'accounting') {
                 await syncBhdKvToServer({ forceAll: scope === 'all', force: true, replace: true });
             } else {
                 await syncBhdKvToServer({ force: true, replace: true });
             }
+            try {
+                _bhdKvDirtyKeys.clear();
+            } catch (_eClrPostWipe) {}
+            muteBhdKvAutoPush(60000);
         } catch (eSync) {}
         try {
             localStorage.setItem('bhd_last_data_wipe', String(Date.now()));
