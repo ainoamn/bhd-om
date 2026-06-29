@@ -8377,7 +8377,7 @@
             <button type="button" class="btn-outline" onclick="closeDataCleanupModal()" data-ar="إغلاق" data-en="Close">إغلاق</button>
         </div>
         <div class="details-body">
-            <p style="font-size:12px;color:#555;margin:0 0 10px" data-ar="اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. على الموقع يُحذف من قاعدة السحابة أيضاً — يتطلب صلاحية مسؤول النظام. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول." data-en="Choose the section to clear. Requires import/export permission. On the website, cloud (Neon) data is deleted too — system admin role required. Signed-in system admin confirms with OK only; other users enter their sign-in password.">اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. على الموقع يُحذف من قاعدة السحابة أيضاً — يتطلب صلاحية مسؤول النظام. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول.</p>
+            <p style="font-size:12px;color:#555;margin:0 0 10px" data-ar="اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. على الموقع يُحذف من قاعدة السحابة أيضاً — يتطلب صلاحية مسؤول النظام. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول." data-en="Choose the section to clear. Requires import/export permission. On the website, cloud data is deleted too — system admin role required. Signed-in system admin confirms with OK only; other users enter their sign-in password.">اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. على الموقع يُحذف من قاعدة السحابة أيضاً — يتطلب صلاحية مسؤول النظام. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول.</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
                 <button type="button" class="btn-outline" onclick="runDataCleanup('all')" data-ar="🧨 تصفية كل البيانات" data-en="🧨 Clear all data">🧨 تصفية كل البيانات</button>
                 <button type="button" class="btn-outline" onclick="runDataCleanup('contracts')" data-ar="📝 تصفية بيانات العقود" data-en="📝 Clear contracts data">📝 تصفية بيانات العقود</button>
@@ -10521,7 +10521,7 @@
             const confirmedAt = parseInt(localStorage.getItem(BHD_CLOUD_WIPE_CONFIRMED_KEY) || '0', 10);
             if (!wipedAt || !Number.isFinite(wipedAt)) return false;
             if (Date.now() - wipedAt > 24 * 60 * 60 * 1000) return false;
-            if (confirmedAt >= wipedAt) return false;
+            if (confirmedAt >= wipedAt) return true;
             if (bhdLocalStorageHasSubstantiveData()) return false;
             return true;
         } catch (_eSkipWipe) {
@@ -12041,6 +12041,9 @@
     async function bhdHydrateSiteKvFromServerIfNeeded(opt = {}) {
         if (!bhdRemoteKvSyncEnabled() || (!isBhdSiteIntegratedWebClient() && !bhdApiAvailable)) return false;
         if (shouldSkipSiteKvPullAfterLocalWipe()) return false;
+        try {
+            if (localStorage.getItem('bhd_data_wipe_in_progress') === '1') return false;
+        } catch (_eWipeProgPull) {}
         const keys = Array.isArray(opt.keys) && opt.keys.length ? opt.keys : null;
         const deferIdbMirror = opt.deferIdbMirror === true;
         const siteKv = isBhdSiteKvPersistenceActive();
@@ -48749,35 +48752,57 @@ function getEmptyCompanySignatory() {
         return true;
     }
 
+    function getDataCleanupScopeConfirmMessage(scope) {
+        if (scope === 'all') {
+            return t(
+                'سيتم حذف كل بيانات العقود والحجوزات والملاك والمباني ودفتر العناوين من هذا المتصفح ومن قاعدة السحابة على الموقع.\n\nيُحتفظ فقط بحسابات المستخدمين والمظهر.\n\nاضغط «موافق» للمتابعة أو «إلغاء» للتراجع.',
+                'All contracts, reservations, owners, buildings, and address book data will be removed from this browser and the site cloud database.\n\nOnly user accounts and theme are kept.\n\nPress OK to continue or Cancel to abort.'
+            );
+        }
+        if (scope === 'accounting') {
+            return t(
+                'سيتم تصفير كل بيانات المحاسبة (الإيرادات، المصروفات، الشيكات، الفواتير، السندات) محلياً وفي السحابة.\n\nهل تريد المتابعة؟',
+                'All accounting data will be reset locally and in the cloud (income, expenses, cheques, invoices, vouchers).\n\nContinue?'
+            );
+        }
+        if (scope === 'maintenance') {
+            return t(
+                'سيتم تصفير كل بيانات الصيانة وطلباتها محلياً وفي السحابة.\n\nهل تريد المتابعة؟',
+                'All maintenance data and requests will be reset locally and in the cloud.\n\nContinue?'
+            );
+        }
+        if (scope === 'tasks') {
+            return t(
+                'سيتم تصفير كل بيانات المهام محلياً وفي السحابة.\n\nهل تريد المتابعة؟',
+                'All tasks data will be reset locally and in the cloud.\n\nContinue?'
+            );
+        }
+        return t(
+            'سيتم تنفيذ التصفية المختارة على هذا المتصفح وقاعدة السحابة.\n\nهل تريد المتابعة؟',
+            'The selected cleanup will run on this browser and the cloud database.\n\nContinue?'
+        );
+    }
+
+    async function confirmDataCleanupScope(scope) {
+        const dlg = await showAppConfirmDialog(
+            getDataCleanupScopeConfirmMessage(scope),
+            t('تأكيد تصفية البيانات', 'Confirm data cleanup')
+        );
+        return !!dlg.confirmed;
+    }
+
     async function runDataCleanup(scope) {
         if (!(await confirmCleanupPassword())) {
             return;
         }
-        const scopeConfirm = scope === 'all'
-            ? t(
-                'سيتم حذف كل بيانات العقود والحجوزات والملاك والمباني ودفتر العناوين من المتصفح وقاعدة PostgreSQL على الموقع (شامل /admin/address-book).\n\nيُحتفظ فقط بحسابات المستخدمين والمظهر.\n\nهل أنت متأكد؟',
-                'All contracts, reservations, owners, buildings, and address book data will be removed from browser storage and the site PostgreSQL database (including /admin/address-book).\n\nOnly user accounts and theme are kept.\n\nAre you sure?'
-            )
-            : scope === 'accounting'
-              ? t(
-                    'سيتم تصفير كل بيانات المحاسبة (الإيرادات، المصروفات، الشيكات، الفواتير، السندات).\n\nهل أنت متأكد؟',
-                    'All accounting data will be reset (income, expenses, cheques, invoices, vouchers).\n\nAre you sure?'
-                )
-              : scope === 'maintenance'
-                ? t(
-                      'سيتم تصفير كل بيانات الصيانة وطلباتها.\n\nهل أنت متأكد؟',
-                      'All maintenance data and requests will be reset.\n\nAre you sure?'
-                  )
-                : scope === 'tasks'
-                  ? t(
-                        'سيتم تصفير كل بيانات المهام.\n\nهل أنت متأكد؟',
-                        'All tasks data will be reset.\n\nAre you sure?'
-                    )
-                  : t('تأكيد تنفيذ التصفية؟', 'Confirm cleanup?');
-        if (!confirm(scopeConfirm)) return;
+        if (!(await confirmDataCleanupScope(scope))) {
+            return;
+        }
 
+        const cleanupWarnings = [];
         try {
             localStorage.setItem('bhd_last_data_wipe', String(Date.now()));
+            localStorage.setItem('bhd_data_wipe_in_progress', '1');
             if (scope === 'all') {
                 localStorage.setItem('bhd_hide_demo_units', '1');
                 localStorage.setItem('bhd_use_empty_base_units', '1');
@@ -48787,7 +48812,6 @@ function getEmptyCompanySignatory() {
         resetBhdRuntimeStateAfterCleanup(scope);
 
         const siteWipeScopes = ['all', 'addressbook', 'tenants', 'owners'];
-        let addressBookWipeOk = true;
         if (siteWipeScopes.includes(scope) && localStorage.getItem('bhd_site_integrated') === '1') {
             try {
                 const wipeRes = await fetch('/api/admin/legacy-bridge/address-book/wipe', {
@@ -48797,25 +48821,26 @@ function getEmptyCompanySignatory() {
                     body: JSON.stringify({ scope })
                 });
                 if (!wipeRes.ok) {
-                    addressBookWipeOk = false;
                     const failMsg = await wipeRes.text().catch(() => '');
                     console.warn('site address book wipe failed', wipeRes.status, failMsg);
-                    alert(
+                    cleanupWarnings.push(
                         t(
-                            '⚠️ تعذّر حذف دفتر العناوين من قاعدة السحابة. لم يُكمل التصفير — أعد المحاولة أو احذف من /admin/address-book.',
-                            '⚠️ Could not wipe the address book in the cloud database. Cleanup was aborted — retry or delete from /admin/address-book.'
+                            'تعذّر حذف دفتر العناوين من السحابة — قد تحتاج حذفه يدوياً من إدارة الموقع.',
+                            'Address book cloud wipe failed — you may need to clear it from site admin.'
                         )
                     );
                 } else if (window.__bhdSiteBridgePayload) {
                     window.__bhdSiteBridgePayload.addressBook = [];
                 }
             } catch (_eSiteWipe) {
-                addressBookWipeOk = false;
                 console.warn('site address book wipe', _eSiteWipe);
+                cleanupWarnings.push(
+                    t(
+                        'تعذّر الاتصال لحذف دفتر العناوين من السحابة.',
+                        'Could not reach the server to wipe the address book in the cloud.'
+                    )
+                );
             }
-        }
-        if (!addressBookWipeOk && (scope === 'all' || scope === 'addressbook')) {
-            return;
         }
 
         if (scope === 'all') {
@@ -48907,10 +48932,13 @@ function getEmptyCompanySignatory() {
                 if (!cloudRes.skipped && !cloudRes.ok) {
                     alert(
                         t(
-                            '⚠️ تم تصفير البيانات محلياً لكن فشل الحذف من قاعدة السحابة (Neon). لن يُحفظ التصفير حتى تنجح العملية — تحقق أن حسابك له صلاحية مسؤول النظام.',
-                            '⚠️ Data was cleared locally but cloud (Neon) deletion failed. The wipe will not stick until it succeeds — ensure your account has system admin permissions.'
+                            '⚠️ تم تصفير البيانات محلياً لكن فشل الحذف من قاعدة السحابة. لن يُحفظ التصفير حتى تنجح العملية — تأكد من تسجيل الدخول بحساب مسؤول النظام على الموقع.',
+                            '⚠️ Data was cleared locally but cloud deletion failed. The wipe will not stick until it succeeds — ensure you are signed in on the site with a system admin account.'
                         )
                     );
+                    try {
+                        localStorage.removeItem('bhd_data_wipe_in_progress');
+                    } catch (_eClrWipeProg) {}
                     return;
                 }
                 if (!cloudRes.skipped && cloudRes.ok) {
@@ -48920,10 +48948,13 @@ function getEmptyCompanySignatory() {
                 cloudWipeOk = false;
                 alert(
                     t(
-                        '⚠️ تم تصفير البيانات محلياً لكن فشل الحذف من قاعدة السحابة (Neon). لن يُحفظ التصفير حتى تنجح العملية — تحقق أن حسابك له صلاحية مسؤول النظام.',
-                        '⚠️ Data was cleared locally but cloud (Neon) deletion failed. The wipe will not stick until it succeeds — ensure your account has system admin permissions.'
+                        '⚠️ تم تصفير البيانات محلياً لكن فشل الحذف من قاعدة السحابة. لن يُحفظ التصفير حتى تنجح العملية — تأكد من تسجيل الدخول بحساب مسؤول النظام على الموقع.',
+                        '⚠️ Data was cleared locally but cloud deletion failed. The wipe will not stick until it succeeds — ensure you are signed in on the site with a system admin account.'
                     )
                 );
+                try {
+                    localStorage.removeItem('bhd_data_wipe_in_progress');
+                } catch (_eClrWipeProg2) {}
                 return;
             } else if (purgeResult.remoteOk) {
                 markBhdCloudWipeConfirmed();
@@ -48957,10 +48988,22 @@ function getEmptyCompanySignatory() {
             muteBhdKvAutoPush(60000);
         } catch (_eClrPostWipe) {}
 
-        if (!cloudWipeOk) return;
+        if (!cloudWipeOk) {
+            try {
+                localStorage.removeItem('bhd_data_wipe_in_progress');
+            } catch (_eClrWipeProg3) {}
+            return;
+        }
+
+        try {
+            localStorage.removeItem('bhd_data_wipe_in_progress');
+            if (window.__bhdSiteBridgePayload && (scope === 'all' || scope === 'addressbook')) {
+                window.__bhdSiteBridgePayload.addressBook = [];
+            }
+        } catch (_eClrBridge) {}
 
         closeDataCleanupModal();
-        const doneMsg =
+        let doneMsg =
             scope === 'accounting'
                 ? t(
                       '✅ تم تصفير بيانات المحاسبة. سيتم تحديث الصفحة الآن.',
@@ -48970,6 +49013,11 @@ function getEmptyCompanySignatory() {
                       '✅ تم حذف البيانات (بما فيها الوحدات التجريبية المضمّنة في البرنامج). سيتم تحديث الصفحة الآن.',
                       '✅ Data wiped (including built-in demo units). The page will refresh now.'
                   );
+        if (cleanupWarnings.length) {
+            doneMsg +=
+                '\n\n⚠️ ' +
+                cleanupWarnings.join('\n⚠️ ');
+        }
         alert(doneMsg);
         location.reload();
     }

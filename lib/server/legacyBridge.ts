@@ -1118,7 +1118,7 @@ function legacyAddressBookRecentlyWiped(){
   try{
     var ts=parseInt(localStorage.getItem('bhd_last_data_wipe')||'0',10);
     if(!Number.isFinite(ts)||ts<=0)return false;
-    if(Date.now()-ts>180000)return false;
+    if(Date.now()-ts>86400000)return false;
     var raw=localStorage.getItem('bhd_address_book');
     if(!raw||raw==='[]')return true;
     var arr=JSON.parse(raw);
