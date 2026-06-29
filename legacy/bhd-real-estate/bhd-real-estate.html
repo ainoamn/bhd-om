@@ -10073,6 +10073,8 @@
     }
 
     /** استرجاع من SQLite أو IndexedDB عند غياب البيانات أو كونها قشرة فارغة في localStorage */
+    let _bhdKvHydratingFromServer = false;
+
     function hydrateBhdKvFromExternalStore(store) {
         if (!store || typeof store !== 'object') return false;
         const siteAuth = isBhdSiteKvPersistenceActive();
@@ -11730,7 +11732,15 @@
             const r = await fetch(`${bhdKvRemoteBase()}${qs}`, { credentials: 'include', cache: 'no-store' });
             if (!r.ok) return false;
             const all = await r.json();
-            hydrateBhdKvFromExternalStore(all || {});
+            _bhdKvHydratingFromServer = true;
+            try {
+                hydrateBhdKvFromExternalStore(all || {});
+            } finally {
+                _bhdKvHydratingFromServer = false;
+                try {
+                    _bhdKvDirtyKeys.clear();
+                } catch (_eClrHydrDirty) {}
+            }
             invalidateBhdSiteKvRuntimeCaches();
             if (deferIdbMirror) {
                 const runMirror = () => {
@@ -12332,11 +12342,13 @@
         const origSet = Storage.prototype.setItem;
         Storage.prototype.setItem = function (key, value) {
             origSet.call(this, key, value);
+            if (_bhdKvHydratingFromServer) return;
             if (typeof key === 'string' && BHD_KV_KEYS.includes(key)) _bhdKvDirtyKeys.add(key);
         };
         const origRemove = Storage.prototype.removeItem;
         Storage.prototype.removeItem = function (key) {
             origRemove.call(this, key);
+            if (_bhdKvHydratingFromServer) return;
             if (typeof key === 'string' && BHD_KV_KEYS.includes(key)) _bhdKvDirtyKeys.add(key);
         };
     }
@@ -12382,7 +12394,8 @@
             await mirrorKvFromLocalStorageToIndexedDb();
         }
         const dirty = takeBhdKvDirtyKeys();
-        const keysToSync = forceAll || !dirty.length ? BHD_KV_KEYS : dirty;
+        const keysToSync = forceAll ? BHD_KV_KEYS : dirty;
+        if (!keysToSync.length) return;
         const payload = buildBhdKvPayload(keysToSync);
         if (window.bhdDesktop) {
             if (!Object.keys(payload).length) return;
@@ -17100,6 +17113,29 @@
         );
     }
 
+    /** على السحابة: الحالة من الحساب فقط — لا نثق بحقول lifecycle المحفوظة محلياً */
+    function resolveContractLifecycleStatusForDisplay(saved) {
+        if (!isBhdSiteKvPersistenceActive()) return resolveContractLifecycleStatusFromSavedEntry(saved);
+        if (!saved?.payload) return 'active_pending';
+        const payload = saved.payload;
+        const primary = resolveContractWorkflowPrimaryUnit(payload.buildingNo, payload.flatNo, payload);
+        const lifecyclePayload = enrichPayloadDepositFromAccounting({
+            ...payload,
+            buildingNo: primary.building || payload.buildingNo,
+            flatNo: primary.unit || payload.flatNo
+        });
+        if (!contractFinancialDataComplete(lifecyclePayload)) return 'active_pending';
+        if (!contractActivationRequirementsComplete(lifecyclePayload)) return 'active_docs_pending';
+        if (
+            primary.building &&
+            primary.unit &&
+            !contractAccountingApprovalsComplete(primary.building, primary.unit, lifecyclePayload)
+        ) {
+            return 'active_accounting_pending';
+        }
+        return 'active';
+    }
+
     function mergeContractPayloadPreferRich(existing, incoming) {
         if (!existing) return incoming;
         if (!incoming) return existing;
@@ -17428,7 +17464,7 @@
         if (cancelReq && toStr(cancelReq.status) === 'pending') return 'cancellation_pending';
         const saved = getSavedContractEntryForUnit(u);
         if (saved) {
-            return resolveContractLifecycleStatusFromSavedEntry(saved);
+            return resolveContractLifecycleStatusForDisplay(saved);
         }
         if (isUnitInTenancyContractDraftMap(u)) return 'draft';
         const rv = findUnitReservationRecordFromRow(u);
@@ -69888,12 +69924,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             _bhdContractsListNeonSyncedThisPage = true;
         }
         muteBhdKvAutoPush(12000);
-        try {
-            repairDuplicateMultiUnitAccountingEntries();
-        } catch (_eRepList) {}
-        try {
-            repairLinkedContractUnitsLifecycleConsistencyThrottled(60000);
-        } catch (_eRepLinkedList) {}
+        if (!isBhdSiteKvPersistenceActive()) {
+            try {
+                repairDuplicateMultiUnitAccountingEntries();
+            } catch (_eRepList) {}
+            try {
+                repairLinkedContractUnitsLifecycleConsistencyThrottled(60000);
+            } catch (_eRepLinkedList) {}
+        }
         try {
             loadAccountingRegistry(true);
             loadSavedContractsByUnitMap(true);
@@ -71155,11 +71193,12 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             try {
                 window.__bhdDedupeAddressBook?.();
             } catch (_eDedBootFull) {}
-            await bhdHydrateSiteKvFromServerIfNeeded();
+            await bhdHydrateSiteKvFromServerIfNeeded({ deferIdbMirror: true });
             await bhdSiteExtractKvBlobsOnce();
+            muteBhdKvAutoPush(60000);
             try {
-                await syncBhdKvToServer();
-            } catch (_eKvBootFull) {}
+                _bhdKvDirtyKeys.clear();
+            } catch (_eClrBootDirty) {}
         } else if (bhdApiAvailable && !window.bhdDesktop) {
             if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                 try {
@@ -71169,13 +71208,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             try {
                 await repairAddressBookEntriesFromSite();
             } catch (_eAbRep2) {}
-            await bhdHydrateSiteKvFromServerIfNeeded();
+            await bhdHydrateSiteKvFromServerIfNeeded({ deferIdbMirror: true });
             try {
                 window.__bhdDedupeAddressBook?.();
             } catch (_eDedBootFull2) {}
+            muteBhdKvAutoPush(60000);
             try {
-                await syncBhdKvToServer();
-            } catch (_eKvBootFull2) {}
+                _bhdKvDirtyKeys.clear();
+            } catch (_eClrBootDirty2) {}
         }
         if (!refreshFastBoot) {
             await dropLegacySfgIndexedDb();
