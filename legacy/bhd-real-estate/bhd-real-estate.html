@@ -10191,12 +10191,7 @@
             if (typeof val !== 'string') return;
             const local = localStorage.getItem(k);
             if (siteAuth && BHD_KV_SITE_AUTHORITATIVE_KEYS.includes(k) && !bhdKvIsEmptyShell(val)) {
-                const propertyMerged = hydrateBhdKvPropertyKey(k, local, val);
-                if (propertyMerged !== null) {
-                    localStorage.setItem(k, propertyMerged);
-                    any = true;
-                    return;
-                }
+                // Neon مصدر الحقيقة عند السحب — لا دمج مع نسخة المتصفح (يمنع اختلاف Chrome/Edge)
                 localStorage.setItem(k, val);
                 any = true;
                 return;
@@ -11894,6 +11889,20 @@
         if (shouldSkipSiteKvPullAfterLocalWipe()) return false;
         const keys = Array.isArray(opt.keys) && opt.keys.length ? opt.keys : null;
         const deferIdbMirror = opt.deferIdbMirror === true;
+        const siteKv = isBhdSiteKvPersistenceActive();
+        if (siteKv) {
+            const pushKeys = keys && keys.length
+                ? keys
+                : ['bhd_accounting_registry', 'bhd_saved_contracts_by_unit', 'bhd_managed_units', 'bhd_buildings_list'];
+            try {
+                await flushBhdKvToServerNow(pushKeys);
+            } catch (_ePrePush) {}
+            if (!keys || keys.includes('bhd_saved_contracts_by_unit')) {
+                try {
+                    await fetchBhdServerContractStatuses(true);
+                } catch (_eStPull) {}
+            }
+        }
         try {
             const qs = keys
                 ? `?keys=${encodeURIComponent(keys.join(','))}`
@@ -11949,7 +11958,32 @@
     let _bhdSiteBootHydrationDone = false;
     let _bhdSiteKvHydrationPromise = null;
     let _bhdContractsListNeonSyncedThisPage = false;
+    let _bhdAccountingNeonSyncedThisPage = false;
     let _bhdServerContractStatusesByUnit = null;
+
+    const BHD_KV_ACCOUNTING_PULL_KEYS = ['bhd_accounting_registry', 'bhd_saved_contracts_by_unit'];
+
+    async function ensureBhdSiteKvHydratedForAccounting() {
+        if (!isBhdSiteKvPersistenceActive()) return false;
+        try {
+            await fetchBhdServerContractStatuses(true);
+        } catch (_eAcctSt) {}
+        const pulled = await pullBhdKvFromNeonWithRetry(2, {
+            keys: BHD_KV_ACCOUNTING_PULL_KEYS,
+            deferIdbMirror: true
+        });
+        if (!pulled) return false;
+        try {
+            _bhdKvDirtyKeys.clear();
+        } catch (_eClrAcctDirty) {}
+        muteBhdKvAutoPush(12000);
+        invalidateBhdSiteKvRuntimeCaches();
+        try {
+            loadAccountingRegistry(true);
+            loadSavedContractsByUnitMap(true);
+        } catch (_eAcctReload) {}
+        return true;
+    }
 
     function applyBhdServerContractLifecycleMaps(data) {
         if (!data || typeof data !== 'object') return false;
@@ -12055,33 +12089,29 @@
         }
     }
 
-    /** سحب سريع لقائمة العقود — بدون دفتر العناوين وبدون كل مفاتيح bhd_* */
+    /** سحب سريع لقائمة العقود — Neon مصدر واحد لكل المتصفحات */
     async function ensureBhdSiteKvHydratedForContractsList() {
         if (!isBhdSiteKvPersistenceActive()) return false;
-        if (!window._bhdServerContractStatuses || !Object.keys(window._bhdServerContractStatuses).length) {
-            const statusesOk = await fetchBhdServerContractStatuses(true);
-            if (!statusesOk && !applyBhdServerContractLifecycleMaps(window.__bhdSiteBridgePayload) && !bhdHasLocalSavedContractsData()) {
-                return false;
-            }
-        }
         try {
-            if (!shouldSkipSiteKvPullAfterLocalWipe()) {
-                await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
-            }
-            invalidateBhdSiteKvRuntimeCaches();
-        } catch (_eWipePull) {}
+            await fetchBhdServerContractStatuses(true);
+        } catch (_eListSt) {}
+        if (!window._bhdServerContractStatuses || !Object.keys(window._bhdServerContractStatuses).length) {
+            applyBhdServerContractLifecycleMaps(window.__bhdSiteBridgePayload);
+        }
         const pulled = await pullBhdKvFromNeonWithRetry(2, {
             keys: BHD_KV_CONTRACTS_LIST_PULL_KEYS,
             deferIdbMirror: true
         });
-        if (!pulled && bhdHasLocalSavedContractsData()) {
-            try {
-                loadSavedContractsByUnitMap(true);
-                loadAccountingRegistry(true);
-            } catch (_eLocalFallback) {}
-            return true;
+        if (!pulled) {
+            if (bhdHasLocalSavedContractsData()) {
+                try {
+                    loadSavedContractsByUnitMap(true);
+                    loadAccountingRegistry(true);
+                } catch (_eLocalFallback) {}
+                return true;
+            }
+            return false;
         }
-        if (!pulled) return false;
         try {
             _bhdKvDirtyKeys.clear();
         } catch (_eClrDirty) {}
@@ -44271,13 +44301,25 @@ function getEmptyCompanySignatory() {
         }
         _accountingWorkspaceRenderRaf = requestAnimationFrame(() => {
             _accountingWorkspaceRenderRaf = 0;
-            renderAccountingWorkspaceNow();
+            renderAccountingWorkspaceNow().catch((e) => console.warn('renderAccountingWorkspaceNow', e));
         });
     }
 
-    function renderAccountingWorkspaceNow() {
+    async function renderAccountingWorkspaceNow() {
         const host = document.getElementById('accountingPanelHost');
         if (!host) return;
+        if (isBhdSiteKvPersistenceActive() && !_bhdAccountingNeonSyncedThisPage) {
+            host.innerHTML = `<div class="insight-nested" style="padding:16px">${t('جاري تحميل بيانات المحاسبة من قاعدة السحابة…', 'Loading accounting data from cloud database…')}</div>`;
+            const pulled = await ensureBhdSiteKvHydratedForAccounting();
+            _bhdAccountingNeonSyncedThisPage = true;
+            if (!pulled) {
+                host.innerHTML = `<div class="insight-nested" style="padding:16px;border:1px solid #e8c4c4;background:#fff8f8;border-radius:10px">
+                    <p style="margin:0">${t('تعذّر تحميل المحاسبة من السحابة.', 'Could not load accounting from the cloud.')}</p>
+                    <button type="button" class="mini-btn" style="margin-top:8px" onclick="_bhdAccountingNeonSyncedThisPage=false;renderAccountingWorkspace()">${t('إعادة المحاولة', 'Retry')}</button>
+                </div>`;
+                return;
+            }
+        }
         try {
         if (!canAccessAccountingWorkspace()) {
             host.innerHTML = `<div class="insight-nested" style="padding:16px;border:1px solid #e8c4c4;background:#fff8f8;border-radius:10px">
@@ -44286,7 +44328,7 @@ function getEmptyCompanySignatory() {
             </div>`;
             return;
         }
-        const reg = loadAccountingRegistry();
+        const reg = loadAccountingRegistry(true);
         try {
             if (repairAccountingChequesPendingWithoutContractData(reg)) {
                 saveAccountingRegistry(reg, { skipJournalRebuild: true });
@@ -71442,7 +71484,8 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             window.__bhdBootRefreshFast = true;
         }
         const siteIntegratedWeb = isBhdSiteIntegratedWebClient();
-        const warmReload = (refreshFastBoot || siteIntegratedWeb) && bhdLocalStorageHasSubstantiveData();
+        const siteKv = isBhdSiteKvPersistenceActive();
+        const warmReload = !siteKv && (refreshFastBoot || siteIntegratedWeb) && bhdLocalStorageHasSubstantiveData();
         const dataWasWiped = !!localStorage.getItem('bhd_last_data_wipe') || localStorage.getItem('bhd_hide_demo_units') === '1';
 
         if (warmReload) {
