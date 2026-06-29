@@ -8377,7 +8377,7 @@
             <button type="button" class="btn-outline" onclick="closeDataCleanupModal()" data-ar="إغلاق" data-en="Close">إغلاق</button>
         </div>
         <div class="details-body">
-            <p style="font-size:12px;color:#555;margin:0 0 10px" data-ar="اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول." data-en="Choose the section to clear. Requires import/export permission. Signed-in system admin confirms with OK only; other users enter their sign-in password.">اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول.</p>
+            <p style="font-size:12px;color:#555;margin:0 0 10px" data-ar="اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. على الموقع يُحذف من قاعدة السحابة أيضاً — يتطلب صلاحية مسؤول النظام. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول." data-en="Choose the section to clear. Requires import/export permission. On the website, cloud (Neon) data is deleted too — system admin role required. Signed-in system admin confirms with OK only; other users enter their sign-in password.">اختر القسم المراد تصفيته. يتطلب صلاحية الاستيراد/التصدير. على الموقع يُحذف من قاعدة السحابة أيضاً — يتطلب صلاحية مسؤول النظام. مسؤول النظام المسجّل دخوله يؤكّد بزر موافق فقط؛ باقي المستخدمين يُدخلون كلمة مرور الدخول.</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
                 <button type="button" class="btn-outline" onclick="runDataCleanup('all')" data-ar="🧨 تصفية كل البيانات" data-en="🧨 Clear all data">🧨 تصفية كل البيانات</button>
                 <button type="button" class="btn-outline" onclick="runDataCleanup('contracts')" data-ar="📝 تصفية بيانات العقود" data-en="📝 Clear contracts data">📝 تصفية بيانات العقود</button>
@@ -10377,7 +10377,8 @@
     async function purgeBhdKeysFromAllStores(keysToRemove, options) {
         const keys = [...new Set((keysToRemove || []).filter((k) => typeof k === 'string' && k.startsWith('bhd_')))];
         const doFullDbWipe = !!(options && options.wipeAllExcept);
-        if (!keys.length && !doFullDbWipe) return;
+        const out = { remoteOk: true, removed: 0, remoteSkipped: false };
+        if (!keys.length && !doFullDbWipe) return out;
         if (doFullDbWipe && options.wipeAllExcept) {
             purgeLocalStorageBhdExcept(options.wipeAllExcept);
         } else {
@@ -10405,24 +10406,79 @@
             } else if (window.bhdDesktop && window.bhdDesktop.kvClearKeys && keys.length) {
                 await window.bhdDesktop.kvClearKeys(keys);
             } else if (bhdRemoteKvSyncEnabled() && doFullDbWipe) {
-                await fetch(`${bhdKvRemoteBase()}/wipe-all-except`, {
+                const r = await fetch(`${bhdKvRemoteBase()}/wipe-all-except`, {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ keepKeys: options.wipeAllExcept || BHD_KEYS_KEEP_ON_FULL_WIPE })
                 });
+                if (!r.ok) {
+                    out.remoteOk = false;
+                } else {
+                    const data = await r.json().catch(() => ({}));
+                    out.removed = parseInt(String(data?.removed ?? 0), 10) || 0;
+                }
             } else if (bhdRemoteKvSyncEnabled() && keys.length) {
-                await fetch(`${bhdKvRemoteBase()}/clear-keys`, {
+                const r = await fetch(`${bhdKvRemoteBase()}/clear-keys`, {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ keys })
                 });
+                if (!r.ok) {
+                    out.remoteOk = false;
+                } else {
+                    const data = await r.json().catch(() => ({}));
+                    out.removed = parseInt(String(data?.removed ?? 0), 10) || 0;
+                }
+            } else {
+                out.remoteSkipped = true;
             }
         } catch (e) {
             console.warn('purgeBhdKeysFromAllStores remote failed', e);
+            out.remoteOk = false;
         }
         await mirrorKvFromLocalStorageToIndexedDb();
+        return out;
+    }
+
+    const BHD_CLOUD_WIPE_CONFIRMED_KEY = 'bhd_cloud_wipe_confirmed_at';
+
+    function markBhdCloudWipeConfirmed() {
+        try {
+            localStorage.setItem(BHD_CLOUD_WIPE_CONFIRMED_KEY, String(Date.now()));
+        } catch (_eWipeMark) {}
+    }
+
+    /** بعد تصفية محلية دون تأكيد سحابي — لا نعيد سحب بيانات Neon القديمة */
+    function shouldSkipSiteKvPullAfterLocalWipe() {
+        try {
+            const wipedAt = parseInt(localStorage.getItem('bhd_last_data_wipe') || '0', 10);
+            const confirmedAt = parseInt(localStorage.getItem(BHD_CLOUD_WIPE_CONFIRMED_KEY) || '0', 10);
+            if (!wipedAt || !Number.isFinite(wipedAt)) return false;
+            if (Date.now() - wipedAt > 6 * 60 * 60 * 1000) return false;
+            return confirmedAt < wipedAt;
+        } catch (_eSkipWipe) {
+            return false;
+        }
+    }
+
+    async function bhdKvPutBulkRemote(payload, options) {
+        const opts = options || {};
+        if (!payload || !Object.keys(payload).length) return { ok: false };
+        if (window.bhdDesktop && window.bhdDesktop.kvPutBulk) {
+            await window.bhdDesktop.kvPutBulk(payload);
+            return { ok: true };
+        }
+        if (!bhdRemoteKvSyncEnabled()) return { ok: false, skipped: true };
+        const body = opts.replace ? { ...payload, replace: true } : payload;
+        const r = await fetch(`${bhdKvRemoteBase()}/bulk`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        return { ok: r.ok, status: r.status };
     }
 
     function getBhdKeysForCleanupScope(scope) {
@@ -11833,6 +11889,7 @@
 
     async function bhdHydrateSiteKvFromServerIfNeeded(opt = {}) {
         if (!bhdRemoteKvSyncEnabled() || (!isBhdSiteIntegratedWebClient() && !bhdApiAvailable)) return false;
+        if (shouldSkipSiteKvPullAfterLocalWipe()) return false;
         const keys = Array.isArray(opt.keys) && opt.keys.length ? opt.keys : null;
         const deferIdbMirror = opt.deferIdbMirror === true;
         try {
@@ -12587,6 +12644,7 @@
     async function syncBhdKvToServer(options = {}) {
         const forceAll = options.forceAll === true;
         const force = options.force === true;
+        const replace = options.replace === true;
         const onlyKeys = Array.isArray(options.keys) && options.keys.length ? options.keys.filter((k) => BHD_KV_KEYS.includes(k)) : null;
         if (!forceAll && !force && isBhdKvAutoPushMuted()) return;
         if (!window.bhdDesktop) {
@@ -12611,11 +12669,12 @@
         }
         if (!bhdRemoteKvSyncEnabled()) return;
         try {
+            const body = options.replace ? { ...payload, replace: true } : payload;
             await fetch(`${bhdKvRemoteBase()}/bulk`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(body)
             });
         } catch (e) {
             console.warn('syncBhdKvToServer failed', e);
@@ -48562,8 +48621,9 @@ function getEmptyCompanySignatory() {
         const purgeOpts = scope === 'all'
             ? { wipeAllExcept: BHD_KEYS_KEEP_ON_FULL_WIPE }
             : {};
+        const siteKvActive = isBhdSiteKvPersistenceActive();
         try {
-            await purgeBhdKeysFromAllStores(keysToPurge, purgeOpts);
+            const purgeResult = await purgeBhdKeysFromAllStores(keysToPurge, purgeOpts);
             applyEmptyStorageDefaultsForScope(scope);
             persistCleanupScopeToLocalStorage(scope);
             if (scope === 'accounting') {
@@ -48576,13 +48636,32 @@ function getEmptyCompanySignatory() {
                 if (window.bhdDesktop && window.bhdDesktop.kvPutBulk) {
                     await window.bhdDesktop.kvPutBulk({ [ACCOUNTING_REGISTRY_KEY]: emptyJson });
                 } else if (bhdRemoteKvSyncEnabled()) {
-                    await fetch(`${bhdKvRemoteBase()}/bulk`, {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ [ACCOUNTING_REGISTRY_KEY]: emptyJson })
-                    });
+                    const putRes = await bhdKvPutBulkRemote(
+                        { [ACCOUNTING_REGISTRY_KEY]: emptyJson },
+                        { replace: true }
+                    );
+                    if (!putRes.ok && siteKvActive) {
+                        alert(
+                            t(
+                                '⚠️ تعذّر تصفير المحاسبة في قاعدة السحابة. تحقق من صلاحيات المسؤول ثم أعد المحاولة.',
+                                '⚠️ Could not reset accounting in the cloud database. Check admin permissions and retry.'
+                            )
+                        );
+                        return;
+                    }
                 }
+            }
+            if (siteKvActive && !purgeResult.remoteSkipped && purgeResult.remoteOk === false) {
+                alert(
+                    t(
+                        '⚠️ تم تصفير البيانات محلياً لكن فشل الحذف من قاعدة السحابة (Neon). لن يُحفظ التصفير حتى تنجح العملية — تحقق أن حسابك له صلاحية مسؤول النظام.',
+                        '⚠️ Data was cleared locally but cloud (Neon) deletion failed. The wipe will not stick until it succeeds — ensure your account has system admin permissions.'
+                    )
+                );
+                return;
+            }
+            if (siteKvActive && purgeResult.remoteOk) {
+                markBhdCloudWipeConfirmed();
             }
             if (window.bhdDesktop && !window.bhdDesktop.kvClearKeys && !window.bhdDesktop.kvWipeAllExcept) {
                 console.warn('Desktop wipe API missing — restart desktop app');
@@ -48598,7 +48677,11 @@ function getEmptyCompanySignatory() {
 
         try {
             await mirrorKvFromLocalStorageToIndexedDb();
-            await syncBhdKvToServer();
+            if (scope === 'all' || scope === 'buildings' || scope === 'contracts' || scope === 'accounting') {
+                await syncBhdKvToServer({ forceAll: scope === 'all', force: true, replace: true });
+            } else {
+                await syncBhdKvToServer({ force: true, replace: true });
+            }
         } catch (eSync) {}
         try {
             localStorage.setItem('bhd_last_data_wipe', String(Date.now()));

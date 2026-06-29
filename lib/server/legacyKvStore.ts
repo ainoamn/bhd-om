@@ -45,10 +45,19 @@ export async function getLegacyKvBulk(prefix = 'bhd_', keys?: string[]): Promise
   return out;
 }
 
+export type PutLegacyKvBulkOptions = {
+  /** استبدال كامل — يُستخدم بعد تصفية البيانات وليس الدمج */
+  replace?: boolean;
+};
+
 /** حفظ دفعة مفاتيح — يُستخدم من النظام القديم بعد كل تعديل */
-export async function putLegacyKvBulk(payload: LegacyKvBulkPayload): Promise<{ saved: number }> {
+export async function putLegacyKvBulk(
+  payload: LegacyKvBulkPayload,
+  options?: PutLegacyKvBulkOptions
+): Promise<{ saved: number }> {
   let saved = 0;
   const now = new Date();
+  const replace = options?.replace === true;
 
   for (const [key, raw] of Object.entries(payload || {})) {
     if (!isLegacyKvKey(key)) continue;
@@ -65,11 +74,14 @@ export async function putLegacyKvBulk(payload: LegacyKvBulkPayload): Promise<{ s
       }
     }
 
-    const existing = await prisma.legacyAppKvStore.findUnique({
-      where: { kvKey: key },
-      select: { data: true },
-    });
-    const mergedData = mergeLegacyKvOnPut(key, existing?.data ?? null, storedData);
+    let mergedData = storedData;
+    if (!replace) {
+      const existing = await prisma.legacyAppKvStore.findUnique({
+        where: { kvKey: key },
+        select: { data: true },
+      });
+      mergedData = mergeLegacyKvOnPut(key, existing?.data ?? null, storedData);
+    }
 
     await prisma.legacyAppKvStore.upsert({
       where: { kvKey: key },
