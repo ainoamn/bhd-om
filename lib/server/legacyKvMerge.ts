@@ -80,7 +80,7 @@ function contractFinancialRichnessScore(payload: Record<string, unknown>): numbe
   return n;
 }
 
-function mergeContractPayloads(
+export function mergeContractPayloads(
   existing: Record<string, unknown> | null | undefined,
   incoming: Record<string, unknown> | null | undefined
 ): Record<string, unknown> {

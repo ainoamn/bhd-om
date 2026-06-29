@@ -11780,6 +11780,45 @@
     let _bhdSiteBootHydrationDone = false;
     let _bhdSiteKvHydrationPromise = null;
     let _bhdContractsListNeonSyncedThisPage = false;
+    let _bhdServerContractStatusesByUnit = null;
+
+    async function fetchBhdServerContractStatuses(reconcile) {
+        if (!isBhdSiteKvPersistenceActive()) return false;
+        try {
+            const q = reconcile ? '?reconcile=1' : '';
+            const r = await fetch(`/api/admin/legacy-bridge/contract-statuses${q}`, {
+                credentials: 'include',
+                cache: 'no-store'
+            });
+            if (!r.ok) return false;
+            const data = await r.json();
+            _bhdServerContractStatusesByUnit =
+                data.byUnit && typeof data.byUnit === 'object' ? data.byUnit : {};
+            window._bhdServerContractStatuses = data.statuses || {};
+            window._bhdServerContractStatusesByUnit = _bhdServerContractStatusesByUnit;
+            return true;
+        } catch (_eSrvSt) {
+            return false;
+        }
+    }
+
+    function getBhdServerContractLifecycleForUnit(u) {
+        if (!u || !_bhdServerContractStatusesByUnit) return null;
+        const bNorm = normalizeReservationBuildingKey(u.building);
+        const uNorm = normalizeUnit(u.unit);
+        const direct = _bhdServerContractStatusesByUnit[toStr(u.building) + '\t' + uNorm];
+        if (direct) return toStr(direct);
+        for (const uk of Object.keys(_bhdServerContractStatusesByUnit)) {
+            const tab = uk.indexOf('\t');
+            if (tab < 0) continue;
+            const ub = uk.slice(0, tab);
+            const uu = uk.slice(tab + 1);
+            if (normalizeReservationBuildingKey(ub) === bNorm && normalizeUnit(uu) === uNorm) {
+                return toStr(_bhdServerContractStatusesByUnit[uk]);
+            }
+        }
+        return null;
+    }
 
     async function pullBhdKvFromNeonWithRetry(maxAttempts, opt = {}) {
         const attempts = Math.max(1, maxAttempts || 3);
@@ -11798,6 +11837,8 @@
     /** سحب سريع لقائمة العقود — بدون دفتر العناوين وبدون كل مفاتيح bhd_* */
     async function ensureBhdSiteKvHydratedForContractsList() {
         if (!isBhdSiteKvPersistenceActive()) return false;
+        const statusesOk = await fetchBhdServerContractStatuses(true);
+        if (!statusesOk) return false;
         const pulled = await pullBhdKvFromNeonWithRetry(2, {
             keys: BHD_KV_CONTRACTS_LIST_PULL_KEYS,
             deferIdbMirror: true
@@ -12488,7 +12529,11 @@
             } catch (_eFlush) {}
             markBhdAppRefreshBoot();
             if (btn) btn.textContent = t('🔄 جاري الحفظ…', '🔄 Saving…');
-            if (window.bhdDesktop) {
+            if (isBhdSiteKvPersistenceActive()) {
+                if (btn) btn.textContent = t('🔄 جاري توحيد السحابة…', '🔄 Syncing cloud…');
+                await fetchBhdServerContractStatuses(true);
+                await syncBhdKvToServer({ forceAll: false });
+            } else if (window.bhdDesktop) {
                 markBhdKvDirty('bhd_contract_full');
                 markBhdKvDirty('bhd_tenancy_contract_drafts');
                 await syncBhdKvToServer({ forceAll: false });
@@ -17464,6 +17509,10 @@
         if (cancelReq && toStr(cancelReq.status) === 'pending') return 'cancellation_pending';
         const saved = getSavedContractEntryForUnit(u);
         if (saved) {
+            if (isBhdSiteKvPersistenceActive()) {
+                const serverSt = getBhdServerContractLifecycleForUnit(u);
+                if (serverSt) return serverSt;
+            }
             return resolveContractLifecycleStatusForDisplay(saved);
         }
         if (isUnitInTenancyContractDraftMap(u)) return 'draft';
@@ -71236,9 +71285,11 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     saveDashboardAux();
                 }
             } catch (_eBootResMu) {}
-            try {
-                repairLinkedContractUnitsLifecycleConsistency();
-            } catch (_eBootLinked) {}
+            if (!siteIntegratedWeb) {
+                try {
+                    repairLinkedContractUnitsLifecycleConsistency();
+                } catch (_eBootLinked) {}
+            }
         } catch (_eDashBootLoad) {
             console.warn('loadDashboardAux startup', _eDashBootLoad);
         }

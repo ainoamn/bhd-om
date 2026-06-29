@@ -37,6 +37,7 @@
 - **مسار API:** `GET/POST /api/admin/legacy-bridge/kv`
 - **مفاتيح سحابية إلزامية:** كل `bhd_*` ما عدا `bhd_auth_session`, `bhd_theme_mode`, `bhd_users_registry` (جلسة/مظهر) و`bhd_address_book` (جدول Contacts).
 - **التحقق:** `GET /api/admin/legacy-bridge/data-health`
+- **حالات العقود الرسمية (كل المتصفحات):** `GET /api/admin/legacy-bridge/contract-statuses?reconcile=1`
 
 ---
 
