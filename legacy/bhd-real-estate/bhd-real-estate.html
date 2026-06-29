@@ -10000,6 +10000,44 @@
         return JSON.stringify(mergeBuildingsListArrays(local, external));
     }
 
+    function mergeSavedContractsByUnitMaps(localMap, externalMap) {
+        const local = localMap && typeof localMap === 'object' && !Array.isArray(localMap) ? localMap : {};
+        const external = externalMap && typeof externalMap === 'object' && !Array.isArray(externalMap) ? externalMap : {};
+        const merged = { ...local };
+        Object.keys(external).forEach((key) => {
+            const ext = external[key];
+            if (!ext || typeof ext !== 'object') return;
+            const loc = merged[key];
+            if (!loc?.payload || typeof loc.payload !== 'object') {
+                merged[key] = ext;
+                return;
+            }
+            if (!ext.payload || typeof ext.payload !== 'object') return;
+            const payload = mergeContractPayloadPreferRich(loc.payload, ext.payload);
+            const status = resolveContractLifecycleStatus(payload);
+            merged[key] = {
+                ...loc,
+                ...ext,
+                payload: { ...payload, contractSavedStatus: status },
+                lifecycleStatus: status,
+                updatedAt: toStr(ext.updatedAt) > toStr(loc.updatedAt) ? ext.updatedAt : loc.updatedAt
+            };
+        });
+        return merged;
+    }
+
+    function mergeSavedContractsByUnitKvJson(localRaw, externalRaw) {
+        let local = {};
+        let external = {};
+        try {
+            local = JSON.parse(localRaw || '{}');
+        } catch (_eLocalSc) {}
+        try {
+            external = JSON.parse(externalRaw || '{}');
+        } catch (_eExtSc) {}
+        return JSON.stringify(mergeSavedContractsByUnitMaps(local, external));
+    }
+
     function hydrateBhdKvPropertyKey(k, local, val) {
         if (local === null || bhdKvIsEmptyShell(local)) {
             return bhdKvIsEmptyShell(val) ? null : val;
@@ -10011,6 +10049,10 @@
         }
         if (k === 'bhd_buildings_list') {
             const merged = mergeBuildingsListKvJson(local, val);
+            return merged !== local ? merged : null;
+        }
+        if (k === 'bhd_saved_contracts_by_unit') {
+            const merged = mergeSavedContractsByUnitKvJson(local, val);
             return merged !== local ? merged : null;
         }
         return null;
@@ -10052,7 +10094,10 @@
 
     /** على bhd-om.com: PostgreSQL مصدر الحقيقة — دفتر العناوين يُزامَن عبر الجسر لا KV مباشرة */
     const BHD_KV_SITE_AUTHORITATIVE_KEYS = BHD_KV_KEYS.filter(
-        (k) => !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k) && k !== 'bhd_address_book'
+        (k) =>
+            !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k) &&
+            k !== 'bhd_address_book' &&
+            k !== 'bhd_saved_contracts_by_unit'
     );
 
     function isBhdSiteKvPersistenceActive() {
@@ -14458,19 +14503,23 @@
         const u = toStr(unit);
         if (!b || !u || !payload || typeof payload !== 'object') return;
         const map = loadSavedContractsByUnitMap();
+        const prevEntry = getSavedContractMapEntry(map, b, u);
+        const mergedPayload = prevEntry?.payload
+            ? mergeContractPayloadPreferRich(prevEntry.payload, payload)
+            : payload;
         const actor = getCurrentActorLedgerRecord();
         const status =
             lifecycleStatus === 'active_pending' ||
             lifecycleStatus === 'active_docs_pending' ||
             lifecycleStatus === 'active_accounting_pending' ||
             lifecycleStatus === 'active'
-                ? resolveContractLifecycleStatus(payload)
-                : payloadNeedsAdditionalDataForLifecycle(payload)
+                ? resolveContractLifecycleStatus(mergedPayload)
+                : payloadNeedsAdditionalDataForLifecycle(mergedPayload)
                   ? 'active_pending'
-                  : resolveContractLifecycleStatus(payload);
+                  : resolveContractLifecycleStatus(mergedPayload);
         const enriched = {
-            ...payload,
-            contractSavedAt: toStr(payload.contractSavedAt) || new Date().toISOString(),
+            ...mergedPayload,
+            contractSavedAt: toStr(mergedPayload.contractSavedAt) || new Date().toISOString(),
             contractSavedStatus: status
         };
         map[_tenancyDraftStorageKey(b, u)] = {
@@ -15311,15 +15360,14 @@
             return;
         }
         const docsComplete = missing.length === 0;
-        const merged = {
-            ...payload,
+        const merged = mergeContractPayloadPreferRich(payload, {
             municipalFormNo,
             municipalContractNo,
             propertyDocumentsBundle: docs,
             propertyDocumentsBundleJson: JSON.stringify(docs),
             propertyDocumentsComplete: docsComplete,
             propertyDocumentsCompletedAt: docsComplete ? new Date().toISOString() : toStr(payload.propertyDocumentsCompletedAt)
-        };
+        });
         if (docsComplete) {
             merged.propertyDocumentsRenewalRequired = false;
         }
@@ -16785,6 +16833,98 @@
     }
 
     /** هل العقد المحفوظ يحتاج بيانات مالية إضافية (شيكات/ضمان)؟ — بدون البلدية / Financial gaps only (excludes municipal) */
+    function contractPayloadFinancialRichnessScore(payload) {
+        if (!payload || typeof payload !== 'object') return 0;
+        let n = 0;
+        const schedule = parsePayloadJsonArrayField(payload, 'paymentScheduleJson', 'paymentSchedule');
+        if (schedule.length) n += 4;
+        schedule.forEach((r) => {
+            if (toStr(r.amount)) n += 1;
+            if (toStr(r.dueDate) || toStr(r.paymentDate)) n += 1;
+            if (toStr(r.chequeNo)) n += 1;
+            if (contractAttachmentPresent(r) || toStr(r.checkAttachmentRelativePath) || toStr(r.checkAttachmentFileId)) n += 3;
+        });
+        const vat = parsePayloadJsonArrayField(payload, 'vatChequeScheduleJson', 'vatChequeSchedule');
+        if (vat.length) n += 3;
+        vat.forEach((r) => {
+            if (toStr(r.chequeNo) || toStr(r.amount)) n += 1;
+            if (contractAttachmentPresent(r) || toStr(r.checkAttachmentRelativePath)) n += 2;
+        });
+        if (payloadHasDepositAttachment(payload) || payloadDepositSatisfiedByAccounting(payload)) n += 3;
+        const docs = parsePropertyDocumentsBundle(payload).filter((d) => contractAttachmentPresent(d));
+        if (docs.length) n += 2;
+        if (toStr(payload.municipalFormNo)) n += 1;
+        if (toStr(payload.municipalContractNo)) n += 1;
+        return n;
+    }
+
+    function preferRichContractJsonArray(richPayload, poorPayload, jsonKey, arrayKey) {
+        const a = parsePayloadJsonArrayField(richPayload, jsonKey, arrayKey);
+        const b = parsePayloadJsonArrayField(poorPayload, jsonKey, arrayKey);
+        if (!a.length && b.length) return b;
+        if (!b.length && a.length) return a;
+        const scoreOf = (arr) =>
+            (Array.isArray(arr) ? arr : []).reduce((s, r) => {
+                let x = 0;
+                if (toStr(r?.amount)) x += 1;
+                if (toStr(r?.chequeNo)) x += 1;
+                if (contractAttachmentPresent(r) || toStr(r?.checkAttachmentRelativePath) || toStr(r?.checkAttachmentFileId)) x += 3;
+                return s + x;
+            }, 0);
+        return scoreOf(a) >= scoreOf(b) ? a : b;
+    }
+
+    function mergeContractPayloadPreferRich(existing, incoming) {
+        if (!existing) return incoming;
+        if (!incoming) return existing;
+        const pickExisting = contractPayloadFinancialRichnessScore(existing) >= contractPayloadFinancialRichnessScore(incoming);
+        const rich = pickExisting ? existing : incoming;
+        const poor = pickExisting ? incoming : existing;
+        const out = { ...poor, ...rich };
+        [
+            'municipalFormNo',
+            'municipalContractNo',
+            'paymentMethod',
+            'depositAmount',
+            'depositReceiptRef',
+            'agreementNo',
+            'contractSavedStatus',
+            'propertyDocumentsComplete'
+        ].forEach((f) => {
+            out[f] = toStr(rich[f]) || toStr(poor[f]) || '';
+        });
+        [
+            ['paymentScheduleJson', 'paymentSchedule'],
+            ['vatChequeScheduleJson', 'vatChequeSchedule'],
+            ['insuranceDepositItemsJson', 'insuranceDepositItems'],
+            ['customRentItemsJson', 'customRentItems'],
+            ['extraAdjustmentsJson', 'extraAdjustments'],
+            ['propertyDocumentsBundleJson', 'propertyDocumentsBundle'],
+            ['contractMandatoryDocsJson', 'contractMandatoryDocs'],
+            ['contractOtherDocsJson', 'contractOtherDocs']
+        ].forEach(([jsonKey, arrayKey]) => {
+            const chosen = preferRichContractJsonArray(rich, poor, jsonKey, arrayKey);
+            out[jsonKey] = JSON.stringify(chosen);
+            out[arrayKey] = chosen;
+        });
+        if (payloadHasDepositAttachment(rich) || !payloadHasDepositAttachment(poor)) {
+            [
+                'depositAttachmentName',
+                'depositAttachmentDataUrl',
+                'depositAttachmentRelativePath',
+                'depositAttachmentFileId',
+                'depositStoredOnDisk'
+            ].forEach((f) => {
+                if (rich[f] != null && rich[f] !== '') out[f] = rich[f];
+            });
+        }
+        out.contractSavedAt = toStr(rich.contractSavedAt) || toStr(poor.contractSavedAt) || new Date().toISOString();
+        if (rich.propertyDocumentsCompletedAt || poor.propertyDocumentsCompletedAt) {
+            out.propertyDocumentsCompletedAt = rich.propertyDocumentsCompletedAt || poor.propertyDocumentsCompletedAt;
+        }
+        return out;
+    }
+
     function contractFinancialPayloadNeedsAdditionalData(payload) {
         if (!payload || typeof payload !== 'object') return true;
         const p = enrichPayloadDepositFromAccounting(payload);
@@ -63786,7 +63926,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 if (getContractRenewalDraftEntryForUnit({ building: bKey, unit: uKey })) return;
                 const existingSaved = getSavedContractMapEntry(loadSavedContractsByUnitMap(), bKey, uKey);
                 if (existingSaved) {
-                    const merged = { ...existingSaved.payload, ...unitPayload };
+                    const merged = mergeContractPayloadPreferRich(existingSaved.payload, unitPayload);
                     merged.contractSavedAt = toStr(existingSaved.savedAt) || toStr(existingSaved.payload?.contractSavedAt);
                     const lifecycleStatus = resolveContractLifecycleStatus(merged);
                     merged.contractSavedStatus = lifecycleStatus;
