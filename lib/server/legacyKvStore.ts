@@ -2,8 +2,7 @@ import { prisma } from '@/lib/prisma';
 import {
   isLegacyKvKey,
   legacyKvCategory,
-  LEGACY_KV_ALL_KEYS,
-  isLegacyKvKeepOnFullWipe,
+  LEGACY_KV_KEEP_ON_FULL_WIPE,
 } from '@/lib/server/legacyKvKeys';
 import { extractLegacyKvInlineBlobs, deleteLegacyStoredFilesForContexts } from '@/lib/server/legacyStoredFiles';
 import { mergeLegacyKvOnPut } from '@/lib/server/legacyKvMerge';
@@ -113,19 +112,21 @@ export async function clearLegacyKvKeys(keys: string[]): Promise<{ removed: numb
   return { removed: result.count };
 }
 
-/** تصفية — يحذف كل شيء ما عدا keepKeys */
+/** تصفية — يحذف كل مفاتيح bhd_* من PostgreSQL ما عدا keepKeys */
 export async function wipeLegacyKvExcept(keepKeys: string[] = []): Promise<{ removed: number }> {
-  const keep = new Set(keepKeys.filter((k) => isLegacyKvKey(k) || isLegacyKvKeepOnFullWipe(k)));
-  LEGACY_KV_ALL_KEYS.forEach((k) => {
-    if (isLegacyKvKeepOnFullWipe(k)) keep.add(k);
-  });
+  const keep = new Set(
+    keepKeys.filter((k) => typeof k === 'string' && k.startsWith('bhd_'))
+  );
+  (LEGACY_KV_KEEP_ON_FULL_WIPE as readonly string[]).forEach((k) => keep.add(k));
 
-  const toRemove = LEGACY_KV_ALL_KEYS.filter((k) => !keep.has(k));
-  if (!toRemove.length) return { removed: 0 };
+  const where: { kvKey: { startsWith: string }; NOT?: { kvKey: { in: string[] } } } = {
+    kvKey: { startsWith: 'bhd_' },
+  };
+  if (keep.size) {
+    where.NOT = { kvKey: { in: [...keep] } };
+  }
 
-  const result = await prisma.legacyAppKvStore.deleteMany({
-    where: { kvKey: { in: [...toRemove] } },
-  });
+  const result = await prisma.legacyAppKvStore.deleteMany({ where });
   try {
     await deleteLegacyStoredFilesForContexts(['contract', 'property', 'registry', 'reservation', 'accounting']);
   } catch (_eWipeFiles) {}
