@@ -237,6 +237,105 @@ function mergeTopLevelPreferLonger(
   return out;
 }
 
+type AcctRecord = Record<string, unknown>;
+
+function acctRecordTime(r: AcctRecord): number {
+  const t = Date.parse(str(r.updatedAt) || str(r.receiptApprovedAt) || '');
+  return Number.isFinite(t) ? t : 0;
+}
+
+function acctStatusScore(status: unknown, r?: AcctRecord): number {
+  const s = str(status);
+  let score = 50;
+  if (s === 'held' || s === 'released' || s === 'refunded') score = 100;
+  else if (s === 'pending' || s === 'paid_full' || s === 'confirmed' || s === 'invoiced') score = 95;
+  else if (s === 'paid_partial' || s === 'paid_cash' || s === 'deferred') score = 85;
+  else if (s === 'pending_receipt') score = 10;
+  else if (s === 'awaiting_contract_data') score = 5;
+  else if (s === 'receipt_rejected' || s === 'rejected') score = 0;
+  if (r?.receiptApprovedAt) score += 40;
+  return score;
+}
+
+function acctRecordMergeKey(r: AcctRecord): string {
+  const linked = str(r.linkedKey).trim();
+  if (linked) return `lk:${linked}`;
+  const id = str(r.id).trim();
+  if (id) return `id:${id}`;
+  return `anon:${str(r.unitKey)}:${str(r.chequeNo)}:${str(r.type)}:${str(r.amount)}`;
+}
+
+function pickBetterAcctRecord(a: AcctRecord, b: AcctRecord): AcctRecord {
+  const sa = acctStatusScore(a.status, a);
+  const sb = acctStatusScore(b.status, b);
+  if (sa !== sb) return sa > sb ? a : b;
+  const ta = acctRecordTime(a);
+  const tb = acctRecordTime(b);
+  if (ta !== tb) return ta > tb ? a : b;
+  return JSON.stringify(a).length >= JSON.stringify(b).length ? a : b;
+}
+
+function mergeAcctRecordArrays(a: unknown, b: unknown): AcctRecord[] {
+  const map = new Map<string, AcctRecord>();
+  const ingest = (arr: unknown) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach((row) => {
+      if (!row || typeof row !== 'object') return;
+      const rec = row as AcctRecord;
+      const k = acctRecordMergeKey(rec);
+      const prev = map.get(k);
+      map.set(k, prev ? pickBetterAcctRecord(prev, rec) : rec);
+    });
+  };
+  ingest(a);
+  ingest(b);
+  return [...map.values()];
+}
+
+function mergeAccountingAccounts(a: unknown, b: unknown): Record<string, unknown> {
+  const ao = a && typeof a === 'object' && !Array.isArray(a) ? (a as Record<string, AcctRecord>) : {};
+  const bo = b && typeof b === 'object' && !Array.isArray(b) ? (b as Record<string, AcctRecord>) : {};
+  const out: Record<string, unknown> = { ...ao };
+  Object.entries(bo).forEach(([k, bv]) => {
+    const av = ao[k];
+    if (!av || typeof av !== 'object') {
+      out[k] = bv;
+      return;
+    }
+    out[k] = acctRecordTime(bv) >= acctRecordTime(av) ? bv : av;
+  });
+  return out;
+}
+
+/** دمج سجل المحاسبة — يحافظ على اعتمادات الاستلام الأحدث ولا يعيد pending_receipt */
+export function mergeAccountingRegistryJson(existingRaw: string, incomingRaw: string): string {
+  const a = safeParseObject(existingRaw);
+  const b = safeParseObject(incomingRaw);
+  if (!Object.keys(a).length) return incomingRaw;
+  if (!Object.keys(b).length) return existingRaw;
+
+  const merged: Record<string, unknown> = { ...a, ...b };
+  merged.accounts = mergeAccountingAccounts(a.accounts, b.accounts);
+  merged.cheques = mergeAcctRecordArrays(a.cheques, b.cheques);
+  merged.deposits = mergeAcctRecordArrays(a.deposits, b.deposits);
+  merged.entries = mergeAcctRecordArrays(a.entries, b.entries);
+  merged.invoices = mergeAcctRecordArrays(a.invoices, b.invoices);
+  merged.bankAccounts = mergeAcctRecordArrays(a.bankAccounts, b.bankAccounts);
+  merged.chartOfAccounts = mergeAcctRecordArrays(a.chartOfAccounts, b.chartOfAccounts);
+  merged.journalLedgerVersion = Math.max(
+    parseInt(str(a.journalLedgerVersion), 10) || 0,
+    parseInt(str(b.journalLedgerVersion), 10) || 0
+  );
+  merged._journalLedgerDirty = !!(a._journalLedgerDirty || b._journalLedgerDirty);
+  merged.version = Math.max(parseInt(str(a.version), 10) || 1, parseInt(str(b.version), 10) || 1);
+
+  const settingsA = a.settings && typeof a.settings === 'object' ? a.settings : {};
+  const settingsB = b.settings && typeof b.settings === 'object' ? b.settings : {};
+  merged.settings = { ...settingsA, ...settingsB };
+
+  return JSON.stringify(merged);
+}
+
 /** دمج قيمة KV قبل الكتابة في Neon */
 export function mergeLegacyKvOnPut(key: string, existingRaw: string | null | undefined, incomingRaw: string): string {
   if (!existingRaw || !existingRaw.trim()) return incomingRaw;
@@ -250,7 +349,11 @@ export function mergeLegacyKvOnPut(key: string, existingRaw: string | null | und
     return JSON.stringify(merged);
   }
 
-  if (key === 'bhd_accounting_registry' || key === 'bhd_file_registry') {
+  if (key === 'bhd_accounting_registry') {
+    return mergeAccountingRegistryJson(existingRaw, incomingRaw);
+  }
+
+  if (key === 'bhd_file_registry') {
     return mergeShallowJsonObjects(existingRaw, incomingRaw);
   }
 

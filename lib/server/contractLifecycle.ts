@@ -358,11 +358,18 @@ function contractAccountingApprovalsComplete(
   reg: AccountingRegistry
 ): boolean {
   if (!contractDepositAccountingApprovalsComplete(building, unit, payload, reg)) return false;
-  const b = normalizeBuilding(building);
-  const u = normalizeUnit(unit);
+  const primary = resolvePrimaryUnit(building, unit, payload);
+  const b = primary.building;
+  const u = primary.unit;
   if (!b || !u) return true;
-  const uk = unitKey(b, u);
-  const cheques = (reg.cheques || []).filter((c) => str(c.unitKey) === uk);
+  const unitKeys = new Set<string>();
+  unitKeys.add(unitKey(b, u));
+  getLinkedUnits(payload).forEach((lu) => {
+    const lb = normalizeBuilding(lu.building || b);
+    const luUnit = normalizeUnit(lu.unit);
+    if (luUnit) unitKeys.add(unitKey(lb, luUnit));
+  });
+  const cheques = (reg.cheques || []).filter((c) => unitKeys.has(str(c.unitKey)));
   if (cheques.some((c) => isAccountingDepositPendingReceipt(c.status))) return false;
   if (cheques.some((c) => str(c.status) === 'receipt_rejected')) return false;
   return true;

@@ -10069,7 +10069,111 @@
             const merged = mergeSavedContractsByUnitKvJson(local, val);
             return merged !== local ? merged : null;
         }
+        if (k === 'bhd_accounting_registry') {
+            const merged = mergeAccountingRegistryKvJson(local, val);
+            return merged !== local ? merged : null;
+        }
         return null;
+    }
+
+    function acctRecordMergeTime(r) {
+        const t = Date.parse(toStr(r?.updatedAt) || toStr(r?.receiptApprovedAt) || '');
+        return Number.isFinite(t) ? t : 0;
+    }
+
+    function acctStatusMergeScore(status, r) {
+        const s = toStr(status);
+        let score = 50;
+        if (s === 'held' || s === 'released' || s === 'refunded') score = 100;
+        else if (s === 'pending' || s === 'paid_full' || s === 'confirmed' || s === 'invoiced') score = 95;
+        else if (s === 'paid_partial' || s === 'paid_cash' || s === 'deferred') score = 85;
+        else if (s === 'pending_receipt') score = 10;
+        else if (s === 'awaiting_contract_data') score = 5;
+        else if (s === 'receipt_rejected' || s === 'rejected') score = 0;
+        if (r?.receiptApprovedAt) score += 40;
+        return score;
+    }
+
+    function acctRecordMergeKey(r) {
+        const linked = toStr(r?.linkedKey).trim();
+        if (linked) return 'lk:' + linked;
+        const id = toStr(r?.id).trim();
+        if (id) return 'id:' + id;
+        return 'anon:' + toStr(r?.unitKey) + ':' + toStr(r?.chequeNo) + ':' + toStr(r?.type) + ':' + toStr(r?.amount);
+    }
+
+    function pickBetterAccountingRecord(a, b) {
+        const sa = acctStatusMergeScore(a?.status, a);
+        const sb = acctStatusMergeScore(b?.status, b);
+        if (sa !== sb) return sa > sb ? a : b;
+        const ta = acctRecordMergeTime(a);
+        const tb = acctRecordMergeTime(b);
+        if (ta !== tb) return ta > tb ? a : b;
+        return JSON.stringify(a).length >= JSON.stringify(b).length ? a : b;
+    }
+
+    function mergeAccountingRecordArrays(a, b) {
+        const map = new Map();
+        const ingest = (arr) => {
+            if (!Array.isArray(arr)) return;
+            arr.forEach((row) => {
+                if (!row || typeof row !== 'object') return;
+                const k = acctRecordMergeKey(row);
+                const prev = map.get(k);
+                map.set(k, prev ? pickBetterAccountingRecord(prev, row) : row);
+            });
+        };
+        ingest(a);
+        ingest(b);
+        return [...map.values()];
+    }
+
+    function mergeAccountingAccountsObjects(a, b) {
+        const ao = a && typeof a === 'object' && !Array.isArray(a) ? a : {};
+        const bo = b && typeof b === 'object' && !Array.isArray(b) ? b : {};
+        const out = { ...ao };
+        Object.keys(bo).forEach((k) => {
+            const bv = bo[k];
+            const av = ao[k];
+            if (!av || typeof av !== 'object') {
+                out[k] = bv;
+                return;
+            }
+            out[k] = acctRecordMergeTime(bv) >= acctRecordMergeTime(av) ? bv : av;
+        });
+        return out;
+    }
+
+    /** دمج سجل المحاسبة عند السحب — لا يُلغي اعتمادات الاستلام المحلية */
+    function mergeAccountingRegistryKvJson(localRaw, externalRaw) {
+        let local = {};
+        let external = {};
+        try {
+            local = JSON.parse(localRaw || '{}');
+        } catch (_eLocAcct) {}
+        try {
+            external = JSON.parse(externalRaw || '{}');
+        } catch (_eExtAcct) {}
+        if (!Object.keys(local).length) return externalRaw;
+        if (!Object.keys(external).length) return localRaw;
+        const merged = { ...local, ...external };
+        merged.accounts = mergeAccountingAccountsObjects(local.accounts, external.accounts);
+        merged.cheques = mergeAccountingRecordArrays(local.cheques, external.cheques);
+        merged.deposits = mergeAccountingRecordArrays(local.deposits, external.deposits);
+        merged.entries = mergeAccountingRecordArrays(local.entries, external.entries);
+        merged.invoices = mergeAccountingRecordArrays(local.invoices, external.invoices);
+        merged.bankAccounts = mergeAccountingRecordArrays(local.bankAccounts, external.bankAccounts);
+        merged.chartOfAccounts = mergeAccountingRecordArrays(local.chartOfAccounts, external.chartOfAccounts);
+        merged.journalLedgerVersion = Math.max(
+            parseInt(toStr(local.journalLedgerVersion), 10) || 0,
+            parseInt(toStr(external.journalLedgerVersion), 10) || 0
+        );
+        merged._journalLedgerDirty = !!(local._journalLedgerDirty || external._journalLedgerDirty);
+        merged.version = Math.max(parseInt(toStr(local.version), 10) || 1, parseInt(toStr(external.version), 10) || 1);
+        const settingsA = local.settings && typeof local.settings === 'object' ? local.settings : {};
+        const settingsB = external.settings && typeof external.settings === 'object' ? external.settings : {};
+        merged.settings = { ...settingsA, ...settingsB };
+        return JSON.stringify(merged);
     }
 
     /** استرجاع من SQLite أو IndexedDB عند غياب البيانات أو كونها قشرة فارغة في localStorage */
@@ -10086,6 +10190,12 @@
             const val = store[k];
             if (typeof val !== 'string') return;
             if (siteAuth && BHD_KV_SITE_AUTHORITATIVE_KEYS.includes(k) && !bhdKvIsEmptyShell(val)) {
+                const propertyMerged = hydrateBhdKvPropertyKey(k, local, val);
+                if (propertyMerged !== null) {
+                    localStorage.setItem(k, propertyMerged);
+                    any = true;
+                    return;
+                }
                 localStorage.setItem(k, val);
                 any = true;
                 return;
@@ -11882,7 +11992,9 @@
             if (!statusesOk) return false;
         }
         try {
+            await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
             BHD_KV_CONTRACTS_LIST_PULL_KEYS.forEach((k) => {
+                if (k === 'bhd_accounting_registry') return;
                 try {
                     localStorage.removeItem(k);
                 } catch (_eWipeK) {}
@@ -12480,14 +12592,19 @@
 
     async function syncBhdKvToServer(options = {}) {
         const forceAll = options.forceAll === true;
-        if (!forceAll && isBhdKvAutoPushMuted()) return;
+        const force = options.force === true;
+        const onlyKeys = Array.isArray(options.keys) && options.keys.length ? options.keys.filter((k) => BHD_KV_KEYS.includes(k)) : null;
+        if (!forceAll && !force && isBhdKvAutoPushMuted()) return;
         if (!window.bhdDesktop) {
             await mirrorKvFromLocalStorageToIndexedDb();
         }
-        const dirty = takeBhdKvDirtyKeys();
-        const keysToSync = forceAll ? BHD_KV_KEYS : dirty;
+        const dirty = onlyKeys || (forceAll ? BHD_KV_KEYS : takeBhdKvDirtyKeys());
+        const keysToSync = dirty;
         if (!keysToSync.length) return;
         const payload = buildBhdKvPayload(keysToSync);
+        if (onlyKeys) {
+            onlyKeys.forEach((k) => _bhdKvDirtyKeys.delete(k));
+        }
         if (window.bhdDesktop) {
             if (!Object.keys(payload).length) return;
             try {
@@ -12519,6 +12636,13 @@
             syncBhdKvToServer().catch(() => {});
             scheduleBhdCloudDataPush(500);
         }, delayMs == null ? 2500 : delayMs);
+    }
+
+    /** رفع فوري لمفاتيح حرجة (اعتماد محاسبة) — يتجاوز كتم الدفع بعد السحب */
+    async function flushBhdKvToServerNow(keys) {
+        const list = Array.isArray(keys) && keys.length ? keys : ['bhd_accounting_registry'];
+        list.forEach((k) => markBhdKvDirty(k));
+        await syncBhdKvToServer({ keys: list, force: true });
     }
 
     async function pullBhdKvFromServer() {
@@ -12581,8 +12705,9 @@
             if (btn) btn.textContent = t('🔄 جاري الحفظ…', '🔄 Saving…');
             if (isBhdSiteKvPersistenceActive()) {
                 if (btn) btn.textContent = t('🔄 جاري توحيد السحابة…', '🔄 Syncing cloud…');
+                await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
                 await fetchBhdServerContractStatuses(true);
-                await syncBhdKvToServer({ forceAll: false });
+                await syncBhdKvToServer({ forceAll: false, force: true });
             } else if (window.bhdDesktop) {
                 markBhdKvDirty('bhd_contract_full');
                 markBhdKvDirty('bhd_tenancy_contract_drafts');
@@ -35758,6 +35883,15 @@ function getEmptyCompanySignatory() {
         saveAccountingRegistry(reg, { deferJournalRebuild: true });
         mirrorAccountingStatusToContractPayload(building, unit);
         refreshContractLifecycleAfterAccountingApproval(building, unit);
+        (async () => {
+            try {
+                await flushBhdKvToServerNow(['bhd_accounting_registry', 'bhd_saved_contracts_by_unit']);
+                await fetchBhdServerContractStatuses(true);
+                try {
+                    if (typeof renderContractsListPanel === 'function') renderContractsListPanel();
+                } catch (_eCListAcct) {}
+            } catch (_eAcctCloud) {}
+        })();
         recordSystemActivity({
             actionKey: decision === 'approve' ? 'accounting_contract_receipt_approved' : 'accounting_contract_receipt_rejected',
             actionAr: decision === 'approve' ? 'اعتماد استلام ضمان/شيك عقد' : 'رفض استلام ضمان/شيك عقد',
@@ -38303,12 +38437,23 @@ function getEmptyCompanySignatory() {
 
     function contractAccountingApprovalsComplete(building, unit, payloadOpt) {
         if (!contractDepositAccountingApprovalsComplete(building, unit, payloadOpt)) return false;
-        const b = toStr(building);
-        const u = toStr(unit);
+        const payload =
+            payloadOpt ||
+            getContractPayloadForUnit({ building, unit }) ||
+            getSavedContractPayloadForUnit({ building, unit });
+        const acct = resolveContractWorkflowPrimaryUnit(building, unit, payload);
+        const b = acct.building;
+        const u = acct.unit;
         if (!b || !u) return true;
-        const unitKey = accountingUnitKey(b, u);
         const reg = loadAccountingRegistry();
-        const cheques = (reg.cheques || []).filter((c) => c.unitKey === unitKey);
+        const unitKeys = new Set([accountingUnitKey(b, u)]);
+        const linked = payload ? getLinkedContractUnitsFromPayload(payload) : [];
+        linked.forEach((lu) => {
+            const lb = toStr(lu.building) || b;
+            const luUnit = toStr(lu.unit);
+            if (luUnit) unitKeys.add(accountingUnitKey(lb, luUnit));
+        });
+        const cheques = (reg.cheques || []).filter((c) => unitKeys.has(c.unitKey));
         if (cheques.some((c) => isAccountingChequePendingReceipt(c.status))) return false;
         if (cheques.some((c) => toStr(c.status) === 'receipt_rejected')) return false;
         return true;
@@ -40081,6 +40226,8 @@ function getEmptyCompanySignatory() {
             const linkedKey = accountingDepositLinkedKey(b, u, 'security');
             incomingDepositKeys.add(linkedKey);
             const existing = existingDepositMap.get(linkedKey);
+            let depStatus = existing?.status || 'pending_receipt';
+            if (existing && isAccountingDepositHeldStatus(existing.status)) depStatus = existing.status;
             existingDepositMap.set(linkedKey, {
                 id: existing?.id || newAccountingId('dep'),
                 unitKey,
@@ -40090,7 +40237,7 @@ function getEmptyCompanySignatory() {
                 type: 'security',
                 amount: depositAmount,
                 reference: toStr(payload.depositReceiptRef) || toStr(existing?.reference),
-                status: existing?.status || 'pending_receipt',
+                status: depStatus,
                 agreementNo: existing?.agreementNo || agreementNo,
                 tenant: existing?.tenant || tenant,
                 attachmentName: toStr(payload.depositAttachmentName) || toStr(existing?.attachmentName),
