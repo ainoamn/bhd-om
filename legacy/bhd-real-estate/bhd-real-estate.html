@@ -9941,6 +9941,39 @@
         return false;
     }
 
+    /** هل المفتاح يحتوي بيانات تشغيلية فعلية (وليس هيكل فارغ مثل محاسبة مُصفّرة) */
+    function bhdKvHasSubstantiveUserData(key, raw) {
+        if (raw === null || raw === undefined) return false;
+        const s = toStr(raw).trim();
+        if (!s) return false;
+        const k = toStr(key);
+        if (k === 'bhd_accounting_registry') {
+            try {
+                const o = JSON.parse(s);
+                if (!o || typeof o !== 'object') return false;
+                if ((o.cheques || []).length) return true;
+                if ((o.deposits || []).length) return true;
+                if ((o.entries || []).length) return true;
+                if ((o.invoices || []).length) return true;
+                if (o.accounts && typeof o.accounts === 'object' && Object.keys(o.accounts).length) return true;
+                return false;
+            } catch (_eAcctSub) {
+                return true;
+            }
+        }
+        if (k === 'bhd_maintenance_registry' || k === 'bhd_tasks_registry') {
+            try {
+                const o = JSON.parse(s);
+                if (!o || typeof o !== 'object') return false;
+                const tasks = o.tasks || o.requests || o.items;
+                return Array.isArray(tasks) && tasks.length > 0;
+            } catch (_eRegSub) {
+                return true;
+            }
+        }
+        return !bhdKvIsEmptyShell(raw);
+    }
+
     /** هل localStorage يحتوي بيانات فعلية؟ — لتجنب سحب SQLite كامل عند كل إقلاع مكتبي / Skip full DB pull when local cache is warm */
     function bhdLocalStorageHasSubstantiveData() {
         const probeKeys = [
@@ -9951,7 +9984,7 @@
             'bhd_accounting_registry',
             'bhd_contract_full'
         ];
-        return probeKeys.some((k) => !bhdKvIsEmptyShell(localStorage.getItem(k)));
+        return probeKeys.some((k) => bhdKvHasSubstantiveUserData(k, localStorage.getItem(k)));
     }
 
     function buildingProfileTimestamp(prof) {
@@ -10514,7 +10547,7 @@
         } catch (_eWipeMark) {}
     }
 
-    /** بعد تصفية محلية دون تأكيد سحابي — لا نعيد سحب بيانات Neon القديمة إلا إذا كان التخزين المحلي فارغاً */
+    /** بعد تصفية ناجحة — لا نعيد سحب بيانات السحابة القديمة */
     function shouldSkipSiteKvPullAfterLocalWipe() {
         try {
             const wipedAt = parseInt(localStorage.getItem('bhd_last_data_wipe') || '0', 10);
@@ -10527,6 +10560,78 @@
         } catch (_eSkipWipe) {
             return false;
         }
+    }
+
+    function bhdShouldBlockNeonKvPull(opt) {
+        if (opt && opt.force === true) return false;
+        try {
+            if (localStorage.getItem('bhd_data_wipe_in_progress') === '1') return true;
+        } catch (_eWipeProg) {}
+        return shouldSkipSiteKvPullAfterLocalWipe();
+    }
+
+    function bhdLocalHasSubstantiveDataForScope(scope) {
+        if (scope === 'all') return bhdLocalStorageHasSubstantiveData();
+        const keys = getBhdKeysForCleanupScope(scope).filter((k) => k !== 'bhd_address_book');
+        return keys.some((k) => bhdKvHasSubstantiveUserData(k, localStorage.getItem(k)));
+    }
+
+    const BHD_CLOUD_WIPE_PROBE_KEYS = [
+        'bhd_saved_contracts_by_unit',
+        'bhd_building_profiles',
+        'bhd_managed_units',
+        'bhd_buildings_list',
+        'bhd_accounting_registry',
+        'bhd_unit_reservations'
+    ];
+
+    async function verifyBhdCloudDataClearedForScope(scope) {
+        if (!isBhdSiteKvPersistenceActive() || !bhdRemoteKvSyncEnabled()) {
+            return { ok: true, skipped: true };
+        }
+        const keys =
+            scope === 'all'
+                ? BHD_CLOUD_WIPE_PROBE_KEYS
+                : getBhdKeysForCleanupScope(scope).filter((k) => k !== 'bhd_address_book');
+        if (!keys.length) return { ok: true, skipped: true };
+        try {
+            const r = await fetch(`${bhdKvRemoteBase()}?keys=${encodeURIComponent(keys.join(','))}`, {
+                credentials: 'include',
+                cache: 'no-store'
+            });
+            if (!r.ok) return { ok: false, skipped: false, status: r.status };
+            const data = await r.json();
+            const dirty = keys.filter((k) => bhdKvHasSubstantiveUserData(k, data[k]));
+            return { ok: dirty.length === 0, skipped: false, dirtyKeys: dirty };
+        } catch (_eVerCloud) {
+            return { ok: false, skipped: false };
+        }
+    }
+
+    function forceWriteEmptyBhdLocalState(scope) {
+        applyEmptyStorageDefaultsForScope(scope);
+        if (scope === 'all') {
+            buildingsList.length = 0;
+            ownersList.length = 0;
+            importedUnitsData = [];
+            managedUnitsData = [];
+            unitReservations = [];
+            evictionRequests = [];
+            reservationCancellationLog = [];
+            ownerBuildingMap = {};
+            buildingProfiles = {};
+            buildingProfilesShadow = {};
+            ownerProfiles = {};
+            addressBookEntries = [];
+            fileRegistry = [];
+            contractEntryContext = { mode: 'contract', unit: null };
+            try {
+                localStorage.setItem('bhd_use_empty_base_units', '1');
+                localStorage.setItem('bhd_hide_demo_units', '1');
+            } catch (_eFu) {}
+        }
+        persistCleanupScopeToLocalStorage(scope);
+        resetBhdRuntimeStateAfterCleanup(scope);
     }
 
     /** بعد تصفية ناجحة — لا ندفع محلياً إلى Neon قبل السحب (كان يعيد البيانات المحذوفة) */
@@ -12040,10 +12145,7 @@
 
     async function bhdHydrateSiteKvFromServerIfNeeded(opt = {}) {
         if (!bhdRemoteKvSyncEnabled() || (!isBhdSiteIntegratedWebClient() && !bhdApiAvailable)) return false;
-        if (shouldSkipSiteKvPullAfterLocalWipe()) return false;
-        try {
-            if (localStorage.getItem('bhd_data_wipe_in_progress') === '1') return false;
-        } catch (_eWipeProgPull) {}
+        if (bhdShouldBlockNeonKvPull(opt)) return false;
         const keys = Array.isArray(opt.keys) && opt.keys.length ? opt.keys : null;
         const deferIdbMirror = opt.deferIdbMirror === true;
         const siteKv = isBhdSiteKvPersistenceActive();
@@ -12233,6 +12335,7 @@
     }
 
     async function pullBhdKvFromNeonWithRetry(maxAttempts, opt = {}) {
+        if (bhdShouldBlockNeonKvPull(opt)) return false;
         const attempts = Math.max(1, maxAttempts || 3);
         for (let i = 0; i < attempts; i++) {
             try {
@@ -12293,6 +12396,10 @@
     function ensureBhdSiteKvHydratedFromNeon(opt = {}) {
         const force = opt.force === true;
         if (!isBhdSiteKvPersistenceActive()) return Promise.resolve(false);
+        if (!force && bhdShouldBlockNeonKvPull(opt)) {
+            _bhdSiteBootHydrationDone = true;
+            return Promise.resolve(false);
+        }
         if (!force && _bhdSiteBootHydrationDone) return Promise.resolve(true);
         if (_bhdSiteKvHydrationPromise) return _bhdSiteKvHydrationPromise;
         _bhdSiteKvHydrationPromise = (async () => {
@@ -48928,12 +49035,25 @@ function getEmptyCompanySignatory() {
 
             if (siteKvActive && bhdRemoteKvSyncEnabled()) {
                 const cloudRes = await purgeBhdCloudKeysForCleanupScope(scope);
-                cloudWipeOk = cloudRes.ok;
-                if (!cloudRes.skipped && !cloudRes.ok) {
+                if (cloudRes.skipped) {
+                    cloudWipeOk = false;
                     alert(
                         t(
-                            '⚠️ تم تصفير البيانات محلياً لكن فشل الحذف من قاعدة السحابة. لن يُحفظ التصفير حتى تنجح العملية — تأكد من تسجيل الدخول بحساب مسؤول النظام على الموقع.',
-                            '⚠️ Data was cleared locally but cloud deletion failed. The wipe will not stick until it succeeds — ensure you are signed in on the site with a system admin account.'
+                            '⚠️ تعذّر الاتصال بقاعدة السحابة لحذف البيانات. لم يُكمل التصفير.',
+                            '⚠️ Could not reach the cloud database to delete data. Cleanup was not completed.'
+                        )
+                    );
+                    try {
+                        localStorage.removeItem('bhd_data_wipe_in_progress');
+                    } catch (_eClrWipeProgSkip) {}
+                    return;
+                }
+                cloudWipeOk = cloudRes.ok;
+                if (!cloudRes.ok) {
+                    alert(
+                        t(
+                            '⚠️ فشل حذف البيانات من قاعدة السحابة. تحقق من تسجيل الدخول بحساب مسؤول النظام على الموقع ثم أعد المحاولة.',
+                            '⚠️ Cloud data deletion failed. Ensure you are signed in with a system admin account on the site, then retry.'
                         )
                     );
                     try {
@@ -48941,9 +49061,23 @@ function getEmptyCompanySignatory() {
                     } catch (_eClrWipeProg) {}
                     return;
                 }
-                if (!cloudRes.skipped && cloudRes.ok) {
-                    markBhdCloudWipeConfirmed();
+                const cloudVerify = await verifyBhdCloudDataClearedForScope(scope);
+                if (!cloudVerify.skipped && !cloudVerify.ok) {
+                    alert(
+                        t(
+                            '⚠️ ما زالت بيانات موجودة في قاعدة السحابة بعد التصفية. أعد المحاولة أو تواصل مع الدعم.',
+                            '⚠️ Data still exists in the cloud database after cleanup. Retry or contact support.'
+                        ) +
+                            (cloudVerify.dirtyKeys && cloudVerify.dirtyKeys.length
+                                ? '\n' + cloudVerify.dirtyKeys.join(', ')
+                                : '')
+                    );
+                    try {
+                        localStorage.removeItem('bhd_data_wipe_in_progress');
+                    } catch (_eClrWipeVer) {}
+                    return;
                 }
+                markBhdCloudWipeConfirmed();
             } else if (siteKvActive && !purgeResult.remoteSkipped && purgeResult.remoteOk === false) {
                 cloudWipeOk = false;
                 alert(
@@ -48982,11 +49116,21 @@ function getEmptyCompanySignatory() {
             return;
         }
 
-        resetBhdRuntimeStateAfterCleanup(scope);
-        try {
-            _bhdKvDirtyKeys.clear();
-            muteBhdKvAutoPush(60000);
-        } catch (_eClrPostWipe) {}
+        forceWriteEmptyBhdLocalState(scope);
+        await mirrorKvFromLocalStorageToIndexedDb();
+
+        if (bhdLocalHasSubstantiveDataForScope(scope)) {
+            alert(
+                t(
+                    '⚠️ تعذّر تصفير البيانات محلياً في هذا المتصفح. أغلق كل نوافذ الموقع ثم أعد المحاولة.',
+                    '⚠️ Could not clear data in this browser. Close all site tabs and try again.'
+                )
+            );
+            try {
+                localStorage.removeItem('bhd_data_wipe_in_progress');
+            } catch (_eClrWipeLocal) {}
+            return;
+        }
 
         if (!cloudWipeOk) {
             try {
@@ -48994,6 +49138,11 @@ function getEmptyCompanySignatory() {
             } catch (_eClrWipeProg3) {}
             return;
         }
+
+        try {
+            _bhdKvDirtyKeys.clear();
+            muteBhdKvAutoPush(24 * 60 * 60 * 1000);
+        } catch (_eClrPostWipe) {}
 
         try {
             localStorage.removeItem('bhd_data_wipe_in_progress');
