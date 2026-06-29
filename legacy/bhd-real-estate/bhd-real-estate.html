@@ -10100,12 +10100,12 @@
     /** تُبقى عند «تصفية كل البيانات» (حسابات + مظهر) / Kept on full data wipe */
     const BHD_KEYS_KEEP_ON_FULL_WIPE = ['bhd_users_registry', 'bhd_auth_session', 'bhd_theme_mode'];
 
-    /** على bhd-om.com: PostgreSQL مصدر الحقيقة — دفتر العناوين يُزامَن عبر الجسر لا KV مباشرة */
+    /**
+     * على bhd-om.com + Neon: PostgreSQL (LegacyAppKvStore) مصدر الحقيقة عند السحب.
+     * كل مفاتيح bhd_* ما عدا الجلسة/المظهر ودفتر العناوين (يُدار عبر AddressBookContact).
+     */
     const BHD_KV_SITE_AUTHORITATIVE_KEYS = BHD_KV_KEYS.filter(
-        (k) =>
-            !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k) &&
-            k !== 'bhd_address_book' &&
-            k !== 'bhd_saved_contracts_by_unit'
+        (k) => !BHD_KEYS_KEEP_ON_FULL_WIPE.includes(k) && k !== 'bhd_address_book'
     );
 
     function isBhdSiteKvPersistenceActive() {
@@ -11728,14 +11728,14 @@
 
     let _bhdSiteBootHydrationTimer = 0;
     let _bhdSiteBootHydrationDone = false;
+    let _bhdSiteKvHydrationPromise = null;
 
-    function scheduleBhdSiteBootHydrationOnce(delayMs) {
-        if (_bhdSiteBootHydrationDone) return;
-        clearTimeout(_bhdSiteBootHydrationTimer);
-        _bhdSiteBootHydrationTimer = setTimeout(async () => {
-            _bhdSiteBootHydrationTimer = 0;
-            if (_bhdSiteBootHydrationDone) return;
-            _bhdSiteBootHydrationDone = true;
+    /** سحب كل بيانات bhd_* من Neon قبل عرض الشاشات — مصدر الحقيقة السحابي */
+    function ensureBhdSiteKvHydratedFromNeon() {
+        if (!isBhdSiteKvPersistenceActive()) return Promise.resolve(false);
+        if (_bhdSiteBootHydrationDone) return Promise.resolve(true);
+        if (_bhdSiteKvHydrationPromise) return _bhdSiteKvHydrationPromise;
+        _bhdSiteKvHydrationPromise = (async () => {
             try {
                 if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                     await window.__bhdRefreshAddressBookFromSite();
@@ -11746,16 +11746,41 @@
                 try {
                     window.__bhdDedupeAddressBook?.();
                 } catch (_eDedBoot) {}
-                await bhdHydrateSiteKvFromServerIfNeeded();
+                const pulled = await bhdHydrateSiteKvFromServerIfNeeded();
+                if (pulled) {
+                    try {
+                        _bhdKvDirtyKeys.clear();
+                    } catch (_eClrDirty) {}
+                }
+                _bhdSiteBootHydrationDone = true;
                 try {
-                    await syncBhdKvToServer();
-                } catch (_eKvBoot) {}
-                loadDashboardAux(true);
+                    loadDashboardAux(true);
+                    bumpUnitsDataCache();
+                } catch (_eAuxHydr) {}
+                return pulled;
+            } catch (eHydr) {
+                console.warn('ensureBhdSiteKvHydratedFromNeon', eHydr);
+                return false;
+            } finally {
+                _bhdSiteKvHydrationPromise = null;
+            }
+        })();
+        return _bhdSiteKvHydrationPromise;
+    }
+
+    function scheduleBhdSiteBootHydrationOnce(delayMs) {
+        if (_bhdSiteBootHydrationDone) return;
+        clearTimeout(_bhdSiteBootHydrationTimer);
+        _bhdSiteBootHydrationTimer = setTimeout(async () => {
+            _bhdSiteBootHydrationTimer = 0;
+            if (_bhdSiteBootHydrationDone) return;
+            try {
+                await ensureBhdSiteKvHydratedFromNeon();
                 bhdRefreshActiveWorkspaceLight();
             } catch (eHydr) {
                 console.warn('site boot hydration', eHydr);
             }
-        }, delayMs == null ? 150 : delayMs);
+        }, delayMs == null ? 0 : delayMs);
     }
 
     let _bhdBridgeLightRefreshTimer = 0;
@@ -55042,8 +55067,13 @@ function getEmptyCompanySignatory() {
         };
     }
 
-    function renderOperationsTable() {
+    async function renderOperationsTable() {
         if (isViewerMode) return;
+        if (isBhdSiteKvPersistenceActive() && !_bhdSiteBootHydrationDone) {
+            try {
+                await ensureBhdSiteKvHydratedFromNeon();
+            } catch (_eOpsHydr) {}
+        }
         try {
             repairLinkedContractUnitsLifecycleConsistencyThrottled();
         } catch (_eRepOpsLinked) {}
@@ -69740,9 +69770,15 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         if (current === 'all' || buildings.includes(current)) sel.value = current;
     }
 
-    function renderContractsListPanel() {
+    async function renderContractsListPanel() {
         const tbody = document.getElementById('contractsListTableBody');
         if (!tbody) return;
+        if (isBhdSiteKvPersistenceActive() && !_bhdSiteBootHydrationDone) {
+            tbody.innerHTML = `<tr><td colspan="8">${t('جاري تحميل البيانات من قاعدة السحابة…', 'Loading data from cloud database…')}</td></tr>`;
+            try {
+                await ensureBhdSiteKvHydratedFromNeon();
+            } catch (_eCListHydr) {}
+        }
         try {
             repairDuplicateMultiUnitAccountingEntries();
         } catch (_eRepList) {}

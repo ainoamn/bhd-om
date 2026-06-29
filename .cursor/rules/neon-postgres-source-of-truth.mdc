@@ -1,0 +1,15 @@
+---
+description: Neon PostgreSQL is the only production source of truth for BHD operational data
+alwaysApply: true
+---
+
+# Neon PostgreSQL — Source of Truth
+
+- **Production database:** Neon PostgreSQL via `DATABASE_URL` (pooled). Console: org-broad-surf-16375800.
+- **Never** ship new features that persist operational data only in `localStorage` or browser cache.
+- **Legacy monolith** (`legacy/bhd-real-estate/bhd-real-estate.html`): on `bhd-om.com`, all `bhd_*` keys sync to `LegacyAppKvStore` except session/UI keys and `bhd_address_book` (use `AddressBookContact` API).
+- **Address book:** `AddressBookContact` + `/api/address-book` — not KV.
+- **Attachments:** `LegacyStoredFile` + `/api/admin/legacy-bridge/files/*` or Vercel Blob — not base64 in KV when avoidable.
+- **New domains:** add Prisma models + API routes under `app/api/`; read/write server first; optional local cache only.
+- **After legacy HTML changes:** run `node scripts/check-html-js.mjs legacy/bhd-real-estate/bhd-real-estate.html`.
+- **Docs:** `docs/NEON-SOURCE-OF-TRUTH.md`, `docs/DATA-POLICY.md`.

@@ -94,7 +94,13 @@ export function isLegacyKvKeepOnFullWipe(key: string): boolean {
   return (LEGACY_KV_KEEP_ON_FULL_WIPE as readonly string[]).includes(key);
 }
 
-/** على الويب المدمج: PostgreSQL مصدر الحقيقة (ما عدا الجلسة والمظهر من الجسر) */
+/**
+ * على bhd-om.com + Neon: PostgreSQL (LegacyAppKvStore) مصدر الحقيقة عند السحب.
+ * يُستثنى دفتر العناوين — يُدار عبر AddressBookContact + bootstrap bridge.
+ * يُستثنى مفاتيح الجلسة/المظهر فقط.
+ */
 export const LEGACY_KV_SITE_AUTHORITATIVE_KEYS = LEGACY_KV_ALL_KEYS.filter(
-  (k) => !(LEGACY_KV_KEEP_ON_FULL_WIPE as readonly string[]).includes(k)
+  (k) =>
+    !(LEGACY_KV_KEEP_ON_FULL_WIPE as readonly string[]).includes(k) &&
+    k !== 'bhd_address_book'
 );

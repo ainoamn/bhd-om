@@ -1,20 +1,25 @@
-# سياسة البيانات — PostgreSQL مصدر الحقيقة الوحيد
+# سياسة البيانات — PostgreSQL (Neon) مصدر الحقيقة الوحيد
 
 ## المبدأ
 
-جميع البيانات المستقبلية والمستمرة تُخزَّن في **PostgreSQL** عبر Prisma. الموقع مربوط بربط حقيقي بقاعدة البيانات؛ لا يُستخدم SQLite أو ملفات محلية في الإنتاج.
+جميع البيانات المستقمرة تُخزَّن في **PostgreSQL على Neon** عبر Prisma. الموقع على [bhd-om.com](https://www.bhd-om.com) مربوط بقاعدة سحابية حقيقية؛ المتصفح يحتفظ بنسخة عمل مؤقتة فقط (`localStorage`) ويُزامَن مع السحابة.
+
+**مرجع كامل:** [NEON-SOURCE-OF-TRUTH.md](./NEON-SOURCE-OF-TRUTH.md)
 
 ---
 
 ## ما يُخزَّن في PostgreSQL
 
 - **المستخدمون والحسابات**: `User` — تسجيل الدخول، الأدوار، البيانات الشخصية.
-- **العقارات**: `Property` — القائمة، التفاصيل، الحالة، الأسعار.
-- **الحجوزات**: `PropertyBooking`، `BookingStorage` — حجوزات الواجهة العامة ولوحة الإدارة.
-- **المشاريع والمهام**: `Project`، `Task`، `Document`، `Account`، `Transaction`.
-- **المحاسبة**: `AccountingAccount`، `AccountingJournalEntry`، `AccountingDocument`، `AccountingAuditLog`.
-- **إعدادات التطبيق**: `AppSetting` — إعدادات لوحات التحكم والصلاحيات.
-- **نماذج التواصل**: `ContactSubmission`.
+- **دفتر العناوين**: `AddressBookContact`, `AddressBookContactFile` — مصدر الحقيقة (ليس KV).
+- **النظام التشغيلي القديم (عقود، مباني، محاسبة، صيانة، مهام…)**: `LegacyAppKvStore` — 44 مفتاح `bhd_*` عبر `/api/admin/legacy-bridge/kv`.
+- **المرفقات**: `LegacyStoredFile` (+ Vercel Blob عند التفعيل).
+- **العقارات العامة**: `Property` — القائمة، التفاصيل، الحالة، الأسعار.
+- **الحجوزات**: `PropertyBooking`, `BookingStorage`, `ContractStorage`.
+- **المشاريع والمهام**: `Project`, `Task`, `Document`, `Account`, `Transaction`.
+- **المحاسبة**: `AccountingAccount`, `AccountingJournalEntry`, `AccountingDocument`, `AccountingAuditLog`.
+- **الصيانة**: `MaintenanceRequest` + `bhd_maintenance_registry` في KV.
+- **إعدادات التطبيق**: `AppSetting`.
 
 ---
 
