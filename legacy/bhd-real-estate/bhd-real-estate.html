@@ -34769,63 +34769,98 @@ function getEmptyCompanySignatory() {
 
     function getAccountingVoucherPrintStylesCss() {
         return `
+            body:has(.acct-voucher-print-root) {
+                font-size: 8.5pt;
+                line-height: 1.28;
+            }
+            body:has(.acct-voucher-print-root) .doc-print-frame thead td { padding: 0 0 4px; }
+            body:has(.acct-voucher-print-root) .doc-header { gap: 8px; padding-bottom: 4px; }
+            body:has(.acct-voucher-print-root) .company-box { font-size: 7.5pt; line-height: 1.3; }
+            body:has(.acct-voucher-print-root) .company-lines-ar,
+            body:has(.acct-voucher-print-root) .company-lines-en { font-size: 7pt; }
+            body:has(.acct-voucher-print-root) .company-name-ar { font-size: 9pt; margin-bottom: 2px; }
+            body:has(.acct-voucher-print-root) .company-name-en { font-size: 8pt; margin-bottom: 2px; }
+            body:has(.acct-voucher-print-root) .logo-box { flex: 0 0 80px; }
+            body:has(.acct-voucher-print-root) .logo-box img { max-height: 44px; max-width: 80px; }
+            body:has(.acct-voucher-print-root) .doc-title {
+                margin: 4px 0 6px;
+                padding-bottom: 4px;
+                border-bottom-width: 1px;
+            }
+            body:has(.acct-voucher-print-root) .doc-title h2 { font-size: 11pt; }
+            body:has(.acct-voucher-print-root) .doc-title h3 { font-size: 8pt; margin: 1px 0 0; }
+            body:has(.acct-voucher-print-root) .property-report-meta {
+                font-size: 7pt;
+                margin-bottom: 2px;
+                line-height: 1.25;
+            }
+            body:has(.acct-voucher-print-root) .property-report-by {
+                font-size: 7pt;
+                margin-bottom: 4px;
+            }
             .acct-voucher-print-root .property-section-h,
             .acct-voucher-print-root .section-header.property-section-h {
-                margin: 8px 0 6px;
-                padding: 4px 8px;
-                font-size: 10pt;
+                margin: 4px 0 3px;
+                padding: 2px 6px;
+                font-size: 8.5pt;
+                line-height: 1.25;
+            }
+            .acct-voucher-print-root .info-table.property-report-table,
+            .acct-voucher-print-root .property-report-table {
+                margin-bottom: 5px !important;
             }
             .acct-voucher-print-root .info-table.property-report-table th,
             .acct-voucher-print-root .info-table.property-report-table td {
-                font-size: 9.5pt;
-                padding: 4px 6px;
-                line-height: 1.35;
+                font-size: 8pt;
+                padding: 2px 4px;
+                line-height: 1.25;
             }
             .acct-voucher-print-root .property-report-table thead th {
-                font-size: 9pt;
-                padding: 4px 5px;
+                font-size: 7.5pt;
+                padding: 2px 3px;
             }
+            .acct-voucher-print-root .property-muted { font-size: 7.5pt !important; margin-top: 3px !important; line-height: 1.3 !important; }
             .acct-voucher-amount-box {
-                margin: 8px auto 10px;
-                max-width: 340px;
-                padding: 8px 12px;
-                border: 1.5px solid var(--doc-accent);
-                border-radius: 8px;
+                margin: 4px auto 6px;
+                max-width: 280px;
+                padding: 5px 8px;
+                border: 1px solid var(--doc-accent);
+                border-radius: 4px;
                 background: var(--doc-soft-bg);
                 text-align: center;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
-            .acct-voucher-amount-box small { display: block; font-size: 9pt; color: #555; margin-bottom: 2px; }
-            .acct-voucher-amount-box strong { font-size: 14pt; color: var(--doc-accent-dark); font-weight: 800; }
+            .acct-voucher-amount-box small { display: block; font-size: 7.5pt; color: #555; margin-bottom: 1px; }
+            .acct-voucher-amount-box strong { font-size: 11pt; color: var(--doc-accent-dark); font-weight: 800; }
             .acct-voucher-narrative-box {
-                margin: 8px 0 10px;
-                padding: 8px 10px;
+                margin: 4px 0 6px;
+                padding: 4px 6px;
                 border: 1px solid #c8d6e0;
-                border-radius: 6px;
+                border-radius: 4px;
                 background: #f7fafc;
-                font-size: 9.5pt;
-                line-height: 1.45;
+                font-size: 8pt;
+                line-height: 1.3;
                 text-align: right;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
             .acct-voucher-narrative-box strong { color: var(--doc-accent-dark); }
             .acct-voucher-parent-banner {
-                margin-bottom: 8px;
-                padding: 6px 10px;
-                border-right: 3px solid var(--doc-accent);
+                margin-bottom: 4px;
+                padding: 3px 6px;
+                border-right: 2px solid var(--doc-accent);
                 background: #eef6ff;
-                font-size: 9.5pt;
-                line-height: 1.45;
+                font-size: 8pt;
+                line-height: 1.3;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
             .acct-voucher-note-panel {
-                margin: 0 0 10px;
+                margin: 0 0 5px;
                 width: 100%;
                 border: 1px solid #c8d6e0;
-                border-radius: 6px;
+                border-radius: 4px;
                 overflow: hidden;
                 background: #f7fafc;
                 -webkit-print-color-adjust: exact;
@@ -34841,19 +34876,28 @@ function getEmptyCompanySignatory() {
                 vertical-align: top;
                 white-space: normal;
                 background: #eef4f8;
+                font-size: 7.5pt;
+                padding: 2px 4px;
             }
             .acct-voucher-note-panel-table td {
                 width: 74%;
                 white-space: normal;
                 word-break: break-word;
-                line-height: 1.4;
-                font-size: 9.5pt;
+                line-height: 1.25;
+                font-size: 8pt;
+                padding: 2px 4px;
             }
-            .acct-voucher-print-table th { width: 20%; text-align: right; font-size: 9pt; }
-            .acct-voucher-print-table td { text-align: right; font-size: 9.5pt; }
-            .acct-voucher-journal { margin-top: 8px; font-size: 9pt; }
+            .acct-voucher-print-table th { width: 20%; text-align: right; font-size: 7.5pt; }
+            .acct-voucher-print-table td { text-align: right; font-size: 8pt; }
+            .acct-voucher-journal { margin-top: 4px; font-size: 7.5pt; }
             .acct-voucher-journal .property-report-table th,
-            .acct-voucher-journal .property-report-table td { font-size: 9pt; padding: 3px 5px; }
+            .acct-voucher-journal .property-report-table td { font-size: 7.5pt; padding: 2px 3px; }
+            @media print {
+                body:has(.acct-voucher-print-root) { padding-bottom: 0; }
+                .acct-voucher-print-root .section-header { page-break-after: avoid; }
+                .acct-voucher-print-root table { page-break-inside: auto; }
+                .acct-voucher-print-root tr { page-break-inside: avoid; page-break-after: auto; }
+            }
         `;
     }
 
@@ -35124,8 +35168,7 @@ function getEmptyCompanySignatory() {
             .filter(Boolean)
             .join(' · ');
         return `
-            <div class="section-header property-section-h">${t('إيصال استلام ضمان / Deposit receipt', 'Deposit receipt / إيصال استلام ضمان')}</div>
-            <table class="info-table property-report-table print-zebra-cells acct-voucher-print-table" style="margin-bottom:14px">
+            <table class="info-table property-report-table print-zebra-cells acct-voucher-print-table">
                 <tbody>
                     <tr>
                         <th>${t('العقار', 'Property')}</th>
@@ -35148,8 +35191,8 @@ function getEmptyCompanySignatory() {
                     ${notes ? `<tr><th>${t('ملاحظات الاعتماد', 'Approval notes')}</th><td colspan="3">${escHtml(notes)}</td></tr>` : ''}
                 </tbody>
             </table>
-            <div class="section-header property-section-h">${t('تفاصيل الضمان / Deposit lines', 'Deposit lines / تفاصيل الضمان')}</div>
-            <table class="info-table property-report-table print-zebra acct-voucher-print-table" style="margin-bottom:14px">
+            <div class="section-header property-section-h">${t('تفاصيل الضمان', 'Deposit lines')}</div>
+            <table class="info-table property-report-table print-zebra acct-voucher-print-table">
                 <thead><tr>
                     <th class="print-num">#</th>
                     <th>${t('النوع', 'Type')}</th>
@@ -35165,7 +35208,7 @@ function getEmptyCompanySignatory() {
                     <td colspan="2"></td>
                 </tr></tfoot>
             </table>
-            <p class="property-muted" style="margin-top:6px;text-align:center;font-size:10pt;line-height:1.55">${t('يُقرّ باستلام مبالغ الضمان أعلاه فعلياً واعتمادها محاسبياً كوديعة محتجزة.', 'The above deposit amounts are confirmed as physically received and approved for accounting hold.')}</p>`;
+            <p class="property-muted" style="text-align:center">${t('يُقرّ باستلام مبالغ الضمان أعلاه فعلياً واعتمادها محاسبياً كوديعة محتجزة.', 'The above deposit amounts are confirmed as physically received and approved for accounting hold.')}</p>`;
     }
 
     function buildAccountingContractChequesReceiptReportPrintHtml(cheques, payloadOpt) {
@@ -60341,7 +60384,7 @@ function getEmptyCompanySignatory() {
     function getContractDocumentPrintStylesCss() {
         return `
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { font-family: 'Tajawal', 'Roboto', sans-serif; direction: rtl; background: white; font-size: 12pt; line-height: 1.55; padding-bottom: 18mm; }
+                body { font-family: 'Tajawal', 'Roboto', sans-serif; direction: rtl; background: white; font-size: 9pt; line-height: 1.32; padding-bottom: 14mm; }
                 .document {
                     --doc-accent: #6b1f35; --doc-accent-dark: #4a1525; --doc-accent-light: #8b3050;
                     --doc-soft-bg: #f8ecef; width: 100%; padding: 0; margin: 0;
@@ -60352,111 +60395,111 @@ function getEmptyCompanySignatory() {
                 }
                 .doc-print-frame { width: 100%; border-collapse: collapse; table-layout: fixed; border: none; }
                 .doc-print-frame thead { display: table-header-group; }
-                .doc-print-frame thead td { padding: 0 0 10px; border: none; vertical-align: bottom; }
+                .doc-print-frame thead td { padding: 0 0 5px; border: none; vertical-align: bottom; }
                 .doc-print-frame tbody td { padding: 0; border: none; vertical-align: top; }
-                .doc-print-frame tfoot td { padding: 6px 0 0; border: none; vertical-align: bottom; }
+                .doc-print-frame tfoot td { padding: 3px 0 0; border: none; vertical-align: bottom; }
                 .doc-print-tbody-cell { text-align: start; }
                 .doc-print-tfoot-cell { text-align: start; }
                 .doc-header {
                     display: flex; flex-direction: row; align-items: center; justify-content: space-between;
-                    gap: 12px; width: 100%; padding: 0 2px 8px; margin: 0;
-                    border-bottom: 2px solid var(--doc-accent);
+                    gap: 8px; width: 100%; padding: 0 2px 4px; margin: 0;
+                    border-bottom: 1.5px solid var(--doc-accent);
                 }
-                .company-box { flex: 1; min-width: 0; font-size: 9pt; line-height: 1.45; color: #2a2a2a; }
+                .company-box { flex: 1; min-width: 0; font-size: 7.5pt; line-height: 1.3; color: #2a2a2a; }
                 .company-box-ar { text-align: right; }
                 .company-box-en { text-align: left; direction: ltr; font-family: 'Roboto', sans-serif; }
-                .company-lines-ar, .company-lines-en { font-size: 8.5pt; color: #333; }
-                .company-name-ar { font-size: 11pt; font-weight: 800; color: var(--doc-accent); margin-bottom: 5px; }
-                .company-name-en { font-size: 10pt; font-weight: 800; color: var(--doc-accent); margin-bottom: 5px; }
-                .logo-box { flex: 0 0 110px; text-align: center; }
-                .logo-box img { max-height: 64px; max-width: 110px; object-fit: contain; }
-                .doc-title { text-align: center; margin: 12px 0 16px; border-bottom: 2px double var(--doc-accent); padding-bottom: 8px; }
-                .doc-title h2 { font-size: 16pt; color: var(--doc-accent); margin: 0; font-weight: 800; }
-                .doc-title h3 { font-size: 12pt; font-weight: normal; color: #444; margin: 5px 0 0; direction: ltr; font-family: 'Roboto', sans-serif; }
-                .document .info-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 10pt; color: #141414; table-layout: fixed; }
+                .company-lines-ar, .company-lines-en { font-size: 7pt; color: #333; }
+                .company-name-ar { font-size: 9pt; font-weight: 800; color: var(--doc-accent); margin-bottom: 2px; }
+                .company-name-en { font-size: 8pt; font-weight: 800; color: var(--doc-accent); margin-bottom: 2px; }
+                .logo-box { flex: 0 0 82px; text-align: center; }
+                .logo-box img { max-height: 46px; max-width: 82px; object-fit: contain; }
+                .doc-title { text-align: center; margin: 6px 0 8px; border-bottom: 1.5px double var(--doc-accent); padding-bottom: 4px; }
+                .doc-title h2 { font-size: 11pt; color: var(--doc-accent); margin: 0; font-weight: 800; }
+                .doc-title h3 { font-size: 8.5pt; font-weight: normal; color: #444; margin: 2px 0 0; direction: ltr; font-family: 'Roboto', sans-serif; }
+                .document .info-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 8pt; color: #141414; table-layout: fixed; }
                 .document .info-table th, .document .info-table td {
-                    border: 1px solid #2a2a2a; padding: 5px 6px; vertical-align: middle; line-height: 1.35;
+                    border: 1px solid #2a2a2a; padding: 2px 4px; vertical-align: middle; line-height: 1.22;
                     text-align: center; word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word;
                 }
-                .document .info-table th { background: var(--doc-soft-bg); color: var(--doc-accent-dark); width: auto; max-width: 24%; font-size: 9pt; font-weight: 700; }
-                .document .info-table td { font-size: 10pt; }
+                .document .info-table th { background: var(--doc-soft-bg); color: var(--doc-accent-dark); width: auto; max-width: 24%; font-size: 7.5pt; font-weight: 700; }
+                .document .info-table td { font-size: 8pt; }
                 .document .info-table:has(td[colspan="3"]) th {
-                    width: 12.5%; max-width: 13%; font-size: 8pt; padding: 4px 5px; line-height: 1.3;
+                    width: 12.5%; max-width: 13%; font-size: 7pt; padding: 2px 3px; line-height: 1.2;
                 }
-                .document .info-table:has(td[colspan="3"]) td { font-size: 9pt; padding: 4px 6px; }
+                .document .info-table:has(td[colspan="3"]) td { font-size: 7.5pt; padding: 2px 4px; }
                 .document .info-table:has(td[colspan="7"]):not(:has(td[colspan="3"])) th {
-                    width: 22%; max-width: 26%; font-size: 8.5pt;
+                    width: 22%; max-width: 26%; font-size: 7pt;
                 }
                 .document .info-table td[contenteditable="true"], .document .info-table th[contenteditable="true"] {
-                    border: 1px solid #2a2a2a !important; background: #fafafa; color: #111; font-size: 10pt; font-weight: 600;
-                    padding: 5px 6px; display: table-cell; vertical-align: middle; text-align: center;
+                    border: 1px solid #2a2a2a !important; background: #fafafa; color: #111; font-size: 8pt; font-weight: 600;
+                    padding: 2px 4px; display: table-cell; vertical-align: middle; text-align: center;
                 }
-                .document .info-table th[contenteditable="true"] { background: var(--doc-soft-bg); color: var(--doc-accent-dark); font-weight: 700; font-size: 9pt; }
-                .document .clause-title { font-weight: 800; font-size: 12pt; color: var(--doc-accent); margin-bottom: 6px; text-align: center; }
+                .document .info-table th[contenteditable="true"] { background: var(--doc-soft-bg); color: var(--doc-accent-dark); font-weight: 700; font-size: 7.5pt; }
+                .document .clause-title { font-weight: 800; font-size: 9.5pt; color: var(--doc-accent); margin-bottom: 3px; text-align: center; }
                 .section-header {
                     background: linear-gradient(135deg, var(--doc-accent) 0%, var(--doc-accent-dark) 100%);
-                    color: white; padding: 5px 10px; margin: 11px 0 7px; font-size: 12pt; font-weight: bold;
+                    color: white; padding: 2px 6px; margin: 5px 0 3px; font-size: 8.5pt; font-weight: bold; line-height: 1.25;
                     -webkit-print-color-adjust: exact; print-color-adjust: exact; text-align: center;
                 }
-                .clause-block { margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 8px; page-break-inside: avoid; }
-                .dual-text { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+                .clause-block { margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 4px; page-break-inside: avoid; }
+                .dual-text { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: start; }
                 .document .text-ar, .document .text-en, .text-ar, .text-en {
-                    font-size: 9.2pt; font-weight: 600; color: #1a1a1a; line-height: 1.24; text-align: justify;
+                    font-size: 7.8pt; font-weight: 600; color: #1a1a1a; line-height: 1.2; text-align: justify;
                 }
                 .document .text-ar, .text-ar { direction: rtl; text-align: justify; }
                 .document .text-en, .text-en { direction: ltr; font-family: 'Roboto', sans-serif; text-align: justify; }
-                .signature-row { display: flex; justify-content: space-between; margin-top: 22px; padding-top: 14px; border-top: 1px dashed #ccc; page-break-inside: avoid; }
-                .signature-row--parties { flex-direction: row; direction: ltr; align-items: flex-start; gap: 14px; }
+                .signature-row { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 8px; border-top: 1px dashed #ccc; page-break-inside: avoid; }
+                .signature-row--parties { flex-direction: row; direction: ltr; align-items: flex-start; gap: 8px; }
                 .signature-row--parties .signature-item--tenant { width: 48%; text-align: left; }
                 .signature-row--parties .signature-item--landlord { width: 48%; text-align: right; }
-                .signature-item { width: 45%; text-align: center; font-size: 12pt; }
+                .signature-item { width: 45%; text-align: center; font-size: 9pt; }
                 .bhd-doc-print-sep { display: none !important; height: 0; margin: 0; padding: 0; }
                 .bhd-contract-form-print { page-break-after: avoid; break-after: avoid-page; }
                 .bhd-contract-form-print--break-before { page-break-before: always; break-before: page; }
                 .bhd-contract-form-print:last-child { page-break-after: avoid; break-after: avoid-page; }
                 .print-footer{
                     display: grid; grid-template-columns: 1fr 1fr; direction: ltr;
-                    align-items: end; gap: 4px 12px;
-                    padding: 4px 2px 2px; font-size: 8pt; color: #4a1525;
+                    align-items: end; gap: 2px 8px;
+                    padding: 2px 2px 1px; font-size: 7pt; color: #4a1525;
                     border-top: 1px solid #bda8ae; background: #fff;
                     -webkit-print-color-adjust: exact; print-color-adjust: exact;
                 }
                 .pf-tenant { text-align: left; justify-self: start; min-width: 0; }
                 .pf-landlord { text-align: right; justify-self: end; min-width: 0; }
-                .pf-label { font-weight: 700; font-size: 7.5pt; line-height: 1.25; margin-bottom: 1px; }
-                .pf-tenant-name { font-weight: 700; font-size: 8.5pt; line-height: 1.2; }
-                .pf-tenant-id { font-size: 7.5pt; color: #444; margin: 0 0 2px; }
-                .pf-sig-line { border-top: 1px solid #2a2a2a; margin-top: 3px; min-width: 40mm; max-width: 68mm; height: 8px; }
+                .pf-label { font-weight: 700; font-size: 6.5pt; line-height: 1.2; margin-bottom: 0; }
+                .pf-tenant-name { font-weight: 700; font-size: 7.5pt; line-height: 1.15; }
+                .pf-tenant-id { font-size: 6.5pt; color: #444; margin: 0 0 1px; }
+                .pf-sig-line { border-top: 1px solid #2a2a2a; margin-top: 2px; min-width: 36mm; max-width: 60mm; height: 6px; }
                 .pf-sig-line--landlord { margin-left: auto; }
                 .contract-financial-receipt {
-                    margin-top: 12px; padding: 14px 16px;
-                    border: 2px dashed #e8d0d6; border-radius: 8px;
+                    margin-top: 6px; padding: 6px 8px;
+                    border: 1px dashed #e8d0d6; border-radius: 4px;
                     background: #fafcff; text-align: start; page-break-inside: avoid;
                 }
                 .contract-financial-receipt-title {
-                    font-weight: 800; font-size: 12pt; color: #4a1525;
-                    text-align: center; margin-bottom: 10px; padding-bottom: 8px;
-                    border-bottom: 2px solid #6b1f35;
+                    font-weight: 800; font-size: 9.5pt; color: #4a1525;
+                    text-align: center; margin-bottom: 5px; padding-bottom: 4px;
+                    border-bottom: 1.5px solid #6b1f35;
                 }
-                .fin-print-meta { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10pt; }
-                .fin-print-meta td { padding: 5px 10px; border: 1px solid #d8e2ea; background: #fff; }
+                .fin-print-meta { width: 100%; border-collapse: collapse; margin-bottom: 5px; font-size: 8pt; }
+                .fin-print-meta td { padding: 2px 5px; border: 1px solid #d8e2ea; background: #fff; }
                 .fin-print-meta td:first-child { width: 34%; font-weight: 700; color: #3d5a6c; background: #f3f7fa; }
-                .fin-print-section { margin-bottom: 14px; page-break-inside: avoid; }
+                .fin-print-section { margin-bottom: 6px; page-break-inside: avoid; }
                 .fin-print-section-title {
-                    font-weight: 800; font-size: 10.5pt; color: #4a1525; margin: 0 0 6px;
-                    padding: 6px 10px; background: linear-gradient(90deg, #f8eef1 0%, #fff 100%);
-                    border-right: 4px solid #6b1f35; border-radius: 4px;
+                    font-weight: 800; font-size: 8.5pt; color: #4a1525; margin: 0 0 3px;
+                    padding: 3px 6px; background: linear-gradient(90deg, #f8eef1 0%, #fff 100%);
+                    border-right: 3px solid #6b1f35; border-radius: 3px;
                 }
-                .fin-print-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 4px; }
-                .fin-print-table th, .fin-print-table td { border: 1px solid #c5d4de; padding: 6px 10px; vertical-align: middle; }
-                .fin-print-table thead th { background: #2a3f4d; color: #fff; font-weight: 700; text-align: center; }
+                .fin-print-table { width: 100%; border-collapse: collapse; font-size: 8pt; margin-bottom: 2px; }
+                .fin-print-table th, .fin-print-table td { border: 1px solid #c5d4de; padding: 2px 5px; vertical-align: middle; line-height: 1.22; }
+                .fin-print-table thead th { background: #2a3f4d; color: #fff; font-weight: 700; text-align: center; font-size: 7.5pt; }
                 .fin-print-table tbody tr:nth-child(even) { background: #f8fafc; }
                 .fin-print-table .fin-col-label { text-align: start; font-weight: 600; color: #2a3f4d; width: 62%; }
                 .fin-print-table .fin-col-value { text-align: end; font-weight: 700; white-space: nowrap; width: 38%; }
                 .fin-print-table tr.fin-row--add .fin-col-value { color: #0d6b3a; }
                 .fin-print-table tr.fin-row--discount .fin-col-value { color: #a83232; }
-                .fin-print-table tr.fin-row--total td { background: #eef4f8; font-weight: 800; border-top: 2px solid #2a3f4d; }
-                .fin-print-table tr.fin-row--grand td { background: #4a1525; color: #fff; font-size: 11pt; }
+                .fin-print-table tr.fin-row--total td { background: #eef4f8; font-weight: 800; border-top: 1.5px solid #2a3f4d; }
+                .fin-print-table tr.fin-row--grand td { background: #4a1525; color: #fff; font-size: 9pt; }
                 .fin-print-table tr.fin-row--grand .fin-col-label, .fin-print-table tr.fin-row--grand .fin-col-value { color: #fff; }
                 @media print {
                     html, body { height: auto !important; min-height: 0 !important; }
@@ -60467,6 +60510,8 @@ function getEmptyCompanySignatory() {
                     .section-header, .document .info-table th {
                         -webkit-print-color-adjust: exact; print-color-adjust: exact;
                     }
+                    .clause-block { page-break-inside: auto; }
+                    .document .info-table tr { page-break-inside: avoid; }
                 }`;
     }
     async function bhdTriggerPrintPreview(printToken) {
@@ -65365,7 +65410,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         return `
             @page {
                 size: A4 portrait;
-                margin: 10mm 12mm 30mm 12mm;
+                margin: 8mm 10mm 26mm 10mm;
                 @bottom-center {
                     content: "الصفحة " counter(page) " / Page " counter(page)
                         "  |  رقم العقد / Agreement: " "${agreementNo}"
