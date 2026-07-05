@@ -7627,7 +7627,7 @@
                         <div class="crn-field" style="grid-column:1/-1">
                             <label for="crnNewMonthlyRent" data-ar="القيمة الإيجارية الشهرية (ر.ع) / Monthly rent (OMR)" data-en="Monthly rent (OMR)">القيمة الإيجارية الشهرية (ر.ع) / Monthly rent (OMR)</label>
                             <div class="crn-rent-row">
-                                <input type="number" id="crnNewMonthlyRent" min="0" step="0.001" placeholder="0.000" oninput="refreshRenewalRentChangeHint()" onchange="refreshRenewalRentChangeHint()">
+                                <input type="number" id="crnNewMonthlyRent" min="0" step="0.001" placeholder="0.000" oninput="onRenewalTotalRentChange()" onchange="onRenewalTotalRentChange()">
                                 <button type="button" class="mini-btn" onclick="pullRenewalMonthlyRentFromPrevious()" data-ar="↩ من العقد السابق" data-en="↩ From previous contract">↩ من العقد السابق / From previous contract</button>
                             </div>
                             <p class="crn-summary-line" id="crnRentChangeHint" style="margin:4px 0 0">—</p>
@@ -50536,17 +50536,93 @@ function getEmptyCompanySignatory() {
         return { unit: workflowUnit, payload: primary.payload || payload };
     }
 
+    function getRenewalWizardPayloadRef() {
+        const ctx = _contractRenewalCtx;
+        if (!ctx) return null;
+        return ctx.basePayload || ctx.payload || null;
+    }
+
+    function getRenewalAddressBookIssueContext(payload, unit) {
+        return {
+            contractBuilding: toStr(payload?.buildingNo) || toStr(unit?.building),
+            contractUnit: formatLinkedContractUnitsLabel(payload) || toStr(payload?.flatNo) || toStr(unit?.unit)
+        };
+    }
+
+    function readRenewalLinkedUnitsRentFromUi() {
+        const inputs = document.querySelectorAll('.crn-linked-unit-rent-input');
+        if (!inputs.length) return null;
+        const payload = getRenewalWizardPayloadRef();
+        if (!payload) return null;
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        if (linked.length <= 1) return linked;
+        const byUnit = new Map();
+        inputs.forEach((inp) => {
+            const u = normalizeUnit(inp.getAttribute('data-linked-unit'));
+            if (u) byUnit.set(u, formatRentAmountForInput(inp.value));
+        });
+        return linked.map((lu) => ({
+            ...lu,
+            monthlyRent: byUnit.has(normalizeUnit(lu.unit))
+                ? byUnit.get(normalizeUnit(lu.unit))
+                : formatRentAmountForInput(lu.monthlyRent)
+        }));
+    }
+
+    function syncRenewalLinkedUnitsRentToPayload(linkedUpdated) {
+        const payload = getRenewalWizardPayloadRef();
+        if (!payload || !linkedUpdated || linkedUpdated.length <= 1) return;
+        payload.linkedContractUnits = linkedUpdated;
+        payload.linkedContractUnitsJson = JSON.stringify(linkedUpdated);
+        const total = linkedUpdated.reduce((s, lu) => s + (parseFloat(toStr(lu.monthlyRent)) || 0), 0);
+        payload.monthlyRent = formatRentAmountForInput(total);
+        payload.agreementRent = payload.monthlyRent;
+        const totalEl = document.getElementById('crnNewMonthlyRent');
+        if (totalEl) totalEl.value = payload.monthlyRent;
+        refreshRenewalRentChangeHint();
+    }
+
+    function onRenewalLinkedUnitRentInput() {
+        const updated = readRenewalLinkedUnitsRentFromUi();
+        if (!updated) return;
+        syncRenewalLinkedUnitsRentToPayload(updated);
+        const totalEl = document.getElementById('crnLinkedUnitsTotalRent');
+        if (totalEl) {
+            const total = updated.reduce((s, lu) => s + (parseFloat(toStr(lu.monthlyRent)) || 0), 0);
+            totalEl.textContent = formatOMR(total);
+        }
+    }
+
+    function onRenewalTotalRentChange() {
+        const payload = getRenewalWizardPayloadRef();
+        if (!payload) {
+            refreshRenewalRentChangeHint();
+            return;
+        }
+        const linked = getLinkedContractUnitsFromPayload(payload);
+        const rentVal = parseRentAmountInput(document.getElementById('crnNewMonthlyRent')?.value);
+        if (linked.length <= 1 || rentVal === '') {
+            refreshRenewalRentChangeHint();
+            return;
+        }
+        applyRenewalRentToLinkedUnits(payload, rentVal);
+        renderRenewalLinkedUnitsPanel(payload);
+        refreshRenewalRentChangeHint();
+    }
+
     function buildRenewalLinkedUnitsPanelHtml(payload) {
         const linked = getLinkedContractUnitsFromPayload(payload);
         if (linked.length <= 1) return '';
         const rows = linked
             .map((lu) => {
                 const isPrimary = normalizeUnit(lu.unit) === normalizeUnit(linked[0]?.unit);
+                const unitKey = escHtml(lu.unit);
+                const rentVal = escHtml(formatRentAmountForInput(lu.monthlyRent));
                 return `<tr${isPrimary ? ' style="background:#f3f8fc;font-weight:700"' : ''}>
-                    <td>${escHtml(lu.unit)}${isPrimary ? ` <span style="font-size:10px">(${t('أساسية', 'Primary')})</span>` : ''}</td>
+                    <td>${unitKey}${isPrimary ? ` <span style="font-size:10px">(${t('أساسية', 'Primary')})</span>` : ''}</td>
                     <td>${escHtml(lu.floorDetails || lu.floor || '—')}</td>
                     <td>${escHtml(lu.unitType || '—')}</td>
-                    <td>${escHtml(formatOMR(lu.monthlyRent))}</td>
+                    <td style="min-width:110px"><input type="number" class="crn-linked-unit-rent-input" data-linked-unit="${unitKey}" min="0" step="0.001" value="${rentVal}" oninput="onRenewalLinkedUnitRentInput()" onchange="onRenewalLinkedUnitRentInput()" style="width:100%;max-width:120px;padding:4px 6px;font-size:12px"></td>
                 </tr>`;
             })
             .join('');
@@ -50554,17 +50630,17 @@ function getEmptyCompanySignatory() {
         return `<div class="crn-block">
             <div class="crn-block-title">${t('الوحدات المرتبطة بالعقد / Linked contract units', 'Linked contract units / الوحدات المرتبطة')}</div>
             <p class="crn-summary-line" style="margin:0 0 8px">${t(
-                'عقد واحد يشمل الوحدات التالية — الإيجار أدناه هو الإجمالي الشهري لجميع الوحدات.',
-                'One contract covers the units below — rent fields above use the combined monthly total.'
+                'عقد واحد يشمل الوحدات التالية. عدّل إيجار كل وحدة على حدة، أو عدّل الإجمالي أعلاه لتوزيع تناسبي تلقائي.',
+                'One contract covers the units below. Edit each unit rent separately, or change the total above for proportional split.'
             )}</p>
             <div class="table-wrap"><table class="data-table" style="width:100%;font-size:11px">
                 <thead><tr>
                     <th>${t('الوحدة', 'Unit')}</th><th>${t('الطابق', 'Floor')}</th><th>${t('النوع', 'Type')}</th>
-                    <th>${t('الإيجار الشهري', 'Monthly rent')}</th>
+                    <th>${t('الإيجار الشهري (ر.ع)', 'Monthly rent (OMR)')}</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
             </table></div>
-            <p class="crn-summary-line" style="margin:8px 0 0"><b>${t('إجمالي الإيجار الشهري:', 'Total monthly rent:')}</b> ${escHtml(formatOMR(total))}</p>
+            <p class="crn-summary-line" style="margin:8px 0 0"><b>${t('إجمالي الإيجار الشهري:', 'Total monthly rent:')}</b> <span id="crnLinkedUnitsTotalRent">${escHtml(formatOMR(total))}</span></p>
         </div>`;
     }
 
@@ -57014,7 +57090,10 @@ function getEmptyCompanySignatory() {
                     )
                 );
             } else {
-                getAddressBookIssues(entry).forEach((issue) => msgs.push(issue));
+                const abCtx = getRenewalAddressBookIssueContext(payload, unit);
+                getAddressBookIssues(entry, abCtx).forEach((issue) => {
+                    msgs.push(`${t('المستأجر', 'Tenant')}: ${issue}`);
+                });
             }
             msgs.push(...collectRenewalMandatoryDocGapMessages(payload));
         }
@@ -57239,7 +57318,7 @@ function getEmptyCompanySignatory() {
             );
             return false;
         }
-        const issues = getAddressBookIssues(entry);
+        const issues = getAddressBookIssues(entry, getRenewalAddressBookIssueContext(payload, unit));
         if (issues.length) {
             alert(
                 t(
@@ -61041,9 +61120,14 @@ function getEmptyCompanySignatory() {
     function pullRenewalMonthlyRentFromPrevious() {
         const ctx = _contractRenewalCtx;
         if (!ctx) return;
-        const prev = resolvePreviousContractMonthlyRent(ctx.payload, ctx.unit);
+        const payload = getRenewalWizardPayloadRef();
+        const prev = resolvePreviousContractMonthlyRent(payload || ctx.payload, ctx.unit);
         const el = document.getElementById('crnNewMonthlyRent');
         if (el) el.value = prev;
+        if (payload && getLinkedContractUnitsFromPayload(payload).length > 1) {
+            applyRenewalRentToLinkedUnits(payload, prev);
+            renderRenewalLinkedUnitsPanel(payload);
+        }
         refreshRenewalRentChangeHint();
     }
 
@@ -61949,7 +62033,24 @@ function getEmptyCompanySignatory() {
         p.municipalContractNo = renewal.municipalContractNo;
         const rent = parseRentAmountInput(renewal.monthlyRent);
         if (rent !== '' && rent > 0) {
-            applyRenewalRentToLinkedUnits(p, rent);
+            const renewalLinked = Array.isArray(renewal.linkedContractUnits) ? renewal.linkedContractUnits : [];
+            const baseLinked = getLinkedContractUnitsFromPayload(p);
+            if (renewalLinked.length > 1) {
+                p.linkedContractUnits = renewalLinked;
+                p.linkedContractUnitsJson = JSON.stringify(renewalLinked);
+            } else if (baseLinked.length > 1) {
+                const linkedSum = sumLinkedContractUnitsMonthlyRent(p);
+                if (Math.abs(linkedSum - rent) < 0.001) {
+                    p.monthlyRent = formatRentAmountForInput(rent);
+                    p.agreementRent = p.monthlyRent;
+                } else {
+                    applyRenewalRentToLinkedUnits(p, rent);
+                }
+            } else {
+                applyRenewalRentToLinkedUnits(p, rent);
+            }
+            p.monthlyRent = formatRentAmountForInput(rent);
+            p.agreementRent = p.monthlyRent;
         }
         const customRentItems = getCustomRentScheduleFromUi(RENEWAL_CUSTOM_RENT_WRAP_ID);
         p.customRentItems = customRentItems;
@@ -62180,6 +62281,10 @@ function getEmptyCompanySignatory() {
             isEditExistingRenewal: isEditExisting,
             isCurrentContractEdit: isCurrentEdit
         };
+        if (Array.isArray(renewalNorm.linkedContractUnits) && renewalNorm.linkedContractUnits.length > 1) {
+            basePayload.linkedContractUnits = renewalNorm.linkedContractUnits;
+            basePayload.linkedContractUnitsJson = JSON.stringify(renewalNorm.linkedContractUnits);
+        }
         const title = document.getElementById('crnfTitle');
         const locationLabel = getRenewalWizardLocationLabel(unit, basePayload);
         if (title) {
@@ -62598,6 +62703,10 @@ function getEmptyCompanySignatory() {
         const period = computeContractPeriodMonthsAndExtraDays(newStart, newEnd, monthsFallback);
         const municipal = refreshRenewalMunicipalInCtx();
         const monthlyRent = formatRentAmountForInput(document.getElementById('crnNewMonthlyRent')?.value);
+        const linkedFromUi = readRenewalLinkedUnitsRentFromUi();
+        if (linkedFromUi && linkedFromUi.length > 1) {
+            syncRenewalLinkedUnitsRentToPayload(linkedFromUi);
+        }
         return {
             prevStart: _contractRenewalCtx?.prevStart || '',
             prevEnd: _contractRenewalCtx?.prevEnd || '',
@@ -62608,7 +62717,8 @@ function getEmptyCompanySignatory() {
             agreementNo: toStr(document.getElementById('crnNewAgreementNo')?.value),
             municipalFormNo: municipal.municipalFormNo,
             municipalContractNo: municipal.municipalContractNo,
-            monthlyRent
+            monthlyRent,
+            linkedContractUnits: linkedFromUi && linkedFromUi.length > 1 ? linkedFromUi : undefined
         };
     }
 
@@ -62640,6 +62750,21 @@ function getEmptyCompanySignatory() {
             return;
         }
         renewal.monthlyRent = formatRentAmountForInput(rentVal);
+        const linkedFromUi = readRenewalLinkedUnitsRentFromUi();
+        if (linkedFromUi && linkedFromUi.length > 1) {
+            renewal.linkedContractUnits = linkedFromUi;
+            const payloadRef = _contractRenewalCtx?.payload;
+            if (payloadRef) {
+                payloadRef.linkedContractUnits = linkedFromUi;
+                payloadRef.linkedContractUnitsJson = JSON.stringify(linkedFromUi);
+            }
+        } else {
+            const payloadRef = _contractRenewalCtx?.payload;
+            if (payloadRef && getLinkedContractUnitsFromPayload(payloadRef).length > 1) {
+                applyRenewalRentToLinkedUnits(payloadRef, rentVal);
+                renewal.linkedContractUnits = getLinkedContractUnitsFromPayload(payloadRef);
+            }
+        }
         ensureRenewalAgreementNumberAllocated(renewal, unit);
         repairSavedContractCorruptedByRenewalDraft(unit);
         const isEditExisting = _contractRenewalCtx?.isEditExistingRenewal === true;
