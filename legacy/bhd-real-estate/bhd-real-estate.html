@@ -36267,6 +36267,7 @@ function getEmptyCompanySignatory() {
             seen.add(key);
             const patch = { depositReceiptRef: ref };
             if (attFields) Object.assign(patch, attFields);
+            if (primaryPayload) applyLinkedContractSharedFinancialFields(patch, primaryPayload);
             const saved = getSavedContractPayloadForUnit({ building: b, unit: u });
             if (saved) {
                 const merged = { ...saved, ...patch };
@@ -36411,6 +36412,16 @@ function getEmptyCompanySignatory() {
         recomputeAccountingAccountSummary(reg, unitKey);
         reg._journalLedgerDirty = true;
         saveAccountingRegistry(reg, { deferJournalRebuild: true });
+        try {
+            const prim = resolveContractWorkflowPrimaryUnit(b, u);
+            const payload =
+                getContractPayloadForUnit({ building: prim.building, unit: prim.unit }) ||
+                getSavedContractPayloadForUnit({ building: prim.building, unit: prim.unit });
+            if (payload) {
+                syncAccountingFromContractPayload(prim.building, prim.unit, payload, reg, { skipSave: true });
+                saveAccountingRegistry(reg, { deferJournalRebuild: true });
+            }
+        } catch (_eAcctResync) {}
         mirrorAccountingStatusToContractPayload(b, u);
         refreshContractLifecycleAfterAccountingApproval(b, u);
         (async () => {
@@ -50367,6 +50378,76 @@ function getEmptyCompanySignatory() {
         return linked.reduce((s, lu) => s + (parseFloat(toStr(lu.monthlyRent)) || 0), 0);
     }
 
+    /** أغنى payload في مجموعة عقد مزدوج — للحفاظ على بنود التأمين والجداول / Richest payload in linked group */
+    function pickRichestLinkedContractPayload(payloads) {
+        const list = (payloads || []).filter((p) => p && typeof p === 'object');
+        if (!list.length) return null;
+        const scorePayload = (x) => {
+            let s = 0;
+            try {
+                s += parsePayloadJsonArrayField(x, 'insuranceDepositItemsJson', 'insuranceDepositItems').length * 10;
+                s += parsePayloadJsonArrayField(x, 'paymentScheduleJson', 'paymentSchedule').length * 5;
+                s += parsePayloadJsonArrayField(x, 'vatChequeScheduleJson', 'vatChequeSchedule').length * 3;
+                if (parseFloat(toStr(x.depositAmount)) > 0) s += 4;
+                if (toStr(x.depositReceiptRef).trim()) s += 2;
+                if (getLinkedContractUnitsFromPayload(x).length > 1) s += 8;
+            } catch (_eScRich) {}
+            return s;
+        };
+        return list.reduce((best, p) => (!best || scorePayload(p) > scorePayload(best) ? p : best), null);
+    }
+
+    /** حقول مالية/عقد مشتركة بين كل وحدات العقد المزدوج / Shared financial fields for linked contract */
+    function applyLinkedContractSharedFinancialFields(target, source) {
+        if (!target || !source || typeof source !== 'object') return target;
+        [
+            'depositAmount',
+            'depositReceiptRef',
+            'depositAttachmentName',
+            'depositAttachmentRelativePath',
+            'depositAttachmentFileId',
+            'depositStoredOnDisk',
+            'insuranceDepositItemsJson',
+            'insuranceDepositItems',
+            'paymentScheduleJson',
+            'paymentSchedule',
+            'vatChequeScheduleJson',
+            'vatChequeSchedule',
+            'customRentItemsJson',
+            'customRentItems',
+            'extraAdjustmentsJson',
+            'extraAdjustments',
+            'contractMonths',
+            'agreementNo',
+            'tenantNameAr',
+            'tenantNameEn',
+            'tenantMobile',
+            'tenantName',
+            'startDate',
+            'endDate',
+            'graceAmount',
+            'otherDiscountAmount'
+        ].forEach((f) => {
+            const v = source[f];
+            if (v === undefined || v === null) return;
+            if (typeof v === 'string' && !toStr(v).trim()) return;
+            target[f] = v;
+        });
+        return target;
+    }
+
+    function buildLinkedContractMirroredEntryPayload(sharedPayload, unitPayload, uKey, linked) {
+        const merged = {
+            ...sharedPayload,
+            ...unitPayload,
+            flatNo: toStr(uKey),
+            linkedContractUnits: linked,
+            linkedContractUnitsJson: JSON.stringify(linked)
+        };
+        applyLinkedContractSharedFinancialFields(merged, sharedPayload);
+        return merged;
+    }
+
     /** عرض الإيجار في سجل العقود — إجمالي + تفصيل لكل وحدة عند الحاجة / Rent display for contract versions table */
     function formatContractPayloadRentDisplay(payload) {
         const linked = getLinkedContractUnitsFromPayload(payload);
@@ -50829,31 +50910,26 @@ function getEmptyCompanySignatory() {
                 };
             });
             const status = baseItem.entry.lifecycleStatus || resolveContractLifecycleStatus(p0);
-            const linkedPayload = { ...p0, linkedContractUnits: linked, linkedContractUnitsJson: JSON.stringify(linked) };
+            const richest = pickRichestLinkedContractPayload(uniqueItems.map((it) => it.p)) || p0;
+            const linkedPayload = { ...richest, linkedContractUnits: linked, linkedContractUnitsJson: JSON.stringify(linked) };
             const combinedRent = sumLinkedContractUnitsMonthlyRent(linkedPayload);
             const shared = {
-                ...p0,
+                ...richest,
                 monthlyRent:
                     combinedRent > 0
                         ? formatRentAmountForInput(combinedRent)
-                        : toStr(p0.monthlyRent),
+                        : toStr(richest.monthlyRent),
                 agreementRent:
                     combinedRent > 0
                         ? formatRentAmountForInput(combinedRent)
-                        : toStr(p0.agreementRent || p0.monthlyRent),
+                        : toStr(richest.agreementRent || richest.monthlyRent),
                 linkedContractUnits: linked,
                 linkedContractUnitsJson: JSON.stringify(linked)
             };
             mirrorTenancyPayloadToLinkedUnits(shared, (unitPayload, bKey, uKey) => {
-                const merged = {
-                    ...shared,
-                    ...unitPayload,
-                    flatNo: toStr(uKey),
-                    linkedContractUnits: linked,
-                    linkedContractUnitsJson: JSON.stringify(linked),
-                    contractSavedAt: toStr(p0.contractSavedAt) || baseItem.entry.savedAt,
-                    contractSavedStatus: status
-                };
+                const merged = buildLinkedContractMirroredEntryPayload(shared, unitPayload, uKey, linked);
+                merged.contractSavedAt = toStr(richest.contractSavedAt) || baseItem.entry.savedAt;
+                merged.contractSavedStatus = status;
                 const dk = _tenancyDraftStorageKey(bKey, uKey);
                 savedMap[dk] = {
                     payload: merged,
@@ -50915,23 +50991,28 @@ function getEmptyCompanySignatory() {
                     waterMeter: slice.waterMeter
                 };
             });
-            uniqueItems.forEach((it) => {
-                const u = normalizeUnit(it.p.flatNo);
-                const slice = getLinkedContractUnitSlice(it.p, u);
-                const merged = {
-                    ...p0,
-                    ...it.p,
-                    flatNo: toStr(u),
-                    floorDetails: slice.floorDetails,
-                    unitType: slice.unitType,
-                    monthlyRent: toStr(slice.monthlyRent),
-                    electricityMeter: slice.electricityMeter,
-                    waterMeter: slice.waterMeter,
-                    linkedContractUnits: linked,
-                    linkedContractUnitsJson: JSON.stringify(linked)
-                };
-                draftMap[it.dk] = {
-                    ...it.entry,
+            const richest = pickRichestLinkedContractPayload(uniqueItems.map((it) => it.p)) || p0;
+            const linkedPayload = { ...richest, linkedContractUnits: linked, linkedContractUnitsJson: JSON.stringify(linked) };
+            const combinedRent = sumLinkedContractUnitsMonthlyRent(linkedPayload);
+            const shared = {
+                ...richest,
+                monthlyRent:
+                    combinedRent > 0
+                        ? formatRentAmountForInput(combinedRent)
+                        : toStr(richest.monthlyRent),
+                agreementRent:
+                    combinedRent > 0
+                        ? formatRentAmountForInput(combinedRent)
+                        : toStr(richest.agreementRent || richest.monthlyRent),
+                linkedContractUnits: linked,
+                linkedContractUnitsJson: JSON.stringify(linked)
+            };
+            mirrorTenancyPayloadToLinkedUnits(shared, (unitPayload, bKey, uKey) => {
+                const merged = buildLinkedContractMirroredEntryPayload(shared, unitPayload, uKey, linked);
+                const hit = uniqueItems.find((it) => normalizeUnit(it.p.flatNo) === normalizeUnit(uKey));
+                if (!hit) return;
+                draftMap[hit.dk] = {
+                    ...hit.entry,
                     payload: merged,
                     updatedAt: new Date().toISOString()
                 };
@@ -50966,16 +51047,24 @@ function getEmptyCompanySignatory() {
             if (processed.has(groupKey)) return;
             processed.add(groupKey);
             const status = entry.lifecycleStatus || resolveContractLifecycleStatus(p);
-            mirrorTenancyPayloadToLinkedUnits(p, (unitPayload, bKey, uKey) => {
-                const merged = {
-                    ...p,
-                    ...unitPayload,
-                    flatNo: toStr(uKey),
-                    linkedContractUnits: linked,
-                    linkedContractUnitsJson: JSON.stringify(linked),
-                    contractSavedAt: toStr(p.contractSavedAt) || entry.savedAt,
-                    contractSavedStatus: status
-                };
+            const combinedRent = sumLinkedContractUnitsMonthlyRent(p);
+            const shared = {
+                ...p,
+                monthlyRent:
+                    combinedRent > 0
+                        ? formatRentAmountForInput(combinedRent)
+                        : toStr(p.monthlyRent),
+                agreementRent:
+                    combinedRent > 0
+                        ? formatRentAmountForInput(combinedRent)
+                        : toStr(p.agreementRent || p.monthlyRent),
+                linkedContractUnits: linked,
+                linkedContractUnitsJson: JSON.stringify(linked)
+            };
+            mirrorTenancyPayloadToLinkedUnits(shared, (unitPayload, bKey, uKey) => {
+                const merged = buildLinkedContractMirroredEntryPayload(shared, unitPayload, uKey, linked);
+                merged.contractSavedAt = toStr(p.contractSavedAt) || entry.savedAt;
+                merged.contractSavedStatus = status;
                 const dk = _tenancyDraftStorageKey(bKey, uKey);
                 const prevSaved = savedMap[dk];
                 const needsSavedSync =
