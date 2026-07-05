@@ -12182,8 +12182,8 @@
 
     const BHD_KV_CONTRACTS_LIST_PULL_KEYS = [
         'bhd_saved_contracts_by_unit',
+        'bhd_tenancy_contract_drafts',
         'bhd_accounting_registry',
-        'bhd_tenancy_contract_drafts_by_unit',
         'bhd_managed_units',
         'bhd_building_profiles',
         'bhd_buildings_list',
@@ -12429,8 +12429,29 @@
     }
 
     function bhdHasLocalSavedContractsData() {
+        return bhdHasLocalContractsListData();
+    }
+
+    /** مسودات أو عقود محفوظة محلياً — كافية لعرض قائمة العقود دون Neon */
+    function bhdHasLocalContractsListData() {
         try {
-            return !bhdKvIsEmptyShell(localStorage.getItem('bhd_saved_contracts_by_unit'));
+            if (bhdKvHasSubstantiveUserData('bhd_saved_contracts_by_unit', localStorage.getItem('bhd_saved_contracts_by_unit'))) {
+                return true;
+            }
+            const draftsRaw = localStorage.getItem('bhd_tenancy_contract_drafts');
+            if (!bhdKvIsEmptyShell(draftsRaw)) {
+                try {
+                    const o = JSON.parse(draftsRaw || '{}');
+                    if (o && typeof o === 'object' && Object.keys(o).length) return true;
+                } catch (_eDraftParse) {
+                    return true;
+                }
+            }
+            try {
+                bumpUnitsDataCache();
+                return getUnitsData({ forceFull: true }).some((u) => toStr(u.status) === 'Rented');
+            } catch (_eUnitsProbe) {}
+            return false;
         } catch (_eLocSc) {
             return false;
         }
@@ -12439,21 +12460,29 @@
     /** سحب سريع لقائمة العقود — Neon مصدر واحد لكل المتصفحات */
     async function ensureBhdSiteKvHydratedForContractsList() {
         if (!isBhdSiteKvPersistenceActive()) return false;
+        const pullBlocked = bhdShouldBlockNeonKvPull();
         try {
-            await fetchBhdServerContractStatuses(true);
+            if (!pullBlocked) {
+                await fetchBhdServerContractStatuses(true);
+            }
         } catch (_eListSt) {}
         if (!window._bhdServerContractStatuses || !Object.keys(window._bhdServerContractStatuses).length) {
             applyBhdServerContractLifecycleMaps(window.__bhdSiteBridgePayload);
         }
-        const pulled = await pullBhdKvFromNeonWithRetry(2, {
-            keys: BHD_KV_CONTRACTS_LIST_PULL_KEYS,
-            deferIdbMirror: true
-        });
+        let pulled = false;
+        if (!pullBlocked) {
+            pulled = await pullBhdKvFromNeonWithRetry(2, {
+                keys: BHD_KV_CONTRACTS_LIST_PULL_KEYS,
+                deferIdbMirror: true
+            });
+        }
         if (!pulled) {
-            if (bhdHasLocalSavedContractsData()) {
+            if (bhdHasLocalContractsListData()) {
                 try {
                     loadSavedContractsByUnitMap(true);
+                    loadTenancyContractDraftsMap();
                     loadAccountingRegistry(true);
+                    bumpUnitsDataCache();
                 } catch (_eLocalFallback) {}
                 return true;
             }
@@ -12466,6 +12495,7 @@
         invalidateBhdSiteKvRuntimeCaches();
         try {
             loadSavedContractsByUnitMap(true);
+            loadTenancyContractDraftsMap();
             loadAccountingRegistry(true);
         } catch (_eReloadCaches) {}
         return true;
@@ -70892,7 +70922,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         if (isBhdSiteKvPersistenceActive() && !_bhdContractsListNeonSyncedThisPage) {
             tbody.innerHTML = `<tr><td colspan="8">${t('جاري تحميل البيانات من قاعدة السحابة…', 'Loading data from cloud database…')}</td></tr>`;
             const pulled = await ensureBhdSiteKvHydratedForContractsList();
-            if (!pulled) {
+            if (!pulled && !bhdHasLocalContractsListData()) {
                 tbody.innerHTML = `<tr><td colspan="8">${t(
                     'تعذّر تحميل البيانات من قاعدة السحابة. تأكد من تسجيل الدخول ثم حدّث الصفحة.',
                     'Could not load data from the cloud database. Sign in and refresh the page.'
