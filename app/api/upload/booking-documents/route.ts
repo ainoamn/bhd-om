@@ -4,6 +4,7 @@ import path from 'path';
 import { put } from '@vercel/blob';
 import { prisma } from '@/lib/prisma';
 import { isAllowedBrowserOrigin } from '@/lib/server/requestOrigin';
+import { apiGuard } from '@/lib/api-guard';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'booking-documents');
 
@@ -16,6 +17,9 @@ const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 const useDb = !!process.env.VERCEL && !useBlob;
 
 export async function POST(request: NextRequest) {
+  const guard = await apiGuard(request);
+  if (!guard.allowed) return guard.response!;
+
   try {
     if (!isAllowedBrowserOrigin(request)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

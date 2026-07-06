@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFiscalPeriodsFromDb, lockPeriodInDb } from '@/lib/accounting/data/dbService';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
+import { apiGuard } from '@/lib/api-guard';
 
 export async function GET(request: NextRequest) {
+  const guard = await apiGuard(request, { requiredPermissions: ['REPORT_VIEW'] });
+  if (!guard.allowed) return guard.response!;
+
   const perm = await requirePermission(request, 'REPORT_VIEW');
   if (!perm.ok) {
     return NextResponse.json({ error: perm.message }, { status: perm.status });
@@ -20,6 +24,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const guard = await apiGuard(request, { requiredPermissions: ['PERIOD_LOCK'] });
+  if (!guard.allowed) return guard.response!;
+
   const perm = await requirePermission(request, 'PERIOD_LOCK');
   if (!perm.ok) {
     return NextResponse.json({ error: perm.message }, { status: perm.status });

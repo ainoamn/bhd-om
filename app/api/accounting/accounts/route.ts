@@ -4,8 +4,12 @@ import { getAccountingRoleFromRequest } from '@/lib/accounting/rbac/apiAuth';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
 import { prisma } from '@/lib/prisma';
 import { CACHE_ACCOUNTING_ACCOUNTS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { apiGuard } from '@/lib/api-guard';
 
 export async function GET(request: NextRequest) {
+  const guard = await apiGuard(request, { requiredPermissions: ['ACCOUNT_VIEW'] });
+  if (!guard.allowed) return guard.response!;
+
   const role = await getAccountingRoleFromRequest(request);
   const allowed = role !== undefined;
   if (!allowed) {
@@ -39,6 +43,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const guard = await apiGuard(request, { requiredPermissions: ['ACCOUNT_EDIT'] });
+  if (!guard.allowed) return guard.response!;
+
   const perm = await requirePermission(request, 'ACCOUNT_EDIT');
   if (!perm.ok) {
     return NextResponse.json({ error: perm.message }, { status: perm.status });

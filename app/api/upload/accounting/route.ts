@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { apiGuard } from '@/lib/api-guard';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'accounting');
 
 const ALLOWED_EXT = /\.(pdf|jpg|jpeg|png|gif|webp|doc|docx|xls|xlsx)$/i;
 
 export async function POST(request: NextRequest) {
+  const guard = await apiGuard(request);
+  if (!guard.allowed) return guard.response!;
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

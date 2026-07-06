@@ -2,14 +2,14 @@
 
 import { useEffect } from 'react';
 
-export default function LocaleErrorBoundary({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function ErrorBoundary({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error('Locale page error:', error);
+    console.error('Application error:', error);
   }, [error]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-      <h2 className="text-2xl font-bold mb-4 text-red-600">حدث خطأ في الصفحة</h2>
+      <h2 className="text-2xl font-bold mb-4 text-red-600">حدث خطأ غير متوقع</h2>
       <p className="text-gray-600 mb-6">{error.message || 'يرجى المحاولة مرة أخرى'}</p>
       <button
         onClick={reset}

@@ -1,9 +1,9 @@
-export default function Loading() {
+export default function LocaleLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
+    <div className="flex items-center justify-center min-h-screen">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-600 font-medium">جاري التحميل...</p>
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+        <p className="text-gray-500 text-sm">جاري التحميل...</p>
       </div>
     </div>
   );

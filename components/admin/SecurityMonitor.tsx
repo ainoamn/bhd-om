@@ -123,7 +123,8 @@ export default function SecurityMonitor() {
       const sensitiveKeys = ['password', 'token', 'secret', 'key'];
       if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
         auditSecurityEvent({
-          type: 'PERMISSION_DENIED',
+          type: 'UNAUTHORIZED_ACCESS',
+          severity: 'MEDIUM',
           details: { action: 'localStorage_write', key }
         });
       }
@@ -134,9 +135,10 @@ export default function SecurityMonitor() {
   const handleTestPassword = (password: string) => {
     const validation = validatePasswordStrength(password);
     
-    if (!validation.isValid) {
+    if (!validation.valid) {
       auditSecurityEvent({
         type: 'PASSWORD_CHANGE',
+        severity: 'LOW',
         details: { 
           strength: validation.score,
           issues: validation.feedback,

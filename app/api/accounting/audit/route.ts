@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/accounting/rbac/apiAuth';
+import { apiGuard } from '@/lib/api-guard';
 
 export async function GET(request: NextRequest) {
+  const guard = await apiGuard(request, { requiredPermissions: ['AUDIT_VIEW'] });
+  if (!guard.allowed) return guard.response!;
+
   const perm = await requirePermission(request, 'AUDIT_VIEW');
   if (!perm.ok) {
     return NextResponse.json({ error: perm.message }, { status: perm.status });

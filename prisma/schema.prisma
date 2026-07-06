@@ -834,3 +834,133 @@ model MaintenanceRequest {
   @@index([createdAt])
   @@index([reporterUserId, createdAt])
 }
+
+// ==========================================
+// نظام الأرشفة
+// ==========================================
+
+enum ArchiveEntityType {
+  PROPERTY
+  DOCUMENT
+  ACCOUNT
+  CONTRACT
+  RESERVATION
+  USER
+}
+
+enum ArchiveAction {
+  ARCHIVE
+  RESTORE
+  AUTO_ARCHIVE
+  POLICY_APPLIED
+}
+
+enum ArchiveStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model ArchiveRecord {
+  id            String          @id @default(cuid())
+  entityType    ArchiveEntityType
+  entityId      String
+  entityTitle   String
+  action        ArchiveAction
+  status        ArchiveStatus
+  reason        String?
+  notes         String?
+  dataSnapshot  String          @db.Text
+  checksum      String
+  archivedById  String
+  isAutoArchive Boolean         @default(false)
+  policyId      String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  @@index([entityType, entityId])
+  @@index([archivedById])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model ArchiveRestoreLog {
+  id            String   @id @default(cuid())
+  archiveId     String
+  entityType    ArchiveEntityType
+  entityId      String
+  entityTitle   String
+  restoredById  String
+  restoredAt    DateTime @default(now())
+  success       Boolean
+  errorMessage  String?
+  dataSnapshot  String?  @db.Text
+  
+  @@index([archiveId])
+  @@index([entityType, entityId])
+  @@index([restoredById])
+  @@index([restoredAt])
+}
+
+model ArchivePolicy {
+  id            String   @id @default(cuid())
+  name          String
+  entityType    ArchiveEntityType
+  condition     String   // INACTIVE_DAYS, EXPIRED, MANUAL, CUSTOM
+  conditionValue Int?    // عدد الأيام أو القيمة
+  isActive      Boolean  @default(true)
+  organizationId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([entityType, isActive])
+  @@index([organizationId])
+}
+
+// ==========================================
+// نظام التشفير - إدارة المفاتيح
+// ==========================================
+
+enum KeyStatus {
+  ACTIVE
+  ROTATED
+  EXPIRED
+  REVOKED
+}
+
+model EncryptionKey {
+  id          String    @id @default(cuid())
+  keyId       String    @unique
+  keyHash     String
+  status      KeyStatus @default(ACTIVE)
+  createdAt   DateTime  @default(now())
+  rotatedAt   DateTime?
+  revokedAt   DateTime?
+  
+  @@index([keyId])
+  @@index([status])
+}
+
+// ==========================================
+// نظام التدقيق المحسّن
+// ==========================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String
+  details     String?  @db.Text
+  ipAddress   String?
+  userAgent   String?
+  severity    String   @default("INFO")
+  createdAt   DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([severity])
+}
