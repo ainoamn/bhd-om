@@ -48,11 +48,27 @@ foreach ($f in $files) {
   if ($r) { $copied += $r; Write-Host "OK $r" }
 }
 
+# Oman images
+$omanSrc = Join-Path $kimReview 'public\images\oman'
+$omanDst = Join-Path $dst 'public\images\oman'
+if (Test-Path -LiteralPath $omanSrc) {
+  New-Item -ItemType Directory -Path $omanDst -Force | Out-Null
+  Get-ChildItem -LiteralPath $omanSrc -File | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $omanDst $_.Name) -Force
+    $copied += "public/images/oman/$($_.Name)"
+    Write-Host "IMG $($_.Name)"
+  }
+}
+
 $docsDst = Join-Path $dst 'docs\kimi-review'
 New-Item -ItemType Directory -Path $docsDst -Force | Out-Null
 @('architecture_review_report.md','performance_review_report.md','security_review_report.md','plan.md') | ForEach-Object {
   $s = Join-Path $SourceRoot $_
   if (Test-Path -LiteralPath $s) { Copy-Item -LiteralPath $s -Destination (Join-Path $docsDst $_) -Force; Write-Host "DOC $_" }
+}
+Get-ChildItem -LiteralPath $SourceRoot -Filter '*.md' -File | ForEach-Object {
+  Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $docsDst $_.Name) -Force
+  Write-Host "DOC $($_.Name)"
 }
 
 Write-Host "DONE copied $($copied.Count)"
