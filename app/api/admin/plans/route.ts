@@ -1,5 +1,5 @@
 /**
- * Admin plan list — raw query by existing columns to avoid "column does not exist" errors.
+ * قائمة الباقات للأدمن — استعلام خام حسب الأعمدة الموجودة لتفادي خطأ "column does not exist"
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-/** Expected Prisma column names with possible DB aliases */
+/** أسماء الأعمدة المتوقعة في الجدول (Prisma) مع بدائل محتملة في DB */
 const COL_MAP: Record<string, string[]> = {
   id: ['id'],
   code: ['code'],

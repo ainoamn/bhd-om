@@ -1,23 +1,23 @@
-import Hero from '@/components/home/Hero';
-import Services from '@/components/home/Services';
+import HeroOman from '@/components/home/HeroOman';
+import StatsBar from '@/components/home/StatsBar';
 import PropertiesPreview from '@/components/home/PropertiesPreview';
-import ProjectsPreview from '@/components/home/ProjectsPreview';
-import AboutPreview from '@/components/home/AboutPreview';
-import SubscriptionsCTA from '@/components/home/SubscriptionsCTA';
+import WhyChooseUs from '@/components/home/WhyChooseUs';
+import OmanGallery from '@/components/home/OmanGallery';
+import Services from '@/components/home/Services';
 import Testimonials from '@/components/home/Testimonials';
-import ContactSection from '@/components/home/ContactSection';
+import CtaSection from '@/components/home/CtaSection';
 
 export default function HomePage() {
   return (
-    <>
-      <Hero />
+    <main>
+      <HeroOman />
+      <StatsBar />
       <PropertiesPreview />
+      <WhyChooseUs />
+      <OmanGallery />
       <Services />
-      <SubscriptionsCTA />
-      <ProjectsPreview />
-      <AboutPreview />
       <Testimonials />
-      <ContactSection />
-    </>
+      <CtaSection />
+    </main>
   );
 }

@@ -17,16 +17,17 @@ function createPrisma() {
 
   const adapter = new PrismaPg({
     connectionString,
-    /** بردّ بارد على Vercel + Neon قد يتجاوز 10 ثوانٍ أحياناً */
     connectionTimeoutMillis: 25_000,
     idleTimeoutMillis: 60_000,
-    /** تجمع 1 لكل دالة serverless — يقلّل استنفاد اتصالات Neon/Vercel Postgres */
     max: process.env.VERCEL ? 1 : 10,
   });
-  return new PrismaClient({ adapter });
+
+  return new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  });
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrisma();
 
-/** إبقاء عميل واحد لكل عملية Vercel/serverless يقلّل إعادة اتصال Neon والبطء (10s+ على البرد) */
 globalForPrisma.prisma = prisma;
