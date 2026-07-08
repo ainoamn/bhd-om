@@ -5,6 +5,7 @@
 
 import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/prisma';
+import { serializeAddressBookForRawSql } from '@/lib/server/prismaAddressBookExtension';
 
 function isDriftMessage(msg: string): boolean {
   return (
@@ -24,7 +25,7 @@ export async function upsertAddressBookContactFallback(params: {
   data: Record<string, unknown>;
 }): Promise<void> {
   const { contactId, linkedUserId, data } = params;
-  const jsonStr = JSON.stringify(data);
+  const jsonStr = serializeAddressBookForRawSql(data);
   let lastErr: unknown;
 
   const attempts: Array<() => Promise<number>> = [

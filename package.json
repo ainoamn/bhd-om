@@ -22,6 +22,7 @@
     "db:backfill-booking-encryption": "npx tsx scripts/backfill-booking-encryption.ts",
     "db:backfill-contract-encryption": "npx tsx scripts/backfill-contract-encryption.ts",
     "db:backfill-contact-pii-encryption": "npx tsx scripts/backfill-contact-pii-encryption.ts",
+    "db:backfill-address-book-encryption": "npx tsx scripts/backfill-address-book-encryption.ts",
     "start": "next start",
     "lint": "eslint .",
     "test:e2e": "playwright test",
