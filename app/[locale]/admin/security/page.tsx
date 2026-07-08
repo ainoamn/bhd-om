@@ -3,13 +3,14 @@
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SecurityMonitor from '@/components/admin/SecurityMonitor';
+import AdminTotpSetup from '@/components/admin/AdminTotpSetup';
 
 export default function SecurityPage() {
   const params = useParams();
   const { data: session, status } = useSession();
   const locale = (params?.locale as string) || 'ar';
   const userRole = (session?.user as { role?: string })?.role;
-  const showAccessDenied = status === 'unauthenticated' || (status === 'authenticated' && userRole !== 'ADMIN');
+  const showAccessDenied = status === 'unauthenticated' || (status === 'authenticated' && userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN');
 
   if (showAccessDenied) {
     return (
@@ -23,7 +24,8 @@ export default function SecurityPage() {
   }
 
   return (
-    <div className="admin-page-content">
+    <div className="admin-page-content space-y-6">
+      <AdminTotpSetup />
       <SecurityMonitor />
     </div>
   );

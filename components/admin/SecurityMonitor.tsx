@@ -34,7 +34,7 @@ export default function SecurityMonitor() {
   });
 
   useEffect(() => {
-    loadSecurityData();
+    void loadSecurityData();
     startSecurityMonitoring();
     
     return () => {
@@ -42,10 +42,26 @@ export default function SecurityMonitor() {
     };
   }, []);
 
-  const loadSecurityData = () => {
+  const loadSecurityData = async () => {
     try {
+      let serverFailed = 0;
+      let serverTotal = 0;
+      try {
+        const res = await fetch('/api/admin/security/audit?limit=100', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          serverFailed = data.summary?.failedLogins ?? 0;
+          serverTotal = data.summary?.total ?? 0;
+        }
+      } catch {
+        /* fallback local only */
+      }
+
       const auditLogs = JSON.parse(localStorage.getItem('security_audit_logs') || '[]');
-      const failedLogins = auditLogs.filter((log: any) => log.type === 'LOGIN_FAILURE').length;
+      const failedLogins = Math.max(
+        auditLogs.filter((log: { type?: string }) => log.type === 'LOGIN_FAILURE').length,
+        serverFailed
+      );
       
       // التحقق من IPs مشبوهة
       const suspiciousIPs = new Set();
@@ -56,7 +72,7 @@ export default function SecurityMonitor() {
       });
 
       setStats({
-        totalEvents: auditLogs.length,
+        totalEvents: Math.max(auditLogs.length, serverTotal),
         failedLogins,
         suspiciousIPs: suspiciousIPs.size,
         weakPasswords: 0, // سيتم تحديثه لاحقاً

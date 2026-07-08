@@ -47,6 +47,8 @@ function LoginFormInner() {
   const t = useTranslations('login');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [totpCode, setTotpCode] = useState('');
 
   // Check for loginAsUser parameter
   const loginAsUser = searchParams.get('loginAsUser');
@@ -213,20 +215,46 @@ function LoginFormInner() {
     if (callbackUrl && !callbackUrl.startsWith('/')) callbackUrl = '';
 
     try {
-      // نُعطل تحويل NextAuth التلقائي لتجنب حلقات redirect على بعض البيئات.
-      const result = await signIn('credentials', {
-        email: data.emailOrUsername.trim(),
-        password: data.password,
-        redirect: false,
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.emailOrUsername.trim(),
+          password: data.password,
+          totp: needsTotp ? totpCode : undefined,
+          callbackUrl: callbackUrl || `/${locale}/admin`,
+        }),
       });
-      if (result?.error) {
-        setFormError(locale === 'ar' ? 'البريد أو كلمة المرور غير صحيحة.' : 'Invalid email or password.');
+      const json = await res.json().catch(() => ({}));
+
+      if (json.requiresTotp) {
+        setNeedsTotp(true);
+        setFormError(
+          locale === 'ar'
+            ? 'أدخل رمز المصادقة الثنائية (6 أرقام) من تطبيق Google Authenticator'
+            : 'Enter the 6-digit 2FA code from your authenticator app'
+        );
         return;
       }
+
+      if (!res.ok || !json.ok) {
+        if (json.error === 'invalid_totp') {
+          setNeedsTotp(true);
+          setFormError(locale === 'ar' ? 'رمز المصادقة الثنائية غير صحيح' : 'Invalid 2FA code');
+        } else if (json.error === 'locked') {
+          setFormError(locale === 'ar' ? 'تم تجاوز المحاولات. حاول لاحقاً.' : 'Too many attempts. Try later.');
+        } else {
+          setFormError(locale === 'ar' ? 'البريد أو كلمة المرور غير صحيحة.' : 'Invalid email or password.');
+        }
+        return;
+      }
+
       const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
       const sessionData = sessionRes.ok ? await sessionRes.json() : null;
       const role = sessionData?.user?.role as string | undefined;
-      const target = callbackUrl || defaultAdminPathByRole(locale, role);
+      const target = (typeof json.url === 'string' && json.url.startsWith('/')
+        ? json.url
+        : callbackUrl) || defaultAdminPathByRole(locale, role);
       router.replace(target);
       router.refresh();
     } catch {
@@ -419,6 +447,25 @@ function LoginFormInner() {
                 <p className="mt-2 text-sm font-medium text-red-600">{errMsg(errors.password.message ?? '')}</p>
               )}
             </div>
+
+            {needsTotp && (
+              <div>
+                <label htmlFor="totp" className="block text-sm font-bold text-neutral-700 mb-2">
+                  {locale === 'ar' ? 'رمز المصادقة الثنائية (2FA)' : 'Two-factor code (2FA)'}
+                </label>
+                <input
+                  id="totp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="w-full px-5 py-4 rounded-xl border-2 border-primary/40 text-neutral-800 text-center tracking-[0.4em] font-mono text-lg focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none"
+                />
+              </div>
+            )}
 
             {/* زر تسجيل الدخول الرئيسي */}
             <button
