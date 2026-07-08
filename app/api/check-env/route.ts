@@ -41,6 +41,9 @@ export async function GET(req: NextRequest) {
     CRON_SECRET: hasCron ? 'معرّف' : 'غير معرّف',
     THAWANI_WEBHOOK_SECRET: hasWebhook ? 'معرّف' : 'غير معرّف',
     ADMIN_DATA_RESET_PIN: hasAdminPin ? 'معرّف' : 'غير معرّف',
+    UPSTASH_REDIS: Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim() && process.env.UPSTASH_REDIS_REST_TOKEN?.trim())
+      ? 'معرّف'
+      : 'غير معرّف (in-memory rate limit)',
     NEXTAUTH_URL: payment.nextAuthUrlSet ? 'معرّف' : 'غير معرّف',
     PAYMENT_PROVIDER: payment.provider,
     THAWANI_PRODUCTION_READY: payment.productionReady ? 'نعم' : 'لا',

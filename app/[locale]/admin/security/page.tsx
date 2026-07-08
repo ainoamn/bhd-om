@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SecurityMonitor from '@/components/admin/SecurityMonitor';
 import AdminTotpSetup from '@/components/admin/AdminTotpSetup';
+import SecurityPosturePanel from '@/components/admin/SecurityPosturePanel';
 
 export default function SecurityPage() {
   const params = useParams();
@@ -25,6 +26,7 @@ export default function SecurityPage() {
 
   return (
     <div className="admin-page-content space-y-6">
+      <SecurityPosturePanel />
       <AdminTotpSetup />
       <SecurityMonitor />
     </div>
