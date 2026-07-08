@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { getDataScope } from '@/lib/auth/adminPermissions';
+import { serializeBookingStorageData } from '@/lib/server/bookingStorageCrypto';
 
 export async function POST(
   _req: NextRequest,
@@ -74,7 +75,7 @@ export async function POST(
 
     await prisma.bookingStorage.update({
       where: { bookingId },
-      data: { data: JSON.stringify(updated), updatedAt: new Date() },
+      data: { data: serializeBookingStorageData(updated), updatedAt: new Date() },
     });
 
     return NextResponse.json({ ok: true, booking: updated });

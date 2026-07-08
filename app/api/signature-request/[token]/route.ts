@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { SignatureRequest } from '@/lib/signatureRequests';
 import { rateLimitRequest } from '@/lib/rate-limit';
+import { serializeBookingStorageData } from '@/lib/server/bookingStorageCrypto';
 
 function findSignatureInBooking(booking: any, token: string): SignatureRequest | null {
   const list = Array.isArray(booking?.signatureRequests) ? (booking.signatureRequests as SignatureRequest[]) : [];
@@ -180,7 +181,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
 
         await prisma.bookingStorage.update({
           where: { bookingId: r.bookingId },
-          data: { data: JSON.stringify(booking), updatedAt: new Date() },
+          data: { data: serializeBookingStorageData(booking), updatedAt: new Date() },
         });
 
         return NextResponse.json({ ok: true, request: updated });
@@ -230,7 +231,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ token: st
         booking.signatureRequests = list;
         await prisma.bookingStorage.update({
           where: { bookingId: r.bookingId },
-          data: { data: JSON.stringify(booking), updatedAt: new Date() },
+          data: { data: serializeBookingStorageData(booking), updatedAt: new Date() },
         });
         return NextResponse.json({ ok: true, request: updated });
       } catch {

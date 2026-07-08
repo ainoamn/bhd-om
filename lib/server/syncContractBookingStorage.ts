@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { parseBookingStorageRow } from '@/lib/server/bookingContractGate';
 import { extractBookingStorageDenorm } from '@/lib/server/bookingStorageDenorm';
+import { serializeBookingStorageData } from '@/lib/server/bookingStorageCrypto';
 
 /** يبقي JSON الحجز متزامناً مع ContractStorage للتوافق مع المسارات القديمة */
 export async function syncContractIntoBookingStorage(
@@ -31,6 +32,6 @@ export async function syncContractIntoBookingStorage(
   const denorm = extractBookingStorageDenorm(merged);
   await prisma.bookingStorage.update({
     where: { bookingId },
-    data: { data: JSON.stringify(merged), updatedAt: new Date(), ...denorm },
+    data: { data: serializeBookingStorageData(merged), updatedAt: new Date(), ...denorm },
   });
 }

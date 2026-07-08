@@ -3,6 +3,7 @@ import { createBookingReceiptInDb } from '@/lib/accounting/data/dbService';
 import { findConflictingActiveBooking } from '@/lib/server/bookingDuplicateCheck';
 import { extractBookingStorageDenorm } from '@/lib/server/bookingStorageDenorm';
 import { generateBhdSerial, isValidBhdSerial } from '@/lib/server/serialNumbers';
+import { serializeBookingStorageData } from '@/lib/server/bookingStorageCrypto';
 
 export type PersistBookingResult =
   | { ok: true; id: string; bookingSerial?: string }
@@ -34,7 +35,7 @@ export async function persistBookingPayload(
     };
   }
 
-  const data = JSON.stringify(payload);
+  const data = serializeBookingStorageData(payload);
   const denorm = extractBookingStorageDenorm(payload);
   await prisma.bookingStorage.upsert({
     where: { bookingId: id },

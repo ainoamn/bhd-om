@@ -6,6 +6,7 @@ import type { JWT } from 'next-auth/jwt';
 import { compare } from 'bcryptjs';
 import { verifyImpersonateToken } from '@/lib/impersonate';
 import { loginTracker, auditSecurityEvent } from '@/lib/security';
+import { requiresAdminTotp, verifyUserTotp } from '@/lib/server/adminTotp';
   // OAuth - يُفعّل عند إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في .env
 import { prisma } from '@/lib/prisma';
 import { getAuthSecret } from '@/lib/server/authSecret';
@@ -59,6 +60,7 @@ const providers: NextAuthOptions['providers'] = [
       credentials: {
         email: { label: 'Email or Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
+        totp: { label: '2FA Code', type: 'text' },
       },
       async authorize(credentials) {
         const raw = credentials as Record<string, string> | undefined;
@@ -134,6 +136,14 @@ const providers: NextAuthOptions['providers'] = [
 
         loginTracker.clearAttempts(lockKey);
         auditSecurityEvent({ type: 'LOGIN_SUCCESS', userId: user.id });
+
+        const totpCode = (raw?.totp ?? '').toString().trim();
+        if (await requiresAdminTotp(user.id, user.role)) {
+          if (!totpCode || !(await verifyUserTotp(user.id, totpCode))) {
+            auditSecurityEvent({ type: 'LOGIN_FAILURE', userId: user.id, details: { reason: 'invalid_totp' } });
+            return null;
+          }
+        }
 
         return {
           id: user.id,

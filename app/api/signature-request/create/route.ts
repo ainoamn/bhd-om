@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { buildSignatureLink, generateSignatureToken, type SignatureActorRole, type SignatureRequest } from '@/lib/signatureRequests';
 import { getAuthSecret } from '@/lib/server/authSecret';
+import { serializeBookingStorageData } from '@/lib/server/bookingStorageCrypto';
 
 type CreateBody = {
   bookingId: string;
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
 
     await prisma.bookingStorage.update({
       where: { bookingId },
-      data: { data: JSON.stringify(booking), updatedAt: new Date() },
+      data: { data: serializeBookingStorageData(booking), updatedAt: new Date() },
     });
 
     const origin = req.nextUrl.origin;

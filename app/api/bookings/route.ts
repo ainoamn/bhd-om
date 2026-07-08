@@ -20,6 +20,7 @@ import {
   parseBookingStorageData,
   type BookingListFilters,
 } from '@/lib/server/repositories/bookingStorageRepo';
+import { serializeBookingStorageData } from '@/lib/server/bookingStorageCrypto';
 
 const CACHE_BOOKINGS_LIST = 'private, no-store';
 
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
           const denorm = extractBookingStorageDenorm(next);
           await prisma.bookingStorage.update({
             where: { bookingId: job.bookingId },
-            data: { data: JSON.stringify(next), updatedAt: new Date(), ...denorm },
+            data: { data: serializeBookingStorageData(next), updatedAt: new Date(), ...denorm },
           });
         } catch (err) {
           console.error('Deferred BKG serial fix:', job.bookingId, err);

@@ -4,6 +4,7 @@ import { findBookingStorageForPublicUpload } from '@/lib/server/repositories/boo
 import { listBookingDocumentsFromDb, saveBookingDocumentsToDb } from '@/lib/server/repositories/bookingDocumentStorageRepo';
 import { getChecksForBookingFromDb, saveChecksForBookingToDb } from '@/lib/server/bookingChecksServer';
 import { extractBookingStorageDenorm } from '@/lib/server/bookingStorageDenorm';
+import { serializeBookingStorageData } from '@/lib/server/bookingStorageCrypto';
 import type { BookingDocument } from '@/lib/data/bookingDocuments';
 import type { BookingCheckEntry } from '@/lib/data/bookingChecks';
 
@@ -236,7 +237,7 @@ export async function updatePublicContractBooking(opts: {
   }
 
   const bookingId = String(merged.id || opts.bookingId);
-  const data = JSON.stringify(merged);
+  const data = serializeBookingStorageData(merged);
   const denorm = extractBookingStorageDenorm(merged);
   await prisma.bookingStorage.upsert({
     where: { bookingId },

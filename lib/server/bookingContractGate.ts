@@ -26,9 +26,12 @@ export function assertAccountantConfirmedForContract(booking: Record<string, unk
   return { ok: true };
 }
 
+import { deserializeBookingStorageRaw } from '@/lib/server/bookingStorageCrypto';
+
 export function parseBookingStorageRow(data: string): Record<string, unknown> | null {
   try {
-    return JSON.parse(data) as Record<string, unknown>;
+    const json = deserializeBookingStorageRaw(data);
+    return JSON.parse(json) as Record<string, unknown>;
   } catch {
     return null;
   }

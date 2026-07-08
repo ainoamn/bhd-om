@@ -9,6 +9,7 @@ import { getAuthSecret } from '@/lib/server/authSecret';
 import { getClientIp } from '@/lib/server/clientIp';
 import { rateLimitRequest } from '@/lib/rate-limit';
 import { loginTracker, auditSecurityEvent } from '@/lib/security';
+import { requiresAdminTotp, verifyUserTotp, isAdminRole } from '@/lib/server/adminTotp';
 
 export const runtime = 'nodejs';
 
@@ -84,6 +85,26 @@ export async function POST(req: NextRequest) {
         { ok: false, error: 'invalid_credentials', message: 'اسم المستخدم/البريد أو كلمة المرور غير صحيحة' },
         { status: 401 }
       );
+    }
+
+    const totpCode = (body?.totp ?? body?.totpCode ?? '').toString().trim();
+    if (await requiresAdminTotp(user.id, user.role)) {
+      if (!totpCode) {
+        return NextResponse.json(
+          { ok: false, requiresTotp: true, message: 'أدخل رمز المصادقة الثنائية (6 أرقام)' },
+          { status: 403 }
+        );
+      }
+      const totpOk = await verifyUserTotp(user.id, totpCode);
+      if (!totpOk) {
+        auditSecurityEvent({ type: 'LOGIN_FAILURE', userId: user.id, ip, userAgent: ua, details: { reason: 'invalid_totp' } });
+        return NextResponse.json(
+          { ok: false, error: 'invalid_totp', message: 'رمز المصادقة الثنائية غير صحيح' },
+          { status: 401 }
+        );
+      }
+    } else if (totpCode && isAdminRole(user.role)) {
+      /* optional early setup verification ignored */
     }
 
     loginTracker.clearAttempts(lockKey);
