@@ -6,13 +6,11 @@ import { generateBhdSerial } from '@/lib/server/serialNumbers';
 import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
 import { rateLimitRequest } from '@/lib/rate-limit';
 import { validatePasswordStrength } from '@/lib/security';
+import { findUserByPhone } from '@/lib/server/prismaUserPhoneExtension';
+import { normalizeUserPhone } from '@/lib/server/userPhoneCrypto';
 
 function normalizeDigitsPhone(raw: string): string {
-  let digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  if (digits.length === 8 && digits.startsWith('9')) return '968' + digits;
-  if (digits.length >= 8 && !digits.startsWith('968')) return '968' + digits.replace(/^0+/, '');
-  return digits;
+  return normalizeUserPhone(raw);
 }
 
 const registerSchema = z.object({
@@ -59,9 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (phoneNorm.replace(/\D/g, '').length >= 8) {
-      const phoneTaken = await prisma.user.findFirst({
-        where: { phone: phoneNorm },
-      });
+      const phoneTaken = await findUserByPhone(phoneNorm);
       if (phoneTaken) {
         return NextResponse.json({ error: 'Phone already registered' }, { status: 409 });
       }

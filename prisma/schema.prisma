@@ -47,6 +47,7 @@ model User {
   password          String
   name              String
   phone             String?
+  phoneHash         String?   @unique // HMAC للبحث — الهاتف الفعلي مشفّر في phone
   role              UserRole  @default(CLIENT)
   isSuperAdmin      Boolean   @default(false)  // أدمن كامل الصلاحيات
   adminPermissions  String?   // JSON: مصفوفة صلاحيات للأدمن الجزئي، مثل ["MANAGE_USERS","MANAGE_PROPERTIES"]
@@ -68,6 +69,7 @@ model User {
   @@index([role])
   @@index([createdAt])
   @@index([email])
+  @@index([phoneHash])
   @@index([organizationId])
 }
 

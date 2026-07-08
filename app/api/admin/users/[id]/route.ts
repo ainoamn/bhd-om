@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
 import { isValidBhdSerial } from '@/lib/server/serialNumbers';
 import { getAuthSecret } from '@/lib/server/authSecret';
+import { isPhoneTakenByOther } from '@/lib/server/prismaUserPhoneExtension';
 
 export async function GET(
   req: NextRequest,
@@ -133,7 +134,14 @@ export async function PATCH(
       if (existing) return NextResponse.json({ error: 'Email already in use' }, { status: 409 });
       updates.email = emailLower;
     }
-    if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone?.trim() || null;
+    if (parsed.data.phone !== undefined) {
+      const phoneRaw = parsed.data.phone?.trim() || null;
+      if (phoneRaw) {
+        const taken = await isPhoneTakenByOther(phoneRaw, id);
+        if (taken) return NextResponse.json({ error: 'Phone already in use' }, { status: 409 });
+      }
+      updates.phone = phoneRaw;
+    }
     if (parsed.data.role !== undefined) updates.role = parsed.data.role;
     if (parsed.data.newPassword) {
       updates.password = await hash(parsed.data.newPassword, 10);
