@@ -19,4 +19,13 @@ export async function register() {
       `[SECURITY] Missing required production environment variables: ${missing.join(', ')}`
     );
   }
+
+  const hasUpstash =
+    Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim()) &&
+    Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim());
+  if (!hasUpstash) {
+    console.warn(
+      '[SECURITY] UPSTASH_REDIS_REST_URL/TOKEN not set — rate limits use in-memory store (resets on cold start).'
+    );
+  }
 }

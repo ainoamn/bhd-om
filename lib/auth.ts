@@ -5,7 +5,8 @@ import AzureADProvider from 'next-auth/providers/azure-ad';
 import type { JWT } from 'next-auth/jwt';
 import { compare } from 'bcryptjs';
 import { verifyImpersonateToken } from '@/lib/impersonate';
-import { loginTracker, auditSecurityEvent } from '@/lib/security';
+import { auditSecurityEvent } from '@/lib/security';
+import { recordLoginAttempt, clearLoginAttempts } from '@/lib/server/loginLockoutStore';
 import { requiresAdminTotp, verifyUserTotp } from '@/lib/server/adminTotp';
   // OAuth - يُفعّل عند إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في .env
 import { prisma } from '@/lib/prisma';
@@ -77,7 +78,7 @@ const providers: NextAuthOptions['providers'] = [
         if (!input) return null;
 
         const lockKey = input.toLowerCase();
-        const attempt = loginTracker.recordAttempt(lockKey);
+        const attempt = await recordLoginAttempt(lockKey);
         if (!attempt.allowed) {
           auditSecurityEvent({ type: 'LOGIN_FAILURE', details: { reason: 'lockout', input: lockKey.slice(0, 20) } });
           return null;
@@ -134,7 +135,7 @@ const providers: NextAuthOptions['providers'] = [
           return null;
         }
 
-        loginTracker.clearAttempts(lockKey);
+        await clearLoginAttempts(lockKey);
         auditSecurityEvent({ type: 'LOGIN_SUCCESS', userId: user.id });
 
         const totpCode = (raw?.totp ?? '').toString().trim();

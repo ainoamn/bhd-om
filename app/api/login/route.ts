@@ -8,7 +8,8 @@ import { compare } from 'bcryptjs';
 import { getAuthSecret } from '@/lib/server/authSecret';
 import { getClientIp } from '@/lib/server/clientIp';
 import { rateLimitRequest } from '@/lib/rate-limit';
-import { loginTracker, auditSecurityEvent } from '@/lib/security';
+import { auditSecurityEvent } from '@/lib/security';
+import { recordLoginAttempt, clearLoginAttempts } from '@/lib/server/loginLockoutStore';
 import { requiresAdminTotp, verifyUserTotp, isAdminRole } from '@/lib/server/adminTotp';
 
 export const runtime = 'nodejs';
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const attempt = loginTracker.recordAttempt(lockKey);
+    const attempt = await recordLoginAttempt(lockKey);
     if (!attempt.allowed) {
       auditSecurityEvent({ type: 'LOGIN_FAILURE', ip, userAgent: ua, details: { reason: 'lockout', emailOrUser } });
       return NextResponse.json(
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
       /* optional early setup verification ignored */
     }
 
-    loginTracker.clearAttempts(lockKey);
+    await clearLoginAttempts(lockKey);
     auditSecurityEvent({ type: 'LOGIN_SUCCESS', userId: user.id, ip, userAgent: ua });
 
     const tokenPayload = {

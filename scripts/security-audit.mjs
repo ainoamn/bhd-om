@@ -37,4 +37,10 @@ if (missing > 0) {
   console.log(`\n${missing} variable(s) missing locally — set in Vercel for production.`);
 }
 
+console.log('\n--- Optional: Upstash Redis (distributed rate limits) ---');
+const upstashOk =
+  Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim()) &&
+  Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim());
+console.log(`${upstashOk ? 'OK' : 'SKIP'}  UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN`);
+
 console.log('\nDone.');

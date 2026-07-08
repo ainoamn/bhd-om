@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { getClientIp } from '@/lib/server/clientIp';
+import { checkUpstashRateLimit } from '@/lib/server/upstashRateLimit';
 
 const limiters: Record<string, RateLimiterMemory> = {};
 
@@ -14,7 +15,13 @@ export function getLimiter(name: string, points: number = 100, duration: number 
 }
 
 export async function checkRateLimit(identifier: string, name: string = 'api', points?: number, duration?: number): Promise<{ allowed: boolean; remaining: number; resetTime?: Date }> {
-  const limiter = getLimiter(name, points, duration);
+  const pts = points ?? 100;
+  const dur = duration ?? 60;
+
+  const upstash = await checkUpstashRateLimit(identifier, name, pts, dur);
+  if (upstash) return upstash;
+
+  const limiter = getLimiter(name, pts, dur);
   try {
     const res = await limiter.consume(identifier, 1);
     return { allowed: true, remaining: res.remainingPoints };
