@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
-import { prisma } from '@/lib/prisma';
 import { rateLimitRequest } from '@/lib/rate-limit';
+import { getSiteStats, type SiteStats } from '@/lib/server/siteStats';
+import { MARKETING_STATS } from '@/lib/siteStatsConstants';
 
-export interface StatsData {
-  properties: number;
-  users: number;
-  bookings: number;
-  contracts: number;
-}
+export type StatsData = SiteStats;
 
 const CACHE_KEY = 'bhd-stats';
 const CACHE_TTL = 60;
 
 const getStatsFromDb = unstable_cache(
-  async (): Promise<StatsData> => {
-    const [properties, users, bookings, contracts] = await Promise.all([
-      prisma.property.count(),
-      prisma.user.count(),
-      prisma.bookingStorage.count(),
-      prisma.contractStorage.count(),
-    ]);
-    return { properties, users, bookings, contracts };
-  },
+  async (): Promise<StatsData> => getSiteStats(),
   [CACHE_KEY],
   { revalidate: CACHE_TTL, tags: ['stats'] }
 );
@@ -41,10 +29,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<StatsData>> {
     });
   } catch (error) {
     console.error('[API /stats]', error);
-    return NextResponse.json(
-      { properties: 0, users: 0, bookings: 0, contracts: 0 },
-      { status: 500 }
-    );
+    return NextResponse.json(MARKETING_STATS, { status: 200 });
   }
 }
 

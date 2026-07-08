@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useLocale } from 'next-intl';
+import { MARKETING_STATS } from '@/lib/siteStatsConstants';
 
 interface StatItem {
   value: number;
@@ -11,16 +12,11 @@ interface StatItem {
   icon: string;
 }
 
-/**
- * بيانات الإحصائيات الافتراضية (ثابتة)
- * تُستخدم كقيم أولية سريعة قبل وصول البيانات من Prisma
- * أو كـ fallback في حالة فشل الاتصال بالخادم
- */
 const fallbackStats: StatItem[] = [
-  { value: 500, suffix: '+', labelAr: 'عقار متاح', labelEn: 'Properties', icon: '🏠' },
-  { value: 1200, suffix: '+', labelAr: 'عميل سعيد', labelEn: 'Happy Clients', icon: '😊' },
-  { value: 15, suffix: '+', labelAr: 'سنة خبرة', labelEn: 'Years Experience', icon: '🏆' },
-  { value: 50, suffix: '+', labelAr: 'مشروع منجز', labelEn: 'Projects Done', icon: '🏗️' },
+  { value: MARKETING_STATS.properties, suffix: '+', labelAr: 'عقار متاح', labelEn: 'Properties', icon: '🏠' },
+  { value: MARKETING_STATS.users, suffix: '+', labelAr: 'عميل سعيد', labelEn: 'Happy Clients', icon: '😊' },
+  { value: MARKETING_STATS.bookings, suffix: '+', labelAr: 'حجز مكتمل', labelEn: 'Bookings', icon: '📋' },
+  { value: MARKETING_STATS.contracts, suffix: '+', labelAr: 'عقد موقع', labelEn: 'Contracts', icon: '📝' },
 ];
 
 /**
@@ -39,10 +35,10 @@ interface StatsApiResponse {
 */
 function mapApiToStats(data: StatsApiResponse): StatItem[] {
   return [
-    { value: data.properties, suffix: '+', labelAr: 'عقار متاح', labelEn: 'Properties', icon: '🏠' },
-    { value: data.users, suffix: '+', labelAr: 'عميل سعيد', labelEn: 'Happy Clients', icon: '👥' },
-    { value: data.bookings, suffix: '+', labelAr: 'حجز مكتمل', labelEn: 'Bookings', icon: '📋' },
-    { value: data.contracts, suffix: '+', labelAr: 'عقد موقع', labelEn: 'Contracts', icon: '📝' },
+    { value: data.properties || MARKETING_STATS.properties, suffix: '+', labelAr: 'عقار متاح', labelEn: 'Properties', icon: '🏠' },
+    { value: data.users || MARKETING_STATS.users, suffix: '+', labelAr: 'عميل سعيد', labelEn: 'Happy Clients', icon: '👥' },
+    { value: data.bookings || MARKETING_STATS.bookings, suffix: '+', labelAr: 'حجز مكتمل', labelEn: 'Bookings', icon: '📋' },
+    { value: data.contracts || MARKETING_STATS.contracts, suffix: '+', labelAr: 'عقد موقع', labelEn: 'Contracts', icon: '📝' },
   ];
 }
 
