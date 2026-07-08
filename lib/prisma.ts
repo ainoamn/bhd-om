@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { getDatabaseUrlForRuntime } from '@/lib/env/databaseUrl';
 import { addressBookCryptoExtension } from '@/lib/server/prismaAddressBookExtension';
+import { legacyKvCryptoExtension } from '@/lib/server/prismaLegacyKvExtension';
 import { userPhoneCryptoExtension } from '@/lib/server/prismaUserPhoneExtension';
 
 const globalForPrisma = globalThis as unknown as {
@@ -29,7 +30,10 @@ function createPrismaClient() {
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
-  return base.$extends(addressBookCryptoExtension).$extends(userPhoneCryptoExtension);
+  return base
+    .$extends(addressBookCryptoExtension)
+    .$extends(userPhoneCryptoExtension)
+    .$extends(legacyKvCryptoExtension);
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

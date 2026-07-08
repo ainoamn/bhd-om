@@ -24,6 +24,7 @@
     "db:backfill-contact-pii-encryption": "npx tsx scripts/backfill-contact-pii-encryption.ts",
     "db:backfill-address-book-encryption": "npx tsx scripts/backfill-address-book-encryption.ts",
     "db:backfill-user-phone-encryption": "npx tsx scripts/backfill-user-phone-encryption.ts",
+    "db:backfill-legacy-kv-encryption": "npx tsx scripts/backfill-legacy-kv-encryption.ts",
     "start": "next start",
     "lint": "eslint .",
     "test:e2e": "playwright test",

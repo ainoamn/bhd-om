@@ -43,4 +43,16 @@ const upstashOk =
   Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim());
 console.log(`${upstashOk ? 'OK' : 'SKIP'}  UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN`);
 
+console.log('\n--- Encryption backfill scripts (run once after deploy) ---');
+for (const script of [
+  'db:backfill-booking-encryption',
+  'db:backfill-contract-encryption',
+  'db:backfill-contact-pii-encryption',
+  'db:backfill-address-book-encryption',
+  'db:backfill-user-phone-encryption',
+  'db:backfill-legacy-kv-encryption',
+]) {
+  console.log(`  npm run ${script}`);
+}
+
 console.log('\nDone.');
