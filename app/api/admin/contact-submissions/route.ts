@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { parsePaginationParams, paginationResponseHeaders } from '@/lib/server/pagination';
+import { decryptAtRest } from '@/lib/server/piiField';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
           name: r.name,
           email: r.email,
           phone: r.phone,
-          message: r.message,
+          message: decryptAtRest(r.message),
           type: r.type,
           isRead: r.isRead,
           createdAt: r.createdAt.toISOString(),

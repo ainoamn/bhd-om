@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * إعدادات لوحات التحكم: قراءة/كتابة من قاعدة البيانات حتى تنعكس على لوحة العميل في أي متصفح.
  */
@@ -18,7 +19,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    const token = await getToken({ req, secret: getAuthSecret() });
     if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

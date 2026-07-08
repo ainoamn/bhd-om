@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * حجوزات مدفوعة بانتظار تأكيد المحاسب لاستلام المبلغ — من قاعدة البيانات.
  * تُعرض في لوحة المحاسبة لتأكيد الاستلام ثم إظهارها في الحجوزات لإدخال البيانات.
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     const session = token
       ? {

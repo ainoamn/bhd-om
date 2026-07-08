@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * إصدار رمز لمرة واحدة للعودة إلى حساب الأدمن بعد "تسجيل الدخول كمستخدم".
  * يُستدعى قبل تسجيل الخروج عند الضغط على "فتح حساب" ويُخزّن الرمز في الجلسة.
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET,
+      secret: getAuthSecret(),
     });
     if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

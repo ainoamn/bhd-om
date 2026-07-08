@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rateLimitRequest } from '@/lib/rate-limit';
 import { z } from 'zod';
+import { encryptAtRest } from '@/lib/server/piiField';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         email: emailTrim || `${name.replace(/\s+/g, '.').toLowerCase()}@callback.local`,
         phone: String(phone || '').trim() || null,
-        message: String(message || '').trim() || null,
+        message: String(message || '').trim() ? encryptAtRest(String(message).trim()) : null,
         type: typeNorm === 'CALLBACK' ? 'CALLBACK' : 'CONTACT',
       },
     });

@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * تحديث عقار (مثلاً ربط المالك ownerId) — للأدمن أو الشركة/مدير الشركة لعقاراتهم فقط
  */
@@ -15,7 +16,7 @@ export async function PATCH(
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     const session = token
       ? {

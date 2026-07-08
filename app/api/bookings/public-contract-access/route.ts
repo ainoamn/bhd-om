@@ -7,10 +7,14 @@ import {
 } from '@/lib/server/publicContractAccess';
 import { syncPublicContractContact } from '@/lib/server/publicContractContactSync';
 import { isAllowedBrowserOrigin } from '@/lib/server/requestOrigin';
+import { rateLimitRequest } from '@/lib/rate-limit';
 import type { BookingDocument } from '@/lib/data/bookingDocuments';
 import type { BookingCheckEntry } from '@/lib/data/bookingChecks';
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitRequest(req, 'public-contract', 20, 60);
+  if (limited) return limited;
+
   try {
     const url = new URL(req.url);
     const propertyIdRaw = url.searchParams.get('propertyId');
@@ -44,6 +48,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const limited = await rateLimitRequest(req, 'public-contract', 15, 60);
+  if (limited) return limited;
+
   try {
     if (!isAllowedBrowserOrigin(req)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * تأكيد استرداد المبلغ لمستخدم — يسمح للإدارة بتنزيل باقته بعد تنفيذ الاسترداد من لوحة المحاسبة.
  */
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     if ((token?.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

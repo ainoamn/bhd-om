@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * تأكيد استلام مبلغ الحجز من قبل المحاسب — تحديث الحجز في قاعدة البيانات.
  * بعد التأكيد يظهر الحجز في الحجوزات بحالة «مؤكد الدفع» ويمكن إدخال البيانات.
@@ -15,7 +16,7 @@ export async function POST(
   try {
     const token = await getToken({
       req: _req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     const session = token
       ? {

@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * GET حساب مبلغ الترقية بعد خصم المتبقي من الاشتراك الحالي (proration).
  */
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     if (!token?.sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

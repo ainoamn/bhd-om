@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * تغيير الباقة مع الدفع: ترقية فورية أو تنزيل مجدول عند نهاية الفترة.
  * يسجّل إيصالاً في المحاسبة عند وجود مبلغ، ثم يطبّق الترقية أو يجدول التنزيل.
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     if (!token?.sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

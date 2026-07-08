@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { getDocumentsFromDb } from '@/lib/accounting/data/dbService';
 import { findAddressBookRowByUserId } from '@/lib/server/syncUserToAddressBook';
 import { CACHE_ME_ACCOUNTING_DOCS_GET, HTTP_CACHE_VARY_AUTH } from '@/lib/server/httpCacheHeaders';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,8 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret:
-        process.env.NEXTAUTH_SECRET ||
+      secret: getAuthSecret() ||
         (process.env.NODE_ENV === 'development'
           ? 'bhd-dev-secret-not-for-production'
           : undefined),

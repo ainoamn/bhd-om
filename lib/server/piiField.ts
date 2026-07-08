@@ -1,10 +1,11 @@
 /**
- * مساعدات تشفير PII — للحقول الحساسة في JSON blobs (AddressBook, BookingStorage).
- * استخدم encryptPiiField / decryptPiiField عند الكتابة/القراءة تدريجياً.
+ * مساعدات تشفير PII — للحقول الحسensitive في JSON blobs ورسائل التواصل.
  */
 import { encryptField, decryptField, type EncryptedField } from '@/lib/encryption';
+import { encryptSensitiveData, decryptSensitiveData } from '@/lib/security';
 
 const PII_PREFIX = 'pii:v1:';
+const ENC_PREFIX = 'enc:rest:';
 
 export function encryptPiiField(value: string): string {
   const enc = encryptField(value);
@@ -23,4 +24,24 @@ export function decryptPiiField(stored: string): string {
 
 export function isEncryptedPii(stored: string): boolean {
   return stored.startsWith(PII_PREFIX);
+}
+
+/** تشفير نص at-rest (رسائل تواصل، ملاحظات) */
+export function encryptAtRest(value: string): string {
+  if (!value || value.startsWith(ENC_PREFIX)) return value;
+  try {
+    return ENC_PREFIX + encryptSensitiveData(value);
+  } catch {
+    return value;
+  }
+}
+
+export function decryptAtRest(stored: string | null | undefined): string | null {
+  if (!stored) return null;
+  if (!stored.startsWith(ENC_PREFIX)) return stored;
+  try {
+    return decryptSensitiveData(stored.slice(ENC_PREFIX.length));
+  } catch {
+    return stored;
+  }
 }

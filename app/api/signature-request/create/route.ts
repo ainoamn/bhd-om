@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { buildSignatureLink, generateSignatureToken, type SignatureActorRole, type SignatureRequest } from '@/lib/signatureRequests';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 type CreateBody = {
   bookingId: string;
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     if (!token?.sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

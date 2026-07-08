@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { logAudit } from '@/lib/audit';
-
-const authSecret =
-  process.env.NEXTAUTH_SECRET ||
-  (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined);
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: authSecret });
+    const token = await getToken({ req, secret: getAuthSecret() });
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -5,6 +5,7 @@ import AzureADProvider from 'next-auth/providers/azure-ad';
 import type { JWT } from 'next-auth/jwt';
 import { compare } from 'bcryptjs';
 import { verifyImpersonateToken } from '@/lib/impersonate';
+import { loginTracker, auditSecurityEvent } from '@/lib/security';
   // OAuth - يُفعّل عند إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في .env
 import { prisma } from '@/lib/prisma';
 import { getAuthSecret } from '@/lib/server/authSecret';
@@ -73,6 +74,13 @@ const providers: NextAuthOptions['providers'] = [
         const input = emailOrUser;
         if (!input) return null;
 
+        const lockKey = input.toLowerCase();
+        const attempt = loginTracker.recordAttempt(lockKey);
+        if (!attempt.allowed) {
+          auditSecurityEvent({ type: 'LOGIN_FAILURE', details: { reason: 'lockout', input: lockKey.slice(0, 20) } });
+          return null;
+        }
+
         // تمثيل المستخدم من لوحة المدير (رابط لمرة واحدة)
         if (input === '__impersonate__') {
           const verified = verifyImpersonateToken(password);
@@ -111,6 +119,7 @@ const providers: NextAuthOptions['providers'] = [
           if (process.env.NODE_ENV === 'development') {
             console.debug('[auth] authorize: user not found or no password', { input: input.substring(0, 20), found: !!user });
           }
+          auditSecurityEvent({ type: 'LOGIN_FAILURE', details: { reason: 'user_not_found' } });
           return null;
         }
 
@@ -119,8 +128,12 @@ const providers: NextAuthOptions['providers'] = [
           if (process.env.NODE_ENV === 'development') {
             console.debug('[auth] authorize: password mismatch for', user.email);
           }
+          auditSecurityEvent({ type: 'LOGIN_FAILURE', userId: user.id, details: { reason: 'invalid_password' } });
           return null;
         }
+
+        loginTracker.clearAttempts(lockKey);
+        auditSecurityEvent({ type: 'LOGIN_SUCCESS', userId: user.id });
 
         return {
           id: user.id,

@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * GET إيصال اشتراك للمستخدم الحالي فقط — للتحقق أن المستند مرتبط باشتراكه ثم إرجاعه للطباعة.
  */
@@ -15,7 +16,7 @@ export async function GET(
 ) {
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+    secret: getAuthSecret(),
   });
   if (!token?.sub) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

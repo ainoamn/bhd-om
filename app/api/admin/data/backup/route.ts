@@ -3,13 +3,14 @@ import { getToken } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
 import { exportDatabaseSnapshot } from '@/lib/server/dataBackupSnapshot';
 import { ensureAdminDataPinReady, verifyAdminDataPin } from '@/lib/server/adminDataPin';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    const token = await getToken({ req, secret: getAuthSecret() });
     if (!token || token.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

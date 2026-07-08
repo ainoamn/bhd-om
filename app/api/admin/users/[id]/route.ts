@@ -5,6 +5,7 @@ import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
 import { isValidBhdSerial } from '@/lib/server/serialNumbers';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 export async function GET(
   req: NextRequest,
@@ -13,7 +14,7 @@ export async function GET(
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET,
+      secret: getAuthSecret(),
     });
     if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -106,7 +107,7 @@ export async function PATCH(
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET,
+      secret: getAuthSecret(),
     });
     if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

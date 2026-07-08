@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * تهيئة الباقات الافتراضية — للأدمن فقط، وتُنشأ فقط إذا لم توجد أي باقة في قاعدة البيانات.
  * صلاحيات كل باقة من PLAN_FEATURES لربطها بإعدادات لوحة التحكم (الاشتراك = المعيار الأول).
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     if ((token?.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

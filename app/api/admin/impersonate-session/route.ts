@@ -1,11 +1,11 @@
 /**
  * إنشاء جلسة حقيقية (كوكي) للمستخدم المختار عند "فتح حساب" من لوحة المدير.
- * يسمح للمدير بالتنقل في الموقع (الرئيسية، العقارات، المشاريع...) وهو معرّف كمستخدم ذلك الحساب.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { encode } from 'next-auth/jwt';
 import { prisma } from '@/lib/prisma';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 export const runtime = 'nodejs';
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET,
+      secret: getAuthSecret(),
     });
     if (!token || (token.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized', ok: false }, { status: 401 });
@@ -27,10 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'userId required', ok: false }, { status: 400 });
     }
 
-    const secret = process.env.NEXTAUTH_SECRET;
-    if (!secret) {
-      return NextResponse.json({ error: 'NEXTAUTH_SECRET not set', ok: false }, { status: 500 });
-    }
+    const secret = getAuthSecret();
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -56,8 +53,6 @@ export async function POST(req: NextRequest) {
       maxAge: SESSION_MAX_AGE,
     });
 
-    // إرجاع التوكن في الجسد لاستخدامه في التوجيه عبر /api/auth/set-impersonate
-    // (ضبط الكوكي عبر استجابة توجيه 302 يعمل بشكل موثوق في كل المتصفحات بدل Set-Cookie من fetch)
     return NextResponse.json({ ok: true, sessionToken });
   } catch (e) {
     console.error('Impersonate session error:', e);

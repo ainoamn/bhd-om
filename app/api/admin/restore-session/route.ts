@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * استعادة جلسة الأدمن باستخدام رمز العودة (مرة واحدة).
  * يُستخدم عند الضغط على "عودة للأدمن" بعد تسجيل الدخول كمستخدم — يعيد إنشاء الجلسة ويوجّه للوحة التحكم.
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${locale}/login?error=invalid_or_expired`, req.url));
   }
 
-  const secret = process.env.NEXTAUTH_SECRET;
+  const secret = getAuthSecret();
   if (!secret) {
     return NextResponse.redirect(new URL(`/${locale}/login?error=config`, req.url));
   }

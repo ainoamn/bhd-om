@@ -1,3 +1,4 @@
+import { getAuthSecret } from '@/lib/server/authSecret';
 /**
  * قائمة الباقات للأدمن — استعلام خام حسب الأعمدة الموجودة لتفادي خطأ "column does not exist"
  */
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
   try {
     const token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === 'development' ? 'bhd-dev-secret-not-for-production' : undefined),
+      secret: getAuthSecret(),
     });
     if ((token?.role as string) !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
