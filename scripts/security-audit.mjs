@@ -16,9 +16,10 @@ const requiredInProd = [
 
 console.log('=== BHD-OM Security Audit ===\n');
 
-console.log('--- npm audit (high+) ---');
+console.log('\n--- npm audit (high+) ---');
 try {
   execSync('npm audit --audit-level=high', { stdio: 'inherit' });
+  console.log('No high/critical vulnerabilities.');
 } catch {
   console.error('npm audit reported issues — review above.');
   process.exitCode = 1;
@@ -44,6 +45,7 @@ const upstashOk =
 console.log(`${upstashOk ? 'OK' : 'SKIP'}  UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN`);
 
 console.log('\n--- Encryption backfill scripts (run once after deploy) ---');
+console.log('  npm run db:backfill-all-encryption   # runs all below');
 for (const script of [
   'db:backfill-booking-encryption',
   'db:backfill-contract-encryption',

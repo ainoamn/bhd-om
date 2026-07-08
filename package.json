@@ -25,6 +25,7 @@
     "db:backfill-address-book-encryption": "npx tsx scripts/backfill-address-book-encryption.ts",
     "db:backfill-user-phone-encryption": "npx tsx scripts/backfill-user-phone-encryption.ts",
     "db:backfill-legacy-kv-encryption": "npx tsx scripts/backfill-legacy-kv-encryption.ts",
+    "db:backfill-all-encryption": "node scripts/run-all-encryption-backfills.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test:e2e": "playwright test",
@@ -81,5 +82,11 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@hono/node-server": "^1.19.13",
+    "esbuild": "^0.28.1",
+    "postcss": "^8.5.10",
+    "uuid": "^11.1.1"
   }
 }
