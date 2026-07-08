@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rateLimitRequest } from '@/lib/rate-limit';
 import { z } from 'zod';
-import { encryptAtRest } from '@/lib/server/piiField';
+import { encryptContactSubmissionFields } from '@/lib/server/piiField';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,12 +37,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Phone required' }, { status: 400 });
     }
 
+    const pii = encryptContactSubmissionFields({
+      name: name.trim(),
+      email: emailTrim || `${name.replace(/\s+/g, '.').toLowerCase()}@callback.local`,
+      phone: String(phone || '').trim() || null,
+      message: String(message || '').trim() || null,
+    });
+
     const row = await prisma.contactSubmission.create({
       data: {
-        name: name.trim(),
-        email: emailTrim || `${name.replace(/\s+/g, '.').toLowerCase()}@callback.local`,
-        phone: String(phone || '').trim() || null,
-        message: String(message || '').trim() ? encryptAtRest(String(message).trim()) : null,
+        name: pii.name,
+        email: pii.email,
+        phone: pii.phone,
+        message: pii.message,
         type: typeNorm === 'CALLBACK' ? 'CALLBACK' : 'CONTACT',
       },
     });

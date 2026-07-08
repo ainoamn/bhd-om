@@ -20,6 +20,8 @@
     "db:reset-keep-properties": "npx tsx prisma/reset-keep-properties.ts",
     "db:backfill-legacy-booking-settings": "npx tsx scripts/backfill-legacy-booking-settings.ts",
     "db:backfill-booking-encryption": "npx tsx scripts/backfill-booking-encryption.ts",
+    "db:backfill-contract-encryption": "npx tsx scripts/backfill-contract-encryption.ts",
+    "db:backfill-contact-pii-encryption": "npx tsx scripts/backfill-contact-pii-encryption.ts",
     "start": "next start",
     "lint": "eslint .",
     "test:e2e": "playwright test",

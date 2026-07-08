@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { parseBookingStorageRow } from '@/lib/server/bookingContractGate';
 import { extractContractStorageDenorm } from '@/lib/server/contractStorageDenorm';
+import {
+  deserializeContractStorageRaw,
+  serializeContractStorageData,
+} from '@/lib/server/contractStorageCrypto';
 import type { PaginationParams } from '@/lib/server/pagination';
 
 export type ParsedContractRow = Record<string, unknown> & {
@@ -21,7 +25,8 @@ export function parseContractStorageData(
   row: { contractId: string; data: string; createdAt: Date }
 ): ParsedContractRow | null {
   try {
-    const parsed = JSON.parse(row.data) as Record<string, unknown>;
+    const json = deserializeContractStorageRaw(row.data);
+    const parsed = JSON.parse(json) as Record<string, unknown>;
     if (!parsed || typeof parsed !== 'object') return null;
     if (!parsed.id) parsed.id = row.contractId;
     return parsed as ParsedContractRow;
@@ -51,7 +56,7 @@ export async function upsertContractStorageRow(params: {
   payload: Record<string, unknown>;
 }): Promise<void> {
   const denorm = extractContractStorageDenorm(params.payload);
-  const data = JSON.stringify(params.payload);
+  const data = serializeContractStorageData(params.payload);
   await prisma.contractStorage.upsert({
     where: { contractId: params.contractId },
     create: {

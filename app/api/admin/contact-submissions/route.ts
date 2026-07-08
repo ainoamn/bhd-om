@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireRoles } from '@/lib/auth/guard';
 import { parsePaginationParams, paginationResponseHeaders } from '@/lib/server/pagination';
-import { decryptAtRest } from '@/lib/server/piiField';
+import { decryptContactSubmissionFields } from '@/lib/server/piiField';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,16 +36,19 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        items: rows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          email: r.email,
-          phone: r.phone,
-          message: decryptAtRest(r.message),
-          type: r.type,
-          isRead: r.isRead,
-          createdAt: r.createdAt.toISOString(),
-        })),
+        items: rows.map((r) => {
+          const pii = decryptContactSubmissionFields(r);
+          return {
+            id: r.id,
+            name: pii.name,
+            email: pii.email,
+            phone: pii.phone,
+            message: pii.message,
+            type: r.type,
+            isRead: r.isRead,
+            createdAt: r.createdAt.toISOString(),
+          };
+        }),
         total,
         unreadCount: unreadOnly ? total : await prisma.contactSubmission.count({ where: { isRead: false } }),
       },

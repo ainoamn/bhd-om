@@ -45,3 +45,33 @@ export function decryptAtRest(stored: string | null | undefined): string | null 
     return stored;
   }
 }
+
+/** تشفير حقول ContactSubmission (name, email, phone, message) */
+export function encryptContactSubmissionFields(fields: {
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string | null;
+}): { name: string; email: string; phone: string | null; message: string | null } {
+  return {
+    name: encryptAtRest(fields.name),
+    email: encryptAtRest(fields.email),
+    phone: fields.phone ? encryptAtRest(fields.phone) : null,
+    message: fields.message ? encryptAtRest(fields.message) : null,
+  };
+}
+
+/** فك تشفير حقول ContactSubmission للعرض في لوحة الإدارة */
+export function decryptContactSubmissionFields(row: {
+  name: string;
+  email: string;
+  phone: string | null;
+  message: string | null;
+}): { name: string; email: string; phone: string | null; message: string | null } {
+  return {
+    name: decryptAtRest(row.name) ?? row.name,
+    email: decryptAtRest(row.email) ?? row.email,
+    phone: row.phone ? (decryptAtRest(row.phone) ?? row.phone) : null,
+    message: decryptAtRest(row.message),
+  };
+}
