@@ -410,10 +410,49 @@ export type ReconcileContractsResult = ContractStatusMaps & {
   groupsProcessed: number;
 };
 
+// ── In-memory contract lifecycle cache ──────────────────────────────
+// Shared across all requests | TTL: 60s
+const CONTRACT_LIFECYCLE_CACHE_TTL_MS = 60_000;
+let _contractLifecycleCache: {
+  statuses: Record<string, ContractLifecycleStatus>;
+  byUnit: Record<string, ContractLifecycleStatus>;
+  groupsProcessed: number;
+  timestamp: number;
+} | null = null;
+
+function _contractLifecycleCacheGet():
+  | { statuses: Record<string, ContractLifecycleStatus>; byUnit: Record<string, ContractLifecycleStatus>; groupsProcessed: number }
+  | undefined {
+  if (!_contractLifecycleCache) return undefined;
+  if (Date.now() - _contractLifecycleCache.timestamp > CONTRACT_LIFECYCLE_CACHE_TTL_MS) {
+    _contractLifecycleCache = null;
+    return undefined;
+  }
+  return {
+    statuses: _contractLifecycleCache.statuses,
+    byUnit: _contractLifecycleCache.byUnit,
+    groupsProcessed: _contractLifecycleCache.groupsProcessed,
+  };
+}
+function _contractLifecycleCacheSet(
+  statuses: Record<string, ContractLifecycleStatus>,
+  byUnit: Record<string, ContractLifecycleStatus>,
+  groupsProcessed: number
+): void {
+  _contractLifecycleCache = { statuses, byUnit, groupsProcessed, timestamp: Date.now() };
+}
+// ────────────────────────────────────────────────────────────────────
+
 /** جلب وحساب حالات العقود من Neon — مع خيار الحفظ */
 export async function loadCanonicalContractStatusesFromNeon(
   persist: boolean
 ): Promise<ContractStatusMaps & { persisted: boolean; groupsProcessed: number }> {
+  // 1) Check in-memory cache first (bypasses DB queries + CPU-heavy reconcile)
+  const cached = _contractLifecycleCacheGet();
+  if (cached) {
+    return { ...cached, persisted: false };
+  }
+
   const { prisma } = await import('@/lib/prisma');
   const [contractsRow, accountingRow] = await Promise.all([
     prisma.legacyAppKvStore.findUnique({
@@ -463,6 +502,9 @@ export async function loadCanonicalContractStatusesFromNeon(
       persisted = true;
     }
   }
+
+  // Store in shared memory cache for subsequent requests
+  _contractLifecycleCacheSet(result.statuses, result.byUnit, result.groupsProcessed);
 
   return {
     statuses: result.statuses,

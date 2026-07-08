@@ -11,12 +11,40 @@ interface StatItem {
   icon: string;
 }
 
-const stats: StatItem[] = [
+/**
+ * بيانات الإحصائيات الافتراضية (ثابتة)
+ * تُستخدم كقيم أولية سريعة قبل وصول البيانات من Prisma
+ * أو كـ fallback في حالة فشل الاتصال بالخادم
+ */
+const fallbackStats: StatItem[] = [
   { value: 500, suffix: '+', labelAr: 'عقار متاح', labelEn: 'Properties', icon: '🏠' },
   { value: 1200, suffix: '+', labelAr: 'عميل سعيد', labelEn: 'Happy Clients', icon: '😊' },
   { value: 15, suffix: '+', labelAr: 'سنة خبرة', labelEn: 'Years Experience', icon: '🏆' },
   { value: 50, suffix: '+', labelAr: 'مشروع منجز', labelEn: 'Projects Done', icon: '🏗️' },
 ];
+
+/**
+ * نوع بيانات الإحصائيات القادمة من API
+ */
+interface StatsApiResponse {
+  properties: number;
+  users: number;
+  bookings: number;
+  contracts: number;
+}
+
+/**
+* ربط بيانات API بالتسميات والأيقونات
+* يُنشئ مصفوفة StatItem من البيانات الحقيقية
+*/
+function mapApiToStats(data: StatsApiResponse): StatItem[] {
+  return [
+    { value: data.properties, suffix: '+', labelAr: 'عقار متاح', labelEn: 'Properties', icon: '🏠' },
+    { value: data.users, suffix: '+', labelAr: 'عميل سعيد', labelEn: 'Happy Clients', icon: '👥' },
+    { value: data.bookings, suffix: '+', labelAr: 'حجز مكتمل', labelEn: 'Bookings', icon: '📋' },
+    { value: data.contracts, suffix: '+', labelAr: 'عقد موقع', labelEn: 'Contracts', icon: '📝' },
+  ];
+}
 
 function AnimatedCounter({ target, suffix }: { target: number; suffix: string }) {
   const [count, setCount] = useState(0);
@@ -57,8 +85,46 @@ function AnimatedCounter({ target, suffix }: { target: number; suffix: string })
   );
 }
 
+/**
+ * مكون شريط الإحصائيات — الآن متصل بقاعدة البيانات عبر API
+ * يجلب الأرقام الحقيقية من Prisma ويعرضها مع عداد متحرك
+ */
 export default function StatsBar() {
   const locale = useLocale();
+  const [stats, setStats] = useState<StatItem[]>(fallbackStats); // البيانات الافتراضية أولاً
+  const [isLoading, setIsLoading] = useState(true); // حالة التحميل
+
+  /**
+   * جلب الإحصائيات الحقيقية من API عند تحميل المكون
+   * يستخدم التخزين المؤقت على مستوى Next.js (unstable_cache)
+   */
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const response = await fetch('/api/stats', {
+          // استخدام cache: 'no-store' لضمان الحصول على بيانات محدثة
+          // بينما يتولى unstable_cache في API Route التخزين المؤقت
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error(`فشل في جلب الإحصائيات: ${response.status}`);
+        }
+
+        const data: StatsApiResponse = await response.json();
+
+        // تحديث الإحصائيات بالبيانات الحقيقية من Prisma
+        setStats(mapApiToStats(data));
+      } catch (error) {
+        console.error('[StatsBar] خطأ في جلب الإحصائيات:', error);
+        // في حالة الخطأ، نبقي البيانات الافتراضية (fallbackStats)
+      } finally {
+        setIsLoading(false); // إنهاء حالة التحميل
+      }
+    }
+
+    fetchStats();
+  }, []); // يُنفذ مرة واحدة عند التحميل
 
   return (
     <section className="relative py-16 bg-gradient-to-r from-[#1A1A2E] via-[#1A1A2E] to-[#0d3b2e]">
@@ -78,7 +144,11 @@ export default function StatsBar() {
                 <span className="text-3xl">{stat.icon}</span>
               </div>
               <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-                <AnimatedCounter target={stat.value} suffix={stat.suffix} />
+                {/* العداد المتحرك — يعرض القيمة الحقيقية من Prisma */}
+                <AnimatedCounter
+                  target={stat.value}
+                  suffix={stat.suffix}
+                />
               </div>
               <div className="text-white/70 text-sm md:text-base font-medium">
                 {locale === 'ar' ? stat.labelAr : stat.labelEn}

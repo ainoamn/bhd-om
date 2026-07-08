@@ -19,6 +19,33 @@ import { applyUserIdentityToContactJson } from '@/lib/server/applyUserIdentityTo
 import { prisma } from '@/lib/prisma';
 import { loadCanonicalContractStatusesFromNeon } from '@/lib/server/contractLifecycle';
 
+// ── In-memory Bridge Payload cache ──────────────────────────────────
+// Key: `${authUserId}:${locale}` | TTL: 60s
+// Caches the full LegacyBridgePayload per user to avoid repeated
+// Prisma queries + contract lifecycle computation.
+const BRIDGE_PAYLOAD_CACHE_TTL_MS = 60_000;
+const _bridgePayloadCache = new Map<
+  string,
+  { payload: LegacyBridgePayload; timestamp: number }
+>();
+
+function _bridgeCacheKey(authUserId: string, locale: string): string {
+  return `${authUserId}:${locale}`;
+}
+function _bridgeCacheGet(key: string): LegacyBridgePayload | undefined {
+  const entry = _bridgePayloadCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.timestamp > BRIDGE_PAYLOAD_CACHE_TTL_MS) {
+    _bridgePayloadCache.delete(key);
+    return undefined;
+  }
+  return entry.payload;
+}
+function _bridgeCacheSet(key: string, payload: LegacyBridgePayload): void {
+  _bridgePayloadCache.set(key, { payload, timestamp: Date.now() });
+}
+// ────────────────────────────────────────────────────────────────────
+
 export const BHD_SITE_SSO_PASSWORD = '__BHD_SITE_SSO__';
 
 export const LEGACY_PERMISSION_KEYS = [
@@ -659,6 +686,13 @@ export async function buildLegacyBridgeMinimalPayload(
   authUserId: string,
   locale: 'ar' | 'en' = 'ar'
 ): Promise<LegacyBridgePayload | null> {
+  // Check in-memory cache first (bypasses Prisma user lookup + contract lifecycle)
+  const cacheKey = _bridgeCacheKey(authUserId, locale);
+  const cached = _bridgeCacheGet(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const currentDbUser = await prisma.user.findUnique({
     where: { id: authUserId },
     select: {
@@ -692,7 +726,7 @@ export async function buildLegacyBridgeMinimalPayload(
     console.warn('buildLegacyBridgeMinimalPayload contractLifecycle', eCanon);
   }
 
-  return {
+  const payload: LegacyBridgePayload = {
     siteIntegrated: true,
     version: 1,
     syncedAt: new Date().toISOString(),
@@ -718,6 +752,11 @@ export async function buildLegacyBridgeMinimalPayload(
     },
     currentUser,
   };
+
+  // Store in shared memory cache for subsequent requests (TTL: 60s)
+  _bridgeCacheSet(cacheKey, payload);
+
+  return payload;
 }
 
 export async function buildLegacyBridgePayload(

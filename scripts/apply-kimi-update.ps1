@@ -5,11 +5,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $kimReview = Join-Path $SourceRoot 'bhd-review'
+$kimPerf = Join-Path $SourceRoot 'bhd-review-performance'
+$kimData = Join-Path $SourceRoot 'bhd-review-data'
 $kimArch = Join-Path $SourceRoot 'archive-and-encryption'
 $dst = Split-Path $PSScriptRoot -Parent
 
-function Copy-KimiFile([string]$rel) {
-  foreach ($base in @($kimReview, $kimArch)) {
+function Copy-KimiFile([string]$rel, [string[]]$bases) {
+  foreach ($base in $bases) {
+    if (-not $base) { continue }
     $p = Join-Path $base $rel
     if (Test-Path -LiteralPath $p) {
       $target = Join-Path $dst $rel
@@ -37,35 +40,34 @@ $files = @(
   'app/api/upload/company/route.ts','app/api/upload/booking-documents/route.ts',
   'app/api/upload/accounting/route.ts',
   'components/admin/SecurityMonitor.tsx','app/api/admin/plans/route.ts',
-  'components/home/HeroOman.tsx','components/home/StatsBar.tsx',
-  'components/home/WhyChooseUs.tsx','components/home/OmanGallery.tsx',
-  'components/home/CtaSection.tsx'
+  'components/home/HeroOman.tsx','components/home/StatsBar.tsx','components/home/StatsBarSkeleton.tsx',
+  'components/home/WhyChooseUs.tsx','components/home/OmanGallery.tsx','components/home/CtaSection.tsx',
+  'app/api/stats/route.ts',
+  'lib/server/contractLifecycle.ts','lib/server/legacyBridge.ts',
+  'app/api/admin/legacy-real-estate/[[...path]]/route.ts'
 )
 
 $copied = @()
 foreach ($f in $files) {
-  $r = Copy-KimiFile $f
+  $bases = @($kimReview, $kimPerf, $kimData, $kimArch)
+  $r = Copy-KimiFile $f $bases
   if ($r) { $copied += $r; Write-Host "OK $r" }
 }
 
-# Oman images
+# Skip next.config.ts and lib/prisma.ts — cacheComponents/ppr and relationLoadStrategy break this codebase
+
 $omanSrc = Join-Path $kimReview 'public\images\oman'
 $omanDst = Join-Path $dst 'public\images\oman'
 if (Test-Path -LiteralPath $omanSrc) {
   New-Item -ItemType Directory -Path $omanDst -Force | Out-Null
   Get-ChildItem -LiteralPath $omanSrc -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $omanDst $_.Name) -Force
-    $copied += "public/images/oman/$($_.Name)"
     Write-Host "IMG $($_.Name)"
   }
 }
 
 $docsDst = Join-Path $dst 'docs\kimi-review'
 New-Item -ItemType Directory -Path $docsDst -Force | Out-Null
-@('architecture_review_report.md','performance_review_report.md','security_review_report.md','plan.md') | ForEach-Object {
-  $s = Join-Path $SourceRoot $_
-  if (Test-Path -LiteralPath $s) { Copy-Item -LiteralPath $s -Destination (Join-Path $docsDst $_) -Force; Write-Host "DOC $_" }
-}
 Get-ChildItem -LiteralPath $SourceRoot -Filter '*.md' -File | ForEach-Object {
   Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $docsDst $_.Name) -Force
   Write-Host "DOC $($_.Name)"

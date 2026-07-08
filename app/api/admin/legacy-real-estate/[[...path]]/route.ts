@@ -13,6 +13,32 @@ import { isAdminLikeRole } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
+// ── In-memory HTML cache ────────────────────────────────────────────
+// Key: `${fileName}:${locale}:${bridgeStatus}` | TTL: 300s (5 min)
+type HtmlCacheEntry = { body: Buffer; timestamp: number; etag: string };
+const HTML_CACHE_TTL_MS = 300_000;
+const _htmlCache = new Map<string, HtmlCacheEntry>();
+
+function _htmlCacheKey(fileName: string, locale: string, bridgeStatus: string): string {
+  return `${fileName}:${locale}:${bridgeStatus}`;
+}
+function _htmlCacheGet(key: string): HtmlCacheEntry | undefined {
+  const entry = _htmlCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.timestamp > HTML_CACHE_TTL_MS) {
+    _htmlCache.delete(key);
+    return undefined;
+  }
+  return entry;
+}
+function _htmlCacheSet(key: string, body: Buffer): HtmlCacheEntry {
+  const etag = `bhd-html-${Date.now().toString(36)}-${body.length.toString(16)}`;
+  const entry: HtmlCacheEntry = { body, timestamp: Date.now(), etag };
+  _htmlCache.set(key, entry);
+  return entry;
+}
+// ────────────────────────────────────────────────────────────────────
+
 type RouteContext = { params: Promise<{ path?: string[] }> };
 
 function requireLegacyAdminAccess(
@@ -47,7 +73,26 @@ export async function GET(req: NextRequest, context: RouteContext) {
     if (isMainHtml) {
       const embedded = await buildLegacyBridgeMinimalPayload(userId, locale);
       bridgeStatus = embedded ? 'embedded' : 'empty';
+
+      // Check in-memory HTML cache (bypasses disk read + bridge injection)
+      const cacheKey = _htmlCacheKey(fileName, locale, bridgeStatus);
+      const cached = _htmlCacheGet(cacheKey);
+      if (cached) {
+        return new NextResponse(new Uint8Array(cached.body), {
+          status: 200,
+          headers: {
+            'Content-Type': contentTypeForLegacyFile(fileName),
+            'Cache-Control': 'private, max-age=0, must-revalidate, stale-while-revalidate=300',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Bhd-Bridge': bridgeStatus,
+            'X-Bhd-Cache': 'HIT',
+            'ETag': cached.etag,
+          },
+        });
+      }
+
       body = await readLegacyRealEstateHtmlWithBridge(segments, embedded);
+      _htmlCacheSet(cacheKey, body);
     } else {
       body = await readLegacyRealEstateFile(segments);
     }
@@ -56,9 +101,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
       status: 200,
       headers: {
         'Content-Type': contentTypeForLegacyFile(fileName),
-        'Cache-Control': 'private, no-store, must-revalidate',
+        'Cache-Control': 'private, max-age=0, must-revalidate, stale-while-revalidate=300',
         'X-Content-Type-Options': 'nosniff',
         'X-Bhd-Bridge': bridgeStatus,
+        'X-Bhd-Cache': 'MISS',
       },
     });
   } catch (error) {
