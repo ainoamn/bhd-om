@@ -13,7 +13,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { createChecksum } from '@/lib/encryption';
+import { createChecksum, encrypt, decrypt } from '@/lib/encryption';
 
 // ──────────────────────────────────────────
 // الأنواع
@@ -28,6 +28,18 @@ const ALLOWED_ROLES: UserRole[] = ['ADMIN', 'ORG_MANAGER'];
 
 export function canArchive(role: UserRole): boolean { return ALLOWED_ROLES.includes(role); }
 export function canRestore(role: UserRole): boolean { return ALLOWED_ROLES.includes(role); }
+
+const ENC_PREFIX = 'enc:v1:';
+
+function encryptSnapshot(plain: string): string {
+  if (plain.startsWith(ENC_PREFIX)) return plain;
+  return ENC_PREFIX + encrypt(plain);
+}
+
+function decryptSnapshot(stored: string): string {
+  if (!stored.startsWith(ENC_PREFIX)) return stored;
+  return decrypt(stored.slice(ENC_PREFIX.length));
+}
 
 // ──────────────────────────────────────────
 // أرشفة الكيانات
@@ -63,6 +75,7 @@ export async function archiveEntity(
   }
 
   try {
+    const encryptedSnapshot = encryptSnapshot(dataSnapshot);
     const checksum = createChecksum(dataSnapshot);
     const record = await prisma.archiveRecord.create({
       data: {
@@ -73,7 +86,7 @@ export async function archiveEntity(
         status: 'COMPLETED',
         reason: options.reason,
         notes: options.notes,
-        dataSnapshot,
+        dataSnapshot: encryptedSnapshot,
         checksum,
         archivedById,
         isAutoArchive: options.isAutoArchive || false,
@@ -108,7 +121,12 @@ export async function searchArchive(
     prisma.archiveRecord.count({ where }),
   ]);
 
-  return { records, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  const decryptedRecords = records.map((r) => ({
+    ...r,
+    dataSnapshot: decryptSnapshot(r.dataSnapshot),
+  }));
+
+  return { records: decryptedRecords, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
 // ──────────────────────────────────────────

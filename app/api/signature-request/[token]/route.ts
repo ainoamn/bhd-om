@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { SignatureRequest } from '@/lib/signatureRequests';
+import { rateLimitRequest } from '@/lib/rate-limit';
 
 function findSignatureInBooking(booking: any, token: string): SignatureRequest | null {
   const list = Array.isArray(booking?.signatureRequests) ? (booking.signatureRequests as SignatureRequest[]) : [];
@@ -16,7 +17,10 @@ function splitName(full?: string) {
   };
 }
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  const limited = await rateLimitRequest(req, 'signature-token', 20, 60);
+  if (limited) return limited;
+
   try {
     const { token } = await ctx.params;
     const sigToken = String(token || '').trim();
@@ -70,6 +74,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ token: str
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  const limited = await rateLimitRequest(req, 'signature-token', 10, 60);
+  if (limited) return limited;
+
   try {
     const { token } = await ctx.params;
     const sigToken = String(token || '').trim();

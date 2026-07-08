@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { formatSerialNumber, getSerialCounterKey } from '@/lib/serial';
-import { seedDefaultAdminDataPinAbdul } from '@/lib/server/adminDataPin';
+import { seedDefaultAdminDataPinFromEnv } from '@/lib/server/adminDataPin';
 
 export const DEFAULT_PLANS = [
   { code: 'basic', nameAr: 'الخطة الأساسية', nameEn: 'Basic', priceMonthly: 29, priceYearly: 290, sortOrder: 1, featuresJson: '["حتى 5 عقارات","حتى 20 وحدة","إدارة حجوزات أساسية"]', limitsJson: '{"maxProperties":5,"maxUnits":20,"maxBookings":100,"maxUsers":1,"storageGB":1}' },
@@ -117,7 +117,7 @@ export async function executeResetKeepProperties(
     },
   });
 
-  await seedDefaultAdminDataPinAbdul();
+  await seedDefaultAdminDataPinFromEnv();
 
   return { adminEmail, serialNumber };
 }

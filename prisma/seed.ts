@@ -49,6 +49,10 @@ async function main() {
     console.log('Admin user created:', adminEmail, '(password:', adminPassword + ')');
   }
 
+  if (!process.env.ADMIN_DATA_RESET_PIN?.trim() && !process.env.ADMIN_DATA_RESET_PIN_DEV?.trim()) {
+    process.env.ADMIN_DATA_RESET_PIN_DEV = 'seed-dev-pin-8';
+  }
+
   await ensureAdminDataPinReady();
   console.log('Admin data security PIN ensured (AppSetting hash).');
 }

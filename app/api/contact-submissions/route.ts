@@ -1,39 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { rateLimitRequest } from '@/lib/rate-limit';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** إرسال رسالة تواصل من الزوار — عام */
+const contactSchema = z.object({
+  name: z.string().min(2).max(200),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().max(30).optional(),
+  message: z.string().max(5000).optional(),
+  type: z.enum(['CONTACT', 'CALLBACK']).optional(),
+});
+
+/** إرسال رسالة تواصل من الزوار */
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitRequest(req, 'contact', 5, 3600);
+  if (limited) return limited;
+
   try {
-    const body = (await req.json().catch(() => ({}))) as {
-      name?: string;
-      email?: string;
-      phone?: string;
-      message?: string;
-      type?: string;
-    };
-    const name = String(body.name || '').trim();
-    const email = String(body.email || '').trim().toLowerCase();
-    const type = String(body.type || 'CONTACT').trim().toUpperCase();
-    if (!name || name.length < 2) {
-      return NextResponse.json({ error: 'Name required' }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const parsed = contactSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
-    if (type === 'CONTACT' && (!email || !email.includes('@'))) {
+    const { name, email, phone, message, type } = parsed.data;
+    const typeNorm = (type || 'CONTACT').toUpperCase() as 'CONTACT' | 'CALLBACK';
+    const emailTrim = (email || '').trim().toLowerCase();
+
+    if (typeNorm === 'CONTACT' && !emailTrim) {
       return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
     }
-    if (type === 'CALLBACK' && !String(body.phone || '').trim()) {
+    if (typeNorm === 'CALLBACK' && !String(phone || '').trim()) {
       return NextResponse.json({ error: 'Phone required' }, { status: 400 });
     }
 
     const row = await prisma.contactSubmission.create({
       data: {
-        name,
-        email: email || `${name.replace(/\s+/g, '.').toLowerCase()}@callback.local`,
-        phone: String(body.phone || '').trim() || null,
-        message: String(body.message || '').trim() || null,
-        type: type === 'CALLBACK' ? 'CALLBACK' : 'CONTACT',
+        name: name.trim(),
+        email: emailTrim || `${name.replace(/\s+/g, '.').toLowerCase()}@callback.local`,
+        phone: String(phone || '').trim() || null,
+        message: String(message || '').trim() || null,
+        type: typeNorm === 'CALLBACK' ? 'CALLBACK' : 'CONTACT',
       },
     });
     return NextResponse.json({ ok: true, id: row.id }, { status: 201 });

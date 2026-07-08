@@ -1,4 +1,7 @@
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { getClientIp } from '@/lib/server/clientIp';
 
 const limiters: Record<string, RateLimiterMemory> = {};
 
@@ -15,7 +18,28 @@ export async function checkRateLimit(identifier: string, name: string = 'api', p
   try {
     const res = await limiter.consume(identifier, 1);
     return { allowed: true, remaining: res.remainingPoints };
-  } catch (rejRes: any) {
-    return { allowed: false, remaining: 0, resetTime: rejRes.msBeforeNext ? new Date(Date.now() + rejRes.msBeforeNext) : undefined };
+  } catch (rejRes: unknown) {
+    const ms = typeof rejRes === 'object' && rejRes !== null && 'msBeforeNext' in rejRes
+      ? Number((rejRes as { msBeforeNext?: number }).msBeforeNext)
+      : undefined;
+    return { allowed: false, remaining: 0, resetTime: ms ? new Date(Date.now() + ms) : undefined };
   }
+}
+
+/** rate limit لطلب HTTP — يُرجع 429 أو null */
+export async function rateLimitRequest(
+  req: NextRequest,
+  name: string,
+  points: number,
+  durationSec: number
+): Promise<NextResponse | null> {
+  const ip = getClientIp(req);
+  const result = await checkRateLimit(`${name}:${ip}`, name, points, durationSec);
+  if (!result.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests', retryAfter: result.resetTime?.toISOString() },
+      { status: 429, headers: result.resetTime ? { 'Retry-After': String(Math.ceil((result.resetTime.getTime() - Date.now()) / 1000)) } : {} }
+    );
+  }
+  return null;
 }

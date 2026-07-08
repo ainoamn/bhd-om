@@ -14,10 +14,17 @@ import crypto from 'crypto';
 // إعدادات الأمان
 // ==========================================
 
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export const SECURITY_CONFIG = {
   LOGIN_ATTEMPTS: {
-    MAX_ATTEMPTS: 5,
-    LOCKOUT_DURATION: 15 * 60 * 1000,
+    MAX_ATTEMPTS: envInt('MAX_LOGIN_ATTEMPTS', 5),
+    LOCKOUT_DURATION: envInt('LOCKOUT_DURATION_MINUTES', 15) * 60 * 1000,
     ATTEMPT_WINDOW: 5 * 60 * 1000,
   },
   SESSION: {
@@ -179,11 +186,18 @@ export function createSessionFingerprint(req?: { headers?: Record<string, string
 // ==========================================
 
 function getMasterKey(): Buffer {
-  const key = process.env.ENCRYPTION_MASTER_KEY || process.env.NEXTAUTH_SECRET;
-  if (!key) {
+  const encKey = process.env.ENCRYPTION_MASTER_KEY?.trim();
+  if (encKey) {
+    return crypto.scryptSync(encKey, 'bhd-om-salt', SECURITY_CONFIG.ENCRYPTION.KEY_LENGTH);
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new EncryptionError('ENCRYPTION_MASTER_KEY is required in production');
+  }
+  const fallback = process.env.NEXTAUTH_SECRET?.trim();
+  if (!fallback) {
     throw new EncryptionError('ENCRYPTION_MASTER_KEY or NEXTAUTH_SECRET must be set');
   }
-  return crypto.scryptSync(key, 'bhd-om-salt', SECURITY_CONFIG.ENCRYPTION.KEY_LENGTH);
+  return crypto.scryptSync(fallback, 'bhd-om-salt', SECURITY_CONFIG.ENCRYPTION.KEY_LENGTH);
 }
 
 export function encryptSensitiveData(plaintext: string): string {
@@ -247,21 +261,25 @@ export function auditSecurityEvent(event: SecurityEvent): void {
     timestamp: new Date().toISOString(),
     ...event,
   };
-  
-  // في المتصفح: استخدم localStorage كـ fallback
-  if (typeof window !== 'undefined') {
+
+  if (typeof window === 'undefined') {
+    void import('@/lib/server/securityAudit').then(({ logSecurityEventServer }) =>
+      logSecurityEventServer(event)
+    );
+  } else {
     try {
       const existingLogs = JSON.parse(localStorage.getItem('security_audit_logs') || '[]');
       existingLogs.push(auditLog);
       if (existingLogs.length > 1000) existingLogs.splice(0, existingLogs.length - 1000);
       localStorage.setItem('security_audit_logs', JSON.stringify(existingLogs));
     } catch {
-      // ignore localStorage errors
+      /* ignore */
     }
   }
-  
-  // دائماً: اطبع في console (يُزال في الإنتاج عبر next.config.ts)
-  console.log('[SECURITY_AUDIT]', auditLog);
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[SECURITY_AUDIT]', auditLog);
+  }
 }
 
 // ==========================================

@@ -5,6 +5,7 @@ import { put } from '@vercel/blob';
 import { prisma } from '@/lib/prisma';
 import { isAllowedBrowserOrigin } from '@/lib/server/requestOrigin';
 import { apiGuard } from '@/lib/api-guard';
+import { documentServeUrl } from '@/lib/server/documentAccessToken';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'booking-documents');
 
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
           content: buffer,
         },
       });
-      const url = `/api/upload/booking-documents/serve/${row.id}`;
+      const url = documentServeUrl(row.id);
       return NextResponse.json({ url, name: file.name });
     }
 

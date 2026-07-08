@@ -40,9 +40,16 @@ export class DecryptionError extends Error {
 // المفتاح الرئيسي
 // ──────────────────────────────────────────
 function getMasterKey(): Buffer {
-  const mk = process.env.ENCRYPTION_MASTER_KEY || process.env.NEXTAUTH_SECRET;
-  if (!mk) throw new EncryptionError('ENCRYPTION_MASTER_KEY or NEXTAUTH_SECRET must be set');
-  return crypto.scryptSync(mk, 'bhd-om-salt', KEY_LENGTH);
+  const encKey = process.env.ENCRYPTION_MASTER_KEY?.trim();
+  if (encKey) {
+    return crypto.scryptSync(encKey, 'bhd-om-salt', KEY_LENGTH);
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new EncryptionError('ENCRYPTION_MASTER_KEY is required in production');
+  }
+  const fallback = process.env.NEXTAUTH_SECRET?.trim();
+  if (!fallback) throw new EncryptionError('ENCRYPTION_MASTER_KEY or NEXTAUTH_SECRET must be set');
+  return crypto.scryptSync(fallback, 'bhd-om-salt', KEY_LENGTH);
 }
 
 // ──────────────────────────────────────────

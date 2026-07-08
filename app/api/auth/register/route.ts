@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { generateBhdSerial } from '@/lib/server/serialNumbers';
 import { ensureAddressBookContactForUser } from '@/lib/server/ensureAddressBookForUser';
+import { rateLimitRequest } from '@/lib/rate-limit';
+import { validatePasswordStrength } from '@/lib/security';
 
 function normalizeDigitsPhone(raw: string): string {
   let digits = raw.replace(/\D/g, '');
@@ -17,10 +19,13 @@ const registerSchema = z.object({
   name: z.string().min(2, 'Name too short'),
   email: z.string().email('Invalid email'),
   phone: z.string().min(8, 'Phone too short'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const limited = await rateLimitRequest(req, 'register', 5, 3600);
+  if (limited) return limited;
+
   try {
     const body = await req.json();
     const parsed = registerSchema.safeParse(body);
@@ -31,6 +36,15 @@ export async function POST(req: Request) {
       );
     }
     const { name, email, phone, password } = parsed.data;
+
+    const strength = validatePasswordStrength(password);
+    if (!strength.isValid) {
+      return NextResponse.json(
+        { error: strength.feedback[0] ?? 'Password too weak' },
+        { status: 400 }
+      );
+    }
+
     const emailLower = email.toLowerCase().trim();
     const phoneNorm = normalizeDigitsPhone(phone);
 

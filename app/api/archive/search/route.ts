@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { getAuthSecret } from '@/lib/server/authSecret';
 import { searchArchive } from '@/lib/archive';
 import type { ArchiveEntityType } from '@/lib/archive';
 
+const ARCHIVE_ROLES = new Set(['ADMIN', 'ORG_MANAGER', 'SUPER_ADMIN']);
+
 export async function GET(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({ req, secret: getAuthSecret() });
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const role = (token.role as string)?.toUpperCase();
-  if (role !== 'ADMIN' && role !== 'ORG_MANAGER') {
+  if (!role || !ARCHIVE_ROLES.has(role)) {
     return NextResponse.json({ error: 'ليس لديك صلاحية الوصول' }, { status: 403 });
   }
 
@@ -23,11 +26,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({ req, secret: getAuthSecret() });
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const role = (token.role as string)?.toUpperCase();
-  if (role !== 'ADMIN' && role !== 'ORG_MANAGER') {
+  if (!role || !ARCHIVE_ROLES.has(role)) {
     return NextResponse.json({ error: 'ليس لديك صلاحية الوصول' }, { status: 403 });
   }
 

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { completePendingPayment } from '@/lib/server/completePendingPayment';
 import { markPaymentPendingStatus } from '@/lib/server/repositories/paymentPendingRepo';
+import { getThawaniWebhookSecret, isProduction } from '@/lib/server/envValidation';
+import { timingSafeCompare } from '@/lib/security';
+import { rateLimitRequest } from '@/lib/rate-limit';
 
 function extractSessionId(body: Record<string, unknown>): string {
   const data = (body.data as Record<string, unknown> | undefined) || {};
@@ -14,11 +17,21 @@ function extractSessionId(body: Record<string, unknown>): string {
 }
 
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitRequest(req, 'webhook-thawani', 60, 60);
+  if (limited) return limited;
+
   try {
-    const webhookSecret = (process.env.THAWANI_WEBHOOK_SECRET || '').trim();
+    let webhookSecret = '';
+    try {
+      webhookSecret = isProduction()
+        ? getThawaniWebhookSecret()
+        : (process.env.THAWANI_WEBHOOK_SECRET || '').trim();
+    } catch {
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+    }
     if (webhookSecret) {
-      const headerSecret = req.headers.get('x-webhook-secret') || req.headers.get('thawani-webhook-secret');
-      if (headerSecret !== webhookSecret) {
+      const headerSecret = req.headers.get('x-webhook-secret') || req.headers.get('thawani-webhook-secret') || '';
+      if (!timingSafeCompare(headerSecret, webhookSecret)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
     }

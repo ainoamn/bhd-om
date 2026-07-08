@@ -1,14 +1,32 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import type { Contact } from '@/lib/data/addressBook';
 import { getContactDisplayName, isCompanyContact } from '@/lib/data/addressBook';
 import { prisma } from '@/lib/prisma';
 import { withAddressBookSchemaHeal } from '@/lib/server/addressBookDbCompat';
+import { rateLimitRequest } from '@/lib/rate-limit';
 
-/** API عامة لعرض بيانات جهة الاتصال عند مسح الباركود — لا تتطلب تسجيل دخول */
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email || email.includes('@nologin.bhd')) return null;
+  const [local, domain] = email.split('@');
+  if (!domain) return null;
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
+function maskPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 4) return null;
+  return `***${digits.slice(-4)}`;
+}
+
+/** API لمسح باركود جهة اتصال — عام مع rate limit وتقليل PII */
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ contactId: string }> }
 ) {
+  const limited = await rateLimitRequest(req, 'scan-contact', 30, 60);
+  if (limited) return limited;
+
   try {
     const { contactId } = await params;
     if (!contactId) return NextResponse.json({ error: 'Missing contactId' }, { status: 400 });
@@ -40,7 +58,6 @@ export async function GET(
     }
 
     const isCompany = isCompanyContact(contact);
-    const safeEmail = contact.email?.includes('@nologin.bhd') ? null : contact.email || null;
 
     return NextResponse.json({
       id: contact.id,
@@ -49,13 +66,15 @@ export async function GET(
       nameEn: getContactDisplayName(contact, 'en'),
       contactType: contact.contactType || 'PERSONAL',
       category: contact.category,
-      phone: contact.phone || null,
-      phoneSecondary: contact.phoneSecondary || null,
-      email: safeEmail,
+      phone: maskPhone(contact.phone),
+      phoneSecondary: maskPhone(contact.phoneSecondary),
+      email: maskEmail(contact.email),
       nationality: contact.nationality || null,
-      civilId: contact.civilId || null,
+      civilId: contact.civilId ? '***' : null,
       commercialRegistrationNumber: isCompany
-        ? contact.companyData?.commercialRegistrationNumber || null
+        ? contact.companyData?.commercialRegistrationNumber
+          ? '***'
+          : null
         : null,
       linkedUserId,
       createdAt: contact.createdAt || row.createdAt?.toISOString?.() || null,

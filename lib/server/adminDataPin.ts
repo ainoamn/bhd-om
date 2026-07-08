@@ -6,11 +6,23 @@ export const APP_SETTING_ADMIN_DATA_PIN_KEY = 'admin_data_reset_pin_hash';
 
 const MIN_LEN = 8;
 
-/** القيمة الافتراضية عند أول تشغيل أو بعد تصفير قاعدة البيانات (لا تُعرَض في الواجهة). */
-const DEFAULT_ADMIN_DATA_PIN_PLAIN = 'Abdul100189@';
+function resolveInitialPin(): string {
+  const envPin = process.env.ADMIN_DATA_RESET_PIN?.trim();
+  if (envPin && envPin.length >= MIN_LEN) return envPin;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'ADMIN_DATA_RESET_PIN must be set (8+ chars) before first use in production. Set it in Vercel Environment Variables.'
+    );
+  }
+  const devPin = process.env.ADMIN_DATA_RESET_PIN_DEV?.trim();
+  if (devPin && devPin.length >= MIN_LEN) return devPin;
+  throw new Error(
+    'ADMIN_DATA_RESET_PIN or ADMIN_DATA_RESET_PIN_DEV (8+ chars) required for admin data operations'
+  );
+}
 
 /**
- * يضمن وجود صف رمز الحماية: إن لم يوجد، يُنشأ من `ADMIN_DATA_RESET_PIN` (إن وُجد 8+ أحرف) وإلا من الافتراضي أعلاه.
+ * يضمن وجود صف رمز الحماية — يُنشأ من ADMIN_DATA_RESET_PIN فقط (لا قيمة افتراضية في الكود).
  */
 export async function ensureAdminDataPinReady(): Promise<void> {
   const row = await prisma.appSetting.findUnique({
@@ -18,8 +30,7 @@ export async function ensureAdminDataPinReady(): Promise<void> {
   });
   if (row) return;
 
-  const envPin = process.env.ADMIN_DATA_RESET_PIN?.trim();
-  const plain = envPin && envPin.length >= MIN_LEN ? envPin : DEFAULT_ADMIN_DATA_PIN_PLAIN;
+  const plain = resolveInitialPin();
   const h = await hash(plain, 10);
   await prisma.appSetting.create({
     data: {
@@ -29,14 +40,20 @@ export async function ensureAdminDataPinReady(): Promise<void> {
   });
 }
 
-/** بعد تصفير DB مع حذف `AppSetting` — يُعاد دائماً الافتراضي Abdul100189@ (مستقل عن env). */
-export async function seedDefaultAdminDataPinAbdul(): Promise<void> {
-  const h = await hash(DEFAULT_ADMIN_DATA_PIN_PLAIN, 10);
+/** بعد تصفير DB — يُعاد PIN من env فقط */
+export async function seedDefaultAdminDataPinFromEnv(): Promise<void> {
+  const plain = resolveInitialPin();
+  const h = await hash(plain, 10);
   await prisma.appSetting.upsert({
     where: { key: APP_SETTING_ADMIN_DATA_PIN_KEY },
     create: { key: APP_SETTING_ADMIN_DATA_PIN_KEY, value: h },
     update: { value: h },
   });
+}
+
+/** @deprecated استخدم seedDefaultAdminDataPinFromEnv */
+export async function seedDefaultAdminDataPinAbdul(): Promise<void> {
+  return seedDefaultAdminDataPinFromEnv();
 }
 
 export async function isAdminDataPinConfigured(): Promise<boolean> {

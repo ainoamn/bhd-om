@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { getAuthSecret } from '@/lib/server/authSecret';
 
 export interface GuardOptions {
   requiredRoles?: string[];
@@ -7,12 +8,14 @@ export interface GuardOptions {
   requireAuth?: boolean;
 }
 
+const ADMIN_LIKE = new Set(['ADMIN', 'SUPER_ADMIN', 'ORG_MANAGER', 'ACCOUNTANT']);
+
 export async function apiGuard(req: NextRequest, options: GuardOptions = {}) {
-  const { requiredRoles = [], requireAuth = true } = options;
+  const { requiredRoles = [], requiredPermissions = [], requireAuth = true } = options;
 
   if (!requireAuth) return { user: null, allowed: true };
 
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({ req, secret: getAuthSecret() });
   if (!token) {
     return { user: null, allowed: false, response: NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED' }, { status: 401 }) };
   }
@@ -20,6 +23,13 @@ export async function apiGuard(req: NextRequest, options: GuardOptions = {}) {
   const userRole = (token.role as string)?.toUpperCase();
   if (requiredRoles.length > 0 && !requiredRoles.includes(userRole || '')) {
     return { user: token, allowed: false, response: NextResponse.json({ error: 'Forbidden', code: 'INSUFFICIENT_PERMISSIONS' }, { status: 403 }) };
+  }
+
+  if (requiredPermissions.length > 0) {
+    const isSuper = userRole === 'SUPER_ADMIN' || (token as { isSuperAdmin?: boolean }).isSuperAdmin;
+    if (!isSuper && userRole && !ADMIN_LIKE.has(userRole)) {
+      return { user: token, allowed: false, response: NextResponse.json({ error: 'Forbidden', code: 'PERMISSION_DENIED' }, { status: 403 }) };
+    }
   }
 
   return { user: token, allowed: true };

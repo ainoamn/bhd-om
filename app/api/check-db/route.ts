@@ -1,19 +1,21 @@
 /**
- * التحقق من أن قاعدة البيانات PostgreSQL متصلة وتستجيب.
- * افتح: https://www.bhd-om.com/api/check-db
+ * التحقق من اتصال PostgreSQL — في الإنتاج: ADMIN فقط
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdminForDiagnostics } from '@/lib/server/adminAccess';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const blocked = await requireAdminForDiagnostics(req);
+  if (blocked) return blocked;
+
   try {
     await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json({
       ok: true,
       database: 'متصل بنجاح',
-      message: 'قاعدة البيانات PostgreSQL تعمل بشكل صحيح.',
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -21,8 +23,7 @@ export async function GET() {
       {
         ok: false,
         database: 'غير متصل أو خطأ',
-        error: message,
-        hint: 'تأكد من تعيين DATABASE_URL في Vercel (رابط Pooled من Neon) ثم Redeploy.',
+        error: process.env.NODE_ENV === 'production' ? 'Database error' : message,
       },
       { status: 503 }
     );
