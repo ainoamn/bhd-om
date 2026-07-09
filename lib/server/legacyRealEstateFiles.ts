@@ -5,6 +5,8 @@ import { injectLegacySiteBridgeScript } from '@/lib/server/legacyBridge';
 
 const LEGACY_ROOT = path.join(process.cwd(), 'legacy', 'bhd-real-estate');
 
+let _mainHtmlCache: { buf: Buffer; mtimeMs: number } | null = null;
+
 const MIME_BY_EXT: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -37,6 +39,16 @@ export function contentTypeForLegacyFile(filePath: string): string {
 
 export async function readLegacyRealEstateFile(segments: string[] | undefined): Promise<Buffer> {
   const full = resolveLegacyRealEstatePath(segments);
+  const isMainHtml = path.basename(full) === 'bhd-real-estate.html';
+  if (isMainHtml) {
+    const stat = await fs.stat(full);
+    if (_mainHtmlCache && _mainHtmlCache.mtimeMs === stat.mtimeMs) {
+      return _mainHtmlCache.buf;
+    }
+    const buf = await fs.readFile(full);
+    _mainHtmlCache = { buf, mtimeMs: stat.mtimeMs };
+    return buf;
+  }
   return fs.readFile(full);
 }
 

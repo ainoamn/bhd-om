@@ -603,7 +603,7 @@
         }
         if (!bhdApiAvailable) return false;
         try {
-            const r = await fetch('/api/kv?prefix=bhd_', { cache: 'no-store' });
+            const r = await fetch('/api/kv?prefix=bhd_', { credentials: 'include', cache: 'no-store' });
             if (!r.ok) return false;
             const all = await r.json();
             let any = false;

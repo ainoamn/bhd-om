@@ -30,7 +30,11 @@ export async function GET(req: NextRequest) {
         byUnit: result.byUnit,
       },
       {
-        headers: { 'Cache-Control': 'private, no-store, must-revalidate' },
+        headers: {
+          'Cache-Control': reconcile
+            ? 'private, no-store, must-revalidate'
+            : 'private, max-age=30, stale-while-revalidate=120',
+        },
       }
     );
   } catch (error) {

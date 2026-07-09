@@ -412,7 +412,7 @@ export type ReconcileContractsResult = ContractStatusMaps & {
 
 // ── In-memory contract lifecycle cache ──────────────────────────────
 // Shared across all requests | TTL: 60s
-const CONTRACT_LIFECYCLE_CACHE_TTL_MS = 60_000;
+const CONTRACT_LIFECYCLE_CACHE_TTL_MS = 300_000;
 let _contractLifecycleCache: {
   statuses: Record<string, ContractLifecycleStatus>;
   byUnit: Record<string, ContractLifecycleStatus>;

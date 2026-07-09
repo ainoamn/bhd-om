@@ -14,13 +14,13 @@ import { isAdminLikeRole } from '@/lib/auth/roles';
 export const dynamic = 'force-dynamic';
 
 // ── In-memory HTML cache ────────────────────────────────────────────
-// Key: `${fileName}:${locale}:${bridgeStatus}` | TTL: 300s (5 min)
+// Key: `${fileName}:${locale}:${bridgeStatus}:${userId}` | TTL: 300s (5 min)
 type HtmlCacheEntry = { body: Buffer; timestamp: number; etag: string };
 const HTML_CACHE_TTL_MS = 300_000;
 const _htmlCache = new Map<string, HtmlCacheEntry>();
 
-function _htmlCacheKey(fileName: string, locale: string, bridgeStatus: string): string {
-  return `${fileName}:${locale}:${bridgeStatus}`;
+function _htmlCacheKey(fileName: string, locale: string, bridgeStatus: string, userId: string): string {
+  return `${fileName}:${locale}:${bridgeStatus}:${userId}`;
 }
 function _htmlCacheGet(key: string): HtmlCacheEntry | undefined {
   const entry = _htmlCache.get(key);
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       bridgeStatus = embedded ? 'embedded' : 'empty';
 
       // Check in-memory HTML cache (bypasses disk read + bridge injection)
-      const cacheKey = _htmlCacheKey(fileName, locale, bridgeStatus);
+      const cacheKey = _htmlCacheKey(fileName, locale, bridgeStatus, userId);
       const cached = _htmlCacheGet(cacheKey);
       if (cached) {
         return new NextResponse(new Uint8Array(cached.body), {

@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth/guard';
-import { isAdminLikeRole } from '@/lib/auth/roles';
 import { getLegacyKvBulk } from '@/lib/server/legacyKvStore';
+import { requireLegacyKvApiAccess } from '@/lib/server/legacyKvApiAuth';
 
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET ?prefix=bhd_ — جلب بيانات النظام القديم من PostgreSQL */
+/** GET ?prefix=bhd_&keys=k1,k2 — توافق مع النظام القديم /api/kv */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAuth(req);
+    const auth = await requireLegacyKvApiAccess(req);
     if (auth instanceof NextResponse) return auth;
-
-    const roleOk = isAdminLikeRole(auth.role) || auth.role === 'ADMIN' || auth.role === 'SUPER_ADMIN';
-    if (!roleOk) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
     const prefix = req.nextUrl.searchParams.get('prefix') || 'bhd_';
     const keysParam = req.nextUrl.searchParams.get('keys') || '';
@@ -24,6 +19,7 @@ export async function GET(req: NextRequest) {
           .map((k) => k.trim())
           .filter(Boolean)
       : undefined;
+
     const data = await getLegacyKvBulk(prefix, keys);
 
     return NextResponse.json(data, {
@@ -34,7 +30,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('legacy kv GET error', error);
+    console.error('GET /api/kv error', error);
     return NextResponse.json({ error: 'Failed to load legacy data' }, { status: 500 });
   }
 }

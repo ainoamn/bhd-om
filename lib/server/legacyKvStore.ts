@@ -50,6 +50,32 @@ export type LegacyKvPullResult = LegacyKvBulkPayload & {
   _meta?: Record<string, { updatedAt: string }>;
 };
 
+// ── KV bulk read cache (shared across requests) ─────────────────────
+const KV_BULK_CACHE_TTL_MS = 45_000;
+const _kvBulkCache = new Map<string, { data: LegacyKvPullResult; expires: number }>();
+
+function kvBulkCacheKey(prefix: string, keys?: string[]): string {
+  return keys?.length ? `keys:${[...keys].sort().join(',')}` : `prefix:${prefix}`;
+}
+
+function kvBulkCacheGet(key: string): LegacyKvPullResult | undefined {
+  const hit = _kvBulkCache.get(key);
+  if (!hit || hit.expires <= Date.now()) {
+    _kvBulkCache.delete(key);
+    return undefined;
+  }
+  return hit.data;
+}
+
+function kvBulkCacheSet(key: string, data: LegacyKvPullResult): void {
+  _kvBulkCache.set(key, { data, expires: Date.now() + KV_BULK_CACHE_TTL_MS });
+}
+
+/** إبطال الكاش بعد الكتابة */
+export function invalidateLegacyKvBulkCache(): void {
+  _kvBulkCache.clear();
+}
+
 function rowToEntry(row: { kvKey: string; data: string; updatedAt: Date }) {
   return {
     key: row.kvKey,
@@ -60,6 +86,10 @@ function rowToEntry(row: { kvKey: string; data: string; updatedAt: Date }) {
 
 /** جلب مفاتيح bhd_* من PostgreSQL — يمكن تمرير keys لسحب جزئي أسرع */
 export async function getLegacyKvBulk(prefix = 'bhd_', keys?: string[]): Promise<LegacyKvPullResult> {
+  const cacheKey = kvBulkCacheKey(prefix, keys);
+  const cached = kvBulkCacheGet(cacheKey);
+  if (cached) return cached;
+
   const validKeys = (keys || []).filter((k) => isLegacyKvKey(k));
   const rows = await prisma.legacyAppKvStore.findMany({
     where: validKeys.length
@@ -78,6 +108,7 @@ export async function getLegacyKvBulk(prefix = 'bhd_', keys?: string[]): Promise
   });
 
   if (Object.keys(meta).length) out._meta = meta;
+  kvBulkCacheSet(cacheKey, out);
   return out;
 }
 
@@ -148,6 +179,7 @@ export async function putLegacyKvBulk(
     saved += 1;
   }
 
+  invalidateLegacyKvBulkCache();
   return { saved };
 }
 
@@ -158,6 +190,7 @@ export async function clearLegacyKvKeys(keys: string[]): Promise<{ removed: numb
   const result = await prisma.legacyAppKvStore.deleteMany({
     where: { kvKey: { in: valid } },
   });
+  invalidateLegacyKvBulkCache();
   return { removed: result.count };
 }
 
@@ -182,6 +215,7 @@ export async function wipeLegacyKvExcept(keepKeys: string[] = []): Promise<{ rem
   try {
     await writeLegacyKvWipeGuard();
   } catch (_eWipeGuard) {}
+  invalidateLegacyKvBulkCache();
   return { removed: result.count };
 }
 

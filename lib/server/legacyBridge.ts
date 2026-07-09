@@ -23,7 +23,7 @@ import { loadCanonicalContractStatusesFromNeon } from '@/lib/server/contractLife
 // Key: `${authUserId}:${locale}` | TTL: 60s
 // Caches the full LegacyBridgePayload per user to avoid repeated
 // Prisma queries + contract lifecycle computation.
-const BRIDGE_PAYLOAD_CACHE_TTL_MS = 60_000;
+const BRIDGE_PAYLOAD_CACHE_TTL_MS = 120_000;
 const _bridgePayloadCache = new Map<
   string,
   { payload: LegacyBridgePayload; timestamp: number }
@@ -713,19 +713,6 @@ export async function buildLegacyBridgeMinimalPayload(
   const currentUser = mapSiteUserToLegacyUser(currentDbUser);
   const prefix = `/${locale}`;
 
-  let contractLifecycle: LegacyBridgePayload['contractLifecycle'];
-  try {
-    const canon = await loadCanonicalContractStatusesFromNeon(true);
-    contractLifecycle = {
-      statuses: canon.statuses,
-      byUnit: canon.byUnit,
-      reconciledAt: new Date().toISOString(),
-      groupsProcessed: canon.groupsProcessed,
-    };
-  } catch (eCanon) {
-    console.warn('buildLegacyBridgeMinimalPayload contractLifecycle', eCanon);
-  }
-
   const payload: LegacyBridgePayload = {
     siteIntegrated: true,
     version: 1,
@@ -743,7 +730,6 @@ export async function buildLegacyBridgeMinimalPayload(
       preferSiteUserManagement: true,
       preferSiteAddressBook: true,
     },
-    contractLifecycle,
     siteAdminUrls: {
       users: `${prefix}/admin/users`,
       addressBook: `${prefix}/admin/address-book`,
@@ -813,11 +799,6 @@ export async function buildLegacyBridgePayload(
     if (!data || typeof data !== 'object' || !data.id) continue;
     if (data.archived) continue;
 
-    const attachmentsFromDb = await loadContactAttachmentsFromContactData(cid, raw);
-    if (Object.keys(attachmentsFromDb).length) {
-      data.contactAttachments = { ...(data.contactAttachments || {}), ...attachmentsFromDb };
-    }
-
     const fromLinked = typeof row.linkedUserId === 'string' ? row.linkedUserId.trim() : '';
     const fromJson = typeof raw.userId === 'string' ? String(raw.userId).trim() : '';
     const identityUid = fromLinked || fromJson;
@@ -835,6 +816,19 @@ export async function buildLegacyBridgePayload(
     if (linked) userIdToAddressBookKey.set(linked, abKey);
   }
 
+  await Promise.all(
+    contactRows.map(async (row) => {
+      const raw = { ...((row.data as Record<string, unknown>) ?? {}) };
+      const cid = String(row.contactId || '').trim();
+      const entry = addressBook.find((e) => String(e.siteContactId || e.id) === cid);
+      if (!entry) return;
+      const attachmentsFromDb = await loadContactAttachmentsFromContactData(cid, raw);
+      if (Object.keys(attachmentsFromDb).length) {
+        entry.contactAttachments = { ...(entry.contactAttachments || {}), ...attachmentsFromDb };
+      }
+    })
+  );
+
   const usersRegistry = siteUsers.map((u) =>
     mapSiteUserToLegacyUser(u, userIdToAddressBookKey.get(u.id))
   );
@@ -843,6 +837,19 @@ export async function buildLegacyBridgePayload(
     usersRegistry.find((u) => u.id === authUserId) ?? mapSiteUserToLegacyUser(currentDbUser);
 
   const prefix = `/${locale}`;
+
+  let contractLifecycle: LegacyBridgePayload['contractLifecycle'];
+  try {
+    const canon = await loadCanonicalContractStatusesFromNeon(false);
+    contractLifecycle = {
+      statuses: canon.statuses,
+      byUnit: canon.byUnit,
+      reconciledAt: new Date().toISOString(),
+      groupsProcessed: canon.groupsProcessed,
+    };
+  } catch (eCanon) {
+    console.warn('buildLegacyBridgePayload contractLifecycle', eCanon);
+  }
 
   return {
     siteIntegrated: true,
@@ -867,6 +874,7 @@ export async function buildLegacyBridgePayload(
       legacyAddressBook: '/api/admin/legacy-real-estate/bhd-real-estate.html?mode=addressbook',
       dashboard: `${prefix}/admin`,
     },
+    contractLifecycle,
     currentUser,
   };
 }
@@ -1238,6 +1246,86 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
 },{once:true});
+var _bhdKvBootPending=null;
+var BHD_DASH_KV_KEYS=[
+  'bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list','bhd_owners_list',
+  'bhd_building_profiles','bhd_owner_profiles','bhd_unit_reservations',
+  'bhd_accounting_registry','bhd_tasks_registry','bhd_maintenance_registry'
+];
+function bhdLocalKvNeedsDashboardHydrate(){
+  try{
+    if(legacyKvRecentlyWipedQuarantine())return false;
+    if(window.bhdDesktop)return false;
+    var mode=new URLSearchParams(location.search).get('mode');
+    if(mode&&mode!=='dashboard')return false;
+    var probe=['bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list'];
+    for(var i=0;i<probe.length;i++){
+      var raw=localStorage.getItem(probe[i]);
+      if(!raw||raw==='[]'||raw==='{}'||raw==='null')return true;
+    }
+    return false;
+  }catch(e){return true;}
+}
+function applyDashKvPayload(all){
+  if(!all||typeof all!=='object')return false;
+  var any=false;
+  Object.keys(all).forEach(function(k){
+    if(k==='_meta')return;
+    if(BHD_DASH_KV_KEYS.indexOf(k)>=0&&typeof all[k]==='string'){
+      localStorage.setItem(k,all[k]);
+      any=true;
+    }
+  });
+  return any;
+}
+function bhdRefreshDashboardAfterKv(){
+  try{
+    if(typeof loadDashboardAux==='function')loadDashboardAux(true);
+    if(typeof refreshDashboardIfVisible==='function')refreshDashboardIfVisible();
+    window.dispatchEvent(new Event('bhd-kv-hydrated'));
+  }catch(e){console.warn('[BHD] bhdRefreshDashboardAfterKv',e);}
+}
+function fetchContractLifecycleLight(){
+  if(legacyKvRecentlyWipedQuarantine())return Promise.resolve();
+  return fetch('/api/admin/legacy-bridge/contract-statuses',{credentials:'include',cache:'no-store'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(d){
+      if(!d)return;
+      window._bhdServerContractStatuses=d.statuses||{};
+      window._bhdServerContractStatusesByUnit=d.byUnit||{};
+      window._bhdServerContractLifecycleAt=new Date().toISOString();
+    })
+    .catch(function(){});
+}
+function stagedKvHydrateForDashboard(){
+  if(window.bhdDesktop)return Promise.resolve(false);
+  if(!bhdLocalKvNeedsDashboardHydrate())return Promise.resolve(false);
+  if(_bhdKvBootPending)return _bhdKvBootPending;
+  _bhdKvBootPending=Promise.all([
+    fetch('/api/kv?keys='+encodeURIComponent(BHD_DASH_KV_KEYS.join(',')),{credentials:'include',cache:'no-store'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(all){return applyDashKvPayload(all);}),
+    fetchContractLifecycleLight()
+  ]).then(function(results){
+    var hydrated=!!results[0];
+    if(hydrated){
+      var tries=0;
+      (function tick(){
+        if(typeof loadDashboardAux==='function'){bhdRefreshDashboardAfterKv();return;}
+        if(++tries<50)setTimeout(tick,80);
+      })();
+    }
+    return hydrated;
+  }).finally(function(){_bhdKvBootPending=null;});
+  return _bhdKvBootPending;
+}
+try{
+  if(document.getElementById('bhd-site-bridge-data')||localStorage.getItem('bhd_site_integrated')==='1'){
+    stagedKvHydrateForDashboard();
+  }
+}catch(_eKvBoot){}
+document.addEventListener('DOMContentLoaded',function(){stagedKvHydrateForDashboard();},{once:true});
+window.addEventListener('bhd-site-bridge-applied',function(){stagedKvHydrateForDashboard();});
 })();`;
 }
 
