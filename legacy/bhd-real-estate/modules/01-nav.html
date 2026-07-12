@@ -1,0 +1,137 @@
+<div class="app-top-nav" id="appTopNav">
+    <button type="button" class="btn-outline nav-item" data-nav-target="dashboard" onclick="openDashboardWorkspace()" data-ar="🏠 لوحة المعلومات" data-en="🏠 Dashboard">🏠 لوحة المعلومات</button>
+    <button type="button" class="btn-outline nav-item" data-nav-target="contracts" onclick="openContractsWorkspace()" data-ar="📝 شاشة العقود" data-en="📝 Contracts">📝 شاشة العقود</button>
+    <button type="button" class="btn-outline nav-item" data-nav-target="reservations" onclick="openReservationsWorkspace()" data-ar="📌 صفحة الحجوزات" data-en="📌 Reservations">📌 صفحة الحجوزات</button>
+    <button type="button" class="btn-outline nav-item" data-nav-target="addressbook" onclick="openAddressBookWorkspace()" data-ar="📒 دفتر العناوين" data-en="📒 Address book">📒 دفتر العناوين</button>
+    <button type="button" class="btn-outline nav-item" data-nav-target="notifications" onclick="openNotificationsWorkspace()" data-ar="🔔 التنبيهات" data-en="🔔 Notifications" id="navNotificationsBtn">🔔 التنبيهات</button>
+    <button type="button" class="btn-outline nav-item" data-nav-target="accounting" onclick="openAccountingWorkspace()" data-ar="💰 المحاسبة" data-en="💰 Accounting">💰 المحاسبة</button>
+    <button type="button" class="btn-outline nav-item" data-nav-target="maintenance" onclick="openMaintenanceWorkspace()" data-ar="🔧 الصيانة" data-en="🔧 Maintenance">🔧 الصيانة</button>
+    <div class="app-admin-menu-wrap" id="appTopNavAdminWrap">
+        <button type="button" class="btn-outline nav-item" id="appTopNavAdminBtn" onclick="toggleAppAdminMenu(event, 'appTopNavAdminPanel')" data-ar="⚙️ الإعدادات والإدارة ▾" data-en="⚙️ Settings & admin ▾">⚙️ الإعدادات والإدارة ▾</button>
+        <div class="app-admin-menu-panel" id="appTopNavAdminPanel" role="menu" hidden>
+            <div class="unit-details-ie-heading">⚙️ الإعدادات والإدارة / Settings & admin</div>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_contracts" onclick="closeAppAdminMenus(); openFormsWorkspace();">🗂️ نظام المستندات / Documents system</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm-any="import_export,manage_users" onclick="closeAppAdminMenus(); openOrganizationSettingsWorkspace();">🏢 إعدادات المنشأة / Organization</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm-any="manage_contracts,manage_users,import_export" onclick="closeAppAdminMenus(); openDocumentTemplatesWorkspace();">📄 قوالب المستندات / Doc templates</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_users" onclick="closeAppAdminMenus(); openUsersWorkspace();">👥 إدارة المستخدمين / Users</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); exportDataFile();">⬇️ تصدير ملف بيانات / Export data</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); triggerImport();">⬆️ استيراد ملف بيانات / Import data</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openBulkDataExchangeModal();">📊 Excel: مباني وملاك ووحدات / Excel hub</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openDataCleanupModal();">🧹 تصفية البيانات / Data cleanup</button>
+            <button type="button" class="btn-outline mini-btn bhd-storage-mgmt-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openStorageManagementModal();">🗄️ إدارة التخزين / Storage</button>
+        </div>
+    </div>
+    <button type="button" class="btn-outline nav-item" onclick="toggleTheme()" data-ar="🎨 تبديل اللون" data-en="🎨 Toggle theme">🎨 تبديل اللون</button>
+    <button type="button" class="btn-outline nav-item" id="appTopNavRefreshBtn" onclick="refreshAppSystem()" data-ar="🔄 تحديث النظام" data-en="🔄 Refresh system" title="حفظ البيانات وإعادة تحميل النظام دون تسجيل الخروج / Save data and reload without signing out">🔄 تحديث النظام</button>
+    <button type="button" class="btn-outline nav-item nav-item--lang" id="langToggleTopBtn" onclick="toggleAppLanguage()" data-ar="🌐 العربية" data-en="🌐 English">🌐 العربية</button>
+</div>
+
+<div class="dashboard">
+    <div class="dashboard-header dashboard-header-main">
+        <div>
+            <h2 data-ar="📋 مجموعة سيد فياض العالمية ش.م.م" data-en="📋 Syed Fayyaz Group International LLC">📋 مجموعة سيد فياض العالمية ش.م.م</h2>
+            <small data-ar="نظام إدارة عقود الإيجار المتكامل — لوحة المعلومات والوحدات" data-en="Integrated tenancy contract management system — dashboard and units">نظام إدارة عقود الإيجار المتكامل — لوحة المعلومات والوحدات</small>
+            <small id="bhdDbStatus" hidden style="margin-top:4px;opacity:0.85"></small>
+        </div>
+        <div class="screen-badge" id="screenBadge" data-ar="لوحة البيانات والمعلومات" data-en="Dashboard overview">لوحة البيانات والمعلومات</div>
+        <div class="bilingual-controls dashboard-main-nav" style="margin:0">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 لوحة المعلومات</button>
+                <button type="button" class="btn-primary" data-nav-target="contracts" onclick="openContractsWorkspace()">📝 شاشة العقود</button>
+                <button type="button" class="btn-outline" data-nav-target="reservations" onclick="openReservationsWorkspace()">📌 صفحة الحجوزات</button>
+                <button type="button" class="btn-outline" onclick="openAddressBookWorkspace()">📒 دفتر العناوين</button>
+                <button type="button" class="btn-outline" data-nav-target="notifications" onclick="openNotificationsWorkspace()">🔔 التنبيهات</button>
+                <button type="button" class="btn-outline" data-nav-target="accounting" onclick="openAccountingWorkspace()">💰 المحاسبة</button>
+                <button type="button" class="btn-outline" data-nav-target="maintenance" onclick="openMaintenanceWorkspace()">🔧 الصيانة</button>
+                <div class="app-admin-menu-wrap">
+                    <button type="button" class="btn-outline" onclick="toggleAppAdminMenu(event, 'dashboardAdminPanel')">⚙️ الإعدادات والإدارة ▾</button>
+                    <div class="app-admin-menu-panel" id="dashboardAdminPanel" role="menu" hidden>
+                        <div class="unit-details-ie-heading">⚙️ الإعدادات والإدارة / Settings & admin</div>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_contracts" onclick="closeAppAdminMenus(); openFormsWorkspace();">🗂️ نظام المستندات / Documents system</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="import_export,manage_users" onclick="closeAppAdminMenus(); openOrganizationSettingsWorkspace();">🏢 إعدادات المنشأة / Organization</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="manage_contracts,manage_users,import_export" onclick="closeAppAdminMenus(); openDocumentTemplatesWorkspace();">📄 قوالب المستندات / Doc templates</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_users" onclick="closeAppAdminMenus(); openUsersWorkspace();">👥 إدارة المستخدمين / Users</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); exportDataFile();">⬇️ تصدير ملف بيانات / Export data</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); triggerImport();">⬆️ استيراد ملف بيانات / Import data</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openBulkDataExchangeModal();">📊 Excel: مباني وملاك ووحدات / Excel hub</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openDataCleanupModal();">🧹 تصفية البيانات / Data cleanup</button>
+                        <button type="button" class="btn-outline mini-btn bhd-storage-mgmt-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openStorageManagementModal();">🗄️ إدارة التخزين / Storage</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_users" onclick="closeAppAdminMenus(); openTaskSettingsModal();">📋 إعدادات المهام / Task settings</button>
+                    </div>
+                </div>
+                <button type="button" class="btn-outline" onclick="toggleTheme()">🎨 تبديل اللون</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <button type="button" class="btn-primary" data-nav-target="contracts" onclick="openContractsWorkspace()">📝 Contracts</button>
+                <button type="button" class="btn-outline" data-nav-target="reservations" onclick="openReservationsWorkspace()">📌 Reservations</button>
+                <button type="button" class="btn-outline" onclick="openAddressBookWorkspace()">📒 Address book</button>
+                <button type="button" class="btn-outline" data-nav-target="notifications" onclick="openNotificationsWorkspace()">🔔 Notifications</button>
+                <button type="button" class="btn-outline" data-nav-target="accounting" onclick="openAccountingWorkspace()">💰 Accounting</button>
+                <button type="button" class="btn-outline" data-nav-target="maintenance" onclick="openMaintenanceWorkspace()">🔧 Maintenance</button>
+                <div class="app-admin-menu-wrap">
+                    <button type="button" class="btn-outline" onclick="toggleAppAdminMenu(event, 'dashboardAdminPanelEn')">⚙️ Settings & admin ▾</button>
+                    <div class="app-admin-menu-panel" id="dashboardAdminPanelEn" role="menu" hidden>
+                        <div class="unit-details-ie-heading">⚙️ الإعدادات والإدارة / Settings & admin</div>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_contracts" onclick="closeAppAdminMenus(); openFormsWorkspace();">🗂️ نظام المستندات / Documents system</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="import_export,manage_users" onclick="closeAppAdminMenus(); openOrganizationSettingsWorkspace();">🏢 إعدادات المنشأة / Organization</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="manage_contracts,manage_users,import_export" onclick="closeAppAdminMenus(); openDocumentTemplatesWorkspace();">📄 قوالب المستندات / Doc templates</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_users" onclick="closeAppAdminMenus(); openUsersWorkspace();">👥 إدارة المستخدمين / Users</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); exportDataFile();">⬇️ تصدير ملف بيانات / Export data</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); triggerImport();">⬆️ استيراد ملف بيانات / Import data</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openBulkDataExchangeModal();">📊 Excel: مباني وملاك ووحدات / Excel hub</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openDataCleanupModal();">🧹 تصفية البيانات / Data cleanup</button>
+                        <button type="button" class="btn-outline mini-btn bhd-storage-mgmt-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openStorageManagementModal();">🗄️ إدارة التخزين / Storage</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_users" onclick="closeAppAdminMenus(); openTaskSettingsModal();">📋 إعدادات المهام / Task settings</button>
+                    </div>
+                </div>
+                <button type="button" class="btn-outline" onclick="toggleTheme()">🎨 Toggle theme</button>
+            </div>
+            <input type="file" id="importFileInput" accept=".json" style="display:none">
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between"></div>
+    </div>
+
+    <div class="operations-panel dash-modern">
+        <div class="dash-hero">
+            <h4 class="panel-title dash-hero-title" data-ar="📊 لوحة المعلومات التشغيلية" data-en="📊 Operations dashboard">📊 لوحة المعلومات التشغيلية</h4>
+            <p class="dash-hero-sub" data-ar="نظرة شاملة على العقارات والمحاسبة والصيانة والمهام — اضغط أي بطاقة للانتقال أو التفاصيل." data-en="Overview of property, accounting, maintenance, and tasks — click any card to navigate or view details.">نظرة شاملة على العقارات والمحاسبة والصيانة والمهام — اضغط أي بطاقة للانتقال أو التفاصيل.</p>
+            <div class="dash-module-hub" id="dashboardModuleHub"></div>
+        </div>
+
+        <div class="dash-body-grid">
+            <div class="dash-main-col">
+                <section class="dash-section">
+                    <h5 class="dash-section-title" data-ar="المحفظة العقارية" data-en="Property portfolio">المحفظة العقارية</h5>
+                    <div class="stats-grid stats-grid--kpi dash-kpi-row">
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('buildings')" title="عرض المباني والوحدات / View buildings & units"><small data-ar="المباني" data-en="Buildings">المباني</small><strong id="statBuildings">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('owners')"><small data-ar="الملاك" data-en="Owners">الملاك</small><strong id="statOwnersCount">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('units')"><small data-ar="الوحدات" data-en="Units">الوحدات</small><strong id="statTotalUnits">0</strong></div>
+                    </div>
+                </section>
+                <section class="dash-section">
+                    <h5 class="dash-section-title" data-ar="حالة الوحدات" data-en="Unit status">حالة الوحدات</h5>
+                    <div class="stats-grid stats-grid--kpi dash-kpi-row">
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('rented')"><small data-ar="مؤجرة" data-en="Rented">مؤجرة</small><strong id="statRentedUnits">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('vacant')"><small data-ar="شاغرة" data-en="Vacant">شاغرة</small><strong id="statVacantUnits">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('reserved')"><small data-ar="محجوزة" data-en="Reserved">محجوزة</small><strong id="statReservedUnits">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('evictions')"><small data-ar="إخلاء" data-en="Evictions">إخلاء</small><strong id="statEvictionQueue">0</strong></div>
+                    </div>
+                </section>
+                <section class="dash-section">
+                    <h5 class="dash-section-title" data-ar="الإيجار وانتهاء العقود" data-en="Rent & expiry">الإيجار وانتهاء العقود</h5>
+                    <div class="stats-grid stats-grid--kpi dash-kpi-row">
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('monthly')"><small data-ar="شهري (OMR)" data-en="Monthly (OMR)">شهري (OMR)</small><strong id="statMonthlyTotal">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('yearly')"><small data-ar="سنوي (تقدير)" data-en="Yearly (est.)">سنوي (تقدير)</small><strong id="statYearlyTotal">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('exp30')"><small data-ar="30 يوم" data-en="30 days">30 يوم</small><strong id="statExpiring30">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('exp60')"><small data-ar="60 يوم" data-en="60 days">60 يوم</small><strong id="statExpiring60">0</strong></div>
+                        <div class="stat-card stat-card--click" role="button" tabindex="0" onclick="openDashboardInsight('exp90')"><small data-ar="90 يوم" data-en="90 days">90 يوم</small><strong id="statExpiring90">0</strong></div>
+                    </div>
+                </section>
+            </div>
+            <aside class="dash-side-col">
+                <h5 class="dash-section-title" data-ar="التقويم" data-en="Calendar">التقويم</h5>
+                <div class="bhd-calendar-panel bhd-calendar-panel--compact" id="dashboardCalendarHost"></div>
+            </aside>
+        </div>
+

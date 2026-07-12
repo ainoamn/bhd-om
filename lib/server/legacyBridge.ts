@@ -738,7 +738,6 @@ export async function buildLegacyBridgeMinimalPayload(
     },
     currentUser,
   };
-
   // Store in shared memory cache for subsequent requests (TTL: 60s)
   _bridgeCacheSet(cacheKey, payload);
 

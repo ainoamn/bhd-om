@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
@@ -34,11 +34,6 @@ export default function RealEstateSystemPage() {
       /* ignore */
     }
   }, [locale]);
-
-  useEffect(() => {
-    if (!allowed || status !== 'authenticated') return;
-    void pushBridgeToIframe();
-  }, [allowed, status, pushBridgeToIframe]);
 
   if (status === 'loading') {
     return (

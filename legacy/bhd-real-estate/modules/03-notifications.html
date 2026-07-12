@@ -1,0 +1,22 @@
+<div class="notifications-workspace" id="notificationsWorkspace">
+    <div class="notifications-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">🔔 التنبيهات والمهام / Notifications & tasks</h2>
+            <small style="opacity:0.95">طلبات التعديل، المهام المعلّقة، التنبيهات، والملاحظات المهمة في مكان واحد / Edit requests, pending tasks, alerts, and important notes in one place</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 لوحة المعلومات</button>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 شاشة العقود</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 Contracts</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="notifications-panel" id="notificationsPanelHost"></div>
+</div>
+
+<!-- المحاسبة — صفحة مستقلة / Accounting workspace -->

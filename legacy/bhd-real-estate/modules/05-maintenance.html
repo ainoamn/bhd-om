@@ -1,0 +1,24 @@
+<div class="maintenance-workspace" id="maintenanceWorkspace">
+    <div class="maintenance-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">🔧 الصيانة / Maintenance</h2>
+            <small style="opacity:0.95">طلبات صيانة المستأجرين — مكيفات، سباكة، كهرباء، وغيرها — مرتبطة بالوحدة والمستأجر / Tenant maintenance requests linked to unit and tenant</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 لوحة المعلومات</button>
+                <button type="button" class="btn-outline" onclick="openMaintenanceCatalogModal()">📋 بنود الصيانة</button>
+                <button type="button" class="btn-primary" onclick="openMaintenanceRequestModal()">➕ طلب صيانة جديد</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <button type="button" class="btn-outline" onclick="openMaintenanceCatalogModal()">📋 Maintenance items</button>
+                <button type="button" class="btn-primary" onclick="openMaintenanceRequestModal()">➕ New maintenance request</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="maintenance-panel" id="maintenancePanelHost"></div>
+</div>
+
+<!-- دفتر العناوين — صفحة مستقلة -->

@@ -1,0 +1,22 @@
+<div class="accounting-workspace" id="accountingWorkspace">
+    <div class="accounting-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">💰 المحاسبة / Accounting</h2>
+            <small style="opacity:0.95">شيكات الإيجار والضريبة والضمان، الإيرادات والمصروفات، واعتماد الفواتير — مرتبطة مباشرة ببيانات العقار / Rent & VAT cheques, deposits, income/expense, and invoice approval linked to property contracts</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 لوحة المعلومات</button>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 شاشة العقود</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 Contracts</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="accounting-panel" id="accountingPanelHost"></div>
+</div>
+
+<!-- الصيانة — صفحة مستقلة / Maintenance workspace -->

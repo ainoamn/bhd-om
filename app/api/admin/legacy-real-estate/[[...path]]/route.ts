@@ -13,16 +13,16 @@ import { isAdminLikeRole } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
-// ── In-memory HTML cache ────────────────────────────────────────────
-// Key: `${fileName}:${locale}:${bridgeStatus}:${userId}` | TTL: 300s (5 min)
+// In-memory HTML cache — key includes userId for per-user bridge payloads
 type HtmlCacheEntry = { body: Buffer; timestamp: number; etag: string };
 const HTML_CACHE_TTL_MS = 300_000;
 const _htmlCache = new Map<string, HtmlCacheEntry>();
 
-function _htmlCacheKey(fileName: string, locale: string, bridgeStatus: string, userId: string): string {
+function htmlCacheKey(fileName: string, locale: string, bridgeStatus: string, userId: string): string {
   return `${fileName}:${locale}:${bridgeStatus}:${userId}`;
 }
-function _htmlCacheGet(key: string): HtmlCacheEntry | undefined {
+
+function htmlCacheGet(key: string): HtmlCacheEntry | undefined {
   const entry = _htmlCache.get(key);
   if (!entry) return undefined;
   if (Date.now() - entry.timestamp > HTML_CACHE_TTL_MS) {
@@ -31,16 +31,26 @@ function _htmlCacheGet(key: string): HtmlCacheEntry | undefined {
   }
   return entry;
 }
-function _htmlCacheSet(key: string, body: Buffer): HtmlCacheEntry {
+
+function htmlCacheSet(key: string, body: Buffer): HtmlCacheEntry {
   const etag = `bhd-html-${Date.now().toString(36)}-${body.length.toString(16)}`;
   const entry: HtmlCacheEntry = { body, timestamp: Date.now(), etag };
   _htmlCache.set(key, entry);
   return entry;
 }
-// ────────────────────────────────────────────────────────────────────
+
+function cacheControlForLegacyFile(fileName: string): string {
+  const ext = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.')) : '';
+  if (ext === '.html') {
+    return 'private, max-age=0, must-revalidate, stale-while-revalidate=300';
+  }
+  if (ext === '.css' || ext === '.js') {
+    return 'private, max-age=3600, stale-while-revalidate=86400';
+  }
+  return 'private, max-age=300, stale-while-revalidate=3600';
+}
 
 type RouteContext = { params: Promise<{ path?: string[] }> };
-
 function requireLegacyAdminAccess(
   auth: Exclude<Awaited<ReturnType<typeof requireAuth>>, NextResponse>
 ): NextResponse | null {
@@ -66,7 +76,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const locale = resolveLegacyBridgeLocale(req);
     const { path: segments } = await context.params;
     const fileName = segments?.length ? segments[segments.length - 1]! : 'bhd-real-estate.html';
-    const isMainHtml = fileName === 'bhd-real-estate.html' || fileName.endsWith('.html');
+    const isMainHtml =
+      fileName === 'bhd-real-estate.html' ||
+      fileName === 'bhd-real-estate-v2.html' ||
+      fileName.endsWith('.html');
 
     let body: Buffer;
     let bridgeStatus = 'none';
@@ -74,26 +87,24 @@ export async function GET(req: NextRequest, context: RouteContext) {
       const embedded = await buildLegacyBridgeMinimalPayload(userId, locale);
       bridgeStatus = embedded ? 'embedded' : 'empty';
 
-      // Check in-memory HTML cache (bypasses disk read + bridge injection)
-      const cacheKey = _htmlCacheKey(fileName, locale, bridgeStatus, userId);
-      const cached = _htmlCacheGet(cacheKey);
+      const cacheKey = htmlCacheKey(fileName, locale, bridgeStatus, userId);
+      const cached = htmlCacheGet(cacheKey);
       if (cached) {
         return new NextResponse(new Uint8Array(cached.body), {
           status: 200,
           headers: {
             'Content-Type': contentTypeForLegacyFile(fileName),
-            'Cache-Control': 'private, max-age=0, must-revalidate, stale-while-revalidate=300',
+            'Cache-Control': cacheControlForLegacyFile(fileName),
             'X-Content-Type-Options': 'nosniff',
             'X-Bhd-Bridge': bridgeStatus,
             'X-Bhd-Cache': 'HIT',
-            'ETag': cached.etag,
+            ETag: cached.etag,
           },
         });
       }
 
       body = await readLegacyRealEstateHtmlWithBridge(segments, embedded);
-      _htmlCacheSet(cacheKey, body);
-    } else {
+      htmlCacheSet(cacheKey, body);    } else {
       body = await readLegacyRealEstateFile(segments);
     }
 
@@ -101,8 +112,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       status: 200,
       headers: {
         'Content-Type': contentTypeForLegacyFile(fileName),
-        'Cache-Control': 'private, max-age=0, must-revalidate, stale-while-revalidate=300',
-        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': cacheControlForLegacyFile(fileName),        'X-Content-Type-Options': 'nosniff',
         'X-Bhd-Bridge': bridgeStatus,
         'X-Bhd-Cache': 'MISS',
       },

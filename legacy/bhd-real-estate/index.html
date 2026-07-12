@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>BHD Real Estate — نظام إدارة العقارات / Property Management</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- ========== تجميع ملفات CSS ========== -->
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <!-- ========== تجميع ملفات HTML ========== -->
+    
+    <!-- 01-شريط التنقل العلوي -->
+    <div id="module-nav"></div>
+    
+    <!-- 02-لوحة التحكم -->
+    <div id="module-dashboard"></div>
+    
+    <!-- 03-التنبيهات -->
+    <div id="module-notifications"></div>
+    
+    <!-- 04-المحاسبة -->
+    <div id="module-accounting"></div>
+    
+    <!-- 05-الصيانة -->
+    <div id="module-maintenance"></div>
+    
+    <!-- 06-دفتر العناوين -->
+    <div id="module-addressbook"></div>
+    
+    <!-- 07-العقود -->
+    <div id="module-contracts"></div>
+    
+    <!-- 08-عارض المستندات -->
+    <div id="module-viewer"></div>
+    
+    <!-- 09-الحجوزات -->
+    <div id="module-reservations"></div>
+
+    <!-- ========== تجميع ملفات JavaScript ========== -->
+    <!-- JS مبكر -->
+    <script src="js/app-shell.js"></script>
+    
+    <!-- JS رئيسي مجزأ -->
+    <script src="js/utils.js"></script>
+    <script src="js/data-store.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/units.js"></script>
+    <script src="js/contracts.js"></script>
+    <script src="js/reservations.js"></script>
+    <script src="js/accounting.js"></script>
+    <script src="js/addressbook.js"></script>
+    <script src="js/maintenance.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/document-viewer.js"></script>
+    <script src="js/print-export.js"></script>
+    <script src="js/app-main.js"></script>
+
+    <!-- تحميل الوحدات HTML -->
+    <script>
+    /**
+     * محمل الوحدات — يحمّل كل أقسام HTML بشكل ديناميكي
+     * هذا يعادل ما كان في الملف الأصلي الواحد
+     */
+    (function() {
+        const modules = [
+            { id: 'module-nav', file: 'modules/01-nav.html' },
+            { id: 'module-dashboard', file: 'modules/02-dashboard.html' },
+            { id: 'module-notifications', file: 'modules/03-notifications.html' },
+            { id: 'module-accounting', file: 'modules/04-accounting.html' },
+            { id: 'module-maintenance', file: 'modules/05-maintenance.html' },
+            { id: 'module-addressbook', file: 'modules/06-addressbook.html' },
+            { id: 'module-contracts', file: 'modules/07-contracts.html' },
+            { id: 'module-viewer', file: 'modules/08-viewer.html' },
+            { id: 'module-reservations', file: 'modules/09-reservations.html' }
+        ];
+
+        async function loadModule(module) {
+            try {
+                const response = await fetch(module.file);
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const html = await response.text();
+                const container = document.getElementById(module.id);
+                if (container) container.innerHTML = html;
+            } catch (error) {
+                console.error('[Module Loader] فشل تحميل:', module.file, error);
+            }
+        }
+
+        // تحميل كل الوحدات بالتوازي
+        Promise.all(modules.map(loadModule)).then(function() {
+            console.log('[Module Loader] ✅ جميع الوحدات محملة');
+            // تشغيل init بعد تحميل كل الوحدات
+            if (typeof initBhdApp === 'function') initBhdApp();
+        });
+    })();
+    </script>
+</body>
+</html>

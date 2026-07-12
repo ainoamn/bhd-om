@@ -1,0 +1,286 @@
+<div class="addressbook-workspace" id="addressBookWorkspace">
+    <div class="addressbook-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">📒 دفتر العناوين / Address book</h2>
+            <small style="opacity:0.95">كل عناوين الملاك والمستأجرين في صفحة واحدة / All owner and tenant addresses in one page</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 لوحة المعلومات</button>
+                <div class="app-admin-menu-wrap">
+                    <button type="button" class="btn-outline" onclick="toggleAppAdminMenu(event, 'addressBookAdminPanel')">⚙️ الإعدادات والإدارة ▾</button>
+                    <div class="app-admin-menu-panel" id="addressBookAdminPanel" role="menu" hidden>
+                        <div class="unit-details-ie-heading">⚙️ الإعدادات والإدارة / Settings & admin</div>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_contracts" onclick="closeAppAdminMenus(); openFormsWorkspace();">🗂️ نظام المستندات / Documents system</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="import_export,manage_users" onclick="closeAppAdminMenus(); openOrganizationSettingsWorkspace();">🏢 إعدادات المنشأة / Organization</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="manage_contracts,manage_users,import_export" onclick="closeAppAdminMenus(); openDocumentTemplatesWorkspace();">📄 قوالب المستندات / Doc templates</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_users" onclick="closeAppAdminMenus(); openUsersWorkspace();">👥 إدارة المستخدمين / Users</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); exportDataFile();">⬇️ تصدير ملف بيانات / Export data</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); triggerImport();">⬆️ استيراد ملف بيانات / Import data</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openBulkDataExchangeModal();">📊 Excel: مباني وملاك ووحدات / Excel hub</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openDataCleanupModal();">🧹 تصفية البيانات / Data cleanup</button>
+                        <button type="button" class="btn-outline mini-btn bhd-storage-mgmt-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openStorageManagementModal();">🗄️ إدارة التخزين / Storage</button>
+                    </div>
+                </div>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 شاشة العقود</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <div class="app-admin-menu-wrap">
+                    <button type="button" class="btn-outline" onclick="toggleAppAdminMenu(event, 'addressBookAdminPanelEn')">⚙️ Settings & admin ▾</button>
+                    <div class="app-admin-menu-panel" id="addressBookAdminPanelEn" role="menu" hidden>
+                        <div class="unit-details-ie-heading">⚙️ الإعدادات والإدارة / Settings & admin</div>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_contracts" onclick="closeAppAdminMenus(); openFormsWorkspace();">🗂️ نظام المستندات / Documents system</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="import_export,manage_users" onclick="closeAppAdminMenus(); openOrganizationSettingsWorkspace();">🏢 إعدادات المنشأة / Organization</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm-any="manage_contracts,manage_users,import_export" onclick="closeAppAdminMenus(); openDocumentTemplatesWorkspace();">📄 قوالب المستندات / Doc templates</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="manage_users" onclick="closeAppAdminMenus(); openUsersWorkspace();">👥 إدارة المستخدمين / Users</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); exportDataFile();">⬇️ تصدير ملف بيانات / Export data</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); triggerImport();">⬆️ استيراد ملف بيانات / Import data</button>
+            <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openBulkDataExchangeModal();">📊 Excel: مباني وملاك ووحدات / Excel hub</button>
+                        <button type="button" class="btn-outline mini-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openDataCleanupModal();">🧹 تصفية البيانات / Data cleanup</button>
+                        <button type="button" class="btn-outline mini-btn bhd-storage-mgmt-btn" data-admin-perm="import_export" onclick="closeAppAdminMenus(); openStorageManagementModal();">🗄️ إدارة التخزين / Storage</button>
+                    </div>
+                </div>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 Contracts</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="addressbook-panel">
+        <div class="addressbook-meta" id="addressBookStats">السجلات / Records: 0</div>
+        <div class="registry-actions">
+            <button class="btn-primary" onclick="refreshAddressBookFromSystem(true)">🔄 تحديث من النظام / Refresh from system</button>
+            <button class="btn-outline" onclick="clickAddAddressBookEntry()">➕ إضافة جهة اتصال جديدة / Add new contact</button>
+            <div class="unit-details-ie-wrap" id="addressBookPrintWrap">
+                <button type="button" class="btn-outline" onclick="toggleAddressBookPrintMenu(event)">🖨️ طباعة الكشف / Print report ▾</button>
+                <div class="unit-details-ie-panel" id="addressBookPrintPanel" role="menu" hidden>
+                    <button type="button" class="btn-outline mini-btn" onclick="printAddressBookReport(false); closeAddressBookPrintMenu();">🖨️ طباعة الكشف الحالي / Print current view</button>
+                    <button type="button" class="btn-outline mini-btn" onclick="printAddressBookReport(true); closeAddressBookPrintMenu();">🖨️ طباعة كل السجلات / Print all records</button>
+                </div>
+            </div>
+            <button class="btn-outline" onclick="openContractsWorkspace()">📝 فتح شاشة العقود / Open contracts workspace</button>
+            <input id="addressBookSearch" placeholder="بحث في دفتر العناوين / Search address book..." style="min-width:280px;padding:8px 10px;border-radius:8px;border:1px solid #ced8df;font-family:'Tajawal',sans-serif">
+        </div>
+        <div id="addressBookAlerts" class="addressbook-meta" style="margin-bottom:10px"></div>
+        <div class="table-shell">
+            <table class="ops-table">
+                <thead>
+                    <tr>
+                        <th>
+                            <span data-ar="الرقم المتسلسل" data-en="Serial">الرقم المتسلسل</span>
+                        </th>
+                        <th>
+                            <span data-ar="بيانات جهة الاتصال" data-en="Contact details">بيانات جهة الاتصال</span>
+                            <button type="button" class="mini-btn" onclick="setAddressBookSort('contact')">↕</button>
+                            <button type="button" class="mini-btn" onclick="toggleAddressBookFilterRow()">🔍</button>
+                        </th>
+                        <th>
+                            <span data-ar="التواصل" data-en="Contact info">التواصل</span>
+                            <button type="button" class="mini-btn" onclick="setAddressBookSort('contactInfo')">↕</button>
+                            <button type="button" class="mini-btn" onclick="toggleAddressBookFilterRow()">🔍</button>
+                        </th>
+                        <th>
+                            <span data-ar="الموقع" data-en="Location">الموقع</span>
+                            <button type="button" class="mini-btn" onclick="setAddressBookSort('location')">↕</button>
+                            <button type="button" class="mini-btn" onclick="toggleAddressBookFilterRow()">🔍</button>
+                        </th>
+                        <th>
+                            <span data-ar="تنبيه المستندات" data-en="Docs alert">تنبيه المستندات</span>
+                            <button type="button" class="mini-btn" onclick="setAddressBookSort('doc_alert')">↕</button>
+                            <button type="button" class="mini-btn" onclick="toggleAddressBookFilterRow()">🔍</button>
+                        </th>
+                        <th data-ar="إجراء" data-en="Action">إجراء</th>
+                    </tr>
+                    <tr id="addressBookFilterRow" hidden>
+                        <th><input id="abFilterSerial" placeholder="بحث الرقم / Search serial"></th>
+                        <th><input id="abFilterContact" placeholder="بحث جهة الاتصال / Search contact"></th>
+                        <th><input id="abFilterComm" placeholder="بحث التواصل / Search contact info"></th>
+                        <th><input id="abFilterLocation" placeholder="بحث الموقع / Search location"></th>
+                        <th><input id="abFilterDocs" placeholder="بحث التنبيه / Search alert"></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="addressBookTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="details-modal" id="addressBookEntryModal" onclick="if(event.target===this) closeAddressBookEntryModal()">
+    <div class="details-card details-card--xl" onclick="event.stopPropagation()">
+        <div class="details-head">
+            <strong id="addressBookEntryModalTitle" data-ar="بيانات جهة الاتصال" data-en="Contact details">بيانات جهة الاتصال</strong>
+            <button class="btn-outline" onclick="closeAddressBookEntryModal()" data-ar="إغلاق" data-en="Close">إغلاق</button>
+        </div>
+        <div class="details-body">
+            <div class="input-group" style="grid-column:1/-1">
+                <label data-ar="نوع جهة الاتصال" data-en="Contact entity type">نوع جهة الاتصال / Contact entity type</label>
+                <select id="abEntityType" onchange="syncAddressBookPersonCompanyShell()">
+                    <option value="person" data-ar="شخص" data-en="Person">شخص / Person</option>
+                    <option value="company" data-ar="شركة" data-en="Company">شركة / Company</option>
+                </select>
+            </div>
+            <div class="input-group" style="grid-column:1/-1;margin-bottom:4px">
+                <label data-ar="الترجمة الفورية" data-en="Live transliteration">الترجمة الفورية</label>
+                <label class="ud-print-label" data-ar="تفعيل التحويل أثناء الكتابة" data-en="Enable live conversion"><input type="checkbox" id="abLiveTranslate" checked> تفعيل التحويل أثناء الكتابة</label>
+                <small style="display:block;color:#60717d;line-height:1.45;margin-top:4px" data-ar="للأسماء غير الموجودة في القاموس: صحّح الإنجليزي يدوياً ثم احفظ — يتذكره النظام في المرات القادمة." data-en="For uncommon names: correct the English field manually, then save — the system will remember it next time.">للأسماء غير الموجودة في القاموس: صحّح الإنجليزي يدوياً ثم احفظ — يتذكره النظام في المرات القادمة.</small>
+            </div>
+            <div id="abPersonSection" class="row-2cols">
+                <div class="input-group">
+                    <label data-ar="التصنيف" data-en="Category">التصنيف / Category</label>
+                    <select id="abType" onchange="onAddressBookTypeSelectChange()"></select>
+                    <button type="button" class="mini-btn ab-type-add-btn" onclick="promptAddCustomAddressBookType()" data-ar="+ تصنيف جديد" data-en="+ New category">+ تصنيف جديد / New category</button>
+                </div>
+                <div class="input-group">
+                    <label data-ar="الاسم" data-en="Name">الاسم</label>
+                    <input type="text" id="abName" oninput="translateAddressBookName('ar2en')">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                        <button type="button" class="mini-btn" onclick="translateAddressBookName('ar2en', true)" data-ar="↔ تحويل للإنجليزية" data-en="↔ To English">↔ تحويل للإنجليزية</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label data-ar="الجنسية" data-en="Nationality">الجنسية</label>
+                    <select id="abNationality"></select>
+                </div>
+                <div class="input-group">
+                    <label data-ar="الاسم الإنجليزي" data-en="Name (English)">الاسم الإنجليزي</label>
+                    <input type="text" id="abNameEn" dir="ltr" lang="en" oninput="translateAddressBookName('en2ar')">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                        <button type="button" class="mini-btn" onclick="translateAddressBookName('en2ar', true)" data-ar="↔ تحويل للعربية" data-en="↔ To Arabic">↔ تحويل للعربية</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label data-ar="الجوال" data-en="Mobile">الجوال</label>
+                    <input type="text" id="abMobile">
+                </div>
+                <div class="input-group">
+                    <label data-ar="رقم إضافي" data-en="Extra number">رقم إضافي</label>
+                    <input type="text" id="abExtraMobile">
+                </div>
+                <div class="input-group">
+                    <label data-ar="الرقم المدني" data-en="ID No.">الرقم المدني</label>
+                    <input type="text" id="abIdNo">
+                </div>
+                <div class="input-group">
+                    <label data-ar="تاريخ الميلاد" data-en="Date of birth">تاريخ الميلاد / Date of birth</label>
+                    <input type="date" id="abBirthDate">
+                </div>
+                <div class="input-group">
+                    <label data-ar="تاريخ انتهاء البطاقة" data-en="ID expiry date">تاريخ انتهاء البطاقة</label>
+                    <input type="date" id="abIdExpiryDate">
+                </div>
+                <div class="input-group">
+                    <label data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني</label>
+                    <input type="text" id="abEmail">
+                </div>
+                <div class="input-group">
+                    <label data-ar="رقم الجواز" data-en="Passport">رقم الجواز</label>
+                    <input type="text" id="abPassport">
+                </div>
+                <div class="input-group">
+                    <label data-ar="تاريخ انتهاء الجواز" data-en="Passport expiry date">تاريخ انتهاء الجواز</label>
+                    <input type="date" id="abPassportExpiryDate">
+                </div>
+                <div class="input-group">
+                    <label data-ar="مرفق البطاقة" data-en="ID attachment">مرفق البطاقة</label>
+                    <input type="file" id="abIdAttachmentFile" accept="image/*,application/pdf" onchange="onAddressBookAttachmentInputChange('abIdAttachmentFile','idAttachment')">
+                    <input type="hidden" id="abIdAttachmentJson" value="">
+                    <span id="abIdAttachmentStatus" style="display:block;font-size:11px;color:#3b4b56;margin-top:4px"></span>
+                    <button type="button" class="mini-btn" style="margin-top:6px" onclick="openAddressBookAttachment('idAttachment')" data-ar="فتح المرفق" data-en="Open attachment">فتح المرفق</button>
+                </div>
+                <div class="input-group">
+                    <label data-ar="مرفق الجواز" data-en="Passport attachment">مرفق الجواز</label>
+                    <input type="file" id="abPassportAttachmentFile" accept="image/*,application/pdf" onchange="onAddressBookAttachmentInputChange('abPassportAttachmentFile','passportAttachment')">
+                    <input type="hidden" id="abPassportAttachmentJson" value="">
+                    <span id="abPassportAttachmentStatus" style="display:block;font-size:11px;color:#3b4b56;margin-top:4px"></span>
+                    <button type="button" class="mini-btn" style="margin-top:6px" onclick="openAddressBookAttachment('passportAttachment')" data-ar="فتح المرفق" data-en="Open attachment">فتح المرفق</button>
+                </div>
+                <div class="input-group">
+                    <label data-ar="المبنى" data-en="Building">المبنى</label>
+                    <input type="text" id="abBuilding">
+                </div>
+                <div class="input-group">
+                    <label data-ar="الوحدة" data-en="Unit">الوحدة</label>
+                    <input type="text" id="abUnit">
+                </div>
+                <div class="input-group">
+                    <label data-ar="المصدر" data-en="Source">المصدر</label>
+                    <input type="text" id="abSource">
+                </div>
+            </div>
+            <div id="abCompanySection" class="row-2cols" hidden style="display:none">
+                <div class="input-group" style="grid-column:1/-1">
+                    <h6 style="margin:0 0 6px;font-size:13px" data-ar="بيانات الشركة" data-en="Company details">بيانات الشركة / Company details</h6>
+                </div>
+                <div class="input-group">
+                    <label data-ar="اسم الشركة" data-en="Company name">اسم الشركة / Company name</label>
+                    <input type="text" id="abCoName" autocomplete="organization" oninput="translateAddressBookName('ar2en')">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                        <button type="button" class="mini-btn" onclick="translateAddressBookName('ar2en', true)" data-ar="↔ تحويل للإنجليزية" data-en="↔ To English">↔ تحويل للإنجليزية</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label data-ar="اسم الشركة بالإنجليزي" data-en="Company name (English)">اسم الشركة بالإنجليزي / Company name (English)</label>
+                    <input type="text" id="abCoNameEn" autocomplete="organization" dir="ltr" lang="en" oninput="translateAddressBookName('en2ar')">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                        <button type="button" class="mini-btn" onclick="translateAddressBookName('en2ar', true)" data-ar="↔ تحويل للعربية" data-en="↔ To Arabic">↔ تحويل للعربية</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label data-ar="رقم السجل التجاري" data-en="Commercial registration (CR) no.">رقم السجل التجاري / Commercial registration (CR) no.</label>
+                    <input type="text" id="abCoCrNo">
+                </div>
+                <div class="input-group">
+                    <label data-ar="تاريخ انتهاء السجل التجاري" data-en="CR expiry date">تاريخ انتهاء السجل التجاري / CR expiry date</label>
+                    <input type="date" id="abCoCrExpiry">
+                </div>
+                <div class="input-group" style="grid-column:1/-1">
+                    <label data-ar="مرفق السجل التجاري" data-en="Commercial registration (CR) certificate">مرفق السجل التجاري / Commercial registration (CR) certificate</label>
+                    <input type="file" id="abCoCrFile" accept="image/*,application/pdf">
+                    <button type="button" class="mini-btn" style="margin-top:6px" onclick="openAddressBookCompanyAttachment('crCert')" data-ar="فتح المرفق" data-en="Open attachment">فتح المرفق / Open attachment</button>
+                </div>
+                <div class="input-group">
+                    <label data-ar="هاتف الشركة" data-en="Company phone">هاتف الشركة / Company phone</label>
+                    <input type="text" id="abCoMobile">
+                </div>
+                <div class="input-group">
+                    <label data-ar="هاتف بديل" data-en="Alternate phone">هاتف بديل / Alternate phone</label>
+                    <input type="text" id="abCoExtraMobile">
+                </div>
+                <div class="input-group" style="grid-column:1/-1">
+                    <label data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني / Email</label>
+                    <input type="text" id="abCoEmail" autocomplete="email">
+                </div>
+                <div class="input-group" style="grid-column:1/-1">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+                        <h6 style="margin:0;font-size:13px" data-ar="المفوضون بالتوقيع" data-en="Authorized signatories">المفوضون بالتوقيع / Authorized signatories</h6>
+                        <button type="button" class="mini-btn" id="abAddSignatoryBtn" onclick="addressBookAddSignatoryRow()" data-ar="+ إضافة مفوض" data-en="+ Add signatory">+ إضافة مفوض / Add signatory</button>
+                    </div>
+                    <small style="display:block;color:#60717d" data-ar="بعد الحفظ يظهر كل مفوض مرقماً مع الاسم والرقم المدني والجوال في القائمة." data-en="After save, each signatory is numbered with name, civil ID, and phone in the list.">بعد الحفظ يظهر كل مفوض مرقماً مع الاسم والرقم المدني والجوال في القائمة.</small>
+                </div>
+                <div id="abSignatoriesMount" style="grid-column:1/-1"></div>
+                <div class="input-group">
+                    <label data-ar="المبنى" data-en="Building">المبنى / Building</label>
+                    <input type="text" id="abCoBuilding">
+                </div>
+                <div class="input-group">
+                    <label data-ar="الوحدة" data-en="Unit">الوحدة / Unit</label>
+                    <input type="text" id="abCoUnit">
+                </div>
+                <div class="input-group">
+                    <label data-ar="المصدر" data-en="Source">المصدر / Source</label>
+                    <input type="text" id="abCoSource">
+                </div>
+            </div>
+            <div id="addressBookRelatedInfo" class="addressbook-meta" style="margin:8px 0 10px"></div>
+            <p id="addressBookEditPolicyNote" class="tenancy-draft-lock-note" hidden style="display:none;margin:0 0 10px;font-size:12px;line-height:1.5;background:#fff8e6;border-color:#e6d08a;color:#5a3d00"></p>
+            <div class="details-actions">
+                <button type="button" class="btn-outline" id="addressBookRequestEditBtn" onclick="submitAddressBookEditRequestFromModal()" hidden style="display:none" data-ar="📝 طلب موافقة للتعديل / Request edit approval" data-en="📝 Request edit approval">📝 طلب موافقة للتعديل / Request edit approval</button>
+                <button class="btn-primary" id="addressBookSaveBtn" onclick="saveAddressBookEntry()" data-ar="💾 حفظ" data-en="💾 Save">💾 حفظ</button>
+                <button class="btn-outline" onclick="closeAddressBookEntryModal()" data-ar="إلغاء" data-en="Cancel">إلغاء</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نظام العقود: تحكم + نموذج + تبويبات المستندات (منفصل عن لوحة المعلومات) -->

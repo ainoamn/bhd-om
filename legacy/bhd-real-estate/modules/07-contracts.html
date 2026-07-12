@@ -1,0 +1,537 @@
+<div class="contracts-workspace" id="contractsWorkspace">
+    <input type="hidden" id="bhdInternalWorkspaceIntent" value="contract" autocomplete="off">
+    <div class="contracts-control-header">
+        <div class="contracts-head-text">
+            <h2 id="contractsWorkspaceTitle">📝 شاشة العقود / Contracts workspace</h2>
+            <small id="contractsWorkspaceSubtitle">تحكم كامل في بيانات العقد، المستندات، المعاينة والطباعة / Full control of contract data, documents, preview, and printing</small>
+            <small id="tenancyDraftFieldsLockNote" class="tenancy-draft-lock-note" hidden style="display: none"
+                data-ar="بيانات الوحدة من العقار وبيانات المستأجر من دفتر العناوين — لا تُعدَّل هنا. يمكنك تعديل التواريخ والإيجار وطريقة الدفع والمرفقات فقط؛ لتحديث المستأجر استخدم «تحديث بيانات المستأجر»."
+                data-en="Unit data comes from property and tenant data from the address book — not editable here. You may edit dates, rent, payment method, and attachments only; use «Update tenant data» to change the tenant."></small>
+            <small id="contractAdditionalDataLockNote" class="tenancy-draft-lock-note" hidden style="display: none"
+                data-ar="وضع إكمال البيانات الإضافية — الحقول المظلّلة فقط قابلة للتعديل (الشيكات والضمان). باقي بيانات العقد مقفولة."
+                data-en="Additional data completion mode — only highlighted fields are editable (cheques and deposit). Other contract data is locked."></small>
+            <small id="contractActivationLockNote" class="tenancy-draft-lock-note" hidden style="display: none;background:#fce4ec;border-color:#f48fb1;color:#880e4f"
+                data-ar="وضع التفعيل — بعد اعتماد العقد: أدخل رقم استمارة العقد البلدي ورقم العقد البلدي وارفع المستندات الكاملة قبل تحويل العقد إلى نشط."
+                data-en="Activation mode — after contract approval: enter municipal form no., municipal contract no., and upload full documents before the contract becomes active."></small>
+            <small id="savedContractEditLockNote" class="tenancy-draft-lock-note" hidden style="display: none;background:#ffebee;border-color:#ef9a9a;color:#5c1010"
+                data-ar="🔒 عقد محفوظ — التعديل مقفول. يتطلب صلاحية «تعديل العقود والعقارات المحفوظة» أو موافقة المدير (مرة واحدة)."
+                data-en="🔒 Saved contract — editing is locked. Requires «Edit saved contracts & property data» permission or one-time admin approval."></small>
+            <small id="savedContractOneTimeEditNote" class="tenancy-draft-lock-note" hidden style="display: none;background:#e8f5e9;border-color:#a5d6a7;color:#1b5e20"
+                data-ar="✓ صلاحية تعديل لمرة واحدة — عدّل البيانات ثم احفظ؛ بعد الحفظ يُقفل التعديل مجدداً."
+                data-en="✓ One-time edit granted — make changes then save; editing locks again after save."></small>
+            <div id="contractEditRequestBar" class="contract-edit-request-bar" hidden style="display: none">
+                <span id="contractEditRequestStatus" style="font-size:12px;line-height:1.45;flex:1;min-width:200px"></span>
+                <button type="button" class="btn-outline" id="contractEditRequestBtn" onclick="submitContractEditRequest()" data-ar="📝 طلب تعديل / Request edit" data-en="📝 Request edit">📝 طلب تعديل / Request edit</button>
+            </div>
+            <small id="tenantAddressBookImportLockNote" class="tenancy-draft-lock-note" hidden style="display: none"
+                data-ar="بيانات المستأجر مستوردة من دفتر العناوين — لا تُعدَّل يدوياً هنا؛ استخدم القائمة و«تعبئة البيانات» لتغيير الطرف."
+                data-en="Tenant fields are imported from the address book and are read-only here; use the picker and «Fill details» to switch the party."></small>
+            <small id="contractsScreenBadge" class="contracts-screen-badge">إدارة العقود والمستندات / Contract and documents management</small>
+            <small id="contractsReservationRequiredLockNote" class="tenancy-draft-lock-note contracts-reservation-lock-note" hidden style="display: none"
+                data-ar="🔒 لا يمكن استخدام شاشة العقود لهذه الوحدة بدون حجز.&#10;1) احجز الوحدة من «وحدات شاغرة»&#10;2) أكمل بيانات المستأجر في دفتر العناوين&#10;3) من «وحدات محجوزة» استخدم «تحويل عقد الإيجار»&#10;4) ثم أكمل العقد هنا"
+                data-en="🔒 Contracts workspace is locked for this unit without a reservation.&#10;1) Reserve from Vacant units&#10;2) Complete tenant in the address book&#10;3) From Reserved units use «Convert tenancy contract»&#10;4) Then complete the contract here"></small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-primary" onclick="openDocumentsWindow()">➡️ الاستمرار لصفحات العقود</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-primary" onclick="openDocumentsWindow()">➡️ Continue to contract pages</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+
+    <div id="contractsListPanel" class="workspace-list-panel" hidden>
+        <div class="workspace-list-toolbar">
+            <input type="search" id="contractsListSearch" placeholder="بحث في العقود (مبنى، مالك، مستأجر، رقم العقد)... / Search contracts..." style="min-width:260px;flex:1 1 280px">
+            <select id="contractsListBuildingFilter" style="min-width:160px">
+                <option value="all" data-ar="كل المباني" data-en="All buildings">كل المباني / All buildings</option>
+            </select>
+            <button type="button" class="btn-primary" onclick="startNewContractFromList()" data-ar="➕ عقد جديد" data-en="➕ New contract">➕ عقد جديد / New contract</button>
+            <button type="button" class="btn-outline" onclick="printContractsListReport()" data-ar="🖨️ طباعة" data-en="🖨️ Print">🖨️ طباعة / Print</button>
+        </div>
+        <div class="workspace-list-table-wrap">
+            <table class="ops-table">
+                <thead>
+                    <tr>
+                        <th>
+                            <span data-ar="المبنى" data-en="Building">المبنى</span>
+                            <button type="button" class="mini-btn" onclick="setContractsListSort('building')">↕</button>
+                            <button type="button" class="mini-btn" onclick="toggleContractsListFilterRow()">🔍</button>
+                        </th>
+                        <th>
+                            <span data-ar="المالك" data-en="Owner">المالك</span>
+                            <button type="button" class="mini-btn" onclick="setContractsListSort('owner')">↕</button>
+                        </th>
+                        <th>
+                            <span data-ar="الوحدة" data-en="Unit">الوحدة</span>
+                            <button type="button" class="mini-btn" onclick="setContractsListSort('unit')">↕</button>
+                        </th>
+                        <th>
+                            <span data-ar="المستأجر" data-en="Tenant">المستأجر</span>
+                            <button type="button" class="mini-btn" onclick="setContractsListSort('tenant')">↕</button>
+                        </th>
+                        <th>
+                            <span data-ar="رقم العقد" data-en="Contract no.">رقم العقد</span>
+                            <button type="button" class="mini-btn" onclick="setContractsListSort('agreementNo')">↕</button>
+                        </th>
+                        <th>
+                            <span data-ar="نهاية العقد" data-en="End date">نهاية العقد</span>
+                            <button type="button" class="mini-btn" onclick="setContractsListSort('endDate')">↕</button>
+                        </th>
+                        <th>
+                            <span data-ar="حالة العقد" data-en="Contract state">حالة العقد</span>
+                            <button type="button" class="mini-btn" onclick="setContractsListSort('contractState')">↕</button>
+                        </th>
+                        <th data-ar="إجراء" data-en="Action">إجراء</th>
+                    </tr>
+                    <tr id="contractsListFilterRow" hidden>
+                        <th><input id="contractsListColBuilding" placeholder=""></th>
+                        <th><input id="contractsListColOwner" placeholder=""></th>
+                        <th><input id="contractsListColUnit" placeholder=""></th>
+                        <th><input id="contractsListColTenant" placeholder=""></th>
+                        <th><input id="contractsListColAgreement" placeholder=""></th>
+                        <th><input id="contractsListColEndDate" placeholder=""></th>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="contractsListTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="data-entry" id="contractsFormPanel">
+        <div id="contractsFormBackBar" style="display:none;margin-bottom:12px">
+            <button type="button" class="btn-outline" onclick="showContractsWorkspaceView('list')" data-ar="← العودة لقائمة العقود" data-en="← Back to contracts list">← العودة لقائمة العقود / Back to contracts list</button>
+        </div>
+        <h4 id="contractDataSectionTitle">📝 بيانات العقد الرئيسية / Main contract data (changes apply automatically to all documents)</h4>
+        <div class="form-grid">
+            <div class="input-group">
+                <label id="agreementNoLabel">رقم العقد / Agreement No.</label>
+                <input type="text" id="agreementNo" value="" readonly autocomplete="off">
+            </div>
+            <div class="input-group" id="municipalFormNoGroup">
+                <label id="municipalFormNoLabel" data-ar="رقم استمارة العقد البلدي" data-en="Municipal contract form no.">رقم استمارة العقد البلدي / Municipal contract form no.</label>
+                <input type="text" id="municipalFormNo" value="" placeholder="— / —" onblur="if(contractActivationDataMode)applyContractActivationFieldLocks()">
+            </div>
+            <div class="input-group" id="municipalContractNoGroup">
+                <label id="municipalContractNoLabel" data-ar="رقم العقد البلدي" data-en="Municipal contract no.">رقم العقد البلدي / Municipal contract no.</label>
+                <input type="text" id="municipalContractNo" value="" placeholder="— / —" onblur="if(contractActivationDataMode)applyContractActivationFieldLocks()">
+            </div>
+            <div class="input-group">
+                <label>نوع العقد / Contract Type</label>
+                <select id="contractTypeSelect">
+                    <option value="سكني Residential">سكني / Residential</option>
+                    <option value="تجاري Commercial">تجاري / Commercial</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label id="typeSelectLabel">نوع الاتفاق / Entry type (ثابت)</label>
+                <select id="typeSelect" disabled title="دائمًا جديد / Always &quot;New&quot; — غير قابل للتعديل / Not editable">
+                    <option value="جديد New">جديد / New</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row-2cols">
+            <div class="input-group" style="grid-column:1 / -1" id="tenantAddressBookImportGroup">
+                <label id="tenantAddressBookImportLabel" data-ar="استيراد المستأجر أو شركة من دفتر العناوين" data-en="Import tenant or company from address book">استيراد المستأجر أو شركة من دفتر العناوين / Import tenant or company from address book</label>
+                <div id="tenantAddressBookImportToolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                    <select id="tenantAddressBookSelect" style="min-width:260px;flex:1 1 300px"></select>
+                    <button type="button" class="btn-outline" onclick="applySelectedAddressBookTenantToForm()" data-ar="تعبئة البيانات" data-en="Fill details">⬇️ تعبئة البيانات / Fill party details</button>
+                    <button type="button" class="btn-outline" onclick="openQuickAddTenantForContract()" data-ar="إضافة شخص كمستأجر" data-en="Add tenant person">➕ إضافة شخص كمستأجر / Add tenant (person)</button>
+                    <button type="button" class="btn-outline" onclick="openQuickAddCompanyTenantForContract()" data-ar="إضافة شركة كمستأجر" data-en="Add tenant company">➕ إضافة شركة كمستأجر / Add tenant (company)</button>
+                    <button type="button" class="btn-outline" onclick="refreshAddressBookFromSystem(true)">🔄 تحديث دفتر العناوين / Refresh address book</button>
+                </div>
+                <div id="tenantAddressBookUpdateToolbar" style="display:none;flex-wrap:wrap;gap:8px;align-items:center">
+                    <button type="button" class="btn-outline" id="btnUpdateTenantFromAddressBook" onclick="openLinkedTenantInAddressBookForContractUpdate()" data-ar="🔄 تحديث بيانات المستأجر" data-en="🔄 Update tenant data">🔄 تحديث بيانات المستأجر / Update tenant data</button>
+                    <small style="font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="يُفتح سجل المستأجر في دفتر العناوين؛ بعد الحفظ تُحدَّث بيانات العقد تلقائياً." data-en="Opens the tenant record in the address book; after you save, the contract updates automatically.">يُفتح سجل المستأجر في دفتر العناوين؛ بعد الحفظ تُحدَّث بيانات العقد تلقائياً. / Opens the tenant record in the address book; after you save, the contract updates automatically.</small>
+                </div>
+            </div>
+            <div class="input-group">
+                <label id="lblTenantEntityType" data-ar="نوع الجهة المستأجرة" data-en="Lessee type">نوع الجهة المستأجرة / Lessee type</label>
+                <select id="tenantEntityType" onchange="syncTenantEntityFieldsFromType()" title="شخص أو شركة / Person or company">
+                    <option value="person" data-ar="شخص" data-en="Person">شخص / Person</option>
+                    <option value="company" data-ar="شركة" data-en="Company">شركة / Company</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label id="lblTenantNameAr" data-ar="اسم المستأجر (عربي)" data-en="Tenant name (Arabic)">اسم المستأجر (عربي) / Tenant name (Arabic)</label>
+                <input type="text" id="tenantNameAr" value="">
+                <input type="hidden" id="tenantSiteContactId" value="">
+            </div>
+            <div class="input-group">
+                <label id="lblTenantNameEn" data-ar="اسم المستأجر بالإنجليزية" data-en="Tenant name (English)">اسم المستأجر بالإنجليزية / Tenant name (English)</label>
+                <input type="text" id="tenantNameEn" value="">
+            </div>
+            <div id="tenantPersonFieldsBlock" style="grid-column:1 / -1;display:contents">
+                <div class="input-group">
+                    <label id="lblTenantId" data-ar="الرقم المدني" data-en="Civil ID no.">الرقم المدني / Civil ID no.</label>
+                    <input type="text" id="tenantId" value="">
+                </div>
+                <div class="input-group">
+                    <label data-ar="رقم الجواز" data-en="Passport no.">رقم الجواز / Passport</label>
+                    <input type="text" id="tenantPassport" value="">
+                </div>
+                <div class="input-group" id="tenantNationalityWrap" style="grid-column:1/-1">
+                    <label data-ar="جنسية المستأجر (لمستندات العقد الإلزامية)" data-en="Tenant nationality (required contract uploads)">جنسية المستأجر (لمستندات العقد الإلزامية) / Tenant nationality (required contract uploads)</label>
+                    <select id="tenantNationality"><option value="عماني / Omani">عماني / Omani</option></select>
+                    <small style="opacity:.88;display:block;margin-top:6px" data-ar="مواطن: بطاقة شخصية إلزامية. وافد: بطاقة + جواز." data-en="Citizen: civil ID required. Resident foreigner: ID + passport.">مواطن: بطاقة شخصية إلزامية. وافد: بطاقة + جواز.</small>
+                </div>
+            </div>
+            <div id="tenantCompanyFieldsBlock" class="row-2cols" style="grid-column:1/-1;display:none">
+                <div class="input-group">
+                    <label data-ar="السجل التجاري" data-en="Commercial registration (CR) no.">السجل التجاري / Commercial reg. no.</label>
+                    <input type="text" id="tenantCommercialRegNo" value="" autocomplete="off" placeholder="— / —">
+                </div>
+                <div class="input-group">
+                    <label data-ar="انتهاء السجل التجاري" data-en="CR expiry date">انتهاء السجل التجاري / CR expiry date</label>
+                    <input type="date" id="tenantCommercialRegExpiryDate" value="">
+                </div>
+                <div class="input-group" style="grid-column:1/-1">
+                    <label data-ar="هاتف إضافي (الشركة)" data-en="Company extra phone">هاتف إضافي (الشركة) / Company extra phone</label>
+                    <input type="text" id="tenantCompanyExtraMobile" value="" autocomplete="off" placeholder="—">
+                </div>
+                <div class="input-group" style="grid-column:1/-1">
+                    <label data-ar="المفوضون بالتوقيع (نسخة من دفتر العناوين)" data-en="Signatories (snapshot from address book)">المفوضون بالتوقيع (نسخة من دفتر العناوين) / Signatories (from address book)</label>
+                    <div id="tenantCompanySignatoriesPreview" style="min-height:32px;font-size:12px;line-height:1.5;color:#324a59;border:1px solid #e2eaf0;border-radius:8px;padding:8px 10px;background:#fafcfe"></div>
+                    <input type="hidden" id="tenantCompanySignatoriesJson" value="[]">
+                </div>
+            </div>
+            <div class="input-group">
+                <label data-ar="الجوال" data-en="Mobile">رقم الجوال / Mobile</label>
+                <input type="text" id="tenantMobile" value="">
+            </div>
+            <div class="input-group">
+                <label data-ar="البريد الإلكتروني" data-en="Email">البريد الإلكتروني / Email</label>
+                <input type="text" id="tenantEmail" value="">
+            </div>
+        </div>
+
+        <div class="row-2cols">
+            <div class="input-group">
+                <label id="buildingSelectLabel">اختيار المبنى / Select Building</label>
+                <select id="buildingSelect" onchange="document.getElementById('buildingNo').value=this.value; try{applyContractsWorkspaceLockState();}catch(e){}">
+                    <option value="">— اختر مبنى / Select building —</option>
+                </select>
+                <input type="text" id="buildingNo" value="" style="margin-top:5px" placeholder="أو أدخل مبنى جديد / Or enter a new building">
+            </div>
+            <div class="input-group">
+                <label>رقم الشقة / Flat No.</label>
+                <input type="text" id="flatNo" value="">
+            </div>
+            <div class="input-group">
+                <label>تفاصيل الطابق / Floor</label>
+                <input type="text" id="floorDetails" value="">
+            </div>
+            <div class="input-group">
+                <label>نوع الوحدة / Unit Type</label>
+                <select id="unitType" disabled>
+                    <option value="Flat">Flat / شقة</option>
+                    <option value="Shop">Shop / محل</option>
+                    <option value="Office">Office / مكتب</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>نوع الاستعمال / Usage type</label>
+                <select id="usageType">
+                    <option value="سكني Residential">سكني / Residential</option>
+                    <option value="تجاري Commercial">تجاري / Commercial</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="linkedContractUnitsPanel" style="display:none;grid-column:1 / -1"></div>
+
+        <div class="row-2cols">
+            <div class="input-group">
+                <label>عداد الكهرباء / Electricity Meter</label>
+                <input type="text" id="electricityMeter" value="" readonly>
+            </div>
+            <div class="input-group">
+                <label>عداد الماء / Water Meter</label>
+                <input type="text" id="waterMeter" value="" readonly>
+            </div>
+        </div>
+
+        <div class="row-2cols" id="meterReadingsSection">
+            <div class="input-group">
+                <label data-ar="قراءة عداد الكهرباء *" data-en="Electricity meter reading *">قراءة عداد الكهرباء * / Electricity meter reading *</label>
+                <input type="text" id="electricityMeterReading" value="" inputmode="decimal" autocomplete="off" data-ar-placeholder="أدخل قراءة العداد الحالية" data-en-placeholder="Enter current meter reading" placeholder="أدخل قراءة العداد الحالية / Enter current meter reading">
+            </div>
+            <div class="input-group">
+                <label data-ar="قراءة عداد الماء *" data-en="Water meter reading *">قراءة عداد الماء * / Water meter reading *</label>
+                <input type="text" id="waterMeterReading" value="" inputmode="decimal" autocomplete="off" data-ar-placeholder="أدخل قراءة العداد الحالية" data-en-placeholder="Enter current meter reading" placeholder="أدخل قراءة العداد الحالية / Enter current meter reading">
+            </div>
+            <div class="input-group">
+                <label data-ar="صورة قراءة عداد الكهرباء *" data-en="Electricity meter reading photo *">صورة قراءة عداد الكهرباء * / Electricity meter reading photo *</label>
+                <div id="electricityMeterReadingAttachmentRow" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+                    <button type="button" class="mini-btn" onclick="document.getElementById('electricityMeterReadingAttachmentInput').click()" data-ar="📷 رفع صورة" data-en="📷 Upload photo">📷 رفع صورة / Upload photo</button>
+                    <span data-meter-reading-att-name data-preview-key="meter_electricity_reading" style="font-size:12px;color:#3b4b56;max-width:100%;word-break:break-all">—</span>
+                    <img class="contract-mand-doc-thumb" data-meter-reading-preview-thumb data-preview-key="meter_electricity_reading" style="display:none;max-height:56px" alt="" title="معاينة / Preview" onclick="openContractAttachmentPreviewFromStoreKey('meter_electricity_reading')">
+                    <button type="button" class="mini-btn contract-sched-att-preview" data-meter-reading-preview-btn data-preview-key="meter_electricity_reading" style="display:none" onclick="openContractAttachmentPreviewFromStoreKey('meter_electricity_reading')" data-ar="معاينة" data-en="Preview">معاينة / Preview</button>
+                    <input type="file" id="electricityMeterReadingAttachmentInput" accept="image/*" hidden aria-hidden="true" onclick="event.stopPropagation()" onchange="onContractMeterReadingAttachmentChange('electricity', this)">
+                </div>
+            </div>
+            <div class="input-group">
+                <label data-ar="صورة قراءة عداد الماء *" data-en="Water meter reading photo *">صورة قراءة عداد الماء * / Water meter reading photo *</label>
+                <div id="waterMeterReadingAttachmentRow" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+                    <button type="button" class="mini-btn" onclick="document.getElementById('waterMeterReadingAttachmentInput').click()" data-ar="📷 رفع صورة" data-en="📷 Upload photo">📷 رفع صورة / Upload photo</button>
+                    <span data-meter-reading-att-name data-preview-key="meter_water_reading" style="font-size:12px;color:#3b4b56;max-width:100%;word-break:break-all">—</span>
+                    <img class="contract-mand-doc-thumb" data-meter-reading-preview-thumb data-preview-key="meter_water_reading" style="display:none;max-height:56px" alt="" title="معاينة / Preview" onclick="openContractAttachmentPreviewFromStoreKey('meter_water_reading')">
+                    <button type="button" class="mini-btn contract-sched-att-preview" data-meter-reading-preview-btn data-preview-key="meter_water_reading" style="display:none" onclick="openContractAttachmentPreviewFromStoreKey('meter_water_reading')" data-ar="معاينة" data-en="Preview">معاينة / Preview</button>
+                    <input type="file" id="waterMeterReadingAttachmentInput" accept="image/*" hidden aria-hidden="true" onclick="event.stopPropagation()" onchange="onContractMeterReadingAttachmentChange('water', this)">
+                </div>
+            </div>
+        </div>
+
+        <div class="row-2cols">
+            <div class="input-group">
+                <label>الإيجار الشهري / Monthly Rent (OMR)</label>
+                <input type="number" id="monthlyRent" value="">
+            </div>
+            <div class="input-group">
+                <label>طريقة احتساب الإيجار / Rent calculation mode</label>
+                <select id="rentCalcMode">
+                    <option value="full">إيجار كامل / Full rent</option>
+                    <option value="per_meter">إيجار بالمتر / Per meter</option>
+                </select>
+            </div>
+            <div class="input-group" id="rentAreaGroup" style="display:none">
+                <label>عدد الأمتار / Area (sqm)</label>
+                <input type="number" id="rentAreaSqm" value="" placeholder="0" disabled>
+            </div>
+            <div class="input-group" id="rentPerSqmGroup" style="display:none">
+                <label>قيمة المتر / Rate per sqm (OMR)</label>
+                <input type="number" id="rentPerSqm" value="" placeholder="0" disabled>
+            </div>
+            <div class="input-group">
+                <label>مدة العقد (شهور) / Contract period (months)</label>
+                <input type="number" id="contractMonths" value="12" min="1">
+                <label style="display:block;margin-top:8px;font-size:12px">المدة الفعلية (شهور وأيام) / Actual period (months & days)</label>
+                <input type="text" id="contractPeriodDisplay" value="" readonly>
+                <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="تُعرض دائماً بالشهور والأيام الإضافية (مثال: 12 شهر و 13 يوم). تُزامَن مع تاريخ البداية والنهاية." data-en="Always shown as months plus extra days (e.g. 12 months and 13 days). Synced with start/end dates.">تُعرض دائماً بالشهور والأيام الإضافية (مثال: 12 شهر و 13 يوم). تُزامَن مع تاريخ البداية والنهاية. / Always shown as months plus extra days (e.g. 12 months and 13 days). Synced with start/end dates.</small>
+            </div>
+            <div class="input-group">
+                <label>فترة السماح (أيام) / Grace period (days)</label>
+                <input type="number" id="graceDays" value="0" min="0" readonly>
+                <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="تُحسب تلقائياً دائماً: الفرق بين تاريخ استلام الوحدة وتاريخ بداية العقد (بالأيام)." data-en="Always auto-calculated: calendar days between unit handover date and contract start date.">تُحسب تلقائياً دائماً: الفرق بين تاريخ استلام الوحدة وتاريخ بداية العقد (بالأيام). / Always auto-calculated: days between handover date and contract start date.</small>
+            </div>
+            <div class="input-group" id="unitHandoverDateGroup">
+                <label>تاريخ استلام الوحدة / Unit handover date</label>
+                <input type="date" id="unitHandoverDate" value="">
+            </div>
+            <div class="input-group">
+                <label>تاريخ البداية / From (start)</label>
+                <input type="date" id="startDate" value="">
+            </div>
+            <div class="input-group">
+                <label>تاريخ النهاية / To (end)</label>
+                <input type="date" id="endDate" value="">
+            </div>
+            <div class="input-group">
+                <label>يوم دفع الإيجار المتفق عليه / Agreed rent payment day (1–31)</label>
+                <input type="number" id="agreedRentPaymentDay" value="5" min="1" max="31" inputmode="numeric"
+                    title="يُستخدم في إيجارات مخصصة وجدول الدفع الشهري: نفس يوم الشهر لكل شهر (قابل للتعديل لكل صف). / Used in custom rent and monthly schedule: same day each month (each row editable).">
+                <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="يُطبَّق تلقائياً على 📋 إيجارات مخصصة وجدول الدفع الشهري (مثلاً: 3 = الدفع يوم 3 من كل شهر). يمكن تعديل تاريخ أي شهر يدوياً." data-en="Auto-applies to custom rent and monthly schedule (e.g. 3 = due on the 3rd each month). You may edit any row date manually.">يُطبَّق تلقائياً على 📋 إيجارات مخصصة وجدول الدفع الشهري (مثلاً: 3 = الدفع يوم 3 من كل شهر). يمكن تعديل تاريخ أي شهر يدوياً. / Auto-applies to custom rent and monthly schedule (e.g. 3 = due on the 3rd each month). You may edit any row date manually.</small>
+            </div>
+            <div class="input-group">
+                <label>طريقة الدفع / Payment method</label>
+                <select id="paymentMethod">
+                    <option value="شيك CHQ">شيك / CHQ</option>
+                    <option value="نقدا Cash">نقدًا / Cash</option>
+                    <option value="تحويل بنكي Bank transfer">تحويل بنكي / Bank transfer</option>
+                </select>
+            </div>
+            <div class="input-group" style="grid-column:1 / -1">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+                    <button type="button" class="btn-outline mini-btn" onclick="refreshContractWorkspaceData({ showStatus: true })" data-ar="🔄 تحديث البيانات" data-en="🔄 Refresh data">🔄 تحديث البيانات / Refresh data</button>
+                    <span id="contractWorkspaceRefreshStatus" class="contract-workspace-refresh-status" aria-live="polite"></span>
+                </div>
+                <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="يُحدِّث المدة والسماح وجداول الدفع والملخص والمعاينة فوراً — دون إعادة تحميل الصفحة. تُحفظ المسودة تلقائياً في المتصفح." data-en="Refreshes period, grace, payment schedules, summary, and preview instantly — without reloading the page. Draft is auto-saved in the browser.">يُحدِّث المدة والسماح وجداول الدفع والملخص والمعاينة فوراً — دون إعادة تحميل الصفحة. تُحفظ المسودة تلقائياً في المتصفح. / Refreshes period, grace, payment schedules, summary, and preview instantly — without reloading the page. Draft is auto-saved in the browser.</small>
+            </div>
+            <div class="input-group">
+                <label>هل العقد مشمول بالضريبة المضافة؟ / Is contract subject to VAT?</label>
+                <select id="contractSubjectToVat">
+                    <option value="no">لا / No</option>
+                    <option value="yes">نعم / Yes</option>
+                </select>
+            </div>
+            <div id="vatOptionsWrap" style="display:none;grid-column:1 / -1">
+                <div class="form-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;align-items:end">
+                    <div class="input-group">
+                        <label>هل الضريبة مع الإيجار الشهري أم منفصلة؟ / VAT with monthly rent or separate?</label>
+                        <select id="vatPaymentMode">
+                            <option value="with_rent">مع الإيجار الشهري / With monthly rent</option>
+                            <option value="separate">منفصلة (شيكات إضافية) / Separate (additional cheques)</option>
+                        </select>
+                    </div>
+                    <div class="input-group" id="vatWithRentWrap" style="display:none">
+                        <label>مبلغ الضريبة المضافة الشهري (OMR) / Monthly VAT (OMR)</label>
+                        <input type="text" id="vatMonthlyAmount" value="" readonly>
+                        <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="نسبة 5% من الإيجار الشهري الأساسي (بدون ضريبة)." data-en="5% of base monthly rent (excluding VAT).">نسبة 5% من الإيجار الشهري الأساسي (بدون ضريبة). / 5% of base monthly rent (excluding VAT).</small>
+                    </div>
+                    <div class="input-group" id="vatWithRentInclWrap" style="display:none">
+                        <label>الإيجار الشهري شامل الضريبة (OMR) / Monthly rent incl. VAT (OMR)</label>
+                        <input type="text" id="monthlyRentInclVat" value="" readonly>
+                    </div>
+                    <div class="input-group" id="vatSeparateCountWrap" style="display:none">
+                        <label>عدد شيكات الضريبة المضافة / Number of VAT cheques</label>
+                        <input type="number" id="vatChequeCount" value="1" min="1" max="24" inputmode="numeric">
+                    </div>
+                    <div class="input-group" id="vatSeparateAnnualWrap" style="display:none">
+                        <label>إجمالي الضريبة السنوية (OMR) / Annual VAT total (OMR)</label>
+                        <input type="text" id="vatAnnualTotal" value="" readonly>
+                        <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="الإيجار الشهري × 12 × 5% — تُقسَّم على عدد الشيكات الإضافية." data-en="Monthly rent × 12 × 5% — divided across additional VAT cheques.">الإيجار الشهري × 12 × 5% — تُقسَّم على عدد الشيكات الإضافية. / Monthly rent × 12 × 5% — divided across additional VAT cheques.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="input-group">
+                <label>مبلغ السماح (OMR) / Grace amount (OMR)</label>
+                <input type="text" id="graceAmount" value="0.000" readonly>
+                <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;opacity:0.92;color:#4a5563" data-ar="يُحسب تلقائياً: (الإيجار الشهري ÷ 30) × عدد أيام السماح" data-en="Auto-calculated: (monthly rent ÷ 30) × grace days">يُحسب تلقائياً: (الإيجار الشهري ÷ 30) × عدد أيام السماح / Auto-calculated: (monthly rent ÷ 30) × grace days</small>
+            </div>
+            <div class="input-group bhd-ledger-block" style="grid-column:1 / -1" id="insuranceDepositSection">
+                <h5>🛡️ التأمين (الوديعة) / Insurance (deposit)</h5>
+                <div class="form-grid" style="margin-bottom:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;align-items:end">
+                    <div class="input-group">
+                        <label data-ar="مبلغ التأمين (مرجعي) / ر.ع" data-en="Deposit amount (reference) (OMR)">مبلغ التأمين (مرجعي) / Deposit amount (reference) (OMR)</label>
+                        <input type="text" id="depositAmount" value="325" data-ar-title="يُقفل بعد اعتماد المحاسب لاستلام التأمين" data-en-title="Locked after accountant approves deposit receipt">
+                        <small id="depositAmountLockHint" style="display:none;margin-top:6px;font-size:11px;line-height:1.45;color:#1f5a2a;background:#eef8ee;border:1px solid #b8ddb8;border-radius:8px;padding:8px 10px" data-ar="مقفل — اعتمد المحاسب مبلغ التأمين." data-en="Locked — deposit amount approved by accountant."></small>
+                    </div>
+                    <div class="input-group">
+                        <label data-ar="رقم الإيصال" data-en="Receipt no.">رقم الإيصال / Receipt no.</label>
+                        <input type="text" id="depositReceiptRef" maxlength="160" readonly autocomplete="off" data-ar-placeholder="يُولَّد تلقائياً بعد اعتماد المحاسب لاستلام التأمين" data-en-placeholder="Auto-generated after accountant confirms deposit receipt" placeholder="يُولَّد تلقائياً بعد اعتماد المحاسب لاستلام التأمين / Auto-generated after accountant confirms deposit receipt">
+                        <small style="display:block;margin-top:6px;font-size:11px;line-height:1.45;color:#4a5563" data-ar="يُولَّد تلقائياً من نظام المحاسبة (رقم سند قبض) عند اعتماد استلام مبلغ التأمين. إذا رُفع المرفق مع الحجز فلا حاجة لإعادة رفعه هنا." data-en="Auto-generated from accounting (receipt voucher no.) when deposit receipt is approved. If uploaded with the reservation, no need to upload again here.">يُولَّد تلقائياً من نظام المحاسبة (رقم سند قبض) عند اعتماد استلام مبلغ التأمين. إذا رُفع المرفق مع الحجز فلا حاجة لإعادة رفعه هنا. / Auto-generated from accounting when deposit receipt is approved.</small>
+                    </div>
+                    <div class="input-group" style="grid-column:1/-1">
+                        <label data-ar="مرفق إيصال أو مستند للوديعة" data-en="Deposit receipt attachment (PDF or image)">مرفق إيصال أو مستند للوديعة / Deposit receipt attachment (PDF or image)</label>
+                        <div id="depositAttachmentRow" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+                            <span data-deposit-att-name data-preview-key="deposit_receipt" style="font-size:12px;color:#3b4b56;max-width:100%;word-break:break-all;cursor:default">—</span>
+                            <img class="contract-mand-doc-thumb" data-deposit-preview-thumb data-preview-key="deposit_receipt" style="display:none;max-height:56px" alt="" title="معاينة / Preview" onclick="openContractAttachmentPreviewFromStoreKey('deposit_receipt')">
+                            <button type="button" class="mini-btn contract-sched-att-preview" data-deposit-preview-btn data-preview-key="deposit_receipt" style="display:none" onclick="openContractAttachmentPreviewFromStoreKey('deposit_receipt')" data-ar="معاينة" data-en="Preview">معاينة / Preview</button>
+                            <input type="file" id="depositAttachmentInput" accept="image/*,.pdf" disabled hidden aria-hidden="true" onclick="event.stopPropagation()" onchange="onDepositAttachmentChange(this)" style="max-width:260px">
+                        </div>
+                        <small id="contractDepositAttachmentHint" style="display:block;margin-top:6px;font-size:11px;line-height:1.45;color:#5a3d00;background:#fff8e6;border:1px solid #e6d08a;border-radius:8px;padding:8px 10px" data-ar="يُستورد المرفق تلقائياً من المحاسبة بعد اعتماد استلام التأمين — لا حاجة لرفعه من شاشة العقود." data-en="The attachment is imported automatically from accounting after deposit receipt approval — no upload needed on the contract screen.">يُستورد المرفق تلقائياً من المحاسبة بعد اعتماد استلام التأمين — لا حاجة لرفعه من شاشة العقود. / The attachment is imported automatically from accounting after deposit receipt approval — no upload needed on the contract screen.</small>
+                    </div>
+                </div>
+                <label style="display:block;font-size:13px;margin-bottom:6px">تفاصيل دفع التأمين: شيك / مجموعة شيكات / أخرى — مع رقم الشيك أو الإيصال / Deposit payment lines: cheque, cheque batch, or other — with reference</label>
+                <div id="insuranceDepositItemsList" style="display:flex;flex-direction:column;gap:8px"></div>
+                <div style="margin-top:8px">
+                    <button type="button" class="mini-btn" onclick="addInsuranceDepositItemRow()">＋ إضافة بند / Add line</button>
+                </div>
+            </div>
+            <div class="input-group bhd-ledger-block" style="grid-column:1 / -1" id="customRentSection">
+                <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+                    <h5 style="margin:0" data-ar="📋 إيجارات مخصصة" data-en="📋 Custom rent (per month)">📋 إيجارات مخصصة / Custom rent (per month)</h5>
+                    <button type="button" class="btn-outline mini-btn" id="customRentSectionToggleBtn" onclick="toggleReservationLedgerSubsection('customRent')" aria-expanded="true" title="طي أو توسيع القسم / Collapse or expand section">▸ طي — إيجارات مخصصة / Collapse — Custom rent</button>
+                </div>
+                <div id="customRentSectionBody">
+                    <p style="font-size:12px;color:#555;margin:0 0 8px;line-height:1.45" data-ar="نفس تنسيق جدول الدفع: التاريخ والمبلغ لكل شهر. تاريخ الدفع الافتراضي = يوم دفع الإيجار المتفق عليه (مثلاً 3 من كل شهر). يمكن تعديل أي تاريخ يدوياً." data-en="Same layout as the payment schedule. Default due date = agreed rent payment day each month (e.g. the 3rd). Any row date can be edited manually.">نفس تنسيق جدول الدفع: التاريخ الافتراضي = يوم دفع الإيجار المتفق عليه. يمكن تعديل أي تاريخ يدوياً. / Default due date = agreed payment day each month. Any row date can be edited manually.</p>
+                    <div id="customRentScheduleTableWrap" class="payment-schedule-wrap" aria-label="Custom rent table / جدول إيجار مخصص"></div>
+                </div>
+            </div>
+            <div class="input-group" style="grid-column:1 / -1" id="paymentScheduleSection">
+                <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+                    <label style="margin:0;font-weight:600" data-ar="جدول الدفع الشهري" data-en="Monthly payment schedule">جدول الدفع الشهري / Monthly payment schedule</label>
+                    <button type="button" class="btn-outline mini-btn" id="paymentScheduleSectionToggleBtn" onclick="toggleReservationLedgerSubsection('paymentSchedule')" aria-expanded="true" title="طي أو توسيع الجدول / Collapse or expand schedule">▸ طي — جدول الدفع الشهري / Collapse — Monthly schedule</button>
+                </div>
+                <div id="paymentScheduleSectionBody">
+                    <p style="font-size:12px;color:#555;margin:0 0 8px;line-height:1.45" data-ar="تُحسب تواريخ الدفع من «يوم دفع الإيجار» (نفس يوم الشهر في كل شهر من مدة العقد، انطلاقاً من تاريخ البداية) وطريقة الدفع وعدد الأشهر. للشيك: رقم الشيك ومرفق." data-en="Due dates use the agreed rent payment day (same calendar day each month for the contract term, from the start date), payment method, and term. For cheques: cheque no. and attachment.">تُحسب تواريخ الدفع من «يوم دفع الإيجار» (نفس يوم الشهر في كل شهر من مدة العقد، من تاريخ البداية) وطريقة الدفع. للشيك: رقم الشيك ومرفق. / Due dates use the agreed rent payment day (same day of month each month from the start date), payment method, and term. For cheques: cheque no. and attachment.</p>
+                    <div class="payment-schedule-toolbar">
+                        <button type="button" class="mini-btn" onclick="rebuildPaymentScheduleFromContractDefaults()">🔄 إعادة بناء الجدول من بيانات العقد / Rebuild from contract</button>
+                    </div>
+                    <div id="paymentScheduleTableWrap" class="payment-schedule-wrap" aria-label="Payment schedule / جدول الدفع"></div>
+                </div>
+            </div>
+            <div class="input-group bhd-ledger-block" style="grid-column:1 / -1;display:none" id="vatChequeScheduleSection">
+                <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+                    <label style="margin:0;font-weight:600" data-ar="شيكات الضريبة المضافة (إضافية)" data-en="Additional VAT cheques">شيكات الضريبة المضافة (إضافية) / Additional VAT cheques</label>
+                    <button type="button" class="btn-outline mini-btn" id="vatChequeScheduleSectionToggleBtn" onclick="toggleReservationLedgerSubsection('vatCheques')" aria-expanded="true" title="طي أو توسيع الجدول / Collapse or expand schedule">▸ طي — شيكات الضريبة / Collapse — VAT cheques</button>
+                </div>
+                <div id="vatChequeScheduleSectionBody">
+                    <p style="font-size:12px;color:#555;margin:0 0 8px;line-height:1.45" data-ar="شيكات إضافية لدفع الضريبة المضافة السنوية (5% × الإيجار الشهري × 12)، مقسّمة بالتساوي على العدد المدخل. أدخل رقم كل شيك ومرفقه." data-en="Additional cheques for annual VAT (5% × monthly rent × 12), split equally across the entered count. Enter each cheque number and attachment.">شيكات إضافية لدفع الضريبة المضافة السنوية (5% × الإيجار الشهري × 12)، مقسّمة بالتساوي على العدد المدخل. / Additional cheques for annual VAT (5% × monthly rent × 12), split equally. Enter cheque no. and attachment for each.</p>
+                    <div class="payment-schedule-toolbar">
+                        <button type="button" class="mini-btn" onclick="rebuildVatChequeScheduleFromDefaults()">🔄 إعادة بناء شيكات الضريبة / Rebuild VAT cheques</button>
+                    </div>
+                    <div id="vatChequeScheduleTableWrap" class="payment-schedule-wrap" aria-label="VAT cheque schedule / جدول شيكات الضريبة"></div>
+                </div>
+            </div>
+            <div class="input-group bhd-ledger-block" style="grid-column:1 / -1" id="extraAdjustmentsSection">
+                <label>مبالغ إضافية / خصومات / Extra charges & discounts</label>
+                <p style="font-size:11px;color:#555;margin:4px 0 8px;line-height:1.45" data-ar="حدّد هل المبلغ يُدفع مع التجديد أو مرة واحدة أو كل 3 أشهر أو شهرياً حتى نهاية العقد أو سنة أو مدة مخصصة." data-en="Specify whether the amount is paid with renewal, once, every 3 months, monthly until contract end, one year, or a custom period.">حدّد هل المبلغ يُدفع مع التجديد أو مرة واحدة أو كل 3 أشهر أو شهرياً حتى نهاية العقد أو سنة أو مدة مخصصة. / Specify payment: with renewal, once, every 3 months, monthly until contract end, one year, or custom period.</p>
+                <div id="extraAdjustmentsList" style="display:flex;flex-direction:column;gap:10px"></div>
+                <div style="margin-top:8px">
+                    <button type="button" class="mini-btn" onclick="addExtraAdjustmentRow()" data-ar="＋ إضافة بند" data-en="＋ Add item">＋ إضافة بند</button>
+                </div>
+            </div>
+
+            <div class="input-group bhd-ledger-block" style="grid-column:1 / -1;margin-top:14px" id="contractDocumentsSectionBlock">
+                <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+                    <h5 style="margin:0" data-ar="📎 مستندات العقد" data-en="📎 Contract documents">📎 مستندات العقد / Contract documents</h5>
+                    <button type="button" class="btn-outline" id="contractDocumentsToggleBtn" onclick="toggleContractDocumentsPanel()" data-ar="عرض/إخفاء مستندات العقد" data-en="Show/Hide uploads">▸ المستندات / Required & extra uploads</button>
+                </div>
+                <small style="display:block;margin-bottom:10px;opacity:.92;line-height:1.5" data-ar="تُحدَّد المتطلبات حسب شخص/شركة وجنسيات المفوضين تلقائياً. المرفقات في دفتر العناوين تُحمَّل تلقائياً عند استيراد المستأجر؛ المرفوعة هنا تُحدِّث الدفتر عند مطابقة الاسم والرقم المدني/السجل." data-en="Requirements follow person/company and signatory citizenship. Address book attachments load when you import the tenant; uploads here update the book when name and civil ID (or CR for companies) match.">تُحدَّد المتطلبات حسب شخص/شركة وجنسيات المفوضين تلقائياً. مرفقات الدفتر تُحمَّل مع الاستيراد؛ والمرفوعة من العقد تُحدِّث الدفتر عند المطابقة.</small>
+                <div id="contractDocumentsPanel" style="border:1px solid #dfe7ee;border-radius:10px;padding:12px;background:#fafcff;display:none">
+                    <div style="margin-bottom:14px">
+                        <strong data-ar="المستندات الإلزامية" data-en="Required documents">المستندات الإلزامية / Required documents</strong>
+                        <div id="contractMandatoryDocsHost" style="margin-top:10px;display:flex;flex-direction:column;gap:10px;font-size:12px;color:#334"></div>
+                        <div id="contractMandatoryDocsHints" style="margin-top:8px;font-size:11px;color:#6b5560;line-height:1.45"></div>
+                    </div>
+                    <div style="border-top:1px dashed #cdd6df;padding-top:12px;margin-top:8px">
+                        <strong data-ar="مستندات إضافية (عدة مستندات)" data-en="Extra documents (many)">مستندات إضافية (عدة مستندات) / Extra documents</strong>
+                        <div id="contractOtherDocsHost" style="margin-top:10px;display:flex;flex-direction:column;gap:10px"></div>
+                        <button type="button" class="mini-btn" style="margin-top:10px" onclick="addContractOtherDocRow()" data-ar="＋ إضافة مستند" data-en="＋ Add document">＋ إضافة مستند / Add doc</button>
+                    </div>
+                    <textarea id="contractMandatoryDocsJson" style="display:none" aria-hidden="true">{}</textarea>
+                    <textarea id="contractOtherDocsJson" style="display:none" aria-hidden="true">[]</textarea>
+                    <textarea id="linkedContractUnitsJson" style="display:none" aria-hidden="true">[]</textarea>
+                </div>
+            </div>
+            <div class="input-group bhd-ledger-block" style="grid-column:1 / -1;display:none" id="propertyDocumentsBundleSection">
+                <div class="property-docs-pending-banner" id="propertyDocumentsBundleBanner">
+                    <strong data-ar="📎 نشط — مطلوب إرفاق كافة المستندات" data-en="📎 Active — attach all property documents">📎 نشط — مطلوب إرفاق كافة المستندات / Active — attach all property documents</strong>
+                    <span data-ar="يمكن رفع المستندات واحداً واحداً، أو دمجها في ملف موحّد باسم «كل المستندات» (الموقّعة من المستأجر)، أو إضافة ملفات إضافية لاحقاً." data-en="Upload documents one by one, merge them into one combined «All documents» file (tenant-signed), or add extra files later.">يمكن رفع المستندات واحداً واحداً، أو دمجها في ملف موحّد باسم «كل المستندات» (الموقّعة من المستأجر)، أو إضافة ملفات إضافية لاحقاً. / Upload one by one, as one combined tenant-signed bundle, or add extras later.</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">
+                    <button type="button" class="btn-primary" onclick="openPropertyDocumentsBundleModal()" data-ar="📎 رفع أوراق العقار الكاملة" data-en="📎 Upload full property papers">📎 رفع أوراق العقار الكاملة / Upload full property papers</button>
+                    <button type="button" class="btn-outline" id="propertyDocumentsViewBtnCw" onclick="openPropertyDocumentsBundleViewer()" style="display:none" data-ar="📂 عرض أوراق العقار" data-en="📂 View property papers">📂 عرض أوراق العقار / View property papers</button>
+                </div>
+                <div id="propertyDocumentsBundleListHost" style="display:flex;flex-direction:column;gap:8px"></div>
+                <textarea id="propertyDocumentsBundleJson" style="display:none" aria-hidden="true">[]</textarea>
+            </div>
+        </div>
+        <div class="smart-summary" id="smartSummary"></div>
+        <div class="contracts-save-dock-inline print-hide" id="contractsSaveDockWrap" role="region" aria-label="حفظ بيانات العقد / Contract save">
+            <p class="contracts-save-dock-hint" id="contractsSaveDockHint" data-ar="حفظ نهائي للعقد وإزالة مسودة التعاقد عند مطابقة المبنى والوحدة." data-en="Final contract save and removal of the tenancy draft when building and unit match."></p>
+            <div class="contracts-save-dock-actions">
+                <button type="button" class="btn-outline" id="contractsSaveDockDraftBtn" onclick="saveAllDataAsDraft()" style="display:none" data-ar="💾 حفظ كمسودة" data-en="💾 Save as draft">💾 حفظ كمسودة / Save as draft</button>
+                <button type="button" class="btn-primary" id="contractsSaveDockPrimaryBtn" onclick="saveAllData()" data-ar="💾 حفظ بيانات العقد" data-en="💾 Save contract data">💾 حفظ بيانات العقد / Save contract data</button>
+                <div class="unit-details-ie-wrap contracts-print-wrap" id="contractsPrintWrap" hidden>
+                    <button type="button" class="btn-outline" id="contractsPrintMenuBtn" onclick="toggleContractPrintMenu(event)" data-ar="🖨️ طباعة الاستمارات ▾" data-en="🖨️ Print forms ▾">🖨️ طباعة الاستمارات ▾ / Print forms ▾</button>
+                    <div class="unit-details-ie-panel unit-details-print-panel" id="contractsPrintPanel" role="menu" hidden>
+                        <div class="unit-details-ie-heading">اختر الاستمارات ثم اطبع — Select forms, then print<br><span style="font-size:11px;opacity:0.9">تُعبَّأ من بيانات العقد الحالية — Filled from current contract data</span></div>
+                        <label class="ud-print-label"><input type="checkbox" class="cw-print-chk" value="0" checked> 01 — عقد سكني / Residential</label>
+                        <label class="ud-print-label"><input type="checkbox" class="cw-print-chk" value="2" checked> 03 — ملحق التمديد / Extension Addendum</label>
+                        <label class="ud-print-label"><input type="checkbox" class="cw-print-chk" value="3" checked> 04 — إقرار / Declaration</label>
+                        <label class="ud-print-label"><input type="checkbox" class="cw-print-chk" value="7" checked> 08 — فاتورة / Invoice</label>
+                        <label class="ud-print-label ud-print-attachments"><input type="checkbox" id="contractsPrintAttachments" checked> 📎 طباعة المرفقات (شيكات، إيصالات، مستندات المستأجر) / Print attachments (cheques, receipts, tenant docs)</label>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+                            <button type="button" class="btn-primary mini-btn" onclick="runContractSelectedPrint()">🖨️ طباعة المحدد / Print selected</button>
+                            <button type="button" class="btn-outline mini-btn" onclick="runContractPostSavePrint()">📑 طباعة مجموعة الحفظ (01+03+04+08) / Post-save set</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="contracts-acct-receipt-print-wrap" id="contractsAccountingReceiptPrintWrap" style="display:none;gap:8px;flex-wrap:wrap;align-items:center">
+                    <button type="button" class="btn-outline" id="contractsPrintDepositReceiptBtn" onclick="printContractDepositReceiptFromWorkspace()" style="display:none" data-ar="🖨️ إيصال استلام الضمان" data-en="🖨️ Deposit receipt">🖨️ إيصال استلام الضمان / Deposit receipt</button>
+                    <button type="button" class="btn-outline" id="contractsPrintChequesReceiptBtn" onclick="printContractChequesReceiptReportFromWorkspace()" style="display:none" data-ar="🖨️ كشف الشيكات — تأكيد الاستلام" data-en="🖨️ Cheques receipt confirmation">🖨️ كشف الشيكات — تأكيد الاستلام / Cheques receipt confirmation</button>
+                </div>
+            </div>
+        </div>
+        <div class="details-actions" id="reservationSaveActions" style="margin-top:10px;display:none" hidden aria-hidden="true">
+            <button type="button" class="btn-primary" onclick="saveAllData()" data-ar="💾 حفظ الحجز" data-en="💾 Save reservation">💾 حفظ الحجز</button>
+        </div>
+    </div>
+

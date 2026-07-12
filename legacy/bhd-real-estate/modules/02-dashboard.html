@@ -1,0 +1,153 @@
+        <section class="dash-units-section">
+        <h4 class="panel-title" data-ar="🏢 سجل الوحدات" data-en="🏢 Units registry">🏢 سجل الوحدات</h4>
+        <p style="font-size:12px;color:#5a6b75;margin:-4px 0 10px" data-ar="اضغط على صف الوحدة للتفاصيل والعقد." data-en="Click a unit row for details and contract.">اضغط على صف الوحدة للتفاصيل والعقد.</p>
+        <div class="filters-row">
+            <input type="text" id="unitsSearchInput" placeholder="بحث بالاسم أو الوحدة أو العداد / Search by name, unit, or meter">
+            <select id="unitsBuildingFilter"></select>
+            <select id="unitsStatusFilter">
+                <option value="all">كل الحالات / All statuses</option>
+                <option value="Rented">مؤجر / Rented</option>
+                <option value="Vacant">شاغر / Vacant</option>
+                <option value="Expiring">قريب الانتهاء / Expiring soon</option>
+                <option value="Overdue">منتهي / Overdue</option>
+                <option value="NoEndDate">بدون تاريخ انتهاء / No end date</option>
+            </select>
+            <select id="unitsExpireFilter">
+                <option value="all">كل الفترات / All periods</option>
+                <option value="30">ينتهي خلال 30 يوم / Within 30 days</option>
+                <option value="60">ينتهي خلال 60 يوم / Within 60 days</option>
+                <option value="90">ينتهي خلال 90 يوم / Within 90 days</option>
+            </select>
+            <select id="unitsUtilitiesFilter">
+                <option value="all">العدادات: الكل / Meters: all</option>
+                <option value="complete">العدادات مكتملة / Complete meters</option>
+                <option value="missing">عدادات ناقصة / Missing meters</option>
+            </select>
+            <button class="btn-outline" onclick="resetOperationsFilters()" data-ar="إعادة ضبط الفلاتر" data-en="Reset filters">إعادة ضبط الفلاتر</button>
+        </div>
+        <input type="file" id="buildingStructureExcelInput" accept=".xlsx,.xls" style="display:none">
+        <input type="file" id="rentedContractsExcelInput" accept=".xlsx,.xls" style="display:none">
+        <input type="file" id="bhdBuildingsExcelInput" accept=".xlsx,.xls" style="display:none">
+        <input type="file" id="bhdOwnersExcelInput" accept=".xlsx,.xls" style="display:none">
+        <input type="file" id="bhdUnitsExcelInput" accept=".xlsx,.xls" style="display:none">
+        <div class="ops-actions">
+            <button class="btn-outline" onclick="openExpiryReportWindow(30)" data-ar="🧾 تقرير العقود (30 يوم)" data-en="🧾 Contracts report (30 days)">🧾 تقرير العقود (30 يوم)</button>
+            <button class="btn-outline" onclick="openExpiryReportWindow(60)" data-ar="🧾 تقرير العقود (60 يوم)" data-en="🧾 Contracts report (60 days)">🧾 تقرير العقود (60 يوم)</button>
+            <button class="btn-primary" onclick="batchRenewPrint(30)" data-ar="🖨️ طباعة تجديد جماعي (30 يوم)" data-en="🖨️ Batch renewal print (30 days)">🖨️ طباعة تجديد جماعي (30 يوم)</button>
+        </div>
+        <div class="batch-controls">
+            <select id="batchDaysFilter">
+                <option value="30">تنتهي خلال 30 يوم / Expires in 30 days</option>
+                <option value="60">تنتهي خلال 60 يوم / Expires in 60 days</option>
+                <option value="90">تنتهي خلال 90 يوم / Expires in 90 days</option>
+            </select>
+            <select id="batchBuildingFilter"></select>
+            <button class="btn-primary" onclick="runFlexibleBatchPrint()" data-ar="🖨️ تنفيذ الطباعة المرنة" data-en="🖨️ Run flexible print">🖨️ تنفيذ الطباعة المرنة</button>
+        </div>
+
+        <div class="table-shell">
+            <table class="ops-table">
+                <thead>
+                    <tr>
+                        <th><span class="sort-head" onclick="setOperationsSort('building')">المبنى / Building <span class="sort-indicator" id="sort-building">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('owner')">المالك / Owner</span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('unit')">الوحدة / Unit <span class="sort-indicator" id="sort-unit">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('tenant')">المستأجر / Tenant <span class="sort-indicator" id="sort-tenant">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('status')">الحالة / Status <span class="sort-indicator" id="sort-status">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('contractState')">حالة العقد / Contract state <span class="sort-indicator" id="sort-contractState">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('endDate')">تاريخ الانتهاء / End date <span class="sort-indicator" id="sort-endDate">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('days')">متبقي يوم / Days left <span class="sort-indicator" id="sort-days">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('electricity')">الكهرباء / Electricity <span class="sort-indicator" id="sort-electricity">↕</span></span></th>
+                        <th><span class="sort-head" onclick="setOperationsSort('water')">الماء / Water <span class="sort-indicator" id="sort-water">↕</span></span></th>
+                        <th data-ar="إجراءات" data-en="Actions">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="unitsTableBody"></tbody>
+            </table>
+        </div>
+        <div class="ops-pagination" id="operationsPagination" hidden>
+            <span id="operationsPageInfo"></span>
+            <div class="ops-pagination-actions">
+                <label style="display:flex;align-items:center;gap:6px">
+                    <span data-ar="صفوف" data-en="Rows">صفوف</span>
+                    <select id="operationsPageSizeSelect" onchange="setOperationsPageSize(this.value)">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                </label>
+                <button type="button" class="btn-outline" id="operationsPrevPageBtn" onclick="changeOperationsPage(-1)" data-ar="السابق" data-en="Previous">السابق</button>
+                <button type="button" class="btn-outline" id="operationsNextPageBtn" onclick="changeOperationsPage(1)" data-ar="التالي" data-en="Next">التالي</button>
+            </div>
+        </div>
+        </section>
+
+    </div>
+</div>
+
+<!-- إدارة المستخدمين والصلاحيات -->
+<div class="users-workspace" id="usersWorkspace">
+    <div class="users-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">👥 إدارة المستخدمين / User management</h2>
+            <small style="opacity:0.95">أنواع المستخدمين: مدير النظام، مستخدم للنظام، محاسب — مع صلاحيات كاملة أو جزئية / User types: admin, system user, accountant — full or partial permissions</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 العودة للوحة المعلومات</button>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 شاشة العقود</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <button type="button" class="btn-primary" onclick="openContractsWorkspace()">📝 Contracts</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="users-panel" id="usersPanelHost"></div>
+</div>
+
+<!-- إعدادات المنشأة -->
+<div class="users-workspace organization-workspace" id="organizationWorkspace">
+    <div class="users-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">🏢 إعدادات المنشأة / Organization settings</h2>
+            <small style="opacity:0.95" data-ar="بيانات الشركة والشعار والعناوين — تظهر في رأس المستندات والطباعة" data-en="Company profile, logo, and addresses — used in document headers and printing">بيانات الشركة والشعار والعناوين — تظهر في رأس المستندات والطباعة</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 العودة للوحة المعلومات</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="users-panel" id="organizationPanelHost"></div>
+</div>
+
+<!-- قوالب المستندات التجارية -->
+<div class="users-workspace doc-templates-workspace" id="docTemplatesWorkspace">
+    <div class="users-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">📄 قوالب المستندات / Document templates</h2>
+            <small style="opacity:0.95" data-ar="فاتورة، عرض سعر، إشعار دائن، أمر شراء، إشعار تسليم — قوالب ثابتة قابلة للاستيراد والتخصيص" data-en="Invoice, quotation, credit note, PO, delivery note — fixed templates you can import and customize">فاتورة، عرض سعر، إشعار دائن، أمر شراء، إشعار تسليم — قوالب ثابتة قابلة للاستيراد والتخصيص</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 العودة للوحة المعلومات</button>
+                <button type="button" class="btn-outline" onclick="openFormsWorkspace()">🗂️ نظام المستندات</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <button type="button" class="btn-outline" onclick="openFormsWorkspace()">🗂️ Documents system</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="users-panel" id="docTemplatesPanelHost"></div>
+</div>
+
+<!-- التنبيهات والمهام — صفحة مستقلة -->
