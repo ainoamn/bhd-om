@@ -36,9 +36,10 @@ function createPrismaClient() {
     .$extends(legacyKvCryptoExtension);
 }
 
-export type AppPrismaClient = ReturnType<typeof createPrismaClient>;
-export type AppPrismaTransaction = Parameters<Parameters<AppPrismaClient['$transaction']>[0]>[0];
-
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+/** Extended Prisma client (crypto extensions) — use instead of PrismaClient in server helpers */
+export type AppPrismaClient = typeof prisma;
+export type AppPrismaTransaction = Parameters<Parameters<AppPrismaClient['$transaction']>[0]>[0];
 
 globalForPrisma.prisma = prisma;
