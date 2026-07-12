@@ -1189,7 +1189,14 @@ function legacyKvRecentlyWipedQuarantine(){
   }catch(e){}
   return false;
 }
+function isDashboardOnlyMode(){
+  try{
+    var m=new URLSearchParams(location.search).get('mode');
+    return !m||m==='dashboard';
+  }catch(e){return false;}
+}
 function shouldSkipFullBridgeFetch(){
+  if(isDashboardOnlyMode())return true;
   if(legacyKvRecentlyWipedQuarantine())return true;
   if(legacyAddressBookRecentlyWiped())return true;
   if(!window.__bhdSiteBridgePayload)return!localAddressBookLooksWarm();
@@ -1300,6 +1307,7 @@ function stagedKvHydrateForDashboard(){
   if(window.bhdDesktop)return Promise.resolve(false);
   if(!bhdLocalKvNeedsDashboardHydrate())return Promise.resolve(false);
   if(_bhdKvBootPending)return _bhdKvBootPending;
+  window.__bhdBridgeDashboardKvHydrating=true;
   _bhdKvBootPending=Promise.all([
     fetch('/api/kv?keys='+encodeURIComponent(BHD_DASH_KV_KEYS.join(',')),{credentials:'include',cache:'no-store'})
       .then(function(r){return r.ok?r.json():null;})
@@ -1315,7 +1323,11 @@ function stagedKvHydrateForDashboard(){
       })();
     }
     return hydrated;
-  }).finally(function(){_bhdKvBootPending=null;});
+  }).finally(function(){
+    window.__bhdBridgeDashboardKvHydrating=false;
+    window.__bhdBridgeStagedKvHydrated=true;
+    _bhdKvBootPending=null;
+  });
   return _bhdKvBootPending;
 }
 try{
@@ -1325,6 +1337,11 @@ try{
 }catch(_eKvBoot){}
 document.addEventListener('DOMContentLoaded',function(){stagedKvHydrateForDashboard();},{once:true});
 window.addEventListener('bhd-site-bridge-applied',function(){stagedKvHydrateForDashboard();});
+if(isDashboardOnlyMode()){
+  var preloadXlsx=function(){try{if(window.__bhdEnsureXlsxLoaded)window.__bhdEnsureXlsxLoaded();}catch(e){}};
+  if(typeof requestIdleCallback==='function')requestIdleCallback(preloadXlsx,{timeout:20000});
+  else setTimeout(preloadXlsx,8000);
+}
 })();`;
 }
 
