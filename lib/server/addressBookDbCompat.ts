@@ -3,9 +3,15 @@
  * — يطبّق DDL idempotent ثم يعيد المحاولة؛ أو قراءة SQL قديمة بدون العمود.
  */
 import { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
 
-type AddressBookDb = typeof prisma;
+/** Minimal surface used here — accepts base PrismaClient and $extends() clients (no $on required). */
+export type AddressBookDbClient = {
+  addressBookContact: {
+    findMany(args: { orderBy: { updatedAt: 'desc' } }): Promise<AddressBookContactRow[]>;
+  };
+  $executeRawUnsafe(sql: string): Promise<unknown>;
+  $queryRaw<T>(query: Prisma.Sql): Promise<T>;
+};
 
 export type AddressBookContactRow = {
   id: string;
@@ -16,7 +22,7 @@ export type AddressBookContactRow = {
   updatedAt: Date;
 };
 
-export async function applyAddressBookLinkedUserIdColumn(client: AddressBookDb): Promise<void> {
+export async function applyAddressBookLinkedUserIdColumn(client: AddressBookDbClient): Promise<void> {
   await client.$executeRawUnsafe(
     `ALTER TABLE "AddressBookContact" ADD COLUMN IF NOT EXISTS "linkedUserId" TEXT`
   );
@@ -28,7 +34,7 @@ export async function applyAddressBookLinkedUserIdColumn(client: AddressBookDb):
   );
 }
 
-async function findManyAddressBookLegacySql(client: AddressBookDb): Promise<AddressBookContactRow[]> {
+async function findManyAddressBookLegacySql(client: AddressBookDbClient): Promise<AddressBookContactRow[]> {
   const raw = await client.$queryRaw<
     Array<{
       id: string;
@@ -53,7 +59,7 @@ async function findManyAddressBookLegacySql(client: AddressBookDb): Promise<Addr
  * أو قراءة قديمة إن فشل الإصلاح.
  */
 export async function findManyAddressBookContactsOrHeal(
-  client: AddressBookDb
+  client: AddressBookDbClient
 ): Promise<AddressBookContactRow[]> {
   try {
     return await client.addressBookContact.findMany({
@@ -80,7 +86,7 @@ export async function findManyAddressBookContactsOrHeal(
  * تنفيذ دالة تستخدم Prisma على AddressBookContact؛ عند P2022 يُصلَح المخطط ثم تُعاد المحاولة مرة.
  */
 export async function withAddressBookSchemaHeal<T>(
-  client: AddressBookDb,
+  client: AddressBookDbClient,
   run: () => Promise<T>
 ): Promise<T> {
   try {
