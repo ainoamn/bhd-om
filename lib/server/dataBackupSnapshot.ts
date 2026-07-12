@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { AppPrismaClient, AppPrismaTransaction } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { seedPlansOnly } from '@/lib/server/dataResetKeepProperties';
 
@@ -39,7 +39,7 @@ export type DatabaseSnapshotV2 = {
   userAccountingRoles: Prisma.UserAccountingRoleGetPayload<object>[];
 };
 
-async function deleteAccountingAccountsLeavesTx(tx: Prisma.TransactionClient): Promise<void> {
+async function deleteAccountingAccountsLeavesTx(tx: AppPrismaTransaction): Promise<void> {
   for (;;) {
     const leaf = await tx.accountingAccount.findFirst({
       where: { children: { none: {} } },
@@ -51,7 +51,7 @@ async function deleteAccountingAccountsLeavesTx(tx: Prisma.TransactionClient): P
 }
 
 /** مسح كامل للاستعادة من نسخة احتياطية (يشمل العقارات وجميع المستخدمين). */
-export async function executeWipeAllForRestore(prisma: PrismaClient): Promise<void> {
+export async function executeWipeAllForRestore(prisma: AppPrismaClient): Promise<void> {
   await prisma.$transaction(
     async (tx) => {
       await tx.propertyBooking.deleteMany();
@@ -95,7 +95,7 @@ export async function executeWipeAllForRestore(prisma: PrismaClient): Promise<vo
   );
 }
 
-export async function exportDatabaseSnapshot(prisma: PrismaClient): Promise<DatabaseSnapshotV2> {
+export async function exportDatabaseSnapshot(prisma: AppPrismaClient): Promise<DatabaseSnapshotV2> {
   const files = await prisma.bookingDocumentFile.findMany();
   return {
     version: SNAPSHOT_VERSION,
@@ -156,7 +156,7 @@ function sortAccountsForInsert(
 }
 
 /** استعادة كاملة من لقطة — يمسح القاعدة أولاً. */
-export async function importDatabaseSnapshot(prisma: PrismaClient, data: DatabaseSnapshotV2): Promise<void> {
+export async function importDatabaseSnapshot(prisma: AppPrismaClient, data: DatabaseSnapshotV2): Promise<void> {
   if (data.version !== SNAPSHOT_VERSION) {
     throw new Error(`Unsupported snapshot version: ${data.version}`);
   }

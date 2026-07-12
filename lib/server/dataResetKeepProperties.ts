@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { AppPrismaClient, AppPrismaTransaction } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
 import { formatSerialNumber, getSerialCounterKey } from '@/lib/serial';
 import { seedDefaultAdminDataPinFromEnv } from '@/lib/server/adminDataPin';
@@ -10,7 +10,7 @@ export const DEFAULT_PLANS = [
   { code: 'enterprise', nameAr: 'الخطة المؤسسية', nameEn: 'Enterprise', priceMonthly: 299, priceYearly: 2990, sortOrder: 4, featuresJson: '["عقارات غير محدودة","وصول كامل","دعم مخصص","API"]', limitsJson: '{"maxProperties":-1,"maxUnits":-1,"maxBookings":-1,"maxUsers":-1,"storageGB":200}' },
 ];
 
-async function deleteAccountingAccountsLeavesTx(tx: Prisma.TransactionClient): Promise<void> {
+async function deleteAccountingAccountsLeavesTx(tx: AppPrismaTransaction): Promise<void> {
   for (;;) {
     const leaf = await tx.accountingAccount.findFirst({
       where: { children: { none: {} } },
@@ -30,7 +30,7 @@ export type ResetKeepPropertiesResult = {
  * تصفير قاعدة البيانات مع الإبقاء على جدول Property فقط (تُفرَّغ روابط المالك/المنشئ/الشركة).
  */
 export async function executeResetKeepProperties(
-  prisma: PrismaClient,
+  prisma: AppPrismaClient,
   options?: { adminEmail?: string; adminPassword?: string }
 ): Promise<ResetKeepPropertiesResult> {
   const adminEmail = (options?.adminEmail || process.env.RESET_ADMIN_EMAIL || 'admin@bhd-om.com').toLowerCase().trim();
@@ -122,7 +122,7 @@ export async function executeResetKeepProperties(
   return { adminEmail, serialNumber };
 }
 
-export async function seedPlansOnly(db: Pick<PrismaClient, 'plan'>): Promise<void> {
+export async function seedPlansOnly(db: Pick<AppPrismaClient, 'plan'>): Promise<void> {
   for (const p of DEFAULT_PLANS) {
     await db.plan.upsert({
       where: { code: p.code },
