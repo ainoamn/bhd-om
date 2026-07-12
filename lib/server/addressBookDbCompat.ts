@@ -3,7 +3,9 @@
  * — يطبّق DDL idempotent ثم يعيد المحاولة؛ أو قراءة SQL قديمة بدون العمود.
  */
 import { Prisma } from '@prisma/client';
-import type { AppPrismaClient } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
+
+type AddressBookDb = typeof prisma;
 
 export type AddressBookContactRow = {
   id: string;
@@ -14,7 +16,7 @@ export type AddressBookContactRow = {
   updatedAt: Date;
 };
 
-export async function applyAddressBookLinkedUserIdColumn(client: AppPrismaClient): Promise<void> {
+export async function applyAddressBookLinkedUserIdColumn(client: AddressBookDb): Promise<void> {
   await client.$executeRawUnsafe(
     `ALTER TABLE "AddressBookContact" ADD COLUMN IF NOT EXISTS "linkedUserId" TEXT`
   );
@@ -26,7 +28,7 @@ export async function applyAddressBookLinkedUserIdColumn(client: AppPrismaClient
   );
 }
 
-async function findManyAddressBookLegacySql(client: AppPrismaClient): Promise<AddressBookContactRow[]> {
+async function findManyAddressBookLegacySql(client: AddressBookDb): Promise<AddressBookContactRow[]> {
   const raw = await client.$queryRaw<
     Array<{
       id: string;
@@ -51,7 +53,7 @@ async function findManyAddressBookLegacySql(client: AppPrismaClient): Promise<Ad
  * أو قراءة قديمة إن فشل الإصلاح.
  */
 export async function findManyAddressBookContactsOrHeal(
-  client: AppPrismaClient
+  client: AddressBookDb
 ): Promise<AddressBookContactRow[]> {
   try {
     return await client.addressBookContact.findMany({
@@ -78,7 +80,7 @@ export async function findManyAddressBookContactsOrHeal(
  * تنفيذ دالة تستخدم Prisma على AddressBookContact؛ عند P2022 يُصلَح المخطط ثم تُعاد المحاولة مرة.
  */
 export async function withAddressBookSchemaHeal<T>(
-  client: AppPrismaClient,
+  client: AddressBookDb,
   run: () => Promise<T>
 ): Promise<T> {
   try {
