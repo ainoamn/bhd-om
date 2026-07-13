@@ -89,6 +89,14 @@ function contractRentChequeRowReady(row: Record<string, unknown>): boolean {
   return amount > 0 && !!dueDate;
 }
 
+function contractVatChequeRowReady(row: Record<string, unknown>, payload: Record<string, unknown>): boolean {
+  if (str(payload.contractSubjectToVat) !== 'yes') return false;
+  if (str(payload.vatPaymentMode) !== 'separate') return false;
+  const amount = parseFloat(str(row.amount)) || 0;
+  const dueDate = str(row.dueDate || row.paymentDate);
+  return amount > 0 && !!dueDate;
+}
+
 function normalizeCheque(existing: Record<string, unknown> | undefined, incoming: Record<string, unknown>) {
   if (!existing) {
     return {
@@ -281,6 +289,58 @@ export function syncAccountingFromContractPayload(
         agreementNo,
         tenant,
         monthIndex: idx,
+        updatedAt: new Date().toISOString(),
+      };
+      existingChequeMap.set(linkedKey, normalizeCheque(existing, incoming));
+      chequesSynced += 1;
+    });
+  }
+
+  const vatChequesEnabled =
+    str(payload.contractSubjectToVat) === 'yes' && str(payload.vatPaymentMode) === 'separate';
+  const vatSchedule = parsePayloadSchedule(payload, 'vatChequeScheduleJson', 'vatChequeSchedule');
+
+  if (vatChequesEnabled) {
+    vatSchedule.forEach((row) => {
+      const idx = parseInt(str(row.chequeIndex || row.monthIndex), 10) || 0;
+      const chequeNo = str(row.checkNo || row.chequeNo).trim();
+      const linkedKey = accountingChequeLinkedKey(b, u, 'vat', idx);
+      const ready = contractVatChequeRowReady(row, payload);
+      const existing = existingChequeMap.get(linkedKey);
+      if (!ready) {
+        if (existing && isAccountingChequePendingReceipt(existing.status)) {
+          existingChequeMap.set(
+            linkedKey,
+            normalizeCheque(existing, {
+              ...existing,
+              chequeNo,
+              dueDate: str(row.dueDate || row.paymentDate),
+              amount: parseFloat(str(row.amount)) || 0,
+              status: 'awaiting_contract_data',
+              updatedAt: new Date().toISOString(),
+            })
+          );
+          incomingChequeKeys.add(linkedKey);
+        }
+        return;
+      }
+      incomingChequeKeys.add(linkedKey);
+      const incoming = {
+        id: str(existing?.id) || newAccountingId('chq'),
+        unitKey,
+        building: b,
+        unit: u,
+        linkedKey,
+        sourceType: 'vat',
+        chequeNo,
+        dueDate: str(row.dueDate || row.paymentDate),
+        amount: parseFloat(str(row.amount)) || 0,
+        status: 'pending_receipt',
+        paidAmount: 0,
+        accountantNote: '',
+        agreementNo,
+        tenant,
+        chequeIndex: idx,
         updatedAt: new Date().toISOString(),
       };
       existingChequeMap.set(linkedKey, normalizeCheque(existing, incoming));

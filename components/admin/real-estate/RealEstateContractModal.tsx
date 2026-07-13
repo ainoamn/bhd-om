@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/icons/Icon';
+import { openContractOfficialPrintWindow } from '@/lib/real-estate/contractOfficialPrint';
 import { openContractSummaryPrintWindow } from '@/lib/real-estate/contractSummaryPrint';
 import {
   CONTRACT_DOCUMENT_SLOTS,
@@ -330,6 +331,11 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
     openContractSummaryPrintWindow(unit, values, locale);
   };
 
+  const handlePrintOfficial = () => {
+    if (!values) return;
+    openContractOfficialPrintWindow(unit, values, locale);
+  };
+
   const title =
     mode === 'renew'
       ? ar
@@ -553,6 +559,57 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
                     <option value="transfer">{ar ? 'تحويل بنكي' : 'Bank transfer'}</option>
                   </select>
                 </label>
+                <label className="re-contract-field">
+                  <span className="re-contract-field-label">
+                    {ar ? 'خاضع لضريبة القيمة المضافة' : 'Subject to VAT'}
+                  </span>
+                  <select
+                    className="admin-input w-full text-sm"
+                    value={values.contractSubjectToVat}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      setField('contractSubjectToVat', e.target.value as 'yes' | 'no')
+                    }
+                  >
+                    <option value="no">{ar ? 'لا' : 'No'}</option>
+                    <option value="yes">{ar ? 'نعم' : 'Yes'}</option>
+                  </select>
+                </label>
+                {values.contractSubjectToVat === 'yes' ? (
+                  <>
+                    <label className="re-contract-field">
+                      <span className="re-contract-field-label">
+                        {ar ? 'طريقة دفع الضريبة' : 'VAT payment mode'}
+                      </span>
+                      <select
+                        className="admin-input w-full text-sm"
+                        value={values.vatPaymentMode}
+                        disabled={readOnly}
+                        onChange={(e) =>
+                          setField(
+                            'vatPaymentMode',
+                            e.target.value as UnitContractFormValues['vatPaymentMode']
+                          )
+                        }
+                      >
+                        <option value="">{ar ? '—' : '—'}</option>
+                        <option value="included">{ar ? 'ضمن الإيجار' : 'Included in rent'}</option>
+                        <option value="separate">
+                          {ar ? 'شيكات ضريبة منفصلة' : 'Separate VAT cheques'}
+                        </option>
+                      </select>
+                    </label>
+                    {values.vatPaymentMode === 'separate' ? (
+                      <FormField
+                        label={ar ? 'عدد شيكات الضريبة' : 'VAT cheque count'}
+                        value={values.vatChequeCount}
+                        onChange={(v) => setField('vatChequeCount', v)}
+                        dir="ltr"
+                        readOnly={readOnly}
+                      />
+                    ) : null}
+                  </>
+                ) : null}
                 <FormField
                   label={ar ? 'استمارة بلدية' : 'Municipal form'}
                   value={values.municipalFormNo}
@@ -592,8 +649,8 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
 
               <p className="text-xs opacity-60 mb-2">
                 {ar
-                  ? 'حفظ المسودة يكتب في KV. «تفعيل العقد» يحفظ في العقود المحفوظة ويحدّث سجل الوحدات. المستندات الرسمية الكاملة ما زالت عبر النظام التشغيلي.'
-                  : 'Save draft writes to KV. «Activate contract» saves to saved contracts and updates the units registry. Full official documents remain in the operational system.'}
+                  ? 'حفظ المسودة يكتب في KV. «تفعيل العقد» يحفظ العقد ويحدّث المحاسبة (إيجار + ضريبة + ضمان). «طباعة رسمية» تستخدم نموذج A4 الموحّد.'
+                  : 'Save draft writes to KV. «Activate contract» saves the contract and syncs accounting (rent + VAT + deposit). «Official print» uses the unified A4 template.'}
               </p>
             </>
           ) : null}
@@ -632,12 +689,21 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
           ) : null}
           <button
             type="button"
-            onClick={handlePrint}
+            onClick={handlePrintOfficial}
             disabled={loading || !values}
             className="admin-btn admin-btn-secondary text-sm inline-flex items-center gap-1"
           >
             <Icon name="printer" className="w-4 h-4" aria-hidden />
-            {ar ? 'طباعة الملخص' : 'Print summary'}
+            {ar ? 'طباعة رسمية' : 'Official print'}
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={loading || !values}
+            className="admin-btn admin-btn-ghost text-sm inline-flex items-center gap-1"
+          >
+            <Icon name="printer" className="w-4 h-4" aria-hidden />
+            {ar ? 'ملخص' : 'Summary'}
           </button>
           <a
             href={buildLegacyUnitActionUrl(unit.building, unit.unit, legacyAction, locale)}

@@ -1,5 +1,6 @@
 import type { ContractDocumentItem } from '@/lib/real-estate/contractDocuments';
 import { documentsFromPayload, mergeDocumentsIntoPayload } from '@/lib/real-estate/contractDocuments';
+import { buildPaymentSchedule, buildVatChequeSchedule } from '@/lib/real-estate/contractVat';
 import type { LegacyKvStringMap } from '@/lib/real-estate/dashboardKvKeys';
 import { daysUntil, normalizeBuildingKey, normalizeUnit, parseJson, toStr, unitRowKey } from '@/lib/real-estate/kvParse';
 import type { ContractPayload, SavedContractEntry, TenancyDraftEntry } from '@/lib/real-estate/operationsUnit';
@@ -28,6 +29,9 @@ export type UnitContractFormValues = {
   remarks: string;
   depositAmount: string;
   paymentMethod: '' | 'cheque' | 'cash' | 'transfer';
+  contractSubjectToVat: 'yes' | 'no';
+  vatPaymentMode: '' | 'included' | 'separate';
+  vatChequeCount: string;
   documents: ContractDocumentItem[];
 };
 
@@ -65,6 +69,9 @@ function emptyFormValues(building: string, unit: string): UnitContractFormValues
     remarks: '',
     depositAmount: '',
     paymentMethod: '',
+    contractSubjectToVat: 'no',
+    vatPaymentMode: '',
+    vatChequeCount: '12',
     documents: [],
   };
 }
@@ -121,8 +128,20 @@ function payloadToFormValues(payload: ContractPayload, base: UnitContractFormVal
     remarks: toStr((payload as Record<string, unknown>).remarks) || base.remarks,
     depositAmount: toStr((payload as Record<string, unknown>).depositAmount) || base.depositAmount,
     paymentMethod: mapLegacyPaymentMethod(toStr((payload as Record<string, unknown>).paymentMethod)),
+    contractSubjectToVat:
+      toStr((payload as Record<string, unknown>).contractSubjectToVat) === 'yes' ? 'yes' : 'no',
+    vatPaymentMode: mapVatPaymentMode(toStr((payload as Record<string, unknown>).vatPaymentMode)),
+    vatChequeCount:
+      toStr((payload as Record<string, unknown>).vatChequeCount) || base.vatChequeCount,
     documents: documentsFromPayload(payload as Record<string, unknown>),
   };
+}
+
+function mapVatPaymentMode(raw: string): UnitContractFormValues['vatPaymentMode'] {
+  const s = raw.toLowerCase();
+  if (s.includes('separate') || s.includes('منفصل')) return 'separate';
+  if (s.includes('included') || s.includes('ضمن')) return 'included';
+  return '';
 }
 
 function mapLegacyPaymentMethod(raw: string): UnitContractFormValues['paymentMethod'] {
@@ -138,24 +157,6 @@ function legacyPaymentMethodLabel(method: UnitContractFormValues['paymentMethod'
   if (method === 'cash') return 'نقدا Cash';
   if (method === 'transfer') return 'تحويل بنكي Bank transfer';
   return '';
-}
-
-function buildSimplePaymentSchedule(values: UnitContractFormValues): Record<string, unknown>[] {
-  const months = Math.max(1, parseInt(values.contractMonths, 10) || 12);
-  const rent = parseFloat(values.monthlyRent) || 0;
-  const start = values.startDate.trim();
-  if (!start || rent <= 0) return [];
-  const schedule: Record<string, unknown>[] = [];
-  for (let i = 0; i < months; i++) {
-    const d = new Date(start);
-    d.setMonth(d.getMonth() + i);
-    schedule.push({
-      monthIndex: i + 1,
-      dueDate: d.toISOString().slice(0, 10),
-      amount: rent.toFixed(3),
-    });
-  }
-  return schedule;
 }
 
 function getSavedEntry(
@@ -310,7 +311,8 @@ export function buildUnitContractWorkspace(
 export function formValuesToContractPayload(values: UnitContractFormValues): Record<string, unknown> {
   const now = new Date().toISOString();
   const paymentMethod = legacyPaymentMethodLabel(values.paymentMethod);
-  const schedule = values.paymentMethod ? buildSimplePaymentSchedule(values) : [];
+  const schedule = buildPaymentSchedule(values);
+  const vatSchedule = buildVatChequeSchedule(values);
   const deposit = values.depositAmount.trim() || values.monthlyRent.trim();
   const base: Record<string, unknown> = {
     agreementNo: values.agreementNo.trim(),
@@ -337,6 +339,11 @@ export function formValuesToContractPayload(values: UnitContractFormValues): Rec
     paymentMethod,
     paymentSchedule: schedule,
     paymentScheduleJson: JSON.stringify(schedule),
+    contractSubjectToVat: values.contractSubjectToVat,
+    vatPaymentMode: values.vatPaymentMode || (values.contractSubjectToVat === 'yes' ? 'included' : ''),
+    vatChequeCount: values.vatChequeCount.trim() || '12',
+    vatChequeSchedule: vatSchedule,
+    vatChequeScheduleJson: JSON.stringify(vatSchedule),
     _savedAt: now,
     _savedFromReact: true,
   };
