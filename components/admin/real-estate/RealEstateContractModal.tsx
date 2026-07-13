@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/icons/Icon';
 import { openContractOfficialPrintWindow } from '@/lib/real-estate/contractOfficialPrint';
+import { openMunicipalFormPrintWindow } from '@/lib/real-estate/municipalFormPrint';
 import { openContractSummaryPrintWindow } from '@/lib/real-estate/contractSummaryPrint';
 import {
   CONTRACT_DOCUMENT_SLOTS,
@@ -294,17 +295,17 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
       const json = (await res.json().catch(() => ({}))) as {
         error?: string;
         lifecycleStatus?: string;
-        accountingSynced?: { cheques: number; deposits: number };
+        accountingSynced?: { cheques: number; deposits: number; entries?: number };
       };
       if (!res.ok) {
         throw new Error(json.error || 'activate failed');
       }
       const acct = json.accountingSynced;
       const acctNote =
-        acct && (acct.cheques > 0 || acct.deposits > 0)
+        acct && (acct.cheques > 0 || acct.deposits > 0 || (acct.entries ?? 0) > 0)
           ? ar
-            ? ` | محاسبة: ${acct.cheques} شيك، ${acct.deposits} ضمان`
-            : ` | Accounting: ${acct.cheques} cheque(s), ${acct.deposits} deposit(s)`
+            ? ` | محاسبة: ${acct.cheques} شيك، ${acct.deposits} ضمان${(acct.entries ?? 0) > 0 ? `، ${acct.entries} بند` : ''}`
+            : ` | Accounting: ${acct.cheques} cheque(s), ${acct.deposits} deposit(s)${(acct.entries ?? 0) > 0 ? `, ${acct.entries} entry/entries` : ''}`
           : '';
       setSaveMsg(
         ar
@@ -334,6 +335,11 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
   const handlePrintOfficial = () => {
     if (!values) return;
     openContractOfficialPrintWindow(unit, values, locale);
+  };
+
+  const handlePrintMunicipal = () => {
+    if (!values) return;
+    openMunicipalFormPrintWindow(unit, values, locale);
   };
 
   const title =
@@ -687,6 +693,15 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
               </button>
             </>
           ) : null}
+          <button
+            type="button"
+            onClick={handlePrintMunicipal}
+            disabled={loading || !values}
+            className="admin-btn admin-btn-secondary text-sm inline-flex items-center gap-1"
+          >
+            <Icon name="printer" className="w-4 h-4" aria-hidden />
+            {ar ? 'استمارة بلدية' : 'Municipal form'}
+          </button>
           <button
             type="button"
             onClick={handlePrintOfficial}

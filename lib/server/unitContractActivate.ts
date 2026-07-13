@@ -108,7 +108,7 @@ export async function activateUnitContractToKv(
   lifecycleStatus: string;
   savedKey: string;
   archivedPrevious: boolean;
-  accountingSynced: { cheques: number; deposits: number };
+  accountingSynced: { cheques: number; deposits: number; entries: number };
 }> {
   const validationError = validateActivateValues(values);
   if (validationError) {
@@ -246,6 +246,7 @@ export async function activateUnitContractToKv(
     accountingSynced: {
       cheques: accountingSync.chequesSynced,
       deposits: accountingSync.depositsSynced,
+      entries: accountingSync.entriesSynced,
     },
   };
 }

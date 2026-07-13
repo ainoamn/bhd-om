@@ -19,6 +19,11 @@ export function buildLegacyUnitActionUrl(
   return `${LEGACY_BASE}?${params.toString()}`;
 }
 
+export function buildLegacyReservationsUrl(locale: string): string {
+  const params = new URLSearchParams({ mode: 'reservations', locale });
+  return `${LEGACY_BASE}?${params.toString()}`;
+}
+
 /** Trigger legacy flexible batch renewal print for expiring units. */
 export function buildLegacyBatchRenewUrl(
   days: number,

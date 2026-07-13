@@ -1,3 +1,4 @@
+import { computeExtraAdjustmentLineTotal } from '@/lib/real-estate/extraAdjustments';
 import { parseJson, toStr } from '@/lib/real-estate/kvParse';
 
 export type AccountingRegistry = {
@@ -44,6 +45,21 @@ function accountingChequeLinkedKey(
 
 function accountingDepositLinkedKey(building: string, unit: string, itemId: string): string {
   return `${accountingUnitKey(building, unit)}|deposit|${itemId}`;
+}
+
+function accountingEntryLinkedKey(building: string, unit: string, sourceKey: string): string {
+  return `${accountingUnitKey(building, unit)}|entry|${sourceKey}`;
+}
+
+function accountingEntryPreservedOnContractSync(
+  entry: Record<string, unknown>,
+  unitKey: string,
+  incomingEntryKeys: Set<string>
+): boolean {
+  if (str(entry.unitKey) !== unitKey) return true;
+  if (entry.manualEntry) return true;
+  if (str(entry.type) === 'income' && str(entry.voucherNo)) return true;
+  return incomingEntryKeys.has(str(entry.linkedKey));
 }
 
 function newAccountingId(prefix: string): string {
@@ -226,11 +242,16 @@ export function syncAccountingFromContractPayload(
   unit: string,
   payload: Record<string, unknown>,
   regInput?: AccountingRegistry
-): { registry: AccountingRegistry; chequesSynced: number; depositsSynced: number } {
+): { registry: AccountingRegistry; chequesSynced: number; depositsSynced: number; entriesSynced: number } {
   const b = str(building);
   const u = str(unit);
   if (!b || !u || !payload) {
-    return { registry: regInput || ensureAccountingRegistry('{}'), chequesSynced: 0, depositsSynced: 0 };
+    return {
+      registry: regInput || ensureAccountingRegistry('{}'),
+      chequesSynced: 0,
+      depositsSynced: 0,
+      entriesSynced: 0,
+    };
   }
 
   const reg = regInput || ensureAccountingRegistry('{}');
@@ -240,10 +261,13 @@ export function syncAccountingFromContractPayload(
 
   const existingChequeMap = new Map(reg.cheques.map((c) => [str(c.linkedKey), c]));
   const existingDepositMap = new Map(reg.deposits.map((d) => [str(d.linkedKey), d]));
+  const existingEntryMap = new Map(reg.entries.map((e) => [str(e.linkedKey), e]));
   const incomingChequeKeys = new Set<string>();
   const incomingDepositKeys = new Set<string>();
+  const incomingEntryKeys = new Set<string>();
   let chequesSynced = 0;
   let depositsSynced = 0;
+  let entriesSynced = 0;
 
   const paymentSchedule = parsePayloadSchedule(payload, 'paymentScheduleJson', 'paymentSchedule');
   const byCheque = isPaymentMethodCheque(payload.paymentMethod);
@@ -403,6 +427,37 @@ export function syncAccountingFromContractPayload(
     depositsSynced += 1;
   });
 
+  const extraRows = parsePayloadSchedule(payload, 'extraAdjustmentsJson', 'extraAdjustments');
+  extraRows.forEach((row, i) => {
+    const sourceKey = str(row.id || row.key || `extra_${i + 1}`);
+    const linkedKey = accountingEntryLinkedKey(b, u, sourceKey);
+    const kind = str(row.kind);
+    const amt = Math.abs(computeExtraAdjustmentLineTotal(row, payload) || parseFloat(str(row.amount)) || 0);
+    if (amt <= 0) return;
+    incomingEntryKeys.add(linkedKey);
+    const existing = existingEntryMap.get(linkedKey);
+    const entryType = kind === 'discount' ? 'adjustment_discount' : kind === 'add' ? 'adjustment_add' : 'income';
+    const entryStatus =
+      kind === 'add' ? str(existing?.status) || 'pending_accountant' : str(existing?.status) || 'pending';
+    existingEntryMap.set(linkedKey, {
+      id: str(existing?.id) || newAccountingId('ent'),
+      unitKey,
+      building: b,
+      unit: u,
+      linkedKey,
+      sourceKey,
+      type: entryType,
+      title: str(row.title || row.label || row.description) || 'Extra item',
+      amount: amt,
+      dueDate: str(row.dueDate),
+      status: entryStatus,
+      agreementNo: str(existing?.agreementNo) || agreementNo,
+      tenant: str(existing?.tenant) || tenant,
+      updatedAt: new Date().toISOString(),
+    });
+    entriesSynced += 1;
+  });
+
   reg.cheques = reg.cheques.filter((c) => {
     if (str(c.unitKey) !== unitKey) return true;
     if (incomingChequeKeys.has(str(c.linkedKey))) return true;
@@ -428,6 +483,17 @@ export function syncAccountingFromContractPayload(
     else reg.deposits.push(row);
   });
 
+  reg.entries = reg.entries.filter((e) =>
+    accountingEntryPreservedOnContractSync(e as Record<string, unknown>, unitKey, incomingEntryKeys)
+  );
+  incomingEntryKeys.forEach((k) => {
+    const row = existingEntryMap.get(k);
+    if (!row) return;
+    const idx = reg.entries.findIndex((e) => str(e.linkedKey) === k);
+    if (idx >= 0) reg.entries[idx] = row;
+    else reg.entries.push(row);
+  });
+
   const contractTotal = estimateContractTotal(payload);
   reg.accounts[unitKey] = {
     ...(reg.accounts[unitKey] || {}),
@@ -444,5 +510,5 @@ export function syncAccountingFromContractPayload(
   recomputeAccountingAccountSummary(reg, unitKey);
   reg._journalLedgerDirty = true;
 
-  return { registry: reg, chequesSynced, depositsSynced };
+  return { registry: reg, chequesSynced, depositsSynced, entriesSynced };
 }

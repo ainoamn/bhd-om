@@ -1,4 +1,5 @@
 import type { LegacyKvStringMap } from '@/lib/real-estate/dashboardKvKeys';
+import { flattenReservations } from '@/lib/real-estate/reservationsParse';
 import { daysUntil, normalizeBuildingKey, normalizeUnit, parseJson, toStr, unitRowKey } from '@/lib/real-estate/kvParse';
 
 export type UnitLedgerEvent = {
@@ -70,31 +71,6 @@ type MutableLedgerRow = UnitLedgerEvent & {
   actionType?: string;
   actionId?: string;
 };
-
-function flattenReservations(raw: string | undefined): Record<string, unknown>[] {
-  const parsed = parseJson<unknown>(raw ?? '', null);
-  if (Array.isArray(parsed)) {
-    return parsed.filter((r) => r && typeof r === 'object') as Record<string, unknown>[];
-  }
-  if (!parsed || typeof parsed !== 'object') return [];
-  const out: Record<string, unknown>[] = [];
-  for (const [b, floors] of Object.entries(parsed as Record<string, unknown>)) {
-    if (!floors || typeof floors !== 'object') continue;
-    for (const units of Object.values(floors as Record<string, unknown>)) {
-      if (!units || typeof units !== 'object') continue;
-      for (const [unitNo, rec] of Object.entries(units as Record<string, unknown>)) {
-        if (!rec || typeof rec !== 'object') continue;
-        const row = rec as Record<string, unknown>;
-        out.push({
-          ...row,
-          building: row.building ?? b,
-          unit: row.unit ?? unitNo,
-        });
-      }
-    }
-  }
-  return out;
-}
 
 function maintenanceStatusLabel(status: string, ar: boolean): string {
   const map: Record<string, [string, string]> = {

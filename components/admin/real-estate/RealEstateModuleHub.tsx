@@ -31,8 +31,7 @@ export default function RealEstateModuleHub({ locale, stats }: Props) {
     {
       titleAr: 'الحجوزات',
       titleEn: 'Reservations',
-      href: `${LEGACY_BASE}?mode=reservations&locale=${locale}`,
-      external: true,
+      href: `/${locale}/admin/real-estate-reservations`,
     },
     {
       titleAr: 'المحاسبة',
