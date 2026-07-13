@@ -8,7 +8,7 @@ import AdminSubpageShell from '@/components/admin/AdminSubpageShell';
 import Icon from '@/components/icons/Icon';
 import Link from 'next/link';
 
-const LEGACY_APP_SRC = '/api/admin/legacy-real-estate/bhd-real-estate.html';
+const LEGACY_APP_SRC = '/api/admin/legacy-real-estate/bhd-real-estate.html?mode=dashboard';
 
 export default function RealEstateSystemPage() {
   const params = useParams();

@@ -117,6 +117,36 @@ export async function readLegacyRealEstateHtmlWithBridge(
 ): Promise<Buffer> {
   const resolved = resolveLegacyMainHtmlSegments(segments, useMonolith);
   const raw = await readLegacyRealEstateFile(resolved);
-  const html = injectLegacySiteBridgeScript(raw.toString('utf-8'), embeddedPayload ?? null);
+  let html = injectLegacySiteBridgeScript(raw.toString('utf-8'), embeddedPayload ?? null);
+  const servedName = resolved[resolved.length - 1] ?? '';
+  if (servedName === SHELL_HTML) {
+    html = await injectLegacyShellAssetVersions(html);
+  }
   return Buffer.from(html, 'utf-8');
+}
+
+let _shellAssetVersionsCache: { stamp: string; at: number } | null = null;
+const SHELL_ASSET_VERSION_TTL_MS = 60_000;
+
+async function legacyAssetVersionToken(relativePath: string): Promise<string> {
+  const stat = await fs.stat(path.join(LEGACY_ROOT, relativePath));
+  return stat.mtimeMs.toString(36);
+}
+
+/** Cache-bust query params on shell asset URLs when split files change. */
+export async function injectLegacyShellAssetVersions(html: string): Promise<string> {
+  const now = Date.now();
+  if (!_shellAssetVersionsCache || now - _shellAssetVersionsCache.at > SHELL_ASSET_VERSION_TTL_MS) {
+    const [cssV, jsV, bodyV] = await Promise.all([
+      legacyAssetVersionToken('css/main.css'),
+      legacyAssetVersionToken('js/app-main.js'),
+      legacyAssetVersionToken('modules/body-raw.html'),
+    ]);
+    _shellAssetVersionsCache = { stamp: `${cssV}.${jsV}.${bodyV}`, at: now };
+  }
+  const [cssV, jsV, bodyV] = _shellAssetVersionsCache.stamp.split('.');
+  return html
+    .replace(/\/css\/main\.css(?=["'])/g, `/css/main.css?v=${cssV}`)
+    .replace(/\/js\/app-main\.js(?=["'])/g, `/js/app-main.js?v=${jsV}`)
+    .replace(/\/modules\/body-raw\.html(?=["'])/g, `/modules/body-raw.html?v=${bodyV}`);
 }

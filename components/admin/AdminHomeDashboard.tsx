@@ -238,7 +238,7 @@ export default function AdminHomeDashboard({ locale, userName }: Props) {
               {ar ? 'فتح النظام' : 'Open system'}
             </Link>
             <a
-              href="/api/admin/legacy-real-estate/bhd-real-estate.html"
+              href="/api/admin/legacy-real-estate/bhd-real-estate.html?mode=dashboard"
               target="_blank"
               rel="noopener noreferrer"
               className="admin-dash-legacy-launch-btn admin-dash-legacy-launch-btn--ghost"
