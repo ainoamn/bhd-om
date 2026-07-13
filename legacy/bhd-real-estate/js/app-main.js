@@ -48060,6 +48060,8 @@ function getEmptyCompanySignatory() {
                 const pending = window.__bhdPendingUnitDeepLink;
                 window.__bhdPendingUnitDeepLink = null;
                 void bhdExecuteUnitActionFromKeys(pending.building, pending.unit, pending.action);
+            } else if (window.__bhdPendingBatchRenew) {
+                bhdTryExecutePendingBatchRenew();
             }
         } catch (_eDeepOps) {}
     }
@@ -48074,6 +48076,37 @@ function getEmptyCompanySignatory() {
             if (!['details', 'fill', 'renew', 'print'].includes(action)) return;
             window.__bhdPendingUnitDeepLink = { building, unit, action };
         } catch (_eQueueDeep) {}
+    }
+
+    function bhdQueueBatchRenewDeepLinkFromUrl() {
+        try {
+            const p = new URLSearchParams(location.search);
+            const batchRenew = toStr(p.get('batchRenew'));
+            if (!batchRenew) return;
+            window.__bhdPendingBatchRenew = {
+                days: Number(batchRenew) || 30,
+                building: toStr(p.get('building')) || 'all'
+            };
+        } catch (_eQueueBatch) {}
+    }
+
+    function bhdTryExecutePendingBatchRenew() {
+        try {
+            const pending = window.__bhdPendingBatchRenew;
+            if (!pending) return;
+            window.__bhdPendingBatchRenew = null;
+            const setVal = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.value = value;
+            };
+            setVal('batchDaysFilter', String(pending.days || 30));
+            if (pending.building && pending.building !== 'all') {
+                setVal('batchBuildingFilter', pending.building);
+                runFlexibleBatchPrint();
+            } else {
+                batchRenewPrint(Number(pending.days) || 30);
+            }
+        } catch (_eBatchRun) {}
     }
 
     async function bhdExecuteUnitActionFromKeys(building, unit, action) {
@@ -63252,6 +63285,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             applyTheme(localStorage.getItem('bhd_theme_mode') || 'maroon');
             document.body.classList.add(isViewerMode ? 'viewer-mode' : 'entry-mode');
             bhdQueueDashboardUnitDeepLinkFromUrl();
+            bhdQueueBatchRenewDeepLinkFromUrl();
             applyAppLanguage(window.__bhdBootRefreshFast ? { fast: true } : undefined);
             syncTopNavOffset();
         } catch (e) {

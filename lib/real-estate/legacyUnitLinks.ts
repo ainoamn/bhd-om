@@ -18,3 +18,18 @@ export function buildLegacyUnitActionUrl(
   });
   return `${LEGACY_BASE}?${params.toString()}`;
 }
+
+/** Trigger legacy flexible batch renewal print for expiring units. */
+export function buildLegacyBatchRenewUrl(
+  days: number,
+  building: string,
+  locale: string
+): string {
+  const params = new URLSearchParams({
+    mode: 'dashboard',
+    batchRenew: String(days),
+    locale,
+  });
+  if (building && building !== 'all') params.set('building', building);
+  return `${LEGACY_BASE}?${params.toString()}`;
+}

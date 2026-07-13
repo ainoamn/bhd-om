@@ -1635,6 +1635,13 @@ button.re-cal-day {
 .re-cal-ev--cheque { background: rgb(245 158 11 / 0.15); color: #b45309; }
 .re-cal-ev--contract { background: rgb(59 130 246 / 0.15); color: #1d4ed8; }
 .re-cal-ev--overdue { background: rgb(239 68 68 / 0.15); color: #b91c1c; }
+.re-cal-ev--document { background: rgb(168 85 247 / 0.15); color: #7e22ce; }
+.re-cal-ev--birthday { background: rgb(236 72 153 / 0.15); color: #be185d; }
+.re-cal-ev--occasion { background: rgb(20 184 166 / 0.15); color: #0f766e; }
+
+.re-unit-details-overlay {
+  backdrop-filter: blur(2px);
+}
 
 .admin-dash-quick-action--highlight {
   border-color: var(--admin-primary, #8b0000);

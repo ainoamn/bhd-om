@@ -8,13 +8,14 @@ import {
   getExpiringUnitsForReport,
   openExpiryUnitsPrintWindow,
 } from '@/lib/real-estate/expiryReportPrint';
-import { buildLegacyUnitActionUrl, type LegacyUnitAction } from '@/lib/real-estate/legacyUnitLinks';
+import { buildLegacyUnitActionUrl, buildLegacyBatchRenewUrl, type LegacyUnitAction } from '@/lib/real-estate/legacyUnitLinks';
 import type { OperationsUnitRow, UnitsSortKey, UnitsSortState } from '@/lib/real-estate/operationsUnit';
 import {
   filterUnitsRows,
   paginateUnitsRows,
   sortUnitsRows,
 } from '@/lib/real-estate/unitsTableFilters';
+import RealEstateUnitDetailsModal from '@/components/admin/real-estate/RealEstateUnitDetailsModal';
 
 type Props = {
   locale: 'ar' | 'en';
@@ -61,6 +62,7 @@ export default function RealEstateUnitsTable({ locale }: Props) {
   const [pageSize, setPageSize] = useState<number>(100);
   const [batchDays, setBatchDays] = useState('30');
   const [batchBuilding, setBatchBuilding] = useState('all');
+  const [detailsUnit, setDetailsUnit] = useState<OperationsUnitRow | null>(null);
 
   const loadUnits = useCallback(async () => {
     setLoading(true);
@@ -209,12 +211,12 @@ export default function RealEstateUnitsTable({ locale }: Props) {
           ))}
         </select>
         <a
-          href={`/api/admin/legacy-real-estate/bhd-real-estate.html?mode=dashboard&locale=${locale}`}
+          href={buildLegacyBatchRenewUrl(Number(batchDays), batchBuilding, locale)}
           target="_blank"
           rel="noopener noreferrer"
           className="admin-btn admin-btn-secondary text-xs"
         >
-          {ar ? '🖨️ تجديد جماعي (النظام)' : '🖨️ Batch renew (legacy)'}
+          {ar ? '🖨️ تجديد جماعي' : '🖨️ Batch renew'}
         </a>
       </div>
 
@@ -354,7 +356,13 @@ export default function RealEstateUnitsTable({ locale }: Props) {
                       <td dir="ltr">{u.water || '—'}</td>
                       <td>
                         <div className="flex flex-wrap gap-x-2 gap-y-1">
-                          {actionLink(u, 'details', ar ? 'تفاصيل' : 'Details')}
+                          <button
+                            type="button"
+                            onClick={() => setDetailsUnit(u)}
+                            className="text-[10px] font-semibold admin-accent-text hover:underline whitespace-nowrap"
+                          >
+                            {ar ? 'تفاصيل' : 'Details'}
+                          </button>
                           {actionLink(u, 'fill', ar ? 'تعبئة' : 'Fill')}
                           {actionLink(u, 'renew', ar ? 'تجديد' : 'Renew')}
                           {actionLink(u, 'print', ar ? 'طباعة' : 'Print')}
@@ -413,6 +421,7 @@ export default function RealEstateUnitsTable({ locale }: Props) {
           ) : null}
         </>
       )}
+      <RealEstateUnitDetailsModal locale={locale} unit={detailsUnit} onClose={() => setDetailsUnit(null)} />
     </section>
   );
 }

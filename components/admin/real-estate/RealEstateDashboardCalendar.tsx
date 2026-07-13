@@ -24,6 +24,10 @@ const KIND_CLASS: Record<CalendarEventKind, string> = {
   cheque: 're-cal-ev--cheque',
   contract: 're-cal-ev--contract',
   overdue: 're-cal-ev--overdue',
+  document: 're-cal-ev--document',
+  birthday_tenant: 're-cal-ev--birthday',
+  birthday_contact: 're-cal-ev--birthday',
+  occasion: 're-cal-ev--occasion',
 };
 
 export default function RealEstateDashboardCalendar({ locale }: Props) {
@@ -99,8 +103,8 @@ export default function RealEstateDashboardCalendar({ locale }: Props) {
           </h3>
           <p className="text-xs opacity-60 mt-1">
             {ar
-              ? `${events.length} حدث — مهام، إيجار، شيكات، انتهاء عقود`
-              : `${events.length} events — tasks, rent, cheques, contract expiry`}
+              ? `${events.length} حدث — مهام، إيجار، شيكات، عقود، مستندات، أعياد`
+              : `${events.length} events — tasks, rent, cheques, contracts, docs, birthdays`}
             {' · '}
             <span dir="ltr">{monthLabel}</span>
           </p>
@@ -163,6 +167,9 @@ export default function RealEstateDashboardCalendar({ locale }: Props) {
             <span className="re-cal-legend re-cal-ev--cheque">{ar ? 'شيكات' : 'Cheques'}</span>
             <span className="re-cal-legend re-cal-ev--contract">{ar ? 'عقود' : 'Contracts'}</span>
             <span className="re-cal-legend re-cal-ev--overdue">{ar ? 'متأخر' : 'Overdue'}</span>
+            <span className="re-cal-legend re-cal-ev--document">{ar ? 'مستندات' : 'Documents'}</span>
+            <span className="re-cal-legend re-cal-ev--birthday">{ar ? 'أعياد' : 'Birthdays'}</span>
+            <span className="re-cal-legend re-cal-ev--occasion">{ar ? 'مناسبات' : 'Occasions'}</span>
           </div>
 
           {selectedDay ? (

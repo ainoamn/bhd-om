@@ -2,7 +2,16 @@ import { buildOperationsUnitsFromKv } from '@/lib/real-estate/buildOperationsUni
 import type { LegacyKvStringMap } from '@/lib/real-estate/dashboardKvKeys';
 import { daysUntil, parseJson, toStr } from '@/lib/real-estate/kvParse';
 
-export type CalendarEventKind = 'task' | 'rent' | 'cheque' | 'contract' | 'overdue';
+export type CalendarEventKind =
+  | 'task'
+  | 'rent'
+  | 'cheque'
+  | 'contract'
+  | 'overdue'
+  | 'document'
+  | 'birthday_tenant'
+  | 'birthday_contact'
+  | 'occasion';
 
 export type DashboardCalendarEvent = {
   id: string;
@@ -54,16 +63,21 @@ export function collectDashboardCalendarEvents(
   const events: DashboardCalendarEvent[] = [];
   const { rows: units } = buildOperationsUnitsFromKv(kv);
 
-  const tasksReg = parseJson<{ tasks?: Array<{
-    id?: string;
-    title?: string;
-    taskNo?: string;
-    status?: string;
-    dueDate?: string;
-    createdAt?: string;
-    building?: string;
-    unit?: string;
-  }> }>(kv.bhd_tasks_registry, {});
+  const tasksReg = parseJson<{
+    tasks?: Array<{
+      id?: string;
+      title?: string;
+      taskNo?: string;
+      status?: string;
+      dueDate?: string;
+      createdAt?: string;
+      building?: string;
+      unit?: string;
+    }>;
+    settings?: {
+      occasions?: Array<{ id?: string; date?: string; titleAr?: string; titleEn?: string }>;
+    };
+  }>(kv.bhd_tasks_registry, {});
 
   (tasksReg.tasks || []).forEach((task) => {
     if (!TASK_OPEN.has(toStr(task.status).toLowerCase())) return;
@@ -163,6 +177,100 @@ export function collectDashboardCalendarEvents(
     });
   });
 
+  (tasksReg.settings?.occasions || []).forEach((oc: { id?: string; date?: string; titleAr?: string; titleEn?: string }) => {
+    const dt = toStr(oc.date);
+    if (!dt || !inMonth(dt, year, month)) return;
+    pushEvent(events, {
+      id: `occasion-${oc.id || dt}`,
+      date: dt.slice(0, 10),
+      kind: 'occasion',
+      titleAr: toStr(oc.titleAr) || toStr(oc.titleEn) || 'مناسبة',
+      titleEn: toStr(oc.titleEn) || toStr(oc.titleAr) || 'Occasion',
+      subtitleAr: 'مناسبة من إعدادات المهام',
+      subtitleEn: 'Occasion from task settings',
+    });
+  });
+
+  type AbEntry = {
+    name?: string;
+    nameEn?: string;
+    type?: string;
+    birthDate?: string;
+    idExpiryDate?: string;
+    passportExpiryDate?: string;
+    commercialRegExpiry?: string;
+    building?: string;
+    unit?: string;
+  };
+
+  const addressBook = parseJson<AbEntry[]>(kv.bhd_address_book, []);
+  addressBook.forEach((entry) => {
+    const name = toStr(entry.name) || toStr(entry.nameEn) || '—';
+    const docExpiries: Array<{ labelAr: string; labelEn: string; date: string }> = [];
+    if (toStr(entry.idExpiryDate)) {
+      docExpiries.push({ labelAr: 'بطاقة', labelEn: 'ID', date: entry.idExpiryDate! });
+    }
+    if (toStr(entry.passportExpiryDate)) {
+      docExpiries.push({ labelAr: 'جواز', labelEn: 'Passport', date: entry.passportExpiryDate! });
+    }
+    if (toStr(entry.commercialRegExpiry)) {
+      docExpiries.push({ labelAr: 'سجل تجاري', labelEn: 'CR', date: entry.commercialRegExpiry! });
+    }
+    docExpiries.forEach((doc) => {
+      if (!inMonth(doc.date, year, month)) return;
+      const days = daysUntil(doc.date);
+      pushEvent(events, {
+        date: doc.date.slice(0, 10),
+        kind: 'document',
+        titleAr: `${doc.labelAr} — ${name}`,
+        titleEn: `${doc.labelEn} — ${name}`,
+        subtitleAr:
+          days !== null && days < 0
+            ? 'منتهي'
+            : days !== null
+              ? `ينتهي خلال ${days} يوم`
+              : '',
+        subtitleEn:
+          days !== null && days < 0
+            ? 'Expired'
+            : days !== null
+              ? `Expires in ${days} days`
+              : '',
+        building: entry.building,
+        unit: entry.unit,
+      });
+    });
+
+    const bd = toStr(entry.birthDate);
+    if (bd) {
+      const parts = bd.slice(0, 10).split('-');
+      if (parts.length === 3) {
+        const bMonth = Number(parts[1]);
+        const bDay = Number(parts[2]);
+        if (bMonth === month && Number.isFinite(bDay)) {
+          const ymd = `${year}-${String(month).padStart(2, '0')}-${String(bDay).padStart(2, '0')}`;
+          const entType = toStr(entry.type).toLowerCase();
+          const kind: CalendarEventKind =
+            entType === 'tenant' ? 'birthday_tenant' : 'birthday_contact';
+          const typeLblAr =
+            entType === 'tenant' ? 'مستأجر' : entType === 'owner' ? 'مالك' : 'جهة اتصال';
+          const typeLblEn =
+            entType === 'tenant' ? 'Tenant' : entType === 'owner' ? 'Owner' : 'Contact';
+          pushEvent(events, {
+            date: ymd,
+            kind,
+            titleAr: `🎂 ${name}`,
+            titleEn: `🎂 ${name}`,
+            subtitleAr: typeLblAr,
+            subtitleEn: typeLblEn,
+            building: entry.building,
+            unit: entry.unit,
+          });
+        }
+      }
+    }
+  });
+
   events.sort((a, b) => a.date.localeCompare(b.date) || a.titleAr.localeCompare(b.titleAr, 'ar'));
   return events;
 }
@@ -177,4 +285,5 @@ export const CALENDAR_KV_KEYS = [
   'bhd_contract_renewal_drafts',
   'bhd_tasks_registry',
   'bhd_accounting_registry',
+  'bhd_address_book',
 ] as const;
