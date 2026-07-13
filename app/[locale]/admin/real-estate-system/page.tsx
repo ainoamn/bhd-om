@@ -75,7 +75,7 @@ export default function RealEstateSystemPage() {
       />
       <iframe
         ref={iframeRef}
-        src={`${LEGACY_APP_SRC}?mode=dashboard`}
+        src={LEGACY_APP_SRC}
         title={ar ? 'نظام إدارة العقارات' : 'Real estate management system'}
         className="admin-real-estate-legacy-frame"
         allow="fullscreen"

@@ -130,10 +130,10 @@ export default function AdminHomeDashboard({ locale, userName }: Props) {
 
   const quickActions = [
     {
-      href: '/admin/real-estate-system',
-      icon: 'home' as IconName,
-      title: ar ? 'نظام إدارة العقارات' : 'Real estate system',
-      desc: ar ? 'عقود الوحدات، الحجوزات، المحاسبة — النسخة التشغيلية الكاملة' : 'Unit contracts, bookings, accounting — full operational app',
+      href: '/admin/real-estate-dashboard',
+      icon: 'dashboard' as IconName,
+      title: ar ? 'لوحة العقارات' : 'Real estate dashboard',
+      desc: ar ? 'ملخص سريع من PostgreSQL — جدول الوحدات والتقويم في نفس الصفحة' : 'Fast PostgreSQL summary — units table & calendar on the same page',
       highlight: true,
     },
     {
@@ -225,17 +225,25 @@ export default function AdminHomeDashboard({ locale, userName }: Props) {
         <div className="admin-dash-legacy-launch-inner">
           <div className="admin-dash-legacy-launch-text">
             <span className="admin-dash-legacy-launch-badge">{ar ? 'تشغيل يومي' : 'Daily operations'}</span>
-            <h2 className="admin-dash-legacy-launch-title">{ar ? 'نظام إدارة العقارات' : 'Real estate management system'}</h2>
+            <h2 className="admin-dash-legacy-launch-title">{ar ? 'لوحة العقارات' : 'Real estate dashboard'}</h2>
             <p className="admin-dash-legacy-launch-desc">
               {ar
-                ? 'عقود الوحدات، حجوزات المباني، المحاسبة، الطباعة — افتح النظام التشغيلي الكامل من هنا'
-                : 'Unit contracts, building reservations, accounting, printing — open the full operational system here'}
+                ? 'ملخص فوري للمؤشرات، جدول الوحدات، التقويم، والعقود — افتح لوحة التشغيل من هنا'
+                : 'Instant KPIs, units table, calendar, and contracts — open the operations hub here'}
             </p>
           </div>
           <div className="admin-dash-legacy-launch-actions">
-            <Link href={`/${locale}/admin/real-estate-system`} prefetch className="admin-dash-legacy-launch-btn">
+            <Link href={`/${locale}/admin/real-estate-dashboard`} prefetch className="admin-dash-legacy-launch-btn">
+              <Icon name="dashboard" className="w-5 h-5" aria-hidden />
+              {ar ? 'فتح اللوحة' : 'Open dashboard'}
+            </Link>
+            <Link
+              href={`/${locale}/admin/real-estate-system`}
+              prefetch
+              className="admin-dash-legacy-launch-btn admin-dash-legacy-launch-btn--ghost"
+            >
               <Icon name="home" className="w-5 h-5" aria-hidden />
-              {ar ? 'فتح النظام' : 'Open system'}
+              {ar ? 'النظام الكامل' : 'Full system'}
             </Link>
             <a
               href="/api/admin/legacy-real-estate/bhd-real-estate.html?mode=dashboard"
