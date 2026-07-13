@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/icons/Icon';
 import { getStatusLabel } from '@/lib/real-estate/contractLifecycle';
 import { formatOmr } from '@/lib/real-estate/dashboardStats';
-import { buildLegacyUnitActionUrl } from '@/lib/real-estate/legacyUnitLinks';
+import type { ContractWorkspaceMode } from '@/lib/real-estate/unitContractWorkspace';
 import type { OperationsUnitRow } from '@/lib/real-estate/operationsUnit';
 import type { UnitDetailExtras } from '@/lib/real-estate/unitDetailExtras';
 import { ledgerStatusKind, type UnitLedgerEvent } from '@/lib/real-estate/unitLedger';
@@ -14,6 +14,8 @@ type Props = {
   locale: 'ar' | 'en';
   unit: OperationsUnitRow | null;
   onClose: () => void;
+  onContractAction?: (mode: ContractWorkspaceMode) => void;
+  onPrintContract?: () => void;
 };
 
 type UnitDetailResponse = {
@@ -49,7 +51,13 @@ function LedgerStatusChip({ status, kind }: { status: string; kind: string }) {
   return <span className={`re-ledger-chip re-ledger-chip--${kind}`}>{status}</span>;
 }
 
-export default function RealEstateUnitDetailsModal({ locale, unit, onClose }: Props) {
+export default function RealEstateUnitDetailsModal({
+  locale,
+  unit,
+  onClose,
+  onContractAction,
+  onPrintContract,
+}: Props) {
   const ar = locale === 'ar';
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledger, setLedger] = useState<UnitLedgerEvent[]>([]);
@@ -275,30 +283,31 @@ export default function RealEstateUnitDetailsModal({ locale, unit, onClose }: Pr
         </div>
 
         <div className="sticky bottom-0 flex flex-wrap gap-2 border-t border-[var(--admin-border)] bg-[var(--admin-surface)] px-4 py-3">
-          <a
-            href={buildLegacyUnitActionUrl(unit.building, unit.unit, 'fill', locale)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="admin-btn admin-btn-secondary text-sm"
-          >
-            {ar ? 'تعبئة العقد' : 'Fill contract'}
-          </a>
-          <a
-            href={buildLegacyUnitActionUrl(unit.building, unit.unit, 'renew', locale)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="admin-btn admin-btn-secondary text-sm"
-          >
-            {ar ? 'تجديد' : 'Renew'}
-          </a>
-          <a
-            href={buildLegacyUnitActionUrl(unit.building, unit.unit, 'print', locale)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="admin-btn admin-btn-primary text-sm"
-          >
-            {ar ? 'طباعة العقد' : 'Print contract'}
-          </a>
+          {onContractAction ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onContractAction('fill')}
+                className="admin-btn admin-btn-secondary text-sm"
+              >
+                {ar ? 'تعبئة العقد' : 'Fill contract'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onContractAction('renew')}
+                className="admin-btn admin-btn-secondary text-sm"
+              >
+                {ar ? 'تجديد' : 'Renew'}
+              </button>
+              <button
+                type="button"
+                onClick={() => (onPrintContract ? onPrintContract() : onContractAction('view'))}
+                className="admin-btn admin-btn-primary text-sm"
+              >
+                {ar ? 'طباعة العقد' : 'Print contract'}
+              </button>
+            </>
+          ) : null}
           <button type="button" onClick={onClose} className="admin-btn admin-btn-ghost text-sm ms-auto">
             {ar ? 'إغلاق' : 'Close'}
           </button>

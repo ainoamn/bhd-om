@@ -8,13 +8,16 @@ import {
   getExpiringUnitsForReport,
   openExpiryUnitsPrintWindow,
 } from '@/lib/real-estate/expiryReportPrint';
-import { buildLegacyUnitActionUrl, buildLegacyBatchRenewUrl, type LegacyUnitAction } from '@/lib/real-estate/legacyUnitLinks';
+import { openContractSummaryPrintWindow } from '@/lib/real-estate/contractSummaryPrint';
+import { buildLegacyBatchRenewUrl } from '@/lib/real-estate/legacyUnitLinks';
+import type { ContractWorkspaceMode } from '@/lib/real-estate/unitContractWorkspace';
 import type { OperationsUnitRow, UnitsSortKey, UnitsSortState } from '@/lib/real-estate/operationsUnit';
 import {
   filterUnitsRows,
   paginateUnitsRows,
   sortUnitsRows,
 } from '@/lib/real-estate/unitsTableFilters';
+import RealEstateContractModal from '@/components/admin/real-estate/RealEstateContractModal';
 import RealEstateUnitDetailsModal from '@/components/admin/real-estate/RealEstateUnitDetailsModal';
 
 type Props = {
@@ -63,6 +66,10 @@ export default function RealEstateUnitsTable({ locale }: Props) {
   const [batchDays, setBatchDays] = useState('30');
   const [batchBuilding, setBatchBuilding] = useState('all');
   const [detailsUnit, setDetailsUnit] = useState<OperationsUnitRow | null>(null);
+  const [contractModal, setContractModal] = useState<{
+    unit: OperationsUnitRow;
+    mode: ContractWorkspaceMode;
+  } | null>(null);
 
   const loadUnits = useCallback(async () => {
     setLoading(true);
@@ -133,15 +140,38 @@ export default function RealEstateUnitsTable({ locale }: Props) {
     openExpiryUnitsPrintWindow(rows, maxDays, locale);
   };
 
-  const actionLink = (u: OperationsUnitRow, action: LegacyUnitAction, label: string) => (
-    <a
-      href={buildLegacyUnitActionUrl(u.building, u.unit, action, locale)}
-      target="_blank"
-      rel="noopener noreferrer"
+  const openContract = (u: OperationsUnitRow, mode: ContractWorkspaceMode) => {
+    setContractModal({ unit: u, mode });
+  };
+
+  const printContractSummary = async (u: OperationsUnitRow) => {
+    try {
+      const qs = new URLSearchParams({ building: u.building, unit: u.unit, mode: 'view' });
+      const res = await fetch(`/api/admin/real-estate-dashboard/unit-contract?${qs}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error('load failed');
+      const json = (await res.json()) as { workspace: { values: Parameters<typeof openContractSummaryPrintWindow>[1] } };
+      openContractSummaryPrintWindow(u, json.workspace.values, locale);
+    } catch {
+      alert(ar ? 'تعذر تحميل بيانات العقد للطباعة.' : 'Could not load contract data for printing.');
+    }
+  };
+
+  const contractActionBtn = (
+    u: OperationsUnitRow,
+    mode: ContractWorkspaceMode,
+    label: string,
+    onClick?: () => void
+  ) => (
+    <button
+      type="button"
+      onClick={onClick ?? (() => openContract(u, mode))}
       className="text-[10px] font-semibold admin-accent-text hover:underline whitespace-nowrap"
     >
       {label}
-    </a>
+    </button>
   );
 
   return (
@@ -153,8 +183,8 @@ export default function RealEstateUnitsTable({ locale }: Props) {
           </h3>
           <p className="text-xs opacity-60 mt-1">
             {ar
-              ? 'بحث وفلترة فورية — الإجراءات تفتح النظام التشغيلي مباشرة'
-              : 'Instant search & filters — actions open the operational system directly'}
+              ? 'بحث وفلترة فورية — تعبئة/تجديد/طباعة من React مع حفظ KV'
+              : 'Instant search & filters — fill/renew/print in React with KV save'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -363,9 +393,9 @@ export default function RealEstateUnitsTable({ locale }: Props) {
                           >
                             {ar ? 'تفاصيل' : 'Details'}
                           </button>
-                          {actionLink(u, 'fill', ar ? 'تعبئة' : 'Fill')}
-                          {actionLink(u, 'renew', ar ? 'تجديد' : 'Renew')}
-                          {actionLink(u, 'print', ar ? 'طباعة' : 'Print')}
+                          {contractActionBtn(u, 'fill', ar ? 'تعبئة' : 'Fill')}
+                          {contractActionBtn(u, 'renew', ar ? 'تجديد' : 'Renew')}
+                          {contractActionBtn(u, 'view', ar ? 'طباعة' : 'Print', () => void printContractSummary(u))}
                         </div>
                       </td>
                     </tr>
@@ -421,7 +451,26 @@ export default function RealEstateUnitsTable({ locale }: Props) {
           ) : null}
         </>
       )}
-      <RealEstateUnitDetailsModal locale={locale} unit={detailsUnit} onClose={() => setDetailsUnit(null)} />
+      <RealEstateUnitDetailsModal
+        locale={locale}
+        unit={detailsUnit}
+        onClose={() => setDetailsUnit(null)}
+        onContractAction={(mode) => {
+          if (detailsUnit) setContractModal({ unit: detailsUnit, mode });
+        }}
+        onPrintContract={() => {
+          if (detailsUnit) void printContractSummary(detailsUnit);
+        }}
+      />
+      {contractModal ? (
+        <RealEstateContractModal
+          locale={locale}
+          unit={contractModal.unit}
+          mode={contractModal.mode}
+          onClose={() => setContractModal(null)}
+          onSaved={() => void loadUnits()}
+        />
+      ) : null}
     </section>
   );
 }

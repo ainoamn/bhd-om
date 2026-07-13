@@ -1718,6 +1718,42 @@ button.re-cal-day {
   color: #374151;
 }
 
+.re-contract-overlay {
+  backdrop-filter: blur(2px);
+}
+
+.re-contract-form-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .re-contract-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .re-contract-form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.re-contract-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.re-contract-field-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.65;
+}
+
 .admin-dash-quick-action--highlight {
   border-color: var(--admin-primary, #8b0000);
   background: linear-gradient(135deg, rgba(139, 0, 0, 0.06), rgba(197, 160, 40, 0.08));
