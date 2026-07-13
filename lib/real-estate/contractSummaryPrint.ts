@@ -67,6 +67,30 @@ export function openContractSummaryPrintWindow(
     fieldRow(ar ? 'تاريخ النهاية' : 'End date', values.endDate, ar),
     fieldRow(ar ? 'المدة (أشهر)' : 'Duration (months)', values.contractMonths, ar),
     fieldRow(ar ? 'الإيجار الشهري' : 'Monthly rent', rentFormatted, ar),
+    fieldRow(
+      ar ? 'الضمان' : 'Deposit',
+      values.depositAmount
+        ? `${formatOmr(parseFloat(values.depositAmount) || 0, locale)} ${ar ? 'ر.ع.' : 'OMR'}`
+        : '—',
+      ar
+    ),
+    fieldRow(
+      ar ? 'طريقة الدفع' : 'Payment method',
+      values.paymentMethod === 'cheque'
+        ? ar
+          ? 'شيك'
+          : 'Cheque'
+        : values.paymentMethod === 'cash'
+          ? ar
+            ? 'نقداً'
+            : 'Cash'
+          : values.paymentMethod === 'transfer'
+            ? ar
+              ? 'تحويل بنكي'
+              : 'Bank transfer'
+            : '—',
+      ar
+    ),
     fieldRow(ar ? 'عداد الكهرباء' : 'Electricity meter', values.electricityMeter, ar),
     fieldRow(ar ? 'عداد الماء' : 'Water meter', values.waterMeter, ar),
     fieldRow(ar ? 'استمارة بلدية' : 'Municipal form', values.municipalFormNo, ar),

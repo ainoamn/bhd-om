@@ -24,6 +24,8 @@ export type UnitContractFormValues = {
   municipalFormNo: string;
   municipalContractNo: string;
   remarks: string;
+  depositAmount: string;
+  paymentMethod: '' | 'cheque' | 'cash' | 'transfer';
 };
 
 export type UnitContractWorkspace = {
@@ -58,6 +60,8 @@ function emptyFormValues(building: string, unit: string): UnitContractFormValues
     municipalFormNo: '',
     municipalContractNo: '',
     remarks: '',
+    depositAmount: '',
+    paymentMethod: '',
   };
 }
 
@@ -111,7 +115,42 @@ function payloadToFormValues(payload: ContractPayload, base: UnitContractFormVal
     municipalContractNo:
       toStr((payload as Record<string, unknown>).municipalContractNo) || base.municipalContractNo,
     remarks: toStr((payload as Record<string, unknown>).remarks) || base.remarks,
+    depositAmount: toStr((payload as Record<string, unknown>).depositAmount) || base.depositAmount,
+    paymentMethod: mapLegacyPaymentMethod(toStr((payload as Record<string, unknown>).paymentMethod)),
   };
+}
+
+function mapLegacyPaymentMethod(raw: string): UnitContractFormValues['paymentMethod'] {
+  const s = raw.toLowerCase();
+  if (s.includes('شيك') || s.includes('chq') || s.includes('cheq')) return 'cheque';
+  if (s.includes('نقد') || s.includes('cash')) return 'cash';
+  if (s.includes('تحويل') || s.includes('transfer') || s.includes('bank')) return 'transfer';
+  return '';
+}
+
+function legacyPaymentMethodLabel(method: UnitContractFormValues['paymentMethod']): string {
+  if (method === 'cheque') return 'شيك CHQ';
+  if (method === 'cash') return 'نقدا Cash';
+  if (method === 'transfer') return 'تحويل بنكي Bank transfer';
+  return '';
+}
+
+function buildSimplePaymentSchedule(values: UnitContractFormValues): Record<string, unknown>[] {
+  const months = Math.max(1, parseInt(values.contractMonths, 10) || 12);
+  const rent = parseFloat(values.monthlyRent) || 0;
+  const start = values.startDate.trim();
+  if (!start || rent <= 0) return [];
+  const schedule: Record<string, unknown>[] = [];
+  for (let i = 0; i < months; i++) {
+    const d = new Date(start);
+    d.setMonth(d.getMonth() + i);
+    schedule.push({
+      monthIndex: i + 1,
+      dueDate: d.toISOString().slice(0, 10),
+      amount: rent.toFixed(3),
+    });
+  }
+  return schedule;
 }
 
 function getSavedEntry(
@@ -179,6 +218,10 @@ function unitRowToBaseValues(
     electricityMeter: toStr(row.electricity) || base.electricityMeter,
     waterMeter: toStr(row.water) || base.waterMeter,
     remarks: toStr(row.remarks) || base.remarks,
+    depositAmount:
+      row.monthlyRent != null && row.monthlyRent !== '' && !base.depositAmount
+        ? String(row.monthlyRent)
+        : base.depositAmount,
   };
 }
 
@@ -261,6 +304,9 @@ export function buildUnitContractWorkspace(
 
 export function formValuesToContractPayload(values: UnitContractFormValues): Record<string, unknown> {
   const now = new Date().toISOString();
+  const paymentMethod = legacyPaymentMethodLabel(values.paymentMethod);
+  const schedule = values.paymentMethod ? buildSimplePaymentSchedule(values) : [];
+  const deposit = values.depositAmount.trim() || values.monthlyRent.trim();
   return {
     agreementNo: values.agreementNo.trim(),
     tenantNameAr: values.tenantNameAr.trim(),
@@ -282,6 +328,10 @@ export function formValuesToContractPayload(values: UnitContractFormValues): Rec
     municipalFormNo: values.municipalFormNo.trim(),
     municipalContractNo: values.municipalContractNo.trim(),
     remarks: values.remarks.trim(),
+    depositAmount: deposit,
+    paymentMethod,
+    paymentSchedule: schedule,
+    paymentScheduleJson: JSON.stringify(schedule),
     _savedAt: now,
     _savedFromReact: true,
   };

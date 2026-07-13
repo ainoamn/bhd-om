@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth/guard';
 import { isAdminLikeRole } from '@/lib/auth/roles';
 import { getLegacyKvBulk } from '@/lib/server/legacyKvStore';
 import { saveUnitContractDraftToKv } from '@/lib/server/unitContractDraftWrite';
+import { activateUnitContractToKv } from '@/lib/server/unitContractActivate';
 import {
   buildOperationsUnitsFromKv,
   OPERATIONS_UNITS_KV_KEYS,
@@ -104,6 +105,7 @@ type PostBody = {
   unit: string;
   mode: ContractWorkspaceMode;
   values: UnitContractFormValues;
+  action?: 'draft' | 'activate';
 };
 
 export async function POST(req: NextRequest) {
@@ -129,6 +131,37 @@ export async function POST(req: NextRequest) {
 
     const token = auth.token as { name?: string; email?: string } | undefined;
     const actorName = token?.name?.trim() || token?.email?.trim() || auth.userId;
+    const action = body.action === 'activate' ? 'activate' : 'draft';
+
+    if (action === 'activate') {
+      try {
+        const result = await activateUnitContractToKv(
+          body.building.trim(),
+          body.unit.trim(),
+          mode,
+          body.values,
+          { userId: auth.userId, name: actorName }
+        );
+        return NextResponse.json(
+          {
+            ok: true,
+            action: 'activate',
+            lifecycleStatus: result.lifecycleStatus,
+            savedKey: result.savedKey,
+            archivedPrevious: result.archivedPrevious,
+            syncedAt: new Date().toISOString(),
+          },
+          {
+            headers: {
+              'Cache-Control': 'private, no-store, must-revalidate',
+            },
+          }
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to activate contract';
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+    }
 
     const result = await saveUnitContractDraftToKv(
       body.building.trim(),
@@ -141,6 +174,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ok: true,
+        action: 'draft',
         savedKey: result.savedKey,
         mode: result.mode,
         syncedAt: new Date().toISOString(),

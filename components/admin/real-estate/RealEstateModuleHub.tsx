@@ -61,9 +61,10 @@ export default function RealEstateModuleHub({ locale, stats }: Props) {
       href: `/${locale}/admin/address-book`,
     },
     {
-      titleAr: 'النظام الكامل',
-      titleEn: 'Full system',
-      href: `/${locale}/admin/real-estate-system`,
+      titleAr: 'النظام الكامل (legacy)',
+      titleEn: 'Full system (legacy)',
+      href: `${LEGACY_BASE}?locale=${locale}`,
+      external: true,
     },
   ];
 

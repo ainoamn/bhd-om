@@ -60,6 +60,7 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
   const readOnly = mode === 'view';
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workspaceMeta, setWorkspaceMeta] = useState<UnitContractWorkspace | null>(null);
   const [values, setValues] = useState<UnitContractFormValues | null>(null);
@@ -119,9 +120,13 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
           unit: unit.unit,
           mode,
           values,
+          action: 'draft',
         }),
       });
-      if (!res.ok) throw new Error('save failed');
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error || 'save failed');
+      }
       setSaveMsg(
         mode === 'renew'
           ? ar
@@ -133,10 +138,68 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
       );
       onSaved?.();
       await loadWorkspace();
-    } catch {
-      setError(ar ? 'تعذر حفظ المسودة.' : 'Failed to save draft.');
+    } catch (e) {
+      setError(
+        e instanceof Error && e.message && e.message !== 'save failed'
+          ? e.message
+          : ar
+            ? 'تعذر حفظ المسودة.'
+            : 'Failed to save draft.'
+      );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!values || readOnly) return;
+    const confirmMsg =
+      mode === 'renew'
+        ? ar
+          ? 'تفعيل تجديد العقد؟ سيُؤرشف العقد السابق ويُحدَّث سجل الوحدة.'
+          : 'Activate contract renewal? The previous contract will be archived and the unit registry updated.'
+        : ar
+          ? 'تفعيل العقد؟ سيُحفظ في KV ويُحدَّث سجل الوحدة.'
+          : 'Activate contract? It will be saved to KV and the unit registry will be updated.';
+    if (!window.confirm(confirmMsg)) return;
+
+    setActivating(true);
+    setSaveMsg(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/real-estate-dashboard/unit-contract', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          building: unit.building,
+          unit: unit.unit,
+          mode,
+          values,
+          action: 'activate',
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; lifecycleStatus?: string };
+      if (!res.ok) {
+        throw new Error(json.error || 'activate failed');
+      }
+      setSaveMsg(
+        ar
+          ? `تم تفعيل العقد — الحالة: ${json.lifecycleStatus || 'active'}`
+          : `Contract activated — status: ${json.lifecycleStatus || 'active'}`
+      );
+      onSaved?.();
+      await loadWorkspace();
+    } catch (e) {
+      setError(
+        e instanceof Error && e.message && e.message !== 'activate failed'
+          ? e.message
+          : ar
+            ? 'تعذر تفعيل العقد.'
+            : 'Failed to activate contract.'
+      );
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -343,6 +406,32 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
                   readOnly={readOnly}
                 />
                 <FormField
+                  label={ar ? 'مبلغ الضمان (ر.ع.)' : 'Deposit (OMR)'}
+                  value={values.depositAmount}
+                  onChange={(v) => setField('depositAmount', v)}
+                  dir="ltr"
+                  readOnly={readOnly}
+                />
+                <label className="re-contract-field">
+                  <span className="re-contract-field-label">{ar ? 'طريقة الدفع' : 'Payment method'}</span>
+                  <select
+                    className="admin-input w-full text-sm"
+                    value={values.paymentMethod}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      setField(
+                        'paymentMethod',
+                        e.target.value as UnitContractFormValues['paymentMethod']
+                      )
+                    }
+                  >
+                    <option value="">{ar ? '—' : '—'}</option>
+                    <option value="cheque">{ar ? 'شيك' : 'Cheque'}</option>
+                    <option value="cash">{ar ? 'نقداً' : 'Cash'}</option>
+                    <option value="transfer">{ar ? 'تحويل بنكي' : 'Bank transfer'}</option>
+                  </select>
+                </label>
+                <FormField
                   label={ar ? 'استمارة بلدية' : 'Municipal form'}
                   value={values.municipalFormNo}
                   onChange={(v) => setField('municipalFormNo', v)}
@@ -369,8 +458,8 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
 
               <p className="text-xs opacity-60 mb-2">
                 {ar
-                  ? 'الحفظ هنا يكتب مسودة في KV (متوافقة مع النظام التشغيلي). التفعيل الكامل والمستندات الرسمية ما زالت عبر النظام الكامل.'
-                  : 'Saving writes a draft to KV (compatible with the operational system). Full activation and official documents remain in the full system.'}
+                  ? 'حفظ المسودة يكتب في KV. «تفعيل العقد» يحفظ في العقود المحفوظة ويحدّث سجل الوحدات. المستندات الرسمية الكاملة ما زالت عبر النظام التشغيلي.'
+                  : 'Save draft writes to KV. «Activate contract» saves to saved contracts and updates the units registry. Full official documents remain in the operational system.'}
               </p>
             </>
           ) : null}
@@ -378,14 +467,34 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
 
         <div className="sticky bottom-0 flex flex-wrap gap-2 border-t border-[var(--admin-border)] bg-[var(--admin-surface)] px-4 py-3">
           {!readOnly ? (
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving || loading || !values}
-              className="admin-btn admin-btn-primary text-sm"
-            >
-              {saving ? (ar ? 'جاري الحفظ…' : 'Saving…') : ar ? 'حفظ المسودة' : 'Save draft'}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={saving || activating || loading || !values}
+                className="admin-btn admin-btn-secondary text-sm"
+              >
+                {saving ? (ar ? 'جاري الحفظ…' : 'Saving…') : ar ? 'حفظ المسودة' : 'Save draft'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleActivate()}
+                disabled={saving || activating || loading || !values}
+                className="admin-btn admin-btn-primary text-sm"
+              >
+                {activating
+                  ? ar
+                    ? 'جاري التفعيل…'
+                    : 'Activating…'
+                  : mode === 'renew'
+                    ? ar
+                      ? 'تفعيل التجديد'
+                      : 'Activate renewal'
+                    : ar
+                      ? 'تفعيل العقد'
+                      : 'Activate contract'}
+              </button>
+            </>
           ) : null}
           <button
             type="button"
