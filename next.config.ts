@@ -56,10 +56,38 @@ const nextConfig: NextConfig = {
       { source: '/:path*', headers: securityHeaders },
       { source: '/images/:path*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
       {
+        source: '/api/admin/legacy-real-estate/:path*.js',
+        headers: [
+          { key: 'Cache-Control', value: 'private, max-age=31536000, immutable, stale-while-revalidate=86400' },
+          { key: 'Vary', value: 'Cookie, Authorization' },
+        ],
+      },
+      {
+        source: '/api/admin/legacy-real-estate/:path*.css',
+        headers: [
+          { key: 'Cache-Control', value: 'private, max-age=31536000, immutable, stale-while-revalidate=86400' },
+          { key: 'Vary', value: 'Cookie, Authorization' },
+        ],
+      },
+      {
         source: '/api/admin/legacy-real-estate/:path*',
         headers: [
           { key: 'Cache-Control', value: 'private, max-age=0, must-revalidate, stale-while-revalidate=300' },
           { key: 'Vary', value: 'Cookie, Authorization, Accept-Language' },
+        ],
+      },
+      {
+        source: '/:locale(ar|en)/api/admin/legacy-real-estate/:path*.js',
+        headers: [
+          { key: 'Cache-Control', value: 'private, max-age=31536000, immutable, stale-while-revalidate=86400' },
+          { key: 'Vary', value: 'Cookie, Authorization' },
+        ],
+      },
+      {
+        source: '/:locale(ar|en)/api/admin/legacy-real-estate/:path*.css',
+        headers: [
+          { key: 'Cache-Control', value: 'private, max-age=31536000, immutable, stale-while-revalidate=86400' },
+          { key: 'Vary', value: 'Cookie, Authorization' },
         ],
       },
       {

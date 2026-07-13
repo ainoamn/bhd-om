@@ -14,6 +14,7 @@
     "build": "prisma generate && node scripts/prisma-migrate-deploy.mjs && next build",
     "db:migrate:deploy": "node scripts/prisma-migrate-deploy.mjs",
     "build:log": "powershell -ExecutionPolicy Bypass -File ./tools/build/run-build.ps1",
+    "legacy:split-sync": "node scripts/legacy-split-sync.mjs",
     "db:push": "prisma db push",
     "db:backfill-accounting-journal-links": "npx tsx scripts/backfill-accounting-journal-links.ts",
     "db:migrate-serials-bhd": "npx tsx scripts/migrate-serials-to-bhd.ts",

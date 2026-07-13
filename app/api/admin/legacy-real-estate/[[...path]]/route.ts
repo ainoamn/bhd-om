@@ -6,14 +6,16 @@ import {
 } from '@/lib/server/legacyBridge';
 import {
   contentTypeForLegacyFile,
-  readLegacyRealEstateFile,
+  readLegacyRealEstateFileWithMeta,
   readLegacyRealEstateHtmlWithBridge,
 } from '@/lib/server/legacyRealEstateFiles';
 import { isAdminLikeRole } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
-// In-memory HTML cache — key includes userId for per-user bridge payloads
+const MONOLITH_HTML = 'bhd-real-estate.html';
+const SHELL_HTML = 'bhd-real-estate-shell.html';
+
 type HtmlCacheEntry = { body: Buffer; timestamp: number; etag: string };
 const HTML_CACHE_TTL_MS = 300_000;
 const _htmlCache = new Map<string, HtmlCacheEntry>();
@@ -44,13 +46,21 @@ function cacheControlForLegacyFile(fileName: string): string {
   if (ext === '.html') {
     return 'private, max-age=0, must-revalidate, stale-while-revalidate=300';
   }
-  if (ext === '.css' || ext === '.js') {
+  if (ext === '.js' || ext === '.css') {
+    return 'private, max-age=31536000, immutable, stale-while-revalidate=86400';
+  }
+  if (fileName === 'body-raw.html') {
     return 'private, max-age=3600, stale-while-revalidate=86400';
   }
-  return 'private, max-age=300, stale-while-revalidate=3600';
+  return 'private, max-age=3600, stale-while-revalidate=86400';
+}
+
+function isBridgeHtml(fileName: string): boolean {
+  return fileName === MONOLITH_HTML || fileName === SHELL_HTML || fileName === 'bhd-real-estate-v2.html';
 }
 
 type RouteContext = { params: Promise<{ path?: string[] }> };
+
 function requireLegacyAdminAccess(
   auth: Exclude<Awaited<ReturnType<typeof requireAuth>>, NextResponse>
 ): NextResponse | null {
@@ -59,6 +69,11 @@ function requireLegacyAdminAccess(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   return null;
+}
+
+function notModified(req: NextRequest, etag: string): boolean {
+  const inm = req.headers.get('if-none-match');
+  return !!inm && inm === etag;
 }
 
 export async function GET(req: NextRequest, context: RouteContext) {
@@ -74,47 +89,77 @@ export async function GET(req: NextRequest, context: RouteContext) {
     }
 
     const locale = resolveLegacyBridgeLocale(req);
+    const useMonolith = req.nextUrl.searchParams.get('monolith') === '1';
     const { path: segments } = await context.params;
-    const fileName = segments?.length ? segments[segments.length - 1]! : 'bhd-real-estate.html';
-    const isMainHtml =
-      fileName === 'bhd-real-estate.html' ||
-      fileName === 'bhd-real-estate-v2.html' ||
-      fileName.endsWith('.html');
+    const fileName = segments?.length ? segments[segments.length - 1]! : MONOLITH_HTML;
+    const servedHtmlName =
+      fileName === MONOLITH_HTML && !useMonolith ? SHELL_HTML : fileName;
 
     let body: Buffer;
+    let etag: string | undefined;
     let bridgeStatus = 'none';
-    if (isMainHtml) {
+
+    if (isBridgeHtml(fileName)) {
       const embedded = await buildLegacyBridgeMinimalPayload(userId, locale);
       bridgeStatus = embedded ? 'embedded' : 'empty';
 
-      const cacheKey = htmlCacheKey(fileName, locale, bridgeStatus, userId);
+      const cacheKey = htmlCacheKey(servedHtmlName, locale, bridgeStatus, userId);
       const cached = htmlCacheGet(cacheKey);
       if (cached) {
+        if (notModified(req, cached.etag)) {
+          return new NextResponse(null, {
+            status: 304,
+            headers: {
+              'Cache-Control': cacheControlForLegacyFile(servedHtmlName),
+              'X-Bhd-Bridge': bridgeStatus,
+              'X-Bhd-Cache': 'HIT',
+              'X-Bhd-Shell': useMonolith ? '0' : '1',
+              ETag: cached.etag,
+            },
+          });
+        }
         return new NextResponse(new Uint8Array(cached.body), {
           status: 200,
           headers: {
-            'Content-Type': contentTypeForLegacyFile(fileName),
-            'Cache-Control': cacheControlForLegacyFile(fileName),
+            'Content-Type': contentTypeForLegacyFile(servedHtmlName),
+            'Cache-Control': cacheControlForLegacyFile(servedHtmlName),
             'X-Content-Type-Options': 'nosniff',
             'X-Bhd-Bridge': bridgeStatus,
             'X-Bhd-Cache': 'HIT',
+            'X-Bhd-Shell': useMonolith ? '0' : '1',
             ETag: cached.etag,
           },
         });
       }
 
-      body = await readLegacyRealEstateHtmlWithBridge(segments, embedded);
-      htmlCacheSet(cacheKey, body);    } else {
-      body = await readLegacyRealEstateFile(segments);
+      body = await readLegacyRealEstateHtmlWithBridge(segments, embedded, useMonolith);
+      const stored = htmlCacheSet(cacheKey, body);
+      etag = stored.etag;
+    } else {
+      const file = await readLegacyRealEstateFileWithMeta(segments);
+      body = file.body;
+      etag = file.etag;
+      if (notModified(req, etag)) {
+        return new NextResponse(null, {
+          status: 304,
+          headers: {
+            'Cache-Control': cacheControlForLegacyFile(file.fileName),
+            ETag: etag,
+          },
+        });
+      }
     }
 
     return new NextResponse(new Uint8Array(body), {
       status: 200,
       headers: {
-        'Content-Type': contentTypeForLegacyFile(fileName),
-        'Cache-Control': cacheControlForLegacyFile(fileName),        'X-Content-Type-Options': 'nosniff',
+        'Content-Type': contentTypeForLegacyFile(servedHtmlName || fileName),
+        'Cache-Control': cacheControlForLegacyFile(servedHtmlName || fileName),
+        'X-Content-Type-Options': 'nosniff',
         'X-Bhd-Bridge': bridgeStatus,
         'X-Bhd-Cache': 'MISS',
+        'X-Bhd-Shell': fileName === MONOLITH_HTML && !useMonolith ? '1' : '0',
+        ...(etag ? { ETag: etag } : {}),
       },
     });
   } catch (error) {

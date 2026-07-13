@@ -1452,6 +1452,28 @@
         'bhd_business_doc_templates'
     ];
 
+    const BHD_DASH_KV_KEYS = [
+        'bhd_saved_contracts_by_unit',
+        'bhd_managed_units',
+        'bhd_buildings_list',
+        'bhd_owners_list',
+        'bhd_building_profiles',
+        'bhd_owner_profiles',
+        'bhd_unit_reservations',
+        'bhd_accounting_registry',
+        'bhd_tasks_registry',
+        'bhd_maintenance_registry'
+    ];
+
+    function bhdIsDashboardOnlyMode() {
+        try {
+            const m = new URLSearchParams(location.search).get('mode');
+            return !m || m === 'dashboard';
+        } catch (_eDashMode) {
+            return true;
+        }
+    }
+
     function bhdKvIsEmptyShell(raw) {
         if (raw === null || raw === undefined) return true;
         const s = toStr(raw).trim();
@@ -3747,7 +3769,10 @@
     async function bhdHydrateSiteKvFromServerIfNeeded(opt = {}) {
         if (!bhdRemoteKvSyncEnabled() || (!isBhdSiteIntegratedWebClient() && !bhdApiAvailable)) return false;
         if (bhdShouldBlockNeonKvPull(opt)) return false;
-        const keys = Array.isArray(opt.keys) && opt.keys.length ? opt.keys : null;
+        if (window.__bhdBridgeDashboardKvHydrating) return false;
+        if (window.__bhdBridgeStagedKvHydrated && !opt.force && bhdIsDashboardOnlyMode()) return false;
+        let keys = Array.isArray(opt.keys) && opt.keys.length ? opt.keys : null;
+        if (!keys && bhdIsDashboardOnlyMode()) keys = BHD_DASH_KV_KEYS;
         const deferIdbMirror = opt.deferIdbMirror === true;
         const siteKv = isBhdSiteKvPersistenceActive();
         if (siteKv && !shouldSkipSiteKvPushBeforePull()) {
@@ -4036,18 +4061,26 @@
         if (_bhdSiteKvHydrationPromise) return _bhdSiteKvHydrationPromise;
         _bhdSiteKvHydrationPromise = (async () => {
             try {
-                if (typeof window.__bhdRefreshAddressBookFromSite === 'function' && !bhdIsPostWipeQuarantineActive()) {
-                    await window.__bhdRefreshAddressBookFromSite();
-                }
-                if (!bhdIsPostWipeQuarantineActive()) {
+                if (!bhdIsDashboardOnlyMode()) {
+                    if (typeof window.__bhdRefreshAddressBookFromSite === 'function' && !bhdIsPostWipeQuarantineActive()) {
+                        await window.__bhdRefreshAddressBookFromSite();
+                    }
+                    if (!bhdIsPostWipeQuarantineActive()) {
+                        try {
+                            await repairAddressBookEntriesFromSite();
+                        } catch (_eSiteRepBoot) {}
+                    }
                     try {
-                        await repairAddressBookEntriesFromSite();
-                    } catch (_eSiteRepBoot) {}
+                        window.__bhdDedupeAddressBook?.();
+                    } catch (_eDedBoot) {}
                 }
-                try {
-                    window.__bhdDedupeAddressBook?.();
-                } catch (_eDedBoot) {}
-                const pulled = await pullBhdKvFromNeonWithRetry(3, { deferIdbMirror: true });
+                if (window.__bhdBridgeStagedKvHydrated && !force) {
+                    _bhdSiteBootHydrationDone = true;
+                    return true;
+                }
+                const pullOpt = { deferIdbMirror: true };
+                if (bhdIsDashboardOnlyMode()) pullOpt.keys = BHD_DASH_KV_KEYS;
+                const pulled = await pullBhdKvFromNeonWithRetry(3, pullOpt);
                 if (pulled) {
                     try {
                         _bhdKvDirtyKeys.clear();
@@ -4819,6 +4852,7 @@
 
     function readWorkbook(file) {
         return new Promise((resolve, reject) => {
+            const run = () => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
@@ -4830,6 +4864,12 @@
             };
             reader.onerror = reject;
             reader.readAsArrayBuffer(file);
+            };
+            if (typeof window.__bhdEnsureXlsxLoaded === 'function') {
+                window.__bhdEnsureXlsxLoaded(run).catch(reject);
+            } else {
+                run();
+            }
         });
     }
 
@@ -63974,8 +64014,20 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
         if (siteIntegratedWeb) {
             await probeBhdApi();
+            if (bhdIsDashboardOnlyMode() && !hasWarmLocalData) {
+                try {
+                    syncAuthStateFromStorage();
+                    tryAutoSignInDefaultAdminIfNeeded();
+                    updateAuthHeaderBar();
+                    loadDashboardAux(true, { fast: true });
+                    initializeMode();
+                    window.__bhdDashboardFastPaintDone = true;
+                } catch (_eDashEarlyPaint) {
+                    console.warn('dashboard fast paint', _eDashEarlyPaint);
+                }
+            }
             const deferHeavyBootSync = !dataWasWiped && hasWarmLocalData;
-            if (!bhdIsPostWipeQuarantineActive()) {
+            if (!bhdIsPostWipeQuarantineActive() && !bhdIsDashboardOnlyMode()) {
                 if (deferHeavyBootSync) {
                     if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                         setTimeout(() => {
@@ -64002,6 +64054,13 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             if (deferHeavyBootSync) {
                 scheduleBhdSiteBootHydrationOnce(150);
                 setTimeout(() => bhdSiteExtractKvBlobsOnce().catch(() => {}), 8000);
+            } else if (bhdIsDashboardOnlyMode()) {
+                setTimeout(() => {
+                    if (!window.__bhdBridgeStagedKvHydrated) {
+                        bhdHydrateSiteKvFromServerIfNeeded({ deferIdbMirror: true, keys: BHD_DASH_KV_KEYS }).catch(() => {});
+                    }
+                }, 400);
+                setTimeout(() => bhdSiteExtractKvBlobsOnce().catch(() => {}), 12000);
             } else {
                 await bhdHydrateSiteKvFromServerIfNeeded({ deferIdbMirror: true });
                 setTimeout(() => bhdSiteExtractKvBlobsOnce().catch(() => {}), 5000);
@@ -64021,7 +64080,11 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     await repairAddressBookEntriesFromSite();
                 } catch (_eAbRep2) {}
             }
-            await bhdHydrateSiteKvFromServerIfNeeded({ deferIdbMirror: true });
+            await bhdHydrateSiteKvFromServerIfNeeded(
+                bhdIsDashboardOnlyMode()
+                    ? { deferIdbMirror: true, keys: BHD_DASH_KV_KEYS }
+                    : { deferIdbMirror: true }
+            );
             try {
                 window.__bhdDedupeAddressBook?.();
             } catch (_eDedBootFull2) {}
@@ -64042,7 +64105,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             console.warn('auth bootstrap', eAuthBoot);
         }
         try {
-            loadDashboardAux(true);
+            if (!window.__bhdDashboardFastPaintDone) {
+                loadDashboardAux(true);
+            }
             try {
                 if (repairReservationMultiUnitRows()) {
                     localStorage.setItem('bhd_unit_reservations', JSON.stringify(unitReservations));
@@ -64060,7 +64125,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         const params = new URLSearchParams(window.location.search);
         const viewer = params.get('viewer') === '1';
         try {
-            initializeMode();
+            if (!window.__bhdDashboardFastPaintDone) {
+                initializeMode();
+            }
         } catch (err) {
             console.error('Initialization failed:', err);
             if (err && err.stack) console.error(err.stack);

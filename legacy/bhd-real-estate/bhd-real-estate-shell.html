@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BHD Real Estate — نظام إدارة العقارات / Property Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="/api/admin/legacy-real-estate/css/main.css">
+    <link rel="preload" href="/api/admin/legacy-real-estate/js/app-main.js" as="script">
+    <link rel="preload" href="/api/admin/legacy-real-estate/modules/body-raw.html" as="fetch" crossorigin>
+    <script>
+    window.__bhdEnsureXlsxLoaded=function(cb){
+      if(window.XLSX){if(cb)cb();return Promise.resolve();}
+      if(window.__bhdXlsxLoading)return window.__bhdXlsxLoading;
+      window.__bhdXlsxLoading=new Promise(function(res,rej){
+        var s=document.createElement('script');
+        s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        s.async=true;
+        s.onload=function(){if(cb)cb();res();};
+        s.onerror=rej;
+        document.head.appendChild(s);
+      });
+      return window.__bhdXlsxLoading;
+    };
+    </script>
+    <script id="bhd-early-page-shell">
+    (function(){
+        try{
+            var nav=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];
+            if(nav&&nav.type==='reload'){
+                try{sessionStorage.setItem('bhd_app_refresh_fast','1');}catch(e){}
+            }
+            var p=new URLSearchParams(location.search);
+            var m=p.get('mode');
+            if(!m){
+                try{m=sessionStorage.getItem('bhd_ui_last_mode')||localStorage.getItem('bhd_ui_last_mode');}catch(e){}
+            }
+            var cls={
+                contracts:'mode-contracts',
+                reservations:'mode-reservations',
+                forms:'mode-forms',
+                users:'mode-users',
+                addressbook:'mode-addressbook',
+                notifications:'mode-notifications',
+                accounting:'mode-accounting',
+                maintenance:'mode-maintenance',
+                organization:'mode-organization',
+                doc_templates:'mode-doc_templates',
+                dashboard:'mode-dashboard'
+            };
+            if(m&&cls[m]){
+                document.documentElement.classList.add('bhd-pending-mode');
+                document.addEventListener('DOMContentLoaded',function(){
+                    document.body.classList.add(cls[m]);
+                    if(p.get('viewer')!=='1')document.body.classList.add('entry-mode');
+                });
+            }
+        }catch(e){}
+    })();
+    </script>
+    <style>
+    #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:hsla(0,0%,96%,.92);font-family:system-ui,sans-serif}
+    #bhd-shell-loading.bhd-hidden{display:none}
+    .bhd-shell-spinner{width:42px;height:42px;border:3px solid #e5e7eb;border-top-color:#8B0000;border-radius:50%;animation:bhd-spin .8s linear infinite}
+    @keyframes bhd-spin{to{transform:rotate(360deg)}}
+    </style>
+</head>
+<body>
+    <div id="bhd-shell-loading" aria-live="polite">
+        <div style="text-align:center">
+            <div class="bhd-shell-spinner" aria-hidden="true"></div>
+            <p style="margin:12px 0 0;font-weight:600;color:#313131" data-ar="جاري تحميل نظام العقارات…" data-en="Loading real estate system…">جاري تحميل نظام العقارات…</p>
+        </div>
+    </div>
+    <div id="module-body"></div>
+    <script>
+    (function(){
+        var BASE='/api/admin/legacy-real-estate/';
+        var bodyUrl=BASE+'modules/body-raw.html';
+        var mainJsUrl=BASE+'js/app-main.js';
+
+        function hideLoader(){
+            var el=document.getElementById('bhd-shell-loading');
+            if(el)el.classList.add('bhd-hidden');
+        }
+
+        function loadScript(src){
+            return new Promise(function(resolve,reject){
+                var s=document.createElement('script');
+                s.src=src;
+                s.async=false;
+                s.onload=function(){resolve();};
+                s.onerror=function(){reject(new Error('script failed: '+src));};
+                document.body.appendChild(s);
+            });
+        }
+
+        fetch(bodyUrl,{credentials:'include',cache:'default'})
+            .then(function(r){
+                if(!r.ok)throw new Error('HTTP '+r.status);
+                return r.text();
+            })
+            .then(function(html){
+                var c=document.getElementById('module-body');
+                if(c)c.innerHTML=html;
+                hideLoader();
+                return loadScript(mainJsUrl);
+            })
+            .catch(function(err){
+                console.error('[BHD shell] boot failed',err);
+                hideLoader();
+            });
+    })();
+    </script>
+</body>
+</html>
