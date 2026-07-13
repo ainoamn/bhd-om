@@ -377,6 +377,32 @@ export function syncAccountingFromContractPayload(
     depositsSynced += 1;
   }
 
+  const insRows = parsePayloadSchedule(payload, 'insuranceDepositItemsJson', 'insuranceDepositItems');
+  insRows.forEach((row, i) => {
+    const itemId = str(row.id || row.rowId || i + 1);
+    const linkedKey = accountingDepositLinkedKey(b, u, `ins_${itemId}`);
+    incomingDepositKeys.add(linkedKey);
+    const existing = existingDepositMap.get(linkedKey);
+    const amount = parseFloat(str(row.amount)) || 0;
+    if (amount <= 0) return;
+    existingDepositMap.set(linkedKey, {
+      id: str(existing?.id) || newAccountingId('dep'),
+      unitKey,
+      building: b,
+      unit: u,
+      linkedKey,
+      type: 'insurance',
+      amount,
+      reference: str(row.receiptRef || row.reference) || str(existing?.reference),
+      status: str(existing?.status) || 'pending_receipt',
+      agreementNo: str(existing?.agreementNo) || agreementNo,
+      tenant: str(existing?.tenant) || tenant,
+      title: str(row.title || row.label),
+      updatedAt: new Date().toISOString(),
+    });
+    depositsSynced += 1;
+  });
+
   reg.cheques = reg.cheques.filter((c) => {
     if (str(c.unitKey) !== unitKey) return true;
     if (incomingChequeKeys.has(str(c.linkedKey))) return true;

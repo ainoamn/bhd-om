@@ -26,8 +26,7 @@ export default function RealEstateModuleHub({ locale, stats }: Props) {
     {
       titleAr: 'العقود',
       titleEn: 'Contracts',
-      href: `${LEGACY_BASE}?mode=contracts&locale=${locale}`,
-      external: true,
+      href: `/${locale}/admin/real-estate-contracts`,
     },
     {
       titleAr: 'الحجوزات',

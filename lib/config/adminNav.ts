@@ -49,6 +49,7 @@ const dashboardSubItems: NavItemWithSection[] = [
 
 const propertiesSubItems: NavItemWithSection[] = [
   { href: '/admin/real-estate-dashboard', labelKey: 'realEstateDashboard', icon: 'dashboard', section: 'realEstateDashboard' },
+  { href: '/admin/real-estate-contracts', labelKey: 'realEstateContracts', icon: 'archive', section: 'realEstateContracts' },
   { href: '/admin/real-estate-system', labelKey: 'realEstateSystem', icon: 'home', section: 'realEstateSystem' },
   { href: '/admin/properties', labelKey: 'propertiesAll', icon: 'building', section: 'propertiesManage' },
   { href: '/admin/properties/new', labelKey: 'propertiesAdd', icon: 'plus', section: 'propertiesAdd' },
@@ -116,7 +117,7 @@ const SECTION_ORDER: string[] = [
   'accountingHome', 'accountingSales', 'accountingPurchases', 'accountingJournal', 'accountingDocuments', 'accountingAccounts',
   'accountingReports', 'accountingClaims', 'accountingCheques', 'accountingPayments', 'accountingPeriods', 'accountingAudit',
   'accountingSettings', 'accountingQuickActions', 'accountingAddJournal', 'accountingAddAccount', 'accountingAddDocument', 'accountingAddCheque',
-  'realEstateDashboard', 'realEstateSystem', 'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
+  'realEstateDashboard', 'realEstateContracts', 'realEstateSystem', 'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
   'projects', 'projectsAdd', 'services', 'analytics', 'reports', 'security',
   'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions', 'users', 'subscriptions', 'serialHistory', 'backup', 'dataReset',
 ];
@@ -169,7 +170,7 @@ const ADMIN_ONLY_SECTIONS = new Set([
   'accountingAccounts', 'accountingReports', 'accountingClaims', 'accountingCheques', 'accountingPayments',
   'accountingPeriods', 'accountingAudit', 'accountingSettings', 'accountingQuickActions',
   'accountingAddJournal', 'accountingAddAccount', 'accountingAddDocument', 'accountingAddCheque',
-  'realEstateDashboard', 'realEstateSystem', 'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
+  'realEstateDashboard', 'realEstateContracts', 'realEstateSystem', 'propertiesManage', 'propertiesAdd', 'bookingsManage', 'contractsManage', 'maintenanceManage', 'dataManage',
   'projects', 'projectsAdd', 'services', 'analytics', 'reports', 'security',
   'contact', 'submissions', 'dashboardSettings', 'contactCategoryPermissions',
   'users', 'subscriptions', 'serialHistory', 'backup', 'dataReset',
