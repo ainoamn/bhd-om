@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '@/components/icons/Icon';
 import { openContractSummaryPrintWindow } from '@/lib/real-estate/contractSummaryPrint';
+import {
+  CONTRACT_DOCUMENT_SLOTS,
+  type ContractDocumentCategory,
+  type ContractDocumentItem,
+  upsertDocument,
+} from '@/lib/real-estate/contractDocuments';
 import { buildLegacyUnitActionUrl } from '@/lib/real-estate/legacyUnitLinks';
 import type { OperationsUnitRow } from '@/lib/real-estate/operationsUnit';
 import type {
@@ -24,6 +30,111 @@ type ContractResponse = {
 };
 
 const UNIT_TYPES = ['Flat', 'Shop', 'Office', 'Studio', 'Other'] as const;
+
+function ContractDocumentsSection({
+  locale,
+  building,
+  unit,
+  documents,
+  readOnly,
+  onChange,
+}: {
+  locale: 'ar' | 'en';
+  building: string;
+  unit: string;
+  documents: ContractDocumentItem[];
+  readOnly: boolean;
+  onChange: (docs: ContractDocumentItem[]) => void;
+}) {
+  const ar = locale === 'ar';
+  const [uploading, setUploading] = useState<ContractDocumentCategory | null>(null);
+
+  const uploadFile = async (category: ContractDocumentCategory, file: File, titleAr: string, titleEn: string) => {
+    setUploading(category);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('storeContext', 'contract');
+      fd.append('storeKey', `${building}\t${unit}`);
+      fd.append('fieldKey', category);
+      const res = await fetch('/api/admin/legacy-bridge/files/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      });
+      if (!res.ok) throw new Error('upload failed');
+      const json = (await res.json()) as { fileId?: string; url?: string; name?: string };
+      const item: ContractDocumentItem = {
+        category,
+        titleAr,
+        titleEn,
+        name: json.name || file.name,
+        fileId: json.fileId,
+        attachmentRelativePath: json.url,
+        storedOnDisk: true,
+      };
+      onChange(upsertDocument(documents, item));
+    } catch {
+      alert(ar ? 'تعذر رفع الملف.' : 'Failed to upload file.');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  return (
+    <div className="mb-5 sm:col-span-2 lg:col-span-3">
+      <h4 className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-2">
+        {ar ? 'مستندات العقار' : 'Property documents'}
+      </h4>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {CONTRACT_DOCUMENT_SLOTS.map((slot) => {
+          const doc = documents.find((d) => d.category === slot.category);
+          return (
+            <div key={slot.category} className="rounded-lg border border-[var(--admin-border)] p-3">
+              <div className="text-xs font-semibold mb-1">{ar ? slot.titleAr : slot.titleEn}</div>
+              {doc ? (
+                <p className="text-[11px] text-green-700 mb-2 truncate" title={doc.name}>
+                  ✓ {doc.name}
+                </p>
+              ) : (
+                <p className="text-[11px] opacity-50 mb-2">{ar ? 'لم يُرفع' : 'Not uploaded'}</p>
+              )}
+              {!readOnly ? (
+                <label className="admin-btn admin-btn-secondary text-xs inline-flex cursor-pointer">
+                  {uploading === slot.category
+                    ? ar
+                      ? 'جاري الرفع…'
+                      : 'Uploading…'
+                    : ar
+                      ? 'رفع ملف'
+                      : 'Upload file'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    disabled={uploading !== null}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadFile(slot.category, f, slot.titleAr, slot.titleEn);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      {!readOnly ? (
+        <p className="text-[10px] opacity-60 mt-2">
+          {ar
+            ? 'PDF أو صورة — تُحفظ في KV مع العقد عند الحفظ/التفعيل.'
+            : 'PDF or image — saved to KV with the contract on save/activate.'}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function FormField({
   label,
@@ -179,14 +290,25 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
           action: 'activate',
         }),
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string; lifecycleStatus?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        lifecycleStatus?: string;
+        accountingSynced?: { cheques: number; deposits: number };
+      };
       if (!res.ok) {
         throw new Error(json.error || 'activate failed');
       }
+      const acct = json.accountingSynced;
+      const acctNote =
+        acct && (acct.cheques > 0 || acct.deposits > 0)
+          ? ar
+            ? ` | محاسبة: ${acct.cheques} شيك، ${acct.deposits} ضمان`
+            : ` | Accounting: ${acct.cheques} cheque(s), ${acct.deposits} deposit(s)`
+          : '';
       setSaveMsg(
         ar
-          ? `تم تفعيل العقد — الحالة: ${json.lifecycleStatus || 'active'}`
-          : `Contract activated — status: ${json.lifecycleStatus || 'active'}`
+          ? `تم تفعيل العقد — الحالة: ${json.lifecycleStatus || 'active'}${acctNote}`
+          : `Contract activated — status: ${json.lifecycleStatus || 'active'}${acctNote}`
       );
       onSaved?.();
       await loadWorkspace();
@@ -445,6 +567,18 @@ export default function RealEstateContractModal({ locale, unit, mode, onClose, o
                   dir="ltr"
                   readOnly={readOnly}
                 />
+              </div>
+
+              <ContractDocumentsSection
+                locale={locale}
+                building={unit.building}
+                unit={unit.unit}
+                documents={values.documents || []}
+                readOnly={readOnly}
+                onChange={(docs) => setField('documents', docs)}
+              />
+
+              <div className="re-contract-form-grid mb-4">
                 <label className="re-contract-field sm:col-span-2 lg:col-span-3">
                   <span className="re-contract-field-label">{ar ? 'ملاحظات' : 'Notes'}</span>
                   <textarea

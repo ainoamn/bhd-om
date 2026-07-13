@@ -21,7 +21,12 @@ export async function POST(req: NextRequest) {
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
 
-    const roleOk = isAdminLikeRole(auth.role) || auth.role === 'ADMIN' || auth.role === 'SUPER_ADMIN';
+    const roleOk =
+      isAdminLikeRole(auth.role) ||
+      auth.role === 'ADMIN' ||
+      auth.role === 'SUPER_ADMIN' ||
+      auth.role === 'COMPANY' ||
+      auth.role === 'ORG_MANAGER';
     if (!roleOk) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

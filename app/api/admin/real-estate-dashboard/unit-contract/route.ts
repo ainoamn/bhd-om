@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
             lifecycleStatus: result.lifecycleStatus,
             savedKey: result.savedKey,
             archivedPrevious: result.archivedPrevious,
+            accountingSynced: result.accountingSynced,
             syncedAt: new Date().toISOString(),
           },
           {

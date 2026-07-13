@@ -9,6 +9,10 @@ import type { ContractPayload, ManagedUnitKvRow } from '@/lib/real-estate/operat
 import { getLegacyKvBulk, putLegacyKvBulk } from '@/lib/server/legacyKvStore';
 import { mergeContractPayloads } from '@/lib/server/legacyKvMerge';
 import { resolveCanonicalContractLifecycleStatus } from '@/lib/server/contractLifecycle';
+import {
+  ensureAccountingRegistry,
+  syncAccountingFromContractPayload,
+} from '@/lib/server/syncAccountingFromContract';
 
 type Actor = {
   userId: string;
@@ -104,6 +108,7 @@ export async function activateUnitContractToKv(
   lifecycleStatus: string;
   savedKey: string;
   archivedPrevious: boolean;
+  accountingSynced: { cheques: number; deposits: number };
 }> {
   const validationError = validateActivateValues(values);
   if (validationError) {
@@ -128,10 +133,7 @@ export async function activateUnitContractToKv(
   const managedUnits = parseJson<ManagedUnitKvRow[]>(kv.bhd_managed_units, []);
   const ownerMap = parseJson<Record<string, string[]>>(kv.bhd_owner_building_map, {});
   const accountingRaw = kv.bhd_accounting_registry ?? '{}';
-  const accountingReg = parseJson<{ deposits?: Record<string, unknown>[]; cheques?: Record<string, unknown>[] }>(
-    accountingRaw,
-    {}
-  );
+  const accountingReg = ensureAccountingRegistry(accountingRaw);
 
   const existing = getSavedEntry(savedMap, building, unit);
   const prevPayload = existing?.entry?.payload;
@@ -148,12 +150,22 @@ export async function activateUnitContractToKv(
     ? mergeContractPayloads(prevPayload, basePayload)
     : basePayload;
 
-  const lifecycleStatus = resolveCanonicalContractLifecycleStatus(mergedPayload, accountingReg);
-  const enrichedPayload: Record<string, unknown> = {
+  const lifecycleStatusBeforeSync = resolveCanonicalContractLifecycleStatus(mergedPayload, accountingReg);
+  let enrichedPayload: Record<string, unknown> = {
     ...mergedPayload,
     contractSavedAt: toStr(mergedPayload.contractSavedAt) || now,
-    contractSavedStatus: lifecycleStatus,
+    contractSavedStatus: lifecycleStatusBeforeSync,
     contractActivatedFromReact: true,
+  };
+
+  const accountingSync = syncAccountingFromContractPayload(building, unit, enrichedPayload, accountingReg);
+  const lifecycleStatus = resolveCanonicalContractLifecycleStatus(
+    enrichedPayload,
+    accountingSync.registry
+  );
+  enrichedPayload = {
+    ...enrichedPayload,
+    contractSavedStatus: lifecycleStatus,
   };
 
   const storageKey = existing?.key ?? draftStorageKey(building, unit);
@@ -224,11 +236,16 @@ export async function activateUnitContractToKv(
     bhd_contract_history_by_unit: JSON.stringify(historyMap),
     bhd_tenancy_contract_drafts: JSON.stringify(tenancyDrafts),
     bhd_contract_renewal_drafts: JSON.stringify(renewalDrafts),
+    bhd_accounting_registry: JSON.stringify(accountingSync.registry),
   });
 
   return {
     lifecycleStatus,
     savedKey: 'bhd_saved_contracts_by_unit',
     archivedPrevious,
+    accountingSynced: {
+      cheques: accountingSync.chequesSynced,
+      deposits: accountingSync.depositsSynced,
+    },
   };
 }

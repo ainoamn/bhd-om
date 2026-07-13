@@ -1,3 +1,5 @@
+import type { ContractDocumentItem } from '@/lib/real-estate/contractDocuments';
+import { documentsFromPayload, mergeDocumentsIntoPayload } from '@/lib/real-estate/contractDocuments';
 import type { LegacyKvStringMap } from '@/lib/real-estate/dashboardKvKeys';
 import { daysUntil, normalizeBuildingKey, normalizeUnit, parseJson, toStr, unitRowKey } from '@/lib/real-estate/kvParse';
 import type { ContractPayload, SavedContractEntry, TenancyDraftEntry } from '@/lib/real-estate/operationsUnit';
@@ -26,6 +28,7 @@ export type UnitContractFormValues = {
   remarks: string;
   depositAmount: string;
   paymentMethod: '' | 'cheque' | 'cash' | 'transfer';
+  documents: ContractDocumentItem[];
 };
 
 export type UnitContractWorkspace = {
@@ -62,6 +65,7 @@ function emptyFormValues(building: string, unit: string): UnitContractFormValues
     remarks: '',
     depositAmount: '',
     paymentMethod: '',
+    documents: [],
   };
 }
 
@@ -117,6 +121,7 @@ function payloadToFormValues(payload: ContractPayload, base: UnitContractFormVal
     remarks: toStr((payload as Record<string, unknown>).remarks) || base.remarks,
     depositAmount: toStr((payload as Record<string, unknown>).depositAmount) || base.depositAmount,
     paymentMethod: mapLegacyPaymentMethod(toStr((payload as Record<string, unknown>).paymentMethod)),
+    documents: documentsFromPayload(payload as Record<string, unknown>),
   };
 }
 
@@ -307,7 +312,7 @@ export function formValuesToContractPayload(values: UnitContractFormValues): Rec
   const paymentMethod = legacyPaymentMethodLabel(values.paymentMethod);
   const schedule = values.paymentMethod ? buildSimplePaymentSchedule(values) : [];
   const deposit = values.depositAmount.trim() || values.monthlyRent.trim();
-  return {
+  const base: Record<string, unknown> = {
     agreementNo: values.agreementNo.trim(),
     tenantNameAr: values.tenantNameAr.trim(),
     tenantNameEn: values.tenantNameEn.trim(),
@@ -335,6 +340,7 @@ export function formValuesToContractPayload(values: UnitContractFormValues): Rec
     _savedAt: now,
     _savedFromReact: true,
   };
+  return mergeDocumentsIntoPayload(base, values.documents || []);
 }
 
 export const UNIT_CONTRACT_KV_KEYS = [
