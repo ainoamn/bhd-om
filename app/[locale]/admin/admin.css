@@ -1572,6 +1572,70 @@
   color: inherit;
 }
 
+.re-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+.re-cal-dow {
+  min-height: 1.5rem;
+}
+.re-cal-day {
+  min-height: 2.75rem;
+  border: 1px solid var(--admin-border-subtle, #e5e7eb);
+  border-radius: 8px;
+  padding: 4px 6px;
+  background: var(--admin-surface, #fff);
+  cursor: default;
+}
+.re-cal-day--empty {
+  border-color: transparent;
+  background: transparent;
+}
+button.re-cal-day {
+  cursor: pointer;
+}
+.re-cal-day--today {
+  border-color: var(--admin-primary, #8b0000);
+  box-shadow: inset 0 0 0 1px rgb(139 0 0 / 0.15);
+}
+.re-cal-day--has-events {
+  background: rgb(139 0 0 / 0.04);
+}
+.re-cal-day--selected {
+  border-color: var(--admin-primary, #8b0000);
+  background: rgb(139 0 0 / 0.08);
+}
+.re-cal-day-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.re-cal-day-badge {
+  display: inline-flex;
+  min-width: 1rem;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--admin-primary, #8b0000);
+  color: #fff;
+  font-size: 9px;
+  padding: 0 4px;
+}
+.re-cal-legend,
+.re-cal-ev-pill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.re-cal-ev--task { background: rgb(99 102 241 / 0.15); color: #4338ca; }
+.re-cal-ev--rent { background: rgb(16 185 129 / 0.15); color: #047857; }
+.re-cal-ev--cheque { background: rgb(245 158 11 / 0.15); color: #b45309; }
+.re-cal-ev--contract { background: rgb(59 130 246 / 0.15); color: #1d4ed8; }
+.re-cal-ev--overdue { background: rgb(239 68 68 / 0.15); color: #b91c1c; }
+
 .admin-dash-quick-action--highlight {
   border-color: var(--admin-primary, #8b0000);
   background: linear-gradient(135deg, rgba(139, 0, 0, 0.06), rgba(197, 160, 40, 0.08));

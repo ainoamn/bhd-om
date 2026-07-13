@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/icons/Icon';
 import { getStatusLabel } from '@/lib/real-estate/contractLifecycle';
+import {
+  getExpiringUnitsForReport,
+  openExpiryUnitsPrintWindow,
+} from '@/lib/real-estate/expiryReportPrint';
+import { buildLegacyUnitActionUrl, type LegacyUnitAction } from '@/lib/real-estate/legacyUnitLinks';
 import type { OperationsUnitRow, UnitsSortKey, UnitsSortState } from '@/lib/real-estate/operationsUnit';
 import {
   filterUnitsRows,
@@ -54,6 +59,8 @@ export default function RealEstateUnitsTable({ locale }: Props) {
   const [sort, setSort] = useState<UnitsSortState>(DEFAULT_SORT);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<number>(100);
+  const [batchDays, setBatchDays] = useState('30');
+  const [batchBuilding, setBatchBuilding] = useState('all');
 
   const loadUnits = useCallback(async () => {
     setLoading(true);
@@ -119,6 +126,22 @@ export default function RealEstateUnitsTable({ locale }: Props) {
 
   const legacyManageHref = `/${locale}/admin/real-estate-system`;
 
+  const printExpiryReport = (maxDays: number) => {
+    const rows = getExpiringUnitsForReport(allRows, maxDays, batchBuilding);
+    openExpiryUnitsPrintWindow(rows, maxDays, locale);
+  };
+
+  const actionLink = (u: OperationsUnitRow, action: LegacyUnitAction, label: string) => (
+    <a
+      href={buildLegacyUnitActionUrl(u.building, u.unit, action, locale)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[10px] font-semibold admin-accent-text hover:underline whitespace-nowrap"
+    >
+      {label}
+    </a>
+  );
+
   return (
     <section className="re-units-section mb-8">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -128,8 +151,8 @@ export default function RealEstateUnitsTable({ locale }: Props) {
           </h3>
           <p className="text-xs opacity-60 mt-1">
             {ar
-              ? 'بحث وفلترة فورية — الإجراءات التفصيلية في النظام الكامل'
-              : 'Instant search & filters — detailed actions in the full system'}
+              ? 'بحث وفلترة فورية — الإجراءات تفتح النظام التشغيلي مباشرة'
+              : 'Instant search & filters — actions open the operational system directly'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -145,6 +168,54 @@ export default function RealEstateUnitsTable({ locale }: Props) {
             {ar ? 'النظام الكامل' : 'Full system'}
           </Link>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => printExpiryReport(30)}
+          className="admin-btn admin-btn-secondary text-xs"
+        >
+          {ar ? '🧾 تقرير 30 يوم' : '🧾 Report 30d'}
+        </button>
+        <button
+          type="button"
+          onClick={() => printExpiryReport(Number(batchDays))}
+          className="admin-btn admin-btn-secondary text-xs"
+        >
+          {ar ? `🧾 تقرير ${batchDays} يوم` : `🧾 Report ${batchDays}d`}
+        </button>
+        <select
+          value={batchDays}
+          onChange={(e) => setBatchDays(e.target.value)}
+          className="admin-input text-xs py-1 w-auto"
+          aria-label={ar ? 'أيام التجديد الجماعي' : 'Batch renewal days'}
+        >
+          <option value="30">{ar ? '30 يوم' : '30 days'}</option>
+          <option value="60">{ar ? '60 يوم' : '60 days'}</option>
+          <option value="90">{ar ? '90 يوم' : '90 days'}</option>
+        </select>
+        <select
+          value={batchBuilding}
+          onChange={(e) => setBatchBuilding(e.target.value)}
+          className="admin-input text-xs py-1 w-auto max-w-[12rem]"
+          aria-label={ar ? 'مبنى الطباعة' : 'Print building'}
+        >
+          <option value="all">{ar ? 'كل المباني' : 'All buildings'}</option>
+          {buildings.map((b) => (
+            <option key={`batch-${b}`} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+        <a
+          href={`/api/admin/legacy-real-estate/bhd-real-estate.html?mode=dashboard&locale=${locale}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="admin-btn admin-btn-secondary text-xs"
+        >
+          {ar ? '🖨️ تجديد جماعي (النظام)' : '🖨️ Batch renew (legacy)'}
+        </a>
       </div>
 
       <div className="re-units-filters admin-card p-3 sm:p-4 mb-4">
@@ -250,7 +321,7 @@ export default function RealEstateUnitsTable({ locale }: Props) {
                       </button>
                     </th>
                   ))}
-                  <th>{ar ? 'إجراء' : 'Action'}</th>
+                  <th>{ar ? 'إجراءات' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -282,13 +353,12 @@ export default function RealEstateUnitsTable({ locale }: Props) {
                       <td dir="ltr">{u.electricity || '—'}</td>
                       <td dir="ltr">{u.water || '—'}</td>
                       <td>
-                        <Link
-                          href={legacyManageHref}
-                          prefetch
-                          className="text-xs font-semibold admin-accent-text hover:underline whitespace-nowrap"
-                        >
-                          {ar ? 'فتح' : 'Open'}
-                        </Link>
+                        <div className="flex flex-wrap gap-x-2 gap-y-1">
+                          {actionLink(u, 'details', ar ? 'تفاصيل' : 'Details')}
+                          {actionLink(u, 'fill', ar ? 'تعبئة' : 'Fill')}
+                          {actionLink(u, 'renew', ar ? 'تجديد' : 'Renew')}
+                          {actionLink(u, 'print', ar ? 'طباعة' : 'Print')}
+                        </div>
                       </td>
                     </tr>
                   ))

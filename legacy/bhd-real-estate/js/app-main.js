@@ -48055,6 +48055,61 @@ function getEmptyCompanySignatory() {
         updateSortIndicators();
         renderOperationsTablePageSlice();
         renderRegistryTable();
+        try {
+            if (window.__bhdPendingUnitDeepLink) {
+                const pending = window.__bhdPendingUnitDeepLink;
+                window.__bhdPendingUnitDeepLink = null;
+                void bhdExecuteUnitActionFromKeys(pending.building, pending.unit, pending.action);
+            }
+        } catch (_eDeepOps) {}
+    }
+
+    function bhdQueueDashboardUnitDeepLinkFromUrl() {
+        try {
+            const p = new URLSearchParams(location.search);
+            const action = toStr(p.get('unitAction'));
+            const building = toStr(p.get('building'));
+            const unit = toStr(p.get('unit'));
+            if (!action || !building || !unit) return;
+            if (!['details', 'fill', 'renew', 'print'].includes(action)) return;
+            window.__bhdPendingUnitDeepLink = { building, unit, action };
+        } catch (_eQueueDeep) {}
+    }
+
+    async function bhdExecuteUnitActionFromKeys(building, unit, action) {
+        const u = getUnitsData().find(
+            (row) =>
+                normalizeReservationBuildingKey(row.building) === normalizeReservationBuildingKey(building) &&
+                normalizeUnit(row.unit) === normalizeUnit(unit)
+        );
+        if (!u) {
+            alert(t('الوحدة غير موجودة في السجل.', 'Unit not found in registry.'));
+            return;
+        }
+        const setVal = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
+        };
+        setVal('unitsSearchInput', toStr(u.unit));
+        setVal('unitsBuildingFilter', u.building);
+        setVal('unitsStatusFilter', 'all');
+        setVal('unitsExpireFilter', 'all');
+        setVal('unitsUtilitiesFilter', 'all');
+        _operationsPageIndex = 0;
+        await renderOperationsTable();
+        const idx = (window._unitsViewRows || []).findIndex(
+            (r) =>
+                normalizeReservationBuildingKey(r.building) === normalizeReservationBuildingKey(u.building) &&
+                normalizeUnit(r.unit) === normalizeUnit(u.unit)
+        );
+        if (idx < 0) {
+            alert(t('تعذر تحديد صف الوحدة.', 'Could not locate unit row.'));
+            return;
+        }
+        if (action === 'details') openUnitDetailsModal(idx);
+        else if (action === 'fill') selectUnitFromTable(idx, false, false);
+        else if (action === 'renew') selectUnitFromTable(idx, true, true);
+        else if (action === 'print') selectUnitFromTable(idx, false, true);
     }
 
     function selectUnitFromTable(index, isRenewal, openViewer) {
@@ -63196,6 +63251,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         try {
             applyTheme(localStorage.getItem('bhd_theme_mode') || 'maroon');
             document.body.classList.add(isViewerMode ? 'viewer-mode' : 'entry-mode');
+            bhdQueueDashboardUnitDeepLinkFromUrl();
             applyAppLanguage(window.__bhdBootRefreshFast ? { fast: true } : undefined);
             syncTopNavOffset();
         } catch (e) {
