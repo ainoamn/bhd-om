@@ -1528,6 +1528,50 @@
   display: block;
 }
 
+.admin-real-estate-calendar-frame {
+  width: 100%;
+  height: min(420px, 50vh);
+  min-height: 280px;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: #fff;
+  display: block;
+}
+
+.re-units-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.re-units-chip--rented {
+  background: rgb(16 185 129 / 0.12);
+  color: #047857;
+}
+.re-units-chip--vacant {
+  background: rgb(107 114 128 / 0.12);
+  color: #4b5563;
+}
+.re-units-chip--warn {
+  background: rgb(245 158 11 / 0.15);
+  color: #b45309;
+}
+.re-units-chip--state {
+  background: rgb(59 130 246 / 0.1);
+  color: #1d4ed8;
+}
+.re-units-table th button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
 .admin-dash-quick-action--highlight {
   border-color: var(--admin-primary, #8b0000);
   background: linear-gradient(135deg, rgba(139, 0, 0, 0.06), rgba(197, 160, 40, 0.08));

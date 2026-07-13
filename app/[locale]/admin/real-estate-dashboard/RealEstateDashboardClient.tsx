@@ -9,9 +9,11 @@ import AdminSubpageShell from '@/components/admin/AdminSubpageShell';
 import Icon from '@/components/icons/Icon';
 import RealEstateDashboardKpis from '@/components/admin/real-estate/RealEstateDashboardKpis';
 import RealEstateModuleHub from '@/components/admin/real-estate/RealEstateModuleHub';
+import RealEstateUnitsTable from '@/components/admin/real-estate/RealEstateUnitsTable';
 import type { RealEstateDashboardStats } from '@/lib/real-estate/dashboardStats';
 
 const LEGACY_IFRAME_SRC = '/api/admin/legacy-real-estate/bhd-real-estate.html?mode=dashboard';
+const LEGACY_CALENDAR_SRC = `${LEGACY_IFRAME_SRC}&embed=calendar`;
 
 type SummaryResponse = {
   stats: RealEstateDashboardStats;
@@ -85,8 +87,8 @@ export default function RealEstateDashboardClient() {
         title={ar ? 'لوحة العقارات' : 'Real estate dashboard'}
         subtitle={
           ar
-            ? 'ملخص سريع من PostgreSQL — الجدول التفاعلي والتقويم في الإطار أدناه'
-            : 'Fast summary from PostgreSQL — interactive table & calendar in the frame below'
+            ? 'ملخص فوري + سجل الوحدات من PostgreSQL — التقويم في الإطار المضغوط'
+            : 'Instant summary + units registry from PostgreSQL — calendar in compact frame'
         }
         actions={
           <>
@@ -124,16 +126,30 @@ export default function RealEstateDashboardClient() {
 
       <RealEstateDashboardKpis locale={locale} stats={stats} loading={loading} />
       <RealEstateModuleHub locale={locale} stats={stats} />
+      <RealEstateUnitsTable locale={locale} />
 
-      <h3 className="text-sm font-semibold mb-2 opacity-80">
-        {ar ? 'سجل الوحدات والتقويم (النظام التشغيلي)' : 'Units registry & calendar (operational system)'}
-      </h3>
-      <iframe
-        src={`${LEGACY_IFRAME_SRC}&locale=${locale}`}
-        title={ar ? 'نظام إدارة العقارات' : 'Real estate management system'}
-        className="admin-real-estate-legacy-frame"
-        allow="fullscreen"
-      />
+      <div className="mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <h3 className="text-sm font-semibold opacity-80">
+            {ar ? 'التقويم التشغيلي' : 'Operations calendar'}
+          </h3>
+          <a
+            href={LEGACY_IFRAME_SRC}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold admin-accent-text hover:underline inline-flex items-center gap-1"
+          >
+            <Icon name="externalLink" className="w-3.5 h-3.5" aria-hidden />
+            {ar ? 'نافذة كاملة' : 'Full window'}
+          </a>
+        </div>
+        <iframe
+          src={`${LEGACY_CALENDAR_SRC}&locale=${locale}`}
+          title={ar ? 'تقويم العقارات' : 'Real estate calendar'}
+          className="admin-real-estate-calendar-frame"
+          allow="fullscreen"
+        />
+      </div>
     </AdminSubpageShell>
   );
 }

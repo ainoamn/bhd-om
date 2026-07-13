@@ -47,6 +47,18 @@
           document.body.classList.add(cls[m]);
           if(p.get('viewer')!=='1')document.body.classList.add('entry-mode');
         }
+        if(p.get('embed')==='calendar'){
+          document.body.classList.add('bhd-embed-calendar');
+          if(!document.getElementById('bhd-embed-calendar-css')){
+            var st=document.createElement('style');
+            st.id='bhd-embed-calendar-css';
+            st.textContent='#appTopNav,.dashboard-header,.dash-hero,.dash-main-col,.dash-units-section{display:none!important}'
+              +'.bhd-embed-calendar .dashboard{padding:8px!important}'
+              +'.bhd-embed-calendar .dash-body-grid{display:block!important}'
+              +'.bhd-embed-calendar .dash-side-col{width:100%!important;max-width:100%!important}';
+            document.head.appendChild(st);
+          }
+        }
       }catch(e){}
     };
     </script>
