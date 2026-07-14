@@ -11,6 +11,9 @@ import { useAccountingHubForms } from '@/lib/accounting/hooks/useAccountingHubFo
 import { useAccountingHubNavigation } from '@/lib/accounting/hooks/useAccountingHubNavigation';
 import type { AccountingInitialData } from '@/lib/accounting/types/pageData';
 
+export { ACCOUNTING_HUB_CONTROLLER_KEYS } from '@/lib/accounting/hooks/accountingHubControllerKeys';
+export type { AccountingHubControllerKey } from '@/lib/accounting/hooks/accountingHubControllerKeys';
+
 export function useAccountingHubController(initialData?: AccountingInitialData) {
   const params = useParams();
   const locale = (params?.locale as string) || 'ar';

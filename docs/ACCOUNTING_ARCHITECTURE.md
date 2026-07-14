@@ -18,8 +18,10 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Presentation Layer (React/Next.js)                          │
-│  - AccountingSection.tsx | InvoicePrint.tsx                  │
-│  - عرض فقط - لا منطق محاسبي                                  │
+│  - AccountingSection → AccountingHubShell (12-line entry)    │
+│  - Hooks: Controller | Navigation | Hub | Analytics | Forms  │
+│  - Tabs/Modals/FilterBar — عرض + تنسيق فقط                   │
+│  - راجع: docs/ACCOUNTING-HUB-UI.md                           │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
@@ -126,3 +128,12 @@
 - Webhooks
 - E-Invoicing
 - Payment Gateways
+
+## 9. واجهة مركز المحاسبة (Hub UI)
+
+إعادة هيكلة Phases 6–17 — التفاصيل الكاملة في **`docs/ACCOUNTING-HUB-UI.md`**:
+
+- `useAccountingHubController` — orchestrator
+- `AccountingHubShell` — layout
+- 13 tab + 6 modals + draft auto-save
+- E2E: `tests/e2e/accounting-hub.spec.ts`

@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-14 (70) — Phase 18 محاسبة: توثيق Hub + composition tests
+
+- **توثيق:** `docs/ACCOUNTING-HUB-UI.md` — شجرة المكوّنات، hooks، tabs، URL، drafts، testids، phases 6–17
+- **تحديث:** `docs/ACCOUNTING_ARCHITECTURE.md` — طبقة العرض + §9 Hub UI
+- **Contract:** `accountingHubControllerKeys.ts` — مفاتيح controller ثابتة
+- **Unit test:** `accountingHubComposition.test.ts` — 32 اختباراً إجمالاً
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-06-24 — استيراد legacy monolith + قرار استراتيجي
 
 - **قرار:** التخلي عن Electron كمنتج؛ الاعتماد على الموقع لايف + PWA لاحقاً.
