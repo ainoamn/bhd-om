@@ -18,6 +18,13 @@
 - **إصلاحات أداء (في legacy قبل الرفع):** مسار تحديث سريع، dirty KV، تخطي kvGetBulk، تأجيل مزامنة سحابة/محاسبة
 - **المرجع الكامل:** [docs/LEGACY-MONOLITH-INTEGRATION.md](LEGACY-MONOLITH-INTEGRATION.md)
 
+### جلسة 2026-07-14 (68) — Phase 16 محاسبة: AccountingHubTabs
+
+- **Tabs:** `AccountingHubTabs.tsx` — switch لـ 13 تبويباً (dashboard → settings)
+- **Registry:** `hubTabIds.ts` + unit test لمزامنة E2E
+- **`AccountingSection.tsx`:** ~280 سطر orchestrator (كان ~430)
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-07-14 (67) — Phase 15 محاسبة: navigation + AccountingHubModals
 
 - **Navigation:** `useAccountingHubNavigation.ts` + `buildAccountingHubPath.ts` — تبويب URL، reportView، query params

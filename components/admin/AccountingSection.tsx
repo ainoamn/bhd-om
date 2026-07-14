@@ -1,28 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import {
-  getFiscalSettings,
-  saveFiscalSettings,
-  lockPeriod,
-} from '@/lib/data/accounting';
-
+import { getFiscalSettings, saveFiscalSettings, lockPeriod } from '@/lib/data/accounting';
 import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
-import AccountingReportsTab from './accounting/AccountingReportsTab';
-import AccountingClaimsTab from './accounting/AccountingClaimsTab';
-import AccountingChequesTab from './accounting/AccountingChequesTab';
-import AccountingPaymentsTab from './accounting/AccountingPaymentsTab';
-import AccountingJournalTab from './accounting/AccountingJournalTab';
-import AccountingPeriodsTab from './accounting/AccountingPeriodsTab';
-import AccountingAuditTab from './accounting/AccountingAuditTab';
-import AccountingDashboardTab from './accounting/AccountingDashboardTab';
-import AccountingDocumentsTab from './accounting/AccountingDocumentsTab';
-import AccountingSalesTab from './accounting/AccountingSalesTab';
-import AccountingPurchasesTab from './accounting/AccountingPurchasesTab';
-import AccountingAccountsTab from './accounting/AccountingAccountsTab';
-import AccountingSettingsTab from './accounting/AccountingSettingsTab';
 import AccountingHubModals from './accounting/AccountingHubModals';
+import AccountingHubTabs from './accounting/AccountingHubTabs';
 import { lockPeriod as apiLockPeriod } from '@/lib/accounting/api/client';
 import { useAccountingHubAnalytics } from '@/lib/accounting/hooks/useAccountingHubAnalytics';
 import { useAccountingHub } from '@/lib/accounting/hooks/useAccountingHub';
@@ -41,24 +24,14 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const ar = locale === 'ar';
 
   const navigation = useAccountingHubNavigation(locale);
-  const {
-    activeTab,
-    setTab,
-    tabFromUrl,
-    actionFromUrl,
-    reportView,
-    setReportView,
-    urlPropertyId,
-    urlProjectId,
-    urlContractId,
-  } = navigation;
+  const { activeTab, setTab, tabFromUrl, actionFromUrl, reportView, setReportView, urlPropertyId, urlProjectId, urlContractId } = navigation;
 
   const [mounted, setMounted] = useState(false);
   const [receiptConfirmKey, setReceiptConfirmKey] = useState(0);
   const [agingLedger, setAgingLedger] = useState<'ar' | 'ap'>('ar');
-  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
-  const [reportPropertyId, setReportPropertyId] = useState<string>('');
-  const [reportContactId, setReportContactId] = useState<string>('');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+  const [reportPropertyId, setReportPropertyId] = useState('');
+  const [reportContactId, setReportContactId] = useState('');
   const [fiscalForm, setFiscalForm] = useState(() =>
     typeof window !== 'undefined' ? getFiscalSettings() : { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 }
   );
@@ -72,35 +45,6 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     urlContractId,
   });
 
-  const {
-    showAddDocument,
-    setShowAddDocument,
-    showAddJournal,
-    setShowAddJournal,
-    showAddAccount,
-    setShowAddAccount,
-    showAddCheque,
-    setShowAddCheque,
-    showInvoiceScan,
-    setShowInvoiceScan,
-    printDocument,
-    setPrintDocument,
-    accountForm,
-    setAccountForm,
-    journalForm,
-    setJournalForm,
-    docForm,
-    setDocForm,
-    chequeForm,
-    setChequeForm,
-    openDocumentModule,
-    applyInvoiceScan,
-    openAddDocument,
-    openAddJournal,
-    openAddAccount,
-    openAddCheque,
-  } = forms;
-
   const { contacts } = useServerAddressBookContacts();
 
   const hub = useAccountingHub({
@@ -112,116 +56,83 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
     onBookingStorageChange: () => setReceiptConfirmKey((k) => k + 1),
   });
 
-  const {
-    accounts,
-    journalEntries,
-    documents,
-    periods,
-    auditLogs,
-    searchQuery,
-    setSearchQuery,
-    filterFromDate,
-    setFilterFromDate,
-    filterToDate,
-    setFilterToDate,
-    filterContactId,
-    setFilterContactId,
-    filterBankId,
-    setFilterBankId,
-    filterPropertyId,
-    setFilterPropertyId,
-    filterProjectId,
-    setFilterProjectId,
-    filterDocType,
-    setFilterDocType,
-    sortDocuments,
-    setSortDocuments,
-    sortJournal,
-    setSortJournal,
-    loadingMoreJournal,
-    loadingMoreDocs,
-    useDb,
-    dataMeta,
-    pendingConfirmBookings,
-    setPendingConfirmBookings,
-    bankAccounts,
-    mergedProperties,
-    projectsList,
-    getPropertyDisplay,
-    getProjectDisplay,
-    loadData,
-    loadMoreJournal,
-    loadMoreDocuments,
-    sortedDocs,
-    sortedEntries,
-    setRangeThisMonth,
-    setRangeLast30,
-    setRangeYearToDate,
-  } = hub;
-
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (reportView === 'bankStatement' && !selectedBankAccountId && typeof window !== 'undefined') {
-      const active = bankAccounts.filter((b) => b.isActive);
+      const active = hub.bankAccounts.filter((b) => b.isActive);
       setSelectedBankAccountId(active.length > 0 ? active[0].id : 'CASH');
     }
-  }, [reportView, bankAccounts, selectedBankAccountId]);
+  }, [reportView, hub.bankAccounts, selectedBankAccountId]);
 
   const analytics = useAccountingHubAnalytics({
-    useDb,
+    useDb: hub.useDb,
     activeTab,
-    filterFromDate,
-    filterToDate,
+    filterFromDate: hub.filterFromDate,
+    filterToDate: hub.filterToDate,
     reportView,
     agingLedger,
-    journalEntries,
-    accounts,
-    documents,
-    bankAccounts,
-    dataMeta,
+    journalEntries: hub.journalEntries,
+    accounts: hub.accounts,
+    documents: hub.documents,
+    bankAccounts: hub.bankAccounts,
+    dataMeta: hub.dataMeta,
     selectedBankAccountId,
     reportPropertyId,
     reportContactId,
   });
 
-  const {
-    entriesForReports,
-    accountsForReports,
-    trialBalance,
-    incomeStatement,
-    balanceSheet,
-    cashFlow,
-    loadingCore,
-    vatReportData,
-    loadingVat,
-    agingReportData,
-    loadingAging,
-    cashFlowDb,
-    loadingCashFlow,
-    compareReportData,
-    loadingCompare,
-    bankStatementDb,
-    loadingBankStatement,
-    propertyLedgerDb,
-    loadingPropertyLedger,
-    stats,
-    todayStats,
-    anomalies,
-    cashSnapshot,
-    banksTotal,
-    latestEntries,
-    latestDocs,
-    monthlyLabels,
-    monthlyRevenue,
-    monthlyExpense,
-    receivables,
-    chequesReceivable,
-    totalClaims,
-    paymentsTotal,
-    reportFrom,
-    reportTo,
-  } = analytics;
+  const reportsProps = useMemo(
+    () => ({
+      reportView,
+      setReportView,
+      reportFrom: analytics.reportFrom,
+      reportTo: analytics.reportTo,
+      useDb: hub.useDb,
+      loadingCore: analytics.loadingCore,
+      loadingVat: analytics.loadingVat,
+      loadingAging: analytics.loadingAging,
+      loadingCashFlow: analytics.loadingCashFlow,
+      loadingCompare: analytics.loadingCompare,
+      loadingBankStatement: analytics.loadingBankStatement,
+      loadingPropertyLedger: analytics.loadingPropertyLedger,
+      trialBalance: analytics.trialBalance,
+      incomeStatement: analytics.incomeStatement,
+      balanceSheet: analytics.balanceSheet,
+      cashFlow: analytics.cashFlow,
+      vatReportData: analytics.vatReportData,
+      agingLedger,
+      setAgingLedger,
+      agingReportData: analytics.agingReportData,
+      cashFlowDb: analytics.cashFlowDb,
+      compareReportData: analytics.compareReportData,
+      bankStatementDb: analytics.bankStatementDb,
+      propertyLedgerDb: analytics.propertyLedgerDb,
+      bankAccounts: hub.bankAccounts,
+      selectedBankAccountId,
+      setSelectedBankAccountId,
+      reportPropertyId,
+      setReportPropertyId,
+      reportContactId,
+      setReportContactId,
+      entriesForReports: analytics.entriesForReports,
+      contacts,
+      mergedProperties: hub.mergedProperties,
+    }),
+    [
+      reportView,
+      setReportView,
+      analytics,
+      hub.useDb,
+      hub.bankAccounts,
+      hub.mergedProperties,
+      agingLedger,
+      selectedBankAccountId,
+      reportPropertyId,
+      reportContactId,
+      contacts,
+    ]
+  );
 
   return (
     <div className="space-y-6" data-testid="accounting-hub">
@@ -230,285 +141,149 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         ar={ar}
         locale={locale}
         activeTab={activeTab}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        filterFromDate={filterFromDate}
-        setFilterFromDate={setFilterFromDate}
-        filterToDate={filterToDate}
-        setFilterToDate={setFilterToDate}
-        filterContactId={filterContactId}
-        setFilterContactId={setFilterContactId}
-        filterBankId={filterBankId}
-        setFilterBankId={setFilterBankId}
-        filterPropertyId={filterPropertyId}
-        setFilterPropertyId={setFilterPropertyId}
-        filterProjectId={filterProjectId}
-        setFilterProjectId={setFilterProjectId}
-        filterDocType={filterDocType}
-        setFilterDocType={setFilterDocType}
+        searchQuery={hub.searchQuery}
+        setSearchQuery={hub.setSearchQuery}
+        filterFromDate={hub.filterFromDate}
+        setFilterFromDate={hub.setFilterFromDate}
+        filterToDate={hub.filterToDate}
+        setFilterToDate={hub.setFilterToDate}
+        filterContactId={hub.filterContactId}
+        setFilterContactId={hub.setFilterContactId}
+        filterBankId={hub.filterBankId}
+        setFilterBankId={hub.setFilterBankId}
+        filterPropertyId={hub.filterPropertyId}
+        setFilterPropertyId={hub.setFilterPropertyId}
+        filterProjectId={hub.filterProjectId}
+        setFilterProjectId={hub.setFilterProjectId}
+        filterDocType={hub.filterDocType}
+        setFilterDocType={hub.setFilterDocType}
         contacts={contacts}
-        bankAccounts={bankAccounts}
-        mergedProperties={mergedProperties}
-        projectsList={projectsList}
-        getPropertyDisplay={getPropertyDisplay}
-        getProjectDisplay={getProjectDisplay}
+        bankAccounts={hub.bankAccounts}
+        mergedProperties={hub.mergedProperties}
+        projectsList={hub.projectsList}
+        getPropertyDisplay={hub.getPropertyDisplay}
+        getProjectDisplay={hub.getProjectDisplay}
       />
 
-      {activeTab === 'dashboard' && (
-        <AccountingDashboardTab
-          ar={ar}
-          locale={locale}
-          mounted={mounted}
-          useDb={useDb}
-          documents={documents}
-          journalEntries={journalEntries}
-          accounts={accounts}
-          accountsForReports={accountsForReports}
-          entriesForReports={entriesForReports}
-          dataMeta={dataMeta}
-          stats={stats}
-          todayStats={todayStats}
-          cashSnapshot={cashSnapshot}
-          banksTotal={banksTotal}
-          receivables={receivables}
-          chequesReceivable={chequesReceivable}
-          monthlyLabels={monthlyLabels}
-          monthlyRevenue={monthlyRevenue}
-          monthlyExpense={monthlyExpense}
-          anomalies={anomalies}
-          latestEntries={latestEntries}
-          latestDocs={latestDocs}
-          pendingConfirmBookings={pendingConfirmBookings}
-          setPendingConfirmBookings={setPendingConfirmBookings}
-          setTab={setTab}
-          onNewInvoice={() => openDocumentModule('INVOICE')}
-          onNewReceipt={() => openDocumentModule('RECEIPT')}
-          onNewExpense={() => openDocumentModule('PAYMENT', { descriptionAr: 'مصروف', descriptionEn: 'Expense' })}
-          onScanInvoice={() => setShowInvoiceScan(true)}
-          setRangeThisMonth={setRangeThisMonth}
-          setRangeLast30={setRangeLast30}
-          setRangeYearToDate={setRangeYearToDate}
-          onReceiptConfirmed={() => setReceiptConfirmKey((k) => k + 1)}
-          loadData={loadData}
-        />
-      )}
-
-      {activeTab === 'sales' && (
-        <AccountingSalesTab ar={ar} onOpenDocument={(docType, preset) => openDocumentModule(docType, preset)} />
-      )}
-
-      {activeTab === 'purchases' && (
-        <AccountingPurchasesTab ar={ar} onOpenDocument={(docType) => openDocumentModule(docType)} />
-      )}
-
-      {activeTab === 'accounts' && (
-        <AccountingAccountsTab
-          ar={ar}
-          accounts={accounts}
-          journalEntries={journalEntries}
-          filterFromDate={filterFromDate}
-          filterToDate={filterToDate}
-          onAddAccount={openAddAccount}
-        />
-      )}
-
-      {activeTab === 'journal' && (
-        <AccountingJournalTab
-          ar={ar}
-          sortedEntries={sortedEntries}
-          sortJournal={sortJournal}
-          setSortJournal={setSortJournal}
-          useDb={useDb}
-          journalCount={journalEntries.length}
-          journalTotal={dataMeta?.journalTotal}
-          loadingMoreJournal={loadingMoreJournal}
-          loadMoreJournal={loadMoreJournal}
-          onAddJournal={openAddJournal}
-        />
-      )}
-
-      {activeTab === 'documents' && (
-        <AccountingDocumentsTab
-          ar={ar}
-          locale={locale}
-          contacts={contacts}
-          bankAccounts={bankAccounts}
-          sortedDocs={sortedDocs}
-          searchQuery={searchQuery}
-          filterDocType={filterDocType}
-          filterFromDate={filterFromDate}
-          filterToDate={filterToDate}
-          filterContactId={filterContactId}
-          setSearchQuery={setSearchQuery}
-          setFilterDocType={setFilterDocType}
-          setFilterFromDate={setFilterFromDate}
-          setFilterToDate={setFilterToDate}
-          setFilterContactId={setFilterContactId}
-          sortDocuments={sortDocuments}
-          setSortDocuments={setSortDocuments}
-          useDb={useDb}
-          documentsCount={documents.length}
-          documentsTotal={dataMeta?.documentsTotal}
-          loadingMoreDocs={loadingMoreDocs}
-          loadMoreDocuments={loadMoreDocuments}
-          setPrintDocument={setPrintDocument}
-          onAddDocument={openAddDocument}
-          getPropertyDisplay={getPropertyDisplay}
-        />
-      )}
-
-      {activeTab === 'reports' && (
-        <AccountingReportsTab
-          ar={ar}
-          locale={locale}
-          reportView={reportView}
-          setReportView={setReportView}
-          reportFrom={reportFrom}
-          reportTo={reportTo}
-          useDb={useDb}
-          loadingCore={loadingCore}
-          loadingVat={loadingVat}
-          loadingAging={loadingAging}
-          loadingCashFlow={loadingCashFlow}
-          loadingCompare={loadingCompare}
-          loadingBankStatement={loadingBankStatement}
-          loadingPropertyLedger={loadingPropertyLedger}
-          trialBalance={trialBalance}
-          incomeStatement={incomeStatement}
-          balanceSheet={balanceSheet}
-          cashFlow={cashFlow}
-          vatReportData={vatReportData}
-          agingLedger={agingLedger}
-          setAgingLedger={setAgingLedger}
-          agingReportData={agingReportData}
-          cashFlowDb={cashFlowDb}
-          compareReportData={compareReportData}
-          bankStatementDb={bankStatementDb}
-          propertyLedgerDb={propertyLedgerDb}
-          bankAccounts={bankAccounts}
-          selectedBankAccountId={selectedBankAccountId}
-          setSelectedBankAccountId={setSelectedBankAccountId}
-          reportPropertyId={reportPropertyId}
-          setReportPropertyId={setReportPropertyId}
-          reportContactId={reportContactId}
-          setReportContactId={setReportContactId}
-          entriesForReports={entriesForReports}
-          contacts={contacts}
-          mergedProperties={mergedProperties}
-        />
-      )}
-
-      {activeTab === 'claims' && (
-        <AccountingClaimsTab
-          ar={ar}
-          locale={locale}
-          documents={documents}
-          contacts={contacts}
-          sortDocuments={sortDocuments}
-          setSortDocuments={setSortDocuments}
-          totalClaims={totalClaims}
-          receivables={receivables}
-          chequesReceivable={chequesReceivable}
-          getPropertyDisplay={getPropertyDisplay}
-        />
-      )}
-
-      {activeTab === 'cheques' && (
-        <AccountingChequesTab
-          ar={ar}
-          locale={locale}
-          documents={documents}
-          contacts={contacts}
-          sortDocuments={sortDocuments}
-          setSortDocuments={setSortDocuments}
-          filterFromDate={filterFromDate}
-          filterToDate={filterToDate}
-          filterContactId={filterContactId}
-          filterPropertyId={filterPropertyId}
-          filterProjectId={filterProjectId}
-          searchQuery={searchQuery}
-          projectsList={projectsList}
-          getPropertyDisplay={getPropertyDisplay}
-          getProjectDisplay={getProjectDisplay}
-          setPrintDocument={setPrintDocument}
-          onAddCheque={openAddCheque}
-        />
-      )}
-
-      {activeTab === 'payments' && (
-        <AccountingPaymentsTab
-          ar={ar}
-          locale={locale}
-          documents={documents}
-          contacts={contacts}
-          bankAccounts={bankAccounts}
-          sortDocuments={sortDocuments}
-          setSortDocuments={setSortDocuments}
-          paymentsTotal={paymentsTotal}
-          getPropertyDisplay={getPropertyDisplay}
-        />
-      )}
-
-      {activeTab === 'periods' && (
-        <AccountingPeriodsTab
-          ar={ar}
-          periods={periods}
-          onLockPeriod={async (periodId) => {
-            if (useDb) await apiLockPeriod(periodId);
-            else lockPeriod(periodId);
-            await loadData();
-          }}
-        />
-      )}
-
-      {activeTab === 'audit' && <AccountingAuditTab ar={ar} auditLogs={auditLogs} />}
-
-      {activeTab === 'settings' && (
-        <AccountingSettingsTab
-          ar={ar}
-          fiscalForm={fiscalForm}
-          setFiscalForm={setFiscalForm}
-          onSave={() => {
-            saveFiscalSettings(fiscalForm);
-            void loadData();
-          }}
-        />
-      )}
+      <AccountingHubTabs
+        ar={ar}
+        locale={locale}
+        activeTab={activeTab}
+        mounted={mounted}
+        setTab={setTab}
+        useDb={hub.useDb}
+        accounts={hub.accounts}
+        journalEntries={hub.journalEntries}
+        documents={hub.documents}
+        periods={hub.periods}
+        auditLogs={hub.auditLogs}
+        contacts={contacts}
+        bankAccounts={hub.bankAccounts}
+        mergedProperties={hub.mergedProperties}
+        projectsList={hub.projectsList}
+        getPropertyDisplay={hub.getPropertyDisplay}
+        getProjectDisplay={hub.getProjectDisplay}
+        dataMeta={hub.dataMeta}
+        pendingConfirmBookings={hub.pendingConfirmBookings}
+        setPendingConfirmBookings={hub.setPendingConfirmBookings}
+        searchQuery={hub.searchQuery}
+        setSearchQuery={hub.setSearchQuery}
+        filterFromDate={hub.filterFromDate}
+        setFilterFromDate={hub.setFilterFromDate}
+        filterToDate={hub.filterToDate}
+        setFilterToDate={hub.setFilterToDate}
+        filterContactId={hub.filterContactId}
+        setFilterContactId={hub.setFilterContactId}
+        filterPropertyId={hub.filterPropertyId}
+        filterProjectId={hub.filterProjectId}
+        filterDocType={hub.filterDocType}
+        setFilterDocType={hub.setFilterDocType}
+        sortDocuments={hub.sortDocuments}
+        setSortDocuments={hub.setSortDocuments}
+        sortJournal={hub.sortJournal}
+        setSortJournal={hub.setSortJournal}
+        loadingMoreJournal={hub.loadingMoreJournal}
+        loadingMoreDocs={hub.loadingMoreDocs}
+        loadData={hub.loadData}
+        loadMoreJournal={hub.loadMoreJournal}
+        loadMoreDocuments={hub.loadMoreDocuments}
+        sortedDocs={hub.sortedDocs}
+        sortedEntries={hub.sortedEntries}
+        setRangeThisMonth={hub.setRangeThisMonth}
+        setRangeLast30={hub.setRangeLast30}
+        setRangeYearToDate={hub.setRangeYearToDate}
+        entriesForReports={analytics.entriesForReports}
+        accountsForReports={analytics.accountsForReports}
+        stats={analytics.stats}
+        todayStats={analytics.todayStats}
+        cashSnapshot={analytics.cashSnapshot}
+        banksTotal={analytics.banksTotal}
+        receivables={analytics.receivables}
+        chequesReceivable={analytics.chequesReceivable}
+        monthlyLabels={analytics.monthlyLabels}
+        monthlyRevenue={analytics.monthlyRevenue}
+        monthlyExpense={analytics.monthlyExpense}
+        anomalies={analytics.anomalies}
+        latestEntries={analytics.latestEntries}
+        latestDocs={analytics.latestDocs}
+        totalClaims={analytics.totalClaims}
+        paymentsTotal={analytics.paymentsTotal}
+        reports={reportsProps}
+        fiscalForm={fiscalForm}
+        setFiscalForm={setFiscalForm}
+        openDocumentModule={forms.openDocumentModule}
+        openAddDocument={forms.openAddDocument}
+        openAddJournal={forms.openAddJournal}
+        openAddAccount={forms.openAddAccount}
+        openAddCheque={forms.openAddCheque}
+        setShowInvoiceScan={forms.setShowInvoiceScan}
+        setPrintDocument={forms.setPrintDocument}
+        onReceiptConfirmed={() => setReceiptConfirmKey((k) => k + 1)}
+        onLockPeriod={async (periodId) => {
+          if (hub.useDb) await apiLockPeriod(periodId);
+          else lockPeriod(periodId);
+          await hub.loadData();
+        }}
+        onSaveSettings={() => {
+          saveFiscalSettings(fiscalForm);
+          void hub.loadData();
+        }}
+      />
 
       <AccountingHubModals
         ar={ar}
         locale={locale}
-        useDb={useDb}
+        useDb={hub.useDb}
         contacts={contacts}
-        accounts={accounts}
-        bankAccounts={bankAccounts}
-        mergedProperties={mergedProperties}
-        projectsList={projectsList}
-        getPropertyDisplay={getPropertyDisplay}
-        getProjectDisplay={getProjectDisplay}
-        loadData={loadData}
+        accounts={hub.accounts}
+        bankAccounts={hub.bankAccounts}
+        mergedProperties={hub.mergedProperties}
+        projectsList={hub.projectsList}
+        getPropertyDisplay={hub.getPropertyDisplay}
+        getProjectDisplay={hub.getProjectDisplay}
+        loadData={hub.loadData}
         setTab={setTab}
-        showAddDocument={showAddDocument}
-        setShowAddDocument={setShowAddDocument}
-        showAddJournal={showAddJournal}
-        setShowAddJournal={setShowAddJournal}
-        showAddAccount={showAddAccount}
-        setShowAddAccount={setShowAddAccount}
-        showAddCheque={showAddCheque}
-        setShowAddCheque={setShowAddCheque}
-        showInvoiceScan={showInvoiceScan}
-        setShowInvoiceScan={setShowInvoiceScan}
-        printDocument={printDocument}
-        setPrintDocument={setPrintDocument}
-        accountForm={accountForm}
-        setAccountForm={setAccountForm}
-        journalForm={journalForm}
-        setJournalForm={setJournalForm}
-        docForm={docForm}
-        setDocForm={setDocForm}
-        chequeForm={chequeForm}
-        setChequeForm={setChequeForm}
-        applyInvoiceScan={applyInvoiceScan}
+        showAddDocument={forms.showAddDocument}
+        setShowAddDocument={forms.setShowAddDocument}
+        showAddJournal={forms.showAddJournal}
+        setShowAddJournal={forms.setShowAddJournal}
+        showAddAccount={forms.showAddAccount}
+        setShowAddAccount={forms.setShowAddAccount}
+        showAddCheque={forms.showAddCheque}
+        setShowAddCheque={forms.setShowAddCheque}
+        showInvoiceScan={forms.showInvoiceScan}
+        setShowInvoiceScan={forms.setShowInvoiceScan}
+        printDocument={forms.printDocument}
+        setPrintDocument={forms.setPrintDocument}
+        accountForm={forms.accountForm}
+        setAccountForm={forms.setAccountForm}
+        journalForm={forms.journalForm}
+        setJournalForm={forms.setJournalForm}
+        docForm={forms.docForm}
+        setDocForm={forms.setDocForm}
+        chequeForm={forms.chequeForm}
+        setChequeForm={forms.setChequeForm}
+        applyInvoiceScan={forms.applyInvoiceScan}
       />
     </div>
   );
