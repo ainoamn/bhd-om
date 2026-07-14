@@ -6,13 +6,7 @@ import {
   getFiscalSettings,
   saveFiscalSettings,
   lockPeriod,
-  getNextDocumentSerial,
-  type ChartAccount,
-  type JournalEntry,
   type AccountingDocument,
-  type AccountType,
-  type DocumentType,
-  type DocumentStatus,
 } from '@/lib/data/accounting';
 
 import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
@@ -35,15 +29,14 @@ import AccountingAddAccountModal from './accounting/AccountingAddAccountModal';
 import AccountingAddDocumentModal from './accounting/AccountingAddDocumentModal';
 import AccountingAddJournalModal from './accounting/AccountingAddJournalModal';
 import AccountingAddChequeModal from './accounting/AccountingAddChequeModal';
-import AccountingInvoiceScanModal, { type InvoiceScanResult } from './accounting/AccountingInvoiceScanModal';
+import AccountingInvoiceScanModal from './accounting/AccountingInvoiceScanModal';
 import {
   lockPeriod as apiLockPeriod,
 } from '@/lib/accounting/api/client';
 import { REPORT_URL_IDS, type ReportViewId } from '@/lib/accounting/ui/reportLabels';
 import { useAccountingHubAnalytics } from '@/lib/accounting/hooks/useAccountingHubAnalytics';
 import { useAccountingHub } from '@/lib/accounting/hooks/useAccountingHub';
-import { clearDraft } from '@/lib/utils/draftStorage';
-import { ACCOUNTING_DRAFT_KEYS } from '@/lib/accounting/ui/draftKeys';
+import { useAccountingHubForms } from '@/lib/accounting/hooks/useAccountingHubForms';
 import DraftBanner from '@/components/admin/DraftBanner';
 import AccountingHubFilterBar from './accounting/AccountingHubFilterBar';
 import type { AccountingInitialData } from '@/lib/accounting/types/pageData';
@@ -75,118 +68,51 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   const [activeTab, setActiveTab] = useState<TabId>(tabFromUrl);
   const [mounted, setMounted] = useState(false);
   const [receiptConfirmKey, setReceiptConfirmKey] = useState(0);
-  const [showAddDocument, setShowAddDocument] = useState(false);
-  const [showAddJournal, setShowAddJournal] = useState(false);
-  const [showAddAccount, setShowAddAccount] = useState(false);
-  const [showAddCheque, setShowAddCheque] = useState(false);
-  const [showInvoiceScan, setShowInvoiceScan] = useState(false);
-  const [printDocument, setPrintDocument] = useState<AccountingDocument | null>(null);
   const [reportView, setReportView] = useState<ReportViewId>('trial');
   const [agingLedger, setAgingLedger] = useState<'ar' | 'ap'>('ar');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
   const [reportPropertyId, setReportPropertyId] = useState<string>('');
   const [reportContactId, setReportContactId] = useState<string>('');
   const [fiscalForm, setFiscalForm] = useState(() => (typeof window !== 'undefined' ? getFiscalSettings() : { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 }));
-  const [accountForm, setAccountForm] = useState({ code: '', nameAr: '', nameEn: '', type: 'EXPENSE' as AccountType });
-  const [journalForm, setJournalForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    descriptionAr: '',
-    descriptionEn: '',
-    lines: [{ accountId: '', debit: '', credit: '', desc: '' }] as Array<{ accountId: string; debit: string; credit: string; desc: string }>,
-  });
-  const [docForm, setDocForm] = useState({
-    type: 'RECEIPT' as DocumentType,
-    serialNumber: '',
-    amount: '',
-    contactId: '',
-    bankAccountId: '',
-    propertyId: '',
-    projectId: '',
-    descriptionAr: '',
-    descriptionEn: '',
-    date: new Date().toISOString().slice(0, 10),
-    dueDate: new Date().toISOString().slice(0, 10),
-    currency: 'OMR',
-    useLineItems: false,
-    vatRate: 0,
-    purchaseOrder: '',
-    reference: '',
-    branch: '',
-    attachments: [] as { url: string; name: string }[],
-    items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }] as Array<{ descriptionAr: string; quantity: number; unitPrice: string; accountId: string }>,
+
+  const forms = useAccountingHubForms({
+    navigate: (tab) => setTab(tab),
+    tabFromUrl,
+    actionFromUrl,
+    urlPropertyId: searchParams?.get('propertyId') || '',
+    urlProjectId: searchParams?.get('projectId') || '',
+    urlContractId: searchParams?.get('contractId') || '',
   });
 
-  const openDocumentModule = (docType: DocumentType, preset?: { descriptionAr?: string; descriptionEn?: string }) => {
-    clearDraft(ACCOUNTING_DRAFT_KEYS.document);
-    const today = new Date().toISOString().slice(0, 10);
-    const useLineItems = ['INVOICE', 'QUOTE', 'PURCHASE_INV', 'PURCHASE_ORDER', 'CREDIT_NOTE', 'DEBIT_NOTE'].includes(docType);
-    setDocForm({
-      type: docType,
-      serialNumber: getNextDocumentSerial(docType),
-      amount: '',
-      contactId: '',
-      bankAccountId: '',
-      propertyId: '',
-      projectId: '',
-      descriptionAr: preset?.descriptionAr ?? '',
-      descriptionEn: preset?.descriptionEn ?? '',
-      date: today,
-      dueDate: today,
-      currency: 'OMR',
-      useLineItems,
-      vatRate: 0,
-      purchaseOrder: '',
-      reference: '',
-      branch: '',
-      attachments: [],
-      items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
-    });
-    setShowAddDocument(true);
-    setTab('documents');
-  };
+  const {
+    showAddDocument,
+    setShowAddDocument,
+    showAddJournal,
+    setShowAddJournal,
+    showAddAccount,
+    setShowAddAccount,
+    showAddCheque,
+    setShowAddCheque,
+    showInvoiceScan,
+    setShowInvoiceScan,
+    printDocument,
+    setPrintDocument,
+    accountForm,
+    setAccountForm,
+    journalForm,
+    setJournalForm,
+    docForm,
+    setDocForm,
+    chequeForm,
+    setChequeForm,
+    openDocumentModule,
+    applyInvoiceScan,
+    openAddDocument,
+    openAddJournal,
+    openAddAccount,
+    openAddCheque,
+  } = forms;
 
-  const applyInvoiceScan = (draft: InvoiceScanResult) => {
-    clearDraft(ACCOUNTING_DRAFT_KEYS.document);
-    const today = new Date().toISOString().slice(0, 10);
-    const docType = draft.type;
-    const useLineItems = ['INVOICE', 'QUOTE', 'PURCHASE_INV', 'PURCHASE_ORDER', 'CREDIT_NOTE', 'DEBIT_NOTE'].includes(docType);
-    setDocForm({
-      type: docType,
-      serialNumber: getNextDocumentSerial(docType),
-      amount: draft.amount || '',
-      contactId: '',
-      bankAccountId: '',
-      propertyId: '',
-      projectId: '',
-      descriptionAr: draft.descriptionAr ?? '',
-      descriptionEn: draft.descriptionEn ?? '',
-      date: draft.date || today,
-      dueDate: draft.dueDate || draft.date || today,
-      currency: 'OMR',
-      useLineItems,
-      vatRate: draft.vatRate ?? 0,
-      purchaseOrder: '',
-      reference: draft.reference || '',
-      branch: '',
-      attachments: draft.attachments ?? [],
-      items: [{ descriptionAr: draft.descriptionAr || '', quantity: 1, unitPrice: draft.amount || '', accountId: '' }],
-    });
-    setShowAddDocument(true);
-    setTab('documents');
-  };
-
-  const [chequeForm, setChequeForm] = useState({
-    chequeNumber: '',
-    amount: '',
-    dueDate: new Date().toISOString().slice(0, 10),
-    bankName: '',
-    descriptionAr: '',
-    contactId: '',
-    propertyId: '',
-    projectId: '',
-    contractId: '',
-    date: new Date().toISOString().slice(0, 10),
-  });
   const { contacts } = useServerAddressBookContacts();
 
   const hub = useAccountingHub({
@@ -266,33 +192,6 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
       setSelectedBankAccountId(active.length > 0 ? active[0].id : 'CASH');
     }
   }, [reportView, bankAccounts]);
-
-  useEffect(() => {
-    if (actionFromUrl === 'add') {
-      if (tabFromUrl === 'journal') setShowAddJournal(true);
-      else if (tabFromUrl === 'accounts') setShowAddAccount(true);
-      else if (tabFromUrl === 'documents') setShowAddDocument(true);
-      else if (tabFromUrl === 'cheques') {
-        const propId = searchParams?.get('propertyId') || '';
-        const projId = searchParams?.get('projectId') || '';
-        const cntId = searchParams?.get('contractId') || '';
-        setChequeForm((prev) => ({
-          ...prev,
-          propertyId: propId,
-          projectId: projId,
-          contractId: cntId,
-          chequeNumber: '',
-          amount: '',
-          dueDate: new Date().toISOString().slice(0, 10),
-          bankName: '',
-          descriptionAr: '',
-          contactId: '',
-          date: new Date().toISOString().slice(0, 10),
-        }));
-        setShowAddCheque(true);
-      }
-    }
-  }, [actionFromUrl, tabFromUrl, searchParams?.get('propertyId'), searchParams?.get('projectId')]);
 
   const analytics = useAccountingHubAnalytics({
     useDb,
@@ -434,10 +333,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
           journalEntries={journalEntries}
           filterFromDate={filterFromDate}
           filterToDate={filterToDate}
-          onAddAccount={() => {
-            setAccountForm({ code: '', nameAr: '', nameEn: '', type: 'EXPENSE' });
-            setShowAddAccount(true);
-          }}
+          onAddAccount={openAddAccount}
         />
       )}
 
@@ -452,15 +348,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
           journalTotal={dataMeta?.journalTotal}
           loadingMoreJournal={loadingMoreJournal}
           loadMoreJournal={loadMoreJournal}
-          onAddJournal={() => {
-            setJournalForm({
-              date: new Date().toISOString().slice(0, 10),
-              descriptionAr: '',
-              descriptionEn: '',
-              lines: [{ accountId: '', debit: '', credit: '', desc: '' }],
-            });
-            setShowAddJournal(true);
-          }}
+          onAddJournal={openAddJournal}
         />
       )}
 
@@ -489,31 +377,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
           loadingMoreDocs={loadingMoreDocs}
           loadMoreDocuments={loadMoreDocuments}
           setPrintDocument={setPrintDocument}
-          onAddDocument={() => {
-            const today = new Date().toISOString().slice(0, 10);
-            setDocForm({
-              type: 'RECEIPT',
-              serialNumber: getNextDocumentSerial('RECEIPT'),
-              amount: '',
-              contactId: '',
-              bankAccountId: '',
-              propertyId: '',
-              projectId: '',
-              descriptionAr: '',
-              descriptionEn: '',
-              date: today,
-              dueDate: today,
-              currency: 'OMR',
-              useLineItems: false,
-              vatRate: 0,
-              purchaseOrder: '',
-              reference: '',
-              branch: '',
-              attachments: [],
-              items: [{ descriptionAr: '', quantity: 1, unitPrice: '', accountId: '' }],
-            });
-            setShowAddDocument(true);
-          }}
+          onAddDocument={openAddDocument}
           getPropertyDisplay={getPropertyDisplay}
         />
       )}
@@ -592,21 +456,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
           getPropertyDisplay={getPropertyDisplay}
           getProjectDisplay={getProjectDisplay}
           setPrintDocument={setPrintDocument}
-          onAddCheque={() => {
-            setChequeForm({
-              chequeNumber: '',
-              amount: '',
-              dueDate: new Date().toISOString().slice(0, 10),
-              bankName: '',
-              descriptionAr: '',
-              contactId: '',
-              propertyId: '',
-              projectId: '',
-              contractId: '',
-              date: new Date().toISOString().slice(0, 10),
-            });
-            setShowAddCheque(true);
-          }}
+          onAddCheque={openAddCheque}
         />
       )}
 

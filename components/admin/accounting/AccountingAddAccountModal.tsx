@@ -20,7 +20,7 @@ export default function AccountingAddAccountModal(props: {
   if (!open) return null;
 
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
+    <div className={styles.modalOverlay} onClick={onClose} data-testid="accounting-modal-account">
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         <h3 className={styles.modalTitle}>{ar ? 'إضافة حساب جديد' : 'Add new account'}</h3>
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">

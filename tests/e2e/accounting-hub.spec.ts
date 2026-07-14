@@ -32,4 +32,17 @@ test.describe('Accounting hub UI', () => {
     await expect(page.getByTestId('accounting-hub')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/ميزان المراجعة|Trial Balance/i)).toBeVisible();
   });
+
+  test('add modals open from URL action with draft notice', async ({ page }) => {
+    await page.goto('/ar/admin/accounting?tab=documents&action=add');
+    await expect(page.getByTestId('accounting-modal-document')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/لن تظهر في النظام إلا بعد الحفظ|only after save/i)).toBeVisible();
+
+    await page.goto('/ar/admin/accounting?tab=journal&action=add');
+    await expect(page.getByTestId('accounting-modal-journal')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/لن تظهر في النظام إلا بعد الحفظ|only after save/i)).toBeVisible();
+
+    await page.goto('/ar/admin/accounting?tab=accounts&action=add');
+    await expect(page.getByTestId('accounting-modal-account')).toBeVisible({ timeout: 30_000 });
+  });
 });
