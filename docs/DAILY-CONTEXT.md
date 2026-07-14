@@ -18,6 +18,14 @@
 - **إصلاحات أداء (في legacy قبل الرفع):** مسار تحديث سريع، dirty KV، تخطي kvGetBulk، تأجيل مزامنة سحابة/محاسبة
 - **المرجع الكامل:** [docs/LEGACY-MONOLITH-INTEGRATION.md](LEGACY-MONOLITH-INTEGRATION.md)
 
+### جلسة 2026-07-14 (69) — Phase 17 محاسبة: controller + shell (~12 سطر)
+
+- **Controller:** `useAccountingHubController.ts` — يجمع navigation/forms/hub/analytics + callbacks
+- **Shell:** `AccountingHubShell.tsx` — FilterBar + Tabs + Modals
+- **Bundles:** `AccountingHubTabs` و `AccountingHubModals` يستقبلان `hub` / `analytics` / `forms`
+- **`AccountingSection.tsx`:** **12 سطر** orchestrator فقط
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-07-14 (68) — Phase 16 محاسبة: AccountingHubTabs
 
 - **Tabs:** `AccountingHubTabs.tsx` — switch لـ 13 تبويباً (dashboard → settings)

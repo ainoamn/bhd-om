@@ -15,18 +15,12 @@ import AccountingAccountsTab from '@/components/admin/accounting/AccountingAccou
 import AccountingSettingsTab from '@/components/admin/accounting/AccountingSettingsTab';
 import type { AccountingHubTabId } from '@/components/admin/accounting/AccountingHubFilterBar';
 import type { ReportViewId } from '@/lib/accounting/ui/reportLabels';
-import type { DocumentType, ChartAccount, JournalEntry, AccountingDocument } from '@/lib/data/accounting';
 import type { Contact } from '@/lib/data/addressBook';
-import type { BankAccount } from '@/lib/data/bankAccounts';
-import type { Property } from '@/lib/data/properties';
-import type { PropertyBooking } from '@/lib/data/bookings';
-import type { SortOption } from '@/components/admin/SortSelect';
-import type { AccountingHubStats } from '@/lib/accounting/hooks/useAccountingHubAnalytics';
+import type { useAccountingHub } from '@/lib/accounting/hooks/useAccountingHub';
+import type { useAccountingHubAnalytics } from '@/lib/accounting/hooks/useAccountingHubAnalytics';
+import type { useAccountingHubForms } from '@/lib/accounting/hooks/useAccountingHubForms';
 import type { ComponentProps } from 'react';
 
-type ProjectListItem = { id: number; serialNumber?: string; titleAr?: string; titleEn?: string };
-
-type DashboardTabProps = ComponentProps<typeof AccountingDashboardTab>;
 type SettingsTabProps = ComponentProps<typeof AccountingSettingsTab>;
 
 export type AccountingHubTabsProps = {
@@ -35,80 +29,36 @@ export type AccountingHubTabsProps = {
   activeTab: AccountingHubTabId;
   mounted: boolean;
   setTab: (tab: AccountingHubTabId, action?: string, report?: ReportViewId) => void;
-  useDb: boolean;
-  accounts: ChartAccount[];
-  journalEntries: JournalEntry[];
-  documents: AccountingDocument[];
-  periods: Array<{ id: string; code: string; startDate: string; endDate: string; isLocked: boolean }>;
-  auditLogs: Array<{ id: string; timestamp: string; action: string; entityType: string; entityId: string; reason?: string }>;
   contacts: Contact[];
-  bankAccounts: BankAccount[];
-  mergedProperties: Property[];
-  projectsList: ProjectListItem[];
-  getPropertyDisplay: (p: Property) => string;
-  getProjectDisplay: (p: ProjectListItem) => string;
-  dataMeta: { journalTotal?: number; documentsTotal?: number } | null;
-  pendingConfirmBookings: PropertyBooking[];
-  setPendingConfirmBookings: React.Dispatch<React.SetStateAction<PropertyBooking[]>>;
-  searchQuery: string;
-  setSearchQuery: (v: string) => void;
-  filterFromDate: string;
-  setFilterFromDate: (v: string) => void;
-  filterToDate: string;
-  setFilterToDate: (v: string) => void;
-  filterContactId: string;
-  setFilterContactId: (v: string) => void;
-  filterPropertyId: string;
-  filterProjectId: string;
-  filterDocType: DocumentType | '';
-  setFilterDocType: (v: DocumentType | '') => void;
-  sortDocuments: SortOption;
-  setSortDocuments: (v: SortOption) => void;
-  sortJournal: SortOption;
-  setSortJournal: (v: SortOption) => void;
-  loadingMoreJournal: boolean;
-  loadingMoreDocs: boolean;
-  loadData: () => void | Promise<void>;
-  loadMoreJournal: () => void | Promise<void>;
-  loadMoreDocuments: () => void | Promise<void>;
-  sortedDocs: AccountingDocument[];
-  sortedEntries: JournalEntry[];
-  setRangeThisMonth: () => void;
-  setRangeLast30: () => void;
-  setRangeYearToDate: () => void;
-  entriesForReports: JournalEntry[];
-  accountsForReports: ChartAccount[];
-  stats: AccountingHubStats;
-  todayStats: { received: number; expenses: number };
-  cashSnapshot: { balance: number };
-  banksTotal: number;
-  receivables: number;
-  chequesReceivable: number;
-  monthlyLabels: string[];
-  monthlyRevenue: number[];
-  monthlyExpense: number[];
-  anomalies: DashboardTabProps['anomalies'];
-  latestEntries: JournalEntry[];
-  latestDocs: AccountingDocument[];
-  totalClaims: number;
-  paymentsTotal: number;
+  hub: ReturnType<typeof useAccountingHub>;
+  analytics: ReturnType<typeof useAccountingHubAnalytics>;
+  forms: ReturnType<typeof useAccountingHubForms>;
   reports: Omit<AccountingReportsTabProps, 'ar' | 'locale'>;
   fiscalForm: SettingsTabProps['fiscalForm'];
   setFiscalForm: SettingsTabProps['setFiscalForm'];
-  openDocumentModule: (docType: DocumentType, preset?: { descriptionAr?: string; descriptionEn?: string }) => void;
-  openAddDocument: () => void;
-  openAddJournal: () => void;
-  openAddAccount: () => void;
-  openAddCheque: () => void;
-  setShowInvoiceScan: (open: boolean) => void;
-  setPrintDocument: (doc: AccountingDocument | null) => void;
   onReceiptConfirmed: () => void;
   onLockPeriod: (periodId: string) => void | Promise<void>;
   onSaveSettings: () => void;
 };
 
 export default function AccountingHubTabs(props: AccountingHubTabsProps) {
-  const { ar, locale, activeTab, reports, ...p } = props;
+  const {
+    ar,
+    locale,
+    activeTab,
+    mounted,
+    setTab,
+    contacts,
+    hub,
+    analytics,
+    forms,
+    reports,
+    fiscalForm,
+    setFiscalForm,
+    onReceiptConfirmed,
+    onLockPeriod,
+    onSaveSettings,
+  } = props;
 
   switch (activeTab) {
     case 'dashboard':
@@ -116,68 +66,70 @@ export default function AccountingHubTabs(props: AccountingHubTabsProps) {
         <AccountingDashboardTab
           ar={ar}
           locale={locale}
-          mounted={p.mounted}
-          useDb={p.useDb}
-          documents={p.documents}
-          journalEntries={p.journalEntries}
-          accounts={p.accounts}
-          accountsForReports={p.accountsForReports}
-          entriesForReports={p.entriesForReports}
-          dataMeta={p.dataMeta}
-          stats={p.stats}
-          todayStats={p.todayStats}
-          cashSnapshot={p.cashSnapshot}
-          banksTotal={p.banksTotal}
-          receivables={p.receivables}
-          chequesReceivable={p.chequesReceivable}
-          monthlyLabels={p.monthlyLabels}
-          monthlyRevenue={p.monthlyRevenue}
-          monthlyExpense={p.monthlyExpense}
-          anomalies={p.anomalies}
-          latestEntries={p.latestEntries}
-          latestDocs={p.latestDocs}
-          pendingConfirmBookings={p.pendingConfirmBookings}
-          setPendingConfirmBookings={p.setPendingConfirmBookings}
-          setTab={p.setTab}
-          onNewInvoice={() => p.openDocumentModule('INVOICE')}
-          onNewReceipt={() => p.openDocumentModule('RECEIPT')}
-          onNewExpense={() => p.openDocumentModule('PAYMENT', { descriptionAr: 'مصروف', descriptionEn: 'Expense' })}
-          onScanInvoice={() => p.setShowInvoiceScan(true)}
-          setRangeThisMonth={p.setRangeThisMonth}
-          setRangeLast30={p.setRangeLast30}
-          setRangeYearToDate={p.setRangeYearToDate}
-          onReceiptConfirmed={p.onReceiptConfirmed}
-          loadData={p.loadData}
+          mounted={mounted}
+          useDb={hub.useDb}
+          documents={hub.documents}
+          journalEntries={hub.journalEntries}
+          accounts={hub.accounts}
+          accountsForReports={analytics.accountsForReports}
+          entriesForReports={analytics.entriesForReports}
+          dataMeta={hub.dataMeta}
+          stats={analytics.stats}
+          todayStats={analytics.todayStats}
+          cashSnapshot={analytics.cashSnapshot}
+          banksTotal={analytics.banksTotal}
+          receivables={analytics.receivables}
+          chequesReceivable={analytics.chequesReceivable}
+          monthlyLabels={analytics.monthlyLabels}
+          monthlyRevenue={analytics.monthlyRevenue}
+          monthlyExpense={analytics.monthlyExpense}
+          anomalies={analytics.anomalies}
+          latestEntries={analytics.latestEntries}
+          latestDocs={analytics.latestDocs}
+          pendingConfirmBookings={hub.pendingConfirmBookings}
+          setPendingConfirmBookings={hub.setPendingConfirmBookings}
+          setTab={setTab}
+          onNewInvoice={() => forms.openDocumentModule('INVOICE')}
+          onNewReceipt={() => forms.openDocumentModule('RECEIPT')}
+          onNewExpense={() => forms.openDocumentModule('PAYMENT', { descriptionAr: 'مصروف', descriptionEn: 'Expense' })}
+          onScanInvoice={() => forms.setShowInvoiceScan(true)}
+          setRangeThisMonth={hub.setRangeThisMonth}
+          setRangeLast30={hub.setRangeLast30}
+          setRangeYearToDate={hub.setRangeYearToDate}
+          onReceiptConfirmed={onReceiptConfirmed}
+          loadData={hub.loadData}
         />
       );
     case 'sales':
-      return <AccountingSalesTab ar={ar} onOpenDocument={(docType, preset) => p.openDocumentModule(docType, preset)} />;
+      return (
+        <AccountingSalesTab ar={ar} onOpenDocument={(docType, preset) => forms.openDocumentModule(docType, preset)} />
+      );
     case 'purchases':
-      return <AccountingPurchasesTab ar={ar} onOpenDocument={(docType) => p.openDocumentModule(docType)} />;
+      return <AccountingPurchasesTab ar={ar} onOpenDocument={(docType) => forms.openDocumentModule(docType)} />;
     case 'accounts':
       return (
         <AccountingAccountsTab
           ar={ar}
-          accounts={p.accounts}
-          journalEntries={p.journalEntries}
-          filterFromDate={p.filterFromDate}
-          filterToDate={p.filterToDate}
-          onAddAccount={p.openAddAccount}
+          accounts={hub.accounts}
+          journalEntries={hub.journalEntries}
+          filterFromDate={hub.filterFromDate}
+          filterToDate={hub.filterToDate}
+          onAddAccount={forms.openAddAccount}
         />
       );
     case 'journal':
       return (
         <AccountingJournalTab
           ar={ar}
-          sortedEntries={p.sortedEntries}
-          sortJournal={p.sortJournal}
-          setSortJournal={p.setSortJournal}
-          useDb={p.useDb}
-          journalCount={p.journalEntries.length}
-          journalTotal={p.dataMeta?.journalTotal}
-          loadingMoreJournal={p.loadingMoreJournal}
-          loadMoreJournal={p.loadMoreJournal}
-          onAddJournal={p.openAddJournal}
+          sortedEntries={hub.sortedEntries}
+          sortJournal={hub.sortJournal}
+          setSortJournal={hub.setSortJournal}
+          useDb={hub.useDb}
+          journalCount={hub.journalEntries.length}
+          journalTotal={hub.dataMeta?.journalTotal}
+          loadingMoreJournal={hub.loadingMoreJournal}
+          loadMoreJournal={hub.loadMoreJournal}
+          onAddJournal={forms.openAddJournal}
         />
       );
     case 'documents':
@@ -185,29 +137,29 @@ export default function AccountingHubTabs(props: AccountingHubTabsProps) {
         <AccountingDocumentsTab
           ar={ar}
           locale={locale}
-          contacts={p.contacts}
-          bankAccounts={p.bankAccounts}
-          sortedDocs={p.sortedDocs}
-          searchQuery={p.searchQuery}
-          filterDocType={p.filterDocType}
-          filterFromDate={p.filterFromDate}
-          filterToDate={p.filterToDate}
-          filterContactId={p.filterContactId}
-          setSearchQuery={p.setSearchQuery}
-          setFilterDocType={p.setFilterDocType}
-          setFilterFromDate={p.setFilterFromDate}
-          setFilterToDate={p.setFilterToDate}
-          setFilterContactId={p.setFilterContactId}
-          sortDocuments={p.sortDocuments}
-          setSortDocuments={p.setSortDocuments}
-          useDb={p.useDb}
-          documentsCount={p.documents.length}
-          documentsTotal={p.dataMeta?.documentsTotal}
-          loadingMoreDocs={p.loadingMoreDocs}
-          loadMoreDocuments={p.loadMoreDocuments}
-          setPrintDocument={p.setPrintDocument}
-          onAddDocument={p.openAddDocument}
-          getPropertyDisplay={p.getPropertyDisplay}
+          contacts={contacts}
+          bankAccounts={hub.bankAccounts}
+          sortedDocs={hub.sortedDocs}
+          searchQuery={hub.searchQuery}
+          filterDocType={hub.filterDocType}
+          filterFromDate={hub.filterFromDate}
+          filterToDate={hub.filterToDate}
+          filterContactId={hub.filterContactId}
+          setSearchQuery={hub.setSearchQuery}
+          setFilterDocType={hub.setFilterDocType}
+          setFilterFromDate={hub.setFilterFromDate}
+          setFilterToDate={hub.setFilterToDate}
+          setFilterContactId={hub.setFilterContactId}
+          sortDocuments={hub.sortDocuments}
+          setSortDocuments={hub.setSortDocuments}
+          useDb={hub.useDb}
+          documentsCount={hub.documents.length}
+          documentsTotal={hub.dataMeta?.documentsTotal}
+          loadingMoreDocs={hub.loadingMoreDocs}
+          loadMoreDocuments={hub.loadMoreDocuments}
+          setPrintDocument={forms.setPrintDocument}
+          onAddDocument={forms.openAddDocument}
+          getPropertyDisplay={hub.getPropertyDisplay}
         />
       );
     case 'reports':
@@ -217,14 +169,14 @@ export default function AccountingHubTabs(props: AccountingHubTabsProps) {
         <AccountingClaimsTab
           ar={ar}
           locale={locale}
-          documents={p.documents}
-          contacts={p.contacts}
-          sortDocuments={p.sortDocuments}
-          setSortDocuments={p.setSortDocuments}
-          totalClaims={p.totalClaims}
-          receivables={p.receivables}
-          chequesReceivable={p.chequesReceivable}
-          getPropertyDisplay={p.getPropertyDisplay}
+          documents={hub.documents}
+          contacts={contacts}
+          sortDocuments={hub.sortDocuments}
+          setSortDocuments={hub.setSortDocuments}
+          totalClaims={analytics.totalClaims}
+          receivables={analytics.receivables}
+          chequesReceivable={analytics.chequesReceivable}
+          getPropertyDisplay={hub.getPropertyDisplay}
         />
       );
     case 'cheques':
@@ -232,21 +184,21 @@ export default function AccountingHubTabs(props: AccountingHubTabsProps) {
         <AccountingChequesTab
           ar={ar}
           locale={locale}
-          documents={p.documents}
-          contacts={p.contacts}
-          sortDocuments={p.sortDocuments}
-          setSortDocuments={p.setSortDocuments}
-          filterFromDate={p.filterFromDate}
-          filterToDate={p.filterToDate}
-          filterContactId={p.filterContactId}
-          filterPropertyId={p.filterPropertyId}
-          filterProjectId={p.filterProjectId}
-          searchQuery={p.searchQuery}
-          projectsList={p.projectsList}
-          getPropertyDisplay={p.getPropertyDisplay}
-          getProjectDisplay={p.getProjectDisplay}
-          setPrintDocument={p.setPrintDocument}
-          onAddCheque={p.openAddCheque}
+          documents={hub.documents}
+          contacts={contacts}
+          sortDocuments={hub.sortDocuments}
+          setSortDocuments={hub.setSortDocuments}
+          filterFromDate={hub.filterFromDate}
+          filterToDate={hub.filterToDate}
+          filterContactId={hub.filterContactId}
+          filterPropertyId={hub.filterPropertyId}
+          filterProjectId={hub.filterProjectId}
+          searchQuery={hub.searchQuery}
+          projectsList={hub.projectsList}
+          getPropertyDisplay={hub.getPropertyDisplay}
+          getProjectDisplay={hub.getProjectDisplay}
+          setPrintDocument={forms.setPrintDocument}
+          onAddCheque={forms.openAddCheque}
         />
       );
     case 'payments':
@@ -254,27 +206,22 @@ export default function AccountingHubTabs(props: AccountingHubTabsProps) {
         <AccountingPaymentsTab
           ar={ar}
           locale={locale}
-          documents={p.documents}
-          contacts={p.contacts}
-          bankAccounts={p.bankAccounts}
-          sortDocuments={p.sortDocuments}
-          setSortDocuments={p.setSortDocuments}
-          paymentsTotal={p.paymentsTotal}
-          getPropertyDisplay={p.getPropertyDisplay}
+          documents={hub.documents}
+          contacts={contacts}
+          bankAccounts={hub.bankAccounts}
+          sortDocuments={hub.sortDocuments}
+          setSortDocuments={hub.setSortDocuments}
+          paymentsTotal={analytics.paymentsTotal}
+          getPropertyDisplay={hub.getPropertyDisplay}
         />
       );
     case 'periods':
-      return <AccountingPeriodsTab ar={ar} periods={p.periods} onLockPeriod={p.onLockPeriod} />;
+      return <AccountingPeriodsTab ar={ar} periods={hub.periods} onLockPeriod={onLockPeriod} />;
     case 'audit':
-      return <AccountingAuditTab ar={ar} auditLogs={p.auditLogs} />;
+      return <AccountingAuditTab ar={ar} auditLogs={hub.auditLogs} />;
     case 'settings':
       return (
-        <AccountingSettingsTab
-          ar={ar}
-          fiscalForm={p.fiscalForm}
-          setFiscalForm={p.setFiscalForm}
-          onSave={p.onSaveSettings}
-        />
+        <AccountingSettingsTab ar={ar} fiscalForm={fiscalForm} setFiscalForm={setFiscalForm} onSave={onSaveSettings} />
       );
     default:
       return null;
