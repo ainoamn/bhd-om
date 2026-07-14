@@ -133,7 +133,7 @@ Unit: `tests/unit/*.test.ts` (formFactories, hubTabIds, buildAccountingHubPath, 
 
 ---
 
-## 10. تاريخ إعادة الهيكلة (Phases 6–17)
+## 10. تاريخ إعادة الهيكلة (Phases 6–20) — ✅ مكتمل
 
 | Phase | المحتوى |
 |-------|---------|
@@ -149,6 +149,11 @@ Unit: `tests/unit/*.test.ts` (formFactories, hubTabIds, buildAccountingHubPath, 
 | 15 | Navigation + AccountingHubModals |
 | 16 | AccountingHubTabs switch |
 | 17 | Controller + Shell (~12 lines) |
+| 18 | ACCOUNTING-HUB-UI.md + composition tests |
+| 19 | Maintenance guide + tab registry |
+| 20 | Closure manifest + refactor complete doc |
 
 **قبل:** `AccountingSection.tsx` ~1700+ سطر  
 **بعد:** 12 سطر + hooks معزولة
+
+**إغلاق رسمي:** [`ACCOUNTING-HUB-REFACTOR-COMPLETE.md`](./ACCOUNTING-HUB-REFACTOR-COMPLETE.md)

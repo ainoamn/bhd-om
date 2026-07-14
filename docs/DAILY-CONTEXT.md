@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-14 (72) — Phase 20 محاسبة: إغلاق رسمي Phases 6–20
+
+- **إغلاق:** `docs/ACCOUNTING-HUB-REFACTOR-COMPLETE.md` — خريطة 15 phase، checklist، فهرس وثائق
+- **Manifest:** `lib/accounting/ui/hubRefactorManifest.ts` — invariants للاختبارات
+- **Closure test:** `accountingHubRefactorComplete.test.ts` — entry ≤15 سطر، docs، tests
+- **تحديث:** SESSION-START، الدليل التقني، ACCOUNTING-HUB-UI §10
+- **Unit tests:** 41 اختباراً إجمالاً — **رفع Git**
+
 ### جلسة 2026-07-14 (71) — Phase 19 محاسبة: دليل صيانة + tab registry
 
 - **دليل:** `docs/ACCOUNTING-HUB-MAINTENANCE.md` — إضافة tab/modal، قوائم ملفات، أخطاء شائعة

@@ -113,10 +113,7 @@ npx playwright test tests/e2e/accounting-hub.spec.ts
 
 ---
 
-## 5. Phase 19 — ما أُضيف
+## 5. Phase 19–20
 
-- نوع `AccountingHubTabId` موحّد في `hubTabIds.ts` (لا تكرار في FilterBar)
-- `parseAccountingHubTabId` — URL غير صالح → dashboard
-- `ACCOUNTING_HUB_E2E_TAB_ORDER` — مصدر واحد للـ E2E
-- `ACCOUNTING_HUB_MODAL_ACTION_TABS` — modals من URL
-- هذا الدليل
+- Phase 19: نوع موحّد، `parseAccountingHubTabId`، دليل صيانة
+- Phase 20: manifest + [`ACCOUNTING-HUB-REFACTOR-COMPLETE.md`](./ACCOUNTING-HUB-REFACTOR-COMPLETE.md) — **إغلاق رسمي Phases 6–20**

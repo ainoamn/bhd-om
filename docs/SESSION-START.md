@@ -3,7 +3,7 @@
 
 **الغرض:** عند بداية أي جلسة عمل (من أي جهاز)، اقرأ هذا الملف وتابع التعليمات قبل البدء في التصميم أو البرمجة.
 
-**آخر تحديث لهذا الملف:** 2026-06-24
+**آخر تحديث لهذا الملف:** 2026-07-14
 
 ---
 
@@ -41,7 +41,7 @@
 | **نماذج (Forms)** | `.cursor/rules/required-fields-styling.mdc`, `.cursor/rules/draft-auto-save.mdc`, `lib/utils/requiredFields.ts`, `lib/utils/draftStorage.ts` |
 | **حجز، عقود، مستندات** | `docs/BOOKING_WORKFLOW_DESIGN.md`, `docs/ROLES-VISIBILITY-RULES.md` |
 | **اشتراكات وباقات** | `docs/ROLES-SUBSCRIPTION-DESIGN.md` |
-| **محاسبة** | `docs/accounting-chart-and-usage.md`, `docs/ACCOUNTING_ARCHITECTURE.md`, `lib/accounting/data/dbService.ts` |
+| **محاسبة** | `docs/ACCOUNTING-HUB-UI.md`, `docs/ACCOUNTING-HUB-MAINTENANCE.md`, `docs/ACCOUNTING-HUB-REFACTOR-COMPLETE.md`, `docs/ACCOUNTING_ARCHITECTURE.md`, `lib/accounting/data/dbService.ts` |
 | **دفتر العناوين / جهات اتصال** | `app/[locale]/admin/address-book/page.tsx`, `app/api/address-book/route.ts` |
 | **عمل من أكثر من جهاز** | `docs/WORKFLOW.md` |
 | **دمج / نقل من النظام القديم (legacy)** | `docs/LEGACY-MONOLITH-INTEGRATION.md`, `legacy/bhd-real-estate/`, `legacy/bhd-real-estate/SESSION_WORK_LOG.md` |

@@ -129,12 +129,12 @@
 - E-Invoicing
 - Payment Gateways
 
-## 9. واجهة مركز المحاسبة (Hub UI)
+## 9. واجهة مركز المحاسبة (Hub UI) — ✅ Phases 6–20 مكتمل
 
-إعادة هيكلة Phases 6–17 — التفاصيل الكاملة في **`docs/ACCOUNTING-HUB-UI.md`**:
+التفاصيل في **`docs/ACCOUNTING-HUB-UI.md`** · الإغلاق في **`docs/ACCOUNTING-HUB-REFACTOR-COMPLETE.md`**:
 
 - `useAccountingHubController` — orchestrator
 - `AccountingHubShell` — layout
 - 13 tab + 6 modals + draft auto-save
 - E2E: `tests/e2e/accounting-hub.spec.ts`
-- **صيانة وتوسيع:** `docs/ACCOUNTING-HUB-MAINTENANCE.md`
+- **صيانة:** `docs/ACCOUNTING-HUB-MAINTENANCE.md`
