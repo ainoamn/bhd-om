@@ -1,5 +1,5 @@
 import type { ReportViewId } from '@/lib/accounting/ui/reportLabels';
-import type { AccountingHubTabId } from '@/components/admin/accounting/AccountingHubFilterBar';
+import type { AccountingHubTabId } from '@/lib/accounting/ui/hubTabIds';
 
 /** Build admin accounting hub query path (no origin). */
 export function buildAccountingHubPath(

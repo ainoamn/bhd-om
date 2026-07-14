@@ -29,7 +29,7 @@ import {
 } from '@/lib/accounting/api/client';
 import type { AccountingInitialData } from '@/lib/accounting/types/pageData';
 import type { Contact } from '@/lib/data/addressBook';
-import type { AccountingHubTabId } from '@/components/admin/accounting/AccountingHubFilterBar';
+import type { AccountingHubTabId } from '@/lib/accounting/ui/hubTabIds';
 
 type UseAccountingHubOptions = {
   initialData?: AccountingInitialData;

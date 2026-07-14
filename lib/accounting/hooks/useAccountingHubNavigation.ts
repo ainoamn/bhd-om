@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { REPORT_URL_IDS, type ReportViewId } from '@/lib/accounting/ui/reportLabels';
-import type { AccountingHubTabId } from '@/components/admin/accounting/AccountingHubFilterBar';
+import type { AccountingHubTabId } from '@/lib/accounting/ui/hubTabIds';
+import { parseAccountingHubTabId } from '@/lib/accounting/ui/hubTabIds';
 import { buildAccountingHubPath } from '@/lib/accounting/navigation/buildAccountingHubPath';
 
 export function useAccountingHubNavigation(locale: string) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const tabFromUrl = (searchParams?.get('tab') || 'dashboard') as AccountingHubTabId;
+  const tabFromUrl = parseAccountingHubTabId(searchParams?.get('tab'));
   const actionFromUrl = searchParams?.get('action');
 
   const [activeTab, setActiveTab] = useState<AccountingHubTabId>(tabFromUrl);
@@ -25,7 +26,7 @@ export function useAccountingHubNavigation(locale: string) {
   );
 
   useEffect(() => {
-    const tab = (searchParams?.get('tab') || 'dashboard') as AccountingHubTabId;
+    const tab = parseAccountingHubTabId(searchParams?.get('tab'));
     setActiveTab(tab);
     const report = searchParams?.get('report') as ReportViewId | null;
     if (tab === 'reports' && report && REPORT_URL_IDS.includes(report)) {

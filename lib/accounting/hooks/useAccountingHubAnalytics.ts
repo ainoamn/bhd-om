@@ -13,7 +13,7 @@ import { computeFinancialKpisFromAccounts } from '@/lib/accounting/dashboard/acc
 import { computeMonthlyTrendSeries } from '@/lib/accounting/dashboard/monthlyTrends';
 import { useAccountingDbReports } from '@/lib/accounting/hooks/useAccountingDbReports';
 import type { ReportViewId } from '@/lib/accounting/ui/reportLabels';
-import type { AccountingHubTabId } from '@/components/admin/accounting/AccountingHubFilterBar';
+import type { AccountingHubTabId } from '@/lib/accounting/ui/hubTabIds';
 
 export type AccountingHubStats = {
   totalEntries: number;

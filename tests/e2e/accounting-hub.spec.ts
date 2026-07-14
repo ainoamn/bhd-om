@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { loginWithCredentials, resolveE2EAdminCredentials } from './helpers/auth';
+import { ACCOUNTING_HUB_E2E_TAB_ORDER } from '../../lib/accounting/ui/hubTabIds';
 
-const ACCOUNTING_TABS = ['dashboard', 'sales', 'purchases', 'journal', 'documents', 'reports', 'accounts', 'claims', 'cheques', 'payments', 'periods', 'audit', 'settings'] as const;
+const ACCOUNTING_TABS = ACCOUNTING_HUB_E2E_TAB_ORDER;
 
 test.describe('Accounting hub UI', () => {
   test.beforeEach(async ({ page }) => {

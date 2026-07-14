@@ -4,6 +4,7 @@ import { ACCOUNTING_HUB_TAB_IDS } from '../../lib/accounting/ui/hubTabIds';
 import { buildAccountingHubPath } from '../../lib/accounting/navigation/buildAccountingHubPath';
 import { ACCOUNTING_DRAFT_KEYS } from '../../lib/accounting/ui/draftKeys';
 import { ACCOUNTING_HUB_CONTROLLER_KEYS } from '../../lib/accounting/hooks/accountingHubControllerKeys';
+import { parseAccountingHubTabId } from '../../lib/accounting/ui/hubTabIds';
 import {
   createEmptyDocForm,
   createEmptyJournalForm,
@@ -59,5 +60,9 @@ describe('accounting hub composition', () => {
       buildAccountingHubPath('ar', 'cheques', { action: 'add' }),
       '/ar/admin/accounting?tab=cheques&action=add'
     );
+  });
+
+  it('parseAccountingHubTabId falls back for invalid query', () => {
+    assert.equal(parseAccountingHubTabId('bogus-tab'), 'dashboard');
   });
 });

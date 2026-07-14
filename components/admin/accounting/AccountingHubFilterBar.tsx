@@ -7,24 +7,12 @@ import { getBankAccountDisplay, type BankAccount } from '@/lib/data/bankAccounts
 import { DOC_TYPE_LABELS } from '@/lib/accounting/ui/documentLabels';
 import type { DocumentType } from '@/lib/data/accounting';
 import type { Property } from '@/lib/data/properties';
+import type { AccountingHubTabId } from '@/lib/accounting/ui/hubTabIds';
 import styles from '@/components/admin/accounting.module.css';
 
-type ProjectListItem = { id: number; serialNumber?: string; titleAr?: string; titleEn?: string };
+export type { AccountingHubTabId };
 
-export type AccountingHubTabId =
-  | 'dashboard'
-  | 'sales'
-  | 'purchases'
-  | 'accounts'
-  | 'journal'
-  | 'documents'
-  | 'reports'
-  | 'claims'
-  | 'cheques'
-  | 'payments'
-  | 'settings'
-  | 'audit'
-  | 'periods';
+type ProjectListItem = { id: number; serialNumber?: string; titleAr?: string; titleEn?: string };
 
 export default function AccountingHubFilterBar(props: {
   ar: boolean;

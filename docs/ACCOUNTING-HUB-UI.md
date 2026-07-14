@@ -127,8 +127,8 @@ Unit: `tests/unit/*.test.ts` (formFactories, hubTabIds, buildAccountingHubPath, 
 
 1. **لا منطق محاسبي في UI** — المنطق في `lib/accounting/` و `lib/data/accounting.ts`
 2. **لا prop drilling** — مرّر `hub` / `analytics` / `forms` ككائنات
-3. **تبويب جديد** → أضف إلى `hubTabIds.ts` + `AccountingHubTabs` + E2E
-4. **modal جديد** → `AccountingHubModals` + draft key + factory إن لزم
+3. **تبويب جديد** → راجع **`docs/ACCOUNTING-HUB-MAINTENANCE.md`** §1
+4. **modal جديد** → راجع **`docs/ACCOUNTING-HUB-MAINTENANCE.md`** §2
 5. **Pagination** — أي قائمة > ~50 عبر `useAccountingHub` (limit/offset)
 
 ---

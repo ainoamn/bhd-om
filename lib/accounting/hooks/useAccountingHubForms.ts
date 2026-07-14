@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { AccountingDocument, DocumentType } from '@/lib/data/accounting';
-import type { AccountingHubTabId } from '@/components/admin/accounting/AccountingHubFilterBar';
+import type { AccountingHubTabId } from '@/lib/accounting/ui/hubTabIds';
+import { isAccountingHubModalActionTab } from '@/lib/accounting/ui/hubTabIds';
 import {
   createEmptyAccountForm,
   createEmptyChequeForm,
@@ -86,6 +87,7 @@ export function useAccountingHubForms(opts: UseAccountingHubFormsOptions) {
 
   useEffect(() => {
     if (actionFromUrl !== 'add') return;
+    if (!isAccountingHubModalActionTab(tabFromUrl)) return;
     if (tabFromUrl === 'journal') setShowAddJournal(true);
     else if (tabFromUrl === 'accounts') setShowAddAccount(true);
     else if (tabFromUrl === 'documents') setShowAddDocument(true);

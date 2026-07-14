@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-14 (71) — Phase 19 محاسبة: دليل صيانة + tab registry
+
+- **دليل:** `docs/ACCOUNTING-HUB-MAINTENANCE.md` — إضافة tab/modal، قوائم ملفات، أخطاء شائعة
+- **Registry:** `hubTabIds.ts` — `AccountingHubTabId` موحّد، `parseAccountingHubTabId`، `MODAL_ACTION_TABS`، `E2E_TAB_ORDER`
+- **Navigation:** URL غير صالح → dashboard تلقائياً
+- **E2E:** يستورد `ACCOUNTING_HUB_E2E_TAB_ORDER` من مصدر واحد
+- **Unit tests:** 36 اختباراً إجمالاً — **رفع Git**
+
 ### جلسة 2026-07-14 (70) — Phase 18 محاسبة: توثيق Hub + composition tests
 
 - **توثيق:** `docs/ACCOUNTING-HUB-UI.md` — شجرة المكوّنات، hooks، tabs، URL، drafts، testids، phases 6–17

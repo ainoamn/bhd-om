@@ -137,3 +137,4 @@
 - `AccountingHubShell` — layout
 - 13 tab + 6 modals + draft auto-save
 - E2E: `tests/e2e/accounting-hub.spec.ts`
+- **صيانة وتوسيع:** `docs/ACCOUNTING-HUB-MAINTENANCE.md`
