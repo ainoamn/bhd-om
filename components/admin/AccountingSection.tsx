@@ -1,17 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   getFiscalSettings,
   saveFiscalSettings,
   lockPeriod,
-  type AccountingDocument,
 } from '@/lib/data/accounting';
 
 import { useServerAddressBookContacts } from '@/lib/hooks/useServerAddressBookContacts';
-import InvoicePrint from './InvoicePrint';
-import DocumentPrintModal from './DocumentPrintModal';
 import AccountingReportsTab from './accounting/AccountingReportsTab';
 import AccountingClaimsTab from './accounting/AccountingClaimsTab';
 import AccountingChequesTab from './accounting/AccountingChequesTab';
@@ -25,63 +22,54 @@ import AccountingSalesTab from './accounting/AccountingSalesTab';
 import AccountingPurchasesTab from './accounting/AccountingPurchasesTab';
 import AccountingAccountsTab from './accounting/AccountingAccountsTab';
 import AccountingSettingsTab from './accounting/AccountingSettingsTab';
-import AccountingAddAccountModal from './accounting/AccountingAddAccountModal';
-import AccountingAddDocumentModal from './accounting/AccountingAddDocumentModal';
-import AccountingAddJournalModal from './accounting/AccountingAddJournalModal';
-import AccountingAddChequeModal from './accounting/AccountingAddChequeModal';
-import AccountingInvoiceScanModal from './accounting/AccountingInvoiceScanModal';
-import {
-  lockPeriod as apiLockPeriod,
-} from '@/lib/accounting/api/client';
-import { REPORT_URL_IDS, type ReportViewId } from '@/lib/accounting/ui/reportLabels';
+import AccountingHubModals from './accounting/AccountingHubModals';
+import { lockPeriod as apiLockPeriod } from '@/lib/accounting/api/client';
 import { useAccountingHubAnalytics } from '@/lib/accounting/hooks/useAccountingHubAnalytics';
 import { useAccountingHub } from '@/lib/accounting/hooks/useAccountingHub';
 import { useAccountingHubForms } from '@/lib/accounting/hooks/useAccountingHubForms';
+import { useAccountingHubNavigation } from '@/lib/accounting/hooks/useAccountingHubNavigation';
 import DraftBanner from '@/components/admin/DraftBanner';
 import AccountingHubFilterBar from './accounting/AccountingHubFilterBar';
 import type { AccountingInitialData } from '@/lib/accounting/types/pageData';
 
 export type { AccountingInitialData };
 
-import type { AccountingHubTabId as TabId } from './accounting/AccountingHubFilterBar';
-
 export default function AccountingSection(props: { initialData?: AccountingInitialData }) {
   const { initialData } = props;
   const params = useParams();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
 
-  const setTab = (tab: TabId, action?: string, report?: ReportViewId) => {
-    setActiveTab(tab);
-    const params = new URLSearchParams();
-    params.set('tab', tab);
-    if (action) params.set('action', action);
-    if (report && tab === 'reports') params.set('report', report);
-    router.replace(`/${locale}/admin/accounting?${params.toString()}`, { scroll: false });
-  };
+  const navigation = useAccountingHubNavigation(locale);
+  const {
+    activeTab,
+    setTab,
+    tabFromUrl,
+    actionFromUrl,
+    reportView,
+    setReportView,
+    urlPropertyId,
+    urlProjectId,
+    urlContractId,
+  } = navigation;
 
-  const tabFromUrl = (searchParams?.get('tab') || 'dashboard') as TabId;
-  const actionFromUrl = searchParams?.get('action');
-
-  const [activeTab, setActiveTab] = useState<TabId>(tabFromUrl);
   const [mounted, setMounted] = useState(false);
   const [receiptConfirmKey, setReceiptConfirmKey] = useState(0);
-  const [reportView, setReportView] = useState<ReportViewId>('trial');
   const [agingLedger, setAgingLedger] = useState<'ar' | 'ap'>('ar');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
   const [reportPropertyId, setReportPropertyId] = useState<string>('');
   const [reportContactId, setReportContactId] = useState<string>('');
-  const [fiscalForm, setFiscalForm] = useState(() => (typeof window !== 'undefined' ? getFiscalSettings() : { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 }));
+  const [fiscalForm, setFiscalForm] = useState(() =>
+    typeof window !== 'undefined' ? getFiscalSettings() : { startMonth: 1, startDay: 1, currency: 'OMR', vatRate: 0 }
+  );
 
   const forms = useAccountingHubForms({
     navigate: (tab) => setTab(tab),
     tabFromUrl,
     actionFromUrl,
-    urlPropertyId: searchParams?.get('propertyId') || '',
-    urlProjectId: searchParams?.get('projectId') || '',
-    urlContractId: searchParams?.get('contractId') || '',
+    urlPropertyId,
+    urlProjectId,
+    urlContractId,
   });
 
   const {
@@ -126,15 +114,10 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
 
   const {
     accounts,
-    setAccounts,
     journalEntries,
-    setJournalEntries,
     documents,
-    setDocuments,
     periods,
-    setPeriods,
     auditLogs,
-    setAuditLogs,
     searchQuery,
     setSearchQuery,
     filterFromDate,
@@ -177,21 +160,13 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
   } = hub;
 
   useEffect(() => setMounted(true), []);
-  useEffect(() => {
-    const tab = (searchParams?.get('tab') || 'dashboard') as TabId;
-    setActiveTab(tab);
-    const report = searchParams?.get('report') as ReportViewId | null;
-    if (tab === 'reports' && report && REPORT_URL_IDS.includes(report)) {
-      setReportView(report);
-    }
-  }, [searchParams?.get('tab'), searchParams?.get('report')]);
 
   useEffect(() => {
     if (reportView === 'bankStatement' && !selectedBankAccountId && typeof window !== 'undefined') {
       const active = bankAccounts.filter((b) => b.isActive);
       setSelectedBankAccountId(active.length > 0 ? active[0].id : 'CASH');
     }
-  }, [reportView, bankAccounts]);
+  }, [reportView, bankAccounts, selectedBankAccountId]);
 
   const analytics = useAccountingHubAnalytics({
     useDb,
@@ -279,7 +254,7 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         getProjectDisplay={getProjectDisplay}
       />
 
-            {activeTab === 'dashboard' && (
+      {activeTab === 'dashboard' && (
         <AccountingDashboardTab
           ar={ar}
           locale={locale}
@@ -500,13 +475,10 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         />
       )}
 
-      <AccountingAddDocumentModal
+      <AccountingHubModals
         ar={ar}
         locale={locale}
-        open={showAddDocument}
-        onClose={() => setShowAddDocument(false)}
-        docForm={docForm}
-        setDocForm={setDocForm}
+        useDb={useDb}
         contacts={contacts}
         accounts={accounts}
         bankAccounts={bankAccounts}
@@ -514,67 +486,29 @@ export default function AccountingSection(props: { initialData?: AccountingIniti
         projectsList={projectsList}
         getPropertyDisplay={getPropertyDisplay}
         getProjectDisplay={getProjectDisplay}
-        useDb={useDb}
-        onCreated={loadData}
-      />
-
-      <AccountingAddChequeModal
-        ar={ar}
-        locale={locale}
-        open={showAddCheque}
-        onClose={() => setShowAddCheque(false)}
-        chequeForm={chequeForm}
-        setChequeForm={setChequeForm}
-        contacts={contacts}
-        mergedProperties={mergedProperties}
-        projectsList={projectsList}
-        getPropertyDisplay={getPropertyDisplay}
-        getProjectDisplay={getProjectDisplay}
-        useDb={useDb}
-        onCreated={async () => {
-          await loadData();
-          setTab('cheques');
-        }}
-      />
-
-      <AccountingAddJournalModal
-        ar={ar}
-        locale={locale}
-        open={showAddJournal}
-        onClose={() => setShowAddJournal(false)}
-        journalForm={journalForm}
-        setJournalForm={setJournalForm}
-        accounts={accounts}
-        useDb={useDb}
-        onCreated={loadData}
-      />
-
-      {/* Modal: طباعة مستند - قابلة للسحب وضمن حدود الشاشة */}
-      {printDocument && (
-        <DocumentPrintModal onClose={() => setPrintDocument(null)} ar={ar}>
-          <InvoicePrint
-            doc={printDocument}
-            contact={printDocument.contactId ? contacts.find((c) => c.id === printDocument.contactId) ?? null : null}
-            locale={locale}
-            onClose={() => setPrintDocument(null)}
-          />
-        </DocumentPrintModal>
-      )}
-
-      <AccountingAddAccountModal
-        ar={ar}
-        open={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
+        loadData={loadData}
+        setTab={setTab}
+        showAddDocument={showAddDocument}
+        setShowAddDocument={setShowAddDocument}
+        showAddJournal={showAddJournal}
+        setShowAddJournal={setShowAddJournal}
+        showAddAccount={showAddAccount}
+        setShowAddAccount={setShowAddAccount}
+        showAddCheque={showAddCheque}
+        setShowAddCheque={setShowAddCheque}
+        showInvoiceScan={showInvoiceScan}
+        setShowInvoiceScan={setShowInvoiceScan}
+        printDocument={printDocument}
+        setPrintDocument={setPrintDocument}
         accountForm={accountForm}
         setAccountForm={setAccountForm}
-        onCreated={loadData}
-      />
-
-      <AccountingInvoiceScanModal
-        ar={ar}
-        open={showInvoiceScan}
-        onClose={() => setShowInvoiceScan(false)}
-        onApply={applyInvoiceScan}
+        journalForm={journalForm}
+        setJournalForm={setJournalForm}
+        docForm={docForm}
+        setDocForm={setDocForm}
+        chequeForm={chequeForm}
+        setChequeForm={setChequeForm}
+        applyInvoiceScan={applyInvoiceScan}
       />
     </div>
   );

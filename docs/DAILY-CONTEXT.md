@@ -18,6 +18,14 @@
 - **إصلاحات أداء (في legacy قبل الرفع):** مسار تحديث سريع، dirty KV، تخطي kvGetBulk، تأجيل مزامنة سحابة/محاسبة
 - **المرجع الكامل:** [docs/LEGACY-MONOLITH-INTEGRATION.md](LEGACY-MONOLITH-INTEGRATION.md)
 
+### جلسة 2026-07-14 (67) — Phase 15 محاسبة: navigation + AccountingHubModals
+
+- **Navigation:** `useAccountingHubNavigation.ts` + `buildAccountingHubPath.ts` — تبويب URL، reportView، query params
+- **Modals:** `AccountingHubModals.tsx` — تجميع 6 modals + طباعة
+- **Unit test:** `buildAccountingHubPath.test.ts` — 24 اختباراً إجمالاً
+- **`AccountingSection.tsx`:** ~430 سطر (كان ~580)
+- **`npm run build`** ✅ + **`npm run test:unit`** ✅ — **رفع Git**
+
 ### جلسة 2026-07-14 (66) — Phase 14 محاسبة: useAccountingHubForms + E2E modals
 
 - **Factories:** `formFactories.ts` — إنشاء نماذج مستند/قيد/شيك/حساب + OCR
