@@ -4246,13 +4246,18 @@
                         window.__bhdDedupeAddressBook?.();
                     } catch (_eDedBoot) {}
                 }
+                if (window.__bhdBridgeDashboardKvHydrating) {
+                    try {
+                        await waitForBridgeDashboardKv(8000);
+                    } catch (_eWaitBr) {}
+                }
                 if (window.__bhdBridgeStagedKvHydratedOk && !force) {
                     _bhdSiteBootHydrationDone = true;
                     return true;
                 }
                 const pullOpt = { deferIdbMirror: true, force: force };
                 if (bhdIsDashboardOnlyMode()) pullOpt.keys = BHD_KV_DASHBOARD_FAST_PULL_KEYS;
-                const pulled = await pullBhdKvFromNeonWithRetry(3, pullOpt);
+                const pulled = await pullBhdKvFromNeonWithRetry(2, pullOpt);
                 if (pulled) {
                     try {
                         _bhdKvDirtyKeys.clear();
@@ -48075,11 +48080,15 @@ function getEmptyCompanySignatory() {
         const rented = data.filter((x) => x.status === 'Rented').length;
         const vacant = data.filter((x) => x.status === 'Vacant' && !isReservedUnitRow(x)).length;
         const reserved = data.filter((u) => isReservedUnitRow(u)).length;
-        const buildingsCount = Object.values(buildingProfiles || {}).filter((p) => {
+        const buildingsCountFromProfiles = Object.values(buildingProfiles || {}).filter((p) => {
             const name = makeBuildingLabel(p);
             return name && isBuildingProfileActive(p);
         }).length;
-        const ownersCount = ownersList.length;
+        const buildingsCount =
+            buildingsCountFromProfiles ||
+            (Array.isArray(buildingsList) ? buildingsList.filter(Boolean).length : 0) ||
+            new Set((data || []).map((u) => toStr(u.building)).filter(Boolean)).size;
+        const ownersCount = Array.isArray(ownersList) ? ownersList.length : 0;
 
         const exp30 = data.filter((x) => {
             const days = daysUntil(x.endDate);
@@ -48295,10 +48304,26 @@ function getEmptyCompanySignatory() {
 
     async function renderOperationsTable() {
         if (isViewerMode) return;
+        /**
+         * وضع اللوحة: لا تنتظر Neon قبل الرسم — اعرض الكاش فوراً وزامن في الخلفية.
+         * الانتظار هنا كان سبب التأخير الكبير في ظهور البيانات.
+         */
         if (isBhdSiteKvPersistenceActive() && !_bhdSiteBootHydrationDone) {
-            try {
-                await ensureBhdSiteKvHydratedFromNeon();
-            } catch (_eOpsHydr) {}
+            if (bhdIsDashboardOnlyMode()) {
+                try {
+                    ensureBhdSiteKvHydratedFromNeon()
+                        .then((pulled) => {
+                            if (pulled && typeof requestDashboardRepaint === 'function') {
+                                requestDashboardRepaint('ops-neon', { force: false });
+                            }
+                        })
+                        .catch(() => {});
+                } catch (_eOpsBg) {}
+            } else {
+                try {
+                    await ensureBhdSiteKvHydratedFromNeon();
+                } catch (_eOpsHydr) {}
+            }
         }
         try {
             repairLinkedContractUnitsLifecycleConsistencyThrottled();
@@ -64315,6 +64340,44 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         const hasWarmLocalData = bhdLocalStorageHasSubstantiveData();
         const warmReload = !dataWasWiped && (refreshFastBoot || siteIntegratedWeb) && hasWarmLocalData;
 
+        /** رسم لوحة فوري قبل أي شبكة — يمنع انتظار /api/health وNeon */
+        if (
+            siteIntegratedWeb &&
+            bhdIsDashboardOnlyMode() &&
+            !window.__bhdDashboardFastPaintDone &&
+            !dataWasWiped
+        ) {
+            try {
+                window.__bhdBootRefreshFast = true;
+                beginDashboardBootSettle(8000);
+                bhdAuditMute();
+                syncAuthStateFromStorage();
+                tryAutoSignInDefaultAdminIfNeeded();
+                updateAuthHeaderBar();
+                loadDashboardAux(true, { fast: true, skipAutoSync: true });
+                initializeMode();
+                window.__bhdDashboardFastPaintDone = true;
+                _dashboardLastDataFp = bhdDashboardDataFingerprint();
+                bhdAuditUnmute();
+                const heavyEmpty = BHD_KV_DASHBOARD_HEAVY_PULL_KEYS.some((k) => {
+                    try {
+                        const raw = localStorage.getItem(k);
+                        return !raw || raw === '{}' || raw === '[]' || raw === 'null';
+                    } catch (_e) {
+                        return true;
+                    }
+                });
+                scheduleDashboardNeonBackgroundSync({
+                    includeHeavy: !hasWarmLocalData || heavyEmpty
+                });
+            } catch (_eDashPrePaint) {
+                console.warn('dashboard pre-network paint', _eDashPrePaint);
+                try {
+                    bhdAuditUnmute();
+                } catch (_eUnmute) {}
+            }
+        }
+
         if (warmReload) {
             window.__bhdBootRefreshFast = true;
             beginDashboardBootSettle(8000);
@@ -64324,14 +64387,15 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 tryAutoSignInDefaultAdminIfNeeded();
                 updateAuthHeaderBar();
             } catch (_eAuthWarm) {}
-            try {
-                /** رسم فوري دائماً — لا نعلّق الواجهة على شبكة Neon وإلا تبقى الصفحة فارغة */
-                loadDashboardAux(true, { fast: true, skipAutoSync: true });
-                initializeMode();
-                window.__bhdDashboardFastPaintDone = true;
-                _dashboardLastDataFp = bhdDashboardDataFingerprint();
-            } catch (_eWarmUi) {
-                console.warn('warm reload UI', _eWarmUi);
+            if (!window.__bhdDashboardFastPaintDone) {
+                try {
+                    loadDashboardAux(true, { fast: true, skipAutoSync: true });
+                    initializeMode();
+                    window.__bhdDashboardFastPaintDone = true;
+                    _dashboardLastDataFp = bhdDashboardDataFingerprint();
+                } catch (_eWarmUi) {
+                    console.warn('warm reload UI', _eWarmUi);
+                }
             }
             bhdAuditUnmute();
             try {
@@ -64344,7 +64408,15 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 try {
                     await probeBhdApi();
                     if (siteIntegratedWeb) {
-                        scheduleDashboardNeonBackgroundSync({ includeHeavy: false });
+                        const heavyEmpty = BHD_KV_DASHBOARD_HEAVY_PULL_KEYS.some((k) => {
+                            try {
+                                const raw = localStorage.getItem(k);
+                                return !raw || raw === '{}' || raw === '[]' || raw === 'null';
+                            } catch (_e) {
+                                return true;
+                            }
+                        });
+                        scheduleDashboardNeonBackgroundSync({ includeHeavy: heavyEmpty });
                         scheduleBhdSiteBootHydrationOnce(2500);
                     }
                     probeBhdCloudApi().then(() => bhdCloudTryRestoreSession()).catch(() => {});
@@ -64402,7 +64474,13 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 console.warn('desktop startup migrate', eDesk);
             }
         }
-        await probeBhdApi();
+        if (!(siteIntegratedWeb && bhdIsDashboardOnlyMode() && window.__bhdDashboardFastPaintDone)) {
+            await probeBhdApi();
+        } else {
+            setTimeout(() => {
+                probeBhdApi().catch(() => {});
+            }, 0);
+        }
         if (siteIntegratedWeb || refreshFastBoot) {
             setTimeout(() => {
                 probeBhdCloudApi()
@@ -64417,8 +64495,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             await hydrateLocalStorageFromIndexedDb();
         }
         if (siteIntegratedWeb) {
-            await probeBhdApi();
-            if (bhdIsDashboardOnlyMode() && !hasWarmLocalData) {
+            if (!(bhdIsDashboardOnlyMode() && window.__bhdDashboardFastPaintDone)) {
+                await probeBhdApi();
+            } else {
+                setTimeout(() => {
+                    probeBhdApi().catch(() => {});
+                }, 0);
+            }
+            if (bhdIsDashboardOnlyMode() && !hasWarmLocalData && !window.__bhdDashboardFastPaintDone) {
                 try {
                     syncAuthStateFromStorage();
                     tryAutoSignInDefaultAdminIfNeeded();
