@@ -1258,11 +1258,17 @@ var BHD_DASH_KV_KEYS=[
   'bhd_building_profiles','bhd_owner_profiles','bhd_unit_reservations',
   'bhd_accounting_registry','bhd_tasks_registry','bhd_maintenance_registry'
 ];
+var BHD_ACCOUNTING_KV_KEYS=[
+  'bhd_accounting_registry','bhd_saved_contracts_by_unit','bhd_buildings_list','bhd_managed_units'
+];
+function bhdEntryModeFromUrl(){
+  try{return new URLSearchParams(location.search).get('mode')||'';}catch(e){return '';}
+}
 function bhdLocalKvNeedsDashboardHydrate(){
   try{
     if(legacyKvRecentlyWipedQuarantine())return false;
     if(window.bhdDesktop)return false;
-    var mode=new URLSearchParams(location.search).get('mode');
+    var mode=bhdEntryModeFromUrl();
     if(mode&&mode!=='dashboard')return false;
     var probe=['bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list'];
     for(var i=0;i<probe.length;i++){
@@ -1270,6 +1276,24 @@ function bhdLocalKvNeedsDashboardHydrate(){
       if(!raw||raw==='[]'||raw==='{}'||raw==='null')return true;
     }
     return false;
+  }catch(e){return true;}
+}
+function bhdLocalKvNeedsAccountingHydrate(){
+  try{
+    if(legacyKvRecentlyWipedQuarantine())return false;
+    if(window.bhdDesktop)return false;
+    if(bhdEntryModeFromUrl()!=='accounting')return false;
+    var raw=localStorage.getItem('bhd_accounting_registry');
+    if(!raw||raw==='{}'||raw==='null'||raw==='[]')return true;
+    try{
+      var o=JSON.parse(raw);
+      if(!o||typeof o!=='object')return true;
+      var n=(Array.isArray(o.cheques)?o.cheques.length:0)
+        +(Array.isArray(o.entries)?o.entries.length:0)
+        +(Array.isArray(o.deposits)?o.deposits.length:0)
+        +(o.accounts&&typeof o.accounts==='object'?Object.keys(o.accounts).length:0);
+      return n===0;
+    }catch(_e){return true;}
   }catch(e){return true;}
 }
 function applyDashKvPayload(all){
@@ -1284,12 +1308,32 @@ function applyDashKvPayload(all){
   });
   return any;
 }
+function applyAccountingKvPayload(all){
+  if(!all||typeof all!=='object')return false;
+  var any=false;
+  Object.keys(all).forEach(function(k){
+    if(k==='_meta')return;
+    if(BHD_ACCOUNTING_KV_KEYS.indexOf(k)>=0&&typeof all[k]==='string'){
+      localStorage.setItem(k,all[k]);
+      any=true;
+    }
+  });
+  return any;
+}
 function bhdRefreshDashboardAfterKv(){
   try{
     if(typeof loadDashboardAux==='function')loadDashboardAux(true);
     if(typeof refreshDashboardIfVisible==='function')refreshDashboardIfVisible();
     window.dispatchEvent(new Event('bhd-kv-hydrated'));
   }catch(e){console.warn('[BHD] bhdRefreshDashboardAfterKv',e);}
+}
+function bhdRefreshAccountingAfterKv(){
+  try{
+    if(typeof renderAccountingWorkspace==='function'&&document.body&&document.body.classList.contains('mode-accounting')){
+      renderAccountingWorkspace();
+    }
+    window.dispatchEvent(new Event('bhd-kv-hydrated'));
+  }catch(e){console.warn('[BHD] bhdRefreshAccountingAfterKv',e);}
 }
 function fetchContractLifecycleLight(){
   if(legacyKvRecentlyWipedQuarantine())return Promise.resolve();
@@ -1330,13 +1374,45 @@ function stagedKvHydrateForDashboard(){
   });
   return _bhdKvBootPending;
 }
+function stagedKvHydrateForAccounting(){
+  if(window.bhdDesktop)return Promise.resolve(false);
+  if(!bhdLocalKvNeedsAccountingHydrate())return Promise.resolve(false);
+  if(_bhdKvBootPending)return _bhdKvBootPending;
+  window.__bhdBridgeDashboardKvHydrating=true;
+  _bhdKvBootPending=Promise.all([
+    fetch('/api/admin/legacy-bridge/kv?keys='+encodeURIComponent(BHD_ACCOUNTING_KV_KEYS.join(',')),{credentials:'include',cache:'no-store'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(all){return applyAccountingKvPayload(all);}),
+    fetchContractLifecycleLight()
+  ]).then(function(results){
+    var hydrated=!!results[0];
+    if(hydrated){
+      var tries=0;
+      (function tick(){
+        if(typeof renderAccountingWorkspace==='function'){bhdRefreshAccountingAfterKv();return;}
+        if(++tries<60)setTimeout(tick,80);
+      })();
+    }
+    return hydrated;
+  }).finally(function(){
+    window.__bhdBridgeDashboardKvHydrating=false;
+    window.__bhdBridgeStagedKvHydrated=true;
+    _bhdKvBootPending=null;
+  });
+  return _bhdKvBootPending;
+}
+function stagedKvHydrateEarly(){
+  var mode=bhdEntryModeFromUrl();
+  if(mode==='accounting')return stagedKvHydrateForAccounting();
+  return stagedKvHydrateForDashboard();
+}
 try{
   if(document.getElementById('bhd-site-bridge-data')||localStorage.getItem('bhd_site_integrated')==='1'){
-    stagedKvHydrateForDashboard();
+    stagedKvHydrateEarly();
   }
 }catch(_eKvBoot){}
-document.addEventListener('DOMContentLoaded',function(){stagedKvHydrateForDashboard();},{once:true});
-window.addEventListener('bhd-site-bridge-applied',function(){stagedKvHydrateForDashboard();});
+document.addEventListener('DOMContentLoaded',function(){stagedKvHydrateEarly();},{once:true});
+window.addEventListener('bhd-site-bridge-applied',function(){stagedKvHydrateEarly();});
 if(isDashboardOnlyMode()){
   var preloadXlsx=function(){try{if(window.__bhdEnsureXlsxLoaded)window.__bhdEnsureXlsxLoaded();}catch(e){}};
   if(typeof requestIdleCallback==='function')requestIdleCallback(preloadXlsx,{timeout:20000});

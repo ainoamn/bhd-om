@@ -3848,12 +3848,89 @@
     let _bhdAccountingNeonSyncedThisPage = false;
     let _bhdServerContractStatusesByUnit = null;
 
-    const BHD_KV_ACCOUNTING_PULL_KEYS = ['bhd_accounting_registry', 'bhd_saved_contracts_by_unit'];
+    window.__bhdResetAccountingNeonSync = function __bhdResetAccountingNeonSync() {
+        _bhdAccountingNeonSyncedThisPage = false;
+        _bhdAccountingBgSyncScheduled = false;
+        renderAccountingWorkspace();
+    };
 
-    async function ensureBhdSiteKvHydratedForAccounting() {
+    const BHD_KV_ACCOUNTING_PULL_KEYS = [
+        'bhd_accounting_registry',
+        'bhd_saved_contracts_by_unit',
+        'bhd_buildings_list',
+        'bhd_managed_units'
+    ];
+
+    function bhdIsAccountingOnlyMode() {
+        try {
+            return new URLSearchParams(location.search).get('mode') === 'accounting';
+        } catch (_eAcctMode) {
+            return false;
+        }
+    }
+
+    function bhdLocalAccountingKvIsWarm() {
+        try {
+            const raw = localStorage.getItem('bhd_accounting_registry');
+            if (bhdKvIsEmptyShell(raw)) return false;
+            const o = JSON.parse(raw);
+            if (!o || typeof o !== 'object') return false;
+            const cheques = Array.isArray(o.cheques) ? o.cheques.length : 0;
+            const entries = Array.isArray(o.entries) ? o.entries.length : 0;
+            const deposits = Array.isArray(o.deposits) ? o.deposits.length : 0;
+            const invoices = Array.isArray(o.invoices) ? o.invoices.length : 0;
+            const accounts = o.accounts && typeof o.accounts === 'object' ? Object.keys(o.accounts).length : 0;
+            return cheques + entries + deposits + invoices + accounts > 0;
+        } catch (_eWarmAcct) {
+            return false;
+        }
+    }
+
+    let _bhdAccountingBgSyncScheduled = false;
+
+    function scheduleAccountingNeonBackgroundSync() {
+        if (_bhdAccountingBgSyncScheduled || _bhdAccountingNeonSyncedThisPage) return;
+        _bhdAccountingBgSyncScheduled = true;
+        const run = () => {
+            const beforeRaw = (() => {
+                try {
+                    return localStorage.getItem('bhd_accounting_registry') || '';
+                } catch (_e) {
+                    return '';
+                }
+            })();
+            ensureBhdSiteKvHydratedForAccounting({ reconcile: false })
+                .then((pulled) => {
+                    _bhdAccountingNeonSyncedThisPage = true;
+                    if (!pulled) return;
+                    let afterRaw = '';
+                    try {
+                        afterRaw = localStorage.getItem('bhd_accounting_registry') || '';
+                    } catch (_e2) {}
+                    if (
+                        afterRaw !== beforeRaw &&
+                        document.body.classList.contains('mode-accounting')
+                    ) {
+                        renderAccountingWorkspace();
+                    }
+                })
+                .catch((e) => console.warn('accounting background neon sync', e))
+                .finally(() => {
+                    _bhdAccountingBgSyncScheduled = false;
+                });
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(run, { timeout: 3500 });
+        } else {
+            setTimeout(run, 120);
+        }
+    }
+
+    async function ensureBhdSiteKvHydratedForAccounting(opt = {}) {
         if (!isBhdSiteKvPersistenceActive()) return false;
         try {
-            await fetchBhdServerContractStatuses(true);
+            /** reconcile=1 كان يحجب الرسم الأول — يُنقل للخلفية عند الحاجة */
+            await fetchBhdServerContractStatuses(opt.reconcile === true);
         } catch (_eAcctSt) {}
         const pulled = await pullBhdKvFromNeonWithRetry(2, {
             keys: BHD_KV_ACCOUNTING_PULL_KEYS,
@@ -36348,17 +36425,24 @@ function getEmptyCompanySignatory() {
     async function renderAccountingWorkspaceNow() {
         const host = document.getElementById('accountingPanelHost');
         if (!host) return;
-        if (isBhdSiteKvPersistenceActive() && !_bhdAccountingNeonSyncedThisPage) {
+        const siteKvActive = isBhdSiteKvPersistenceActive();
+        const needsNeon = siteKvActive && !_bhdAccountingNeonSyncedThisPage;
+        const localWarm = bhdLocalAccountingKvIsWarm();
+
+        if (needsNeon && !localWarm) {
             host.innerHTML = `<div class="insight-nested" style="padding:16px">${t('جاري تحميل بيانات المحاسبة من قاعدة السحابة…', 'Loading accounting data from cloud database…')}</div>`;
-            const pulled = await ensureBhdSiteKvHydratedForAccounting();
+            const pulled = await ensureBhdSiteKvHydratedForAccounting({ reconcile: false });
             _bhdAccountingNeonSyncedThisPage = true;
             if (!pulled) {
                 host.innerHTML = `<div class="insight-nested" style="padding:16px;border:1px solid #e8c4c4;background:#fff8f8;border-radius:10px">
                     <p style="margin:0">${t('تعذّر تحميل المحاسبة من السحابة.', 'Could not load accounting from the cloud.')}</p>
-                    <button type="button" class="mini-btn" style="margin-top:8px" onclick="_bhdAccountingNeonSyncedThisPage=false;renderAccountingWorkspace()">${t('إعادة المحاولة', 'Retry')}</button>
+                    <button type="button" class="mini-btn" style="margin-top:8px" onclick="window.__bhdResetAccountingNeonSync&&window.__bhdResetAccountingNeonSync()">${t('إعادة المحاولة', 'Retry')}</button>
                 </div>`;
                 return;
             }
+        } else if (needsNeon && localWarm) {
+            /** رسم فوري من localStorage ثم مزامنة Neon في الخلفية */
+            scheduleAccountingNeonBackgroundSync();
         }
         try {
         if (!canAccessAccountingWorkspace()) {
@@ -64115,9 +64199,20 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 } catch (_eDashEarlyPaint) {
                     console.warn('dashboard fast paint', _eDashEarlyPaint);
                 }
+            } else if (bhdIsAccountingOnlyMode() && bhdLocalAccountingKvIsWarm()) {
+                try {
+                    syncAuthStateFromStorage();
+                    tryAutoSignInDefaultAdminIfNeeded();
+                    updateAuthHeaderBar();
+                    initializeMode();
+                    window.__bhdAccountingFastPaintDone = true;
+                    scheduleAccountingNeonBackgroundSync();
+                } catch (_eAcctEarlyPaint) {
+                    console.warn('accounting fast paint', _eAcctEarlyPaint);
+                }
             }
             const deferHeavyBootSync = !dataWasWiped && hasWarmLocalData;
-            if (!bhdIsPostWipeQuarantineActive() && !bhdIsDashboardOnlyMode()) {
+            if (!bhdIsPostWipeQuarantineActive() && !bhdIsDashboardOnlyMode() && !bhdIsAccountingOnlyMode()) {
                 if (deferHeavyBootSync) {
                     if (typeof window.__bhdRefreshAddressBookFromSite === 'function') {
                         setTimeout(() => {
@@ -64151,6 +64246,21 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     }
                 }, 400);
                 setTimeout(() => bhdSiteExtractKvBlobsOnce().catch(() => {}), 12000);
+            } else if (bhdIsAccountingOnlyMode()) {
+                if (!window.__bhdAccountingFastPaintDone) {
+                    await bhdHydrateSiteKvFromServerIfNeeded({
+                        deferIdbMirror: true,
+                        keys: BHD_KV_ACCOUNTING_PULL_KEYS
+                    });
+                } else {
+                    setTimeout(() => {
+                        bhdHydrateSiteKvFromServerIfNeeded({
+                            deferIdbMirror: true,
+                            keys: BHD_KV_ACCOUNTING_PULL_KEYS
+                        }).catch(() => {});
+                    }, 400);
+                }
+                setTimeout(() => bhdSiteExtractKvBlobsOnce().catch(() => {}), 12000);
             } else {
                 await bhdHydrateSiteKvFromServerIfNeeded({ deferIdbMirror: true });
                 setTimeout(() => bhdSiteExtractKvBlobsOnce().catch(() => {}), 5000);
@@ -64173,7 +64283,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             await bhdHydrateSiteKvFromServerIfNeeded(
                 bhdIsDashboardOnlyMode()
                     ? { deferIdbMirror: true, keys: BHD_DASH_KV_KEYS }
-                    : { deferIdbMirror: true }
+                    : bhdIsAccountingOnlyMode()
+                      ? { deferIdbMirror: true, keys: BHD_KV_ACCOUNTING_PULL_KEYS }
+                      : { deferIdbMirror: true }
             );
             try {
                 window.__bhdDedupeAddressBook?.();
