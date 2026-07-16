@@ -1258,6 +1258,10 @@ var BHD_DASH_KV_KEYS=[
   'bhd_building_profiles','bhd_owner_profiles','bhd_unit_reservations',
   'bhd_accounting_registry','bhd_tasks_registry','bhd_maintenance_registry'
 ];
+/** مفاتيح خفيفة لأول سحب سريع — الملفات الثقيلة تُكمَّل لاحقاً */
+var BHD_DASH_KV_FAST_KEYS=[
+  'bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list','bhd_owners_list','bhd_unit_reservations'
+];
 var BHD_ACCOUNTING_KV_KEYS=[
   'bhd_accounting_registry','bhd_saved_contracts_by_unit','bhd_buildings_list','bhd_managed_units'
 ];
@@ -1270,8 +1274,12 @@ function bhdLocalKvNeedsDashboardHydrate(){
     if(window.bhdDesktop)return false;
     var mode=bhdEntryModeFromUrl();
     if(mode&&mode!=='dashboard')return false;
-    /** دائماً اسحب من Neon في وضع اللوحة — الكاش المحلي ليس مصدر الحقيقة */
-    return true;
+    var probe=['bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list'];
+    for(var i=0;i<probe.length;i++){
+      var raw=localStorage.getItem(probe[i]);
+      if(!raw||raw==='[]'||raw==='{}'||raw==='null')return true;
+    }
+    return false;
   }catch(e){return true;}
 }
 function bhdLocalKvNeedsAccountingHydrate(){
@@ -1319,7 +1327,7 @@ function applyAccountingKvPayload(all){
 function bhdRefreshDashboardAfterKv(){
   try{
     if(typeof window.__bhdRequestDashboardRepaint==='function'){
-      window.__bhdRequestDashboardRepaint('bridge-kv',{force:true});
+      window.__bhdRequestDashboardRepaint('bridge-kv',{force:false});
     }else{
       if(typeof loadDashboardAux==='function')loadDashboardAux(true);
       if(typeof refreshDashboardIfVisible==='function')refreshDashboardIfVisible();
@@ -1351,12 +1359,17 @@ function fetchContractLifecycleLight(){
 }
 function stagedKvHydrateForDashboard(){
   if(window.bhdDesktop)return Promise.resolve(false);
-  if(!bhdLocalKvNeedsDashboardHydrate())return Promise.resolve(false);
+  if(!bhdLocalKvNeedsDashboardHydrate()){
+    /** كاش دافئ — لا تسحب كل KV عند كل فتح؛ المزامنة الخفيفة من app-main */
+    window.__bhdBridgeStagedKvHydrated=true;
+    window.__bhdBridgeStagedKvHydratedOk=true;
+    return Promise.resolve(false);
+  }
   if(_bhdKvBootPending)return _bhdKvBootPending;
   window.__bhdBridgeDashboardKvHydrating=true;
   window.__bhdBridgeStagedKvHydratedOk=false;
   _bhdKvBootPending=Promise.all([
-    fetch('/api/kv?keys='+encodeURIComponent(BHD_DASH_KV_KEYS.join(',')),{credentials:'include',cache:'no-store'})
+    fetch('/api/kv?keys='+encodeURIComponent(BHD_DASH_KV_FAST_KEYS.join(',')),{credentials:'include',cache:'no-store'})
       .then(function(r){return r.ok?r.json():null;})
       .then(function(all){return applyDashKvPayload(all);}),
     fetchContractLifecycleLight()
@@ -1376,7 +1389,6 @@ function stagedKvHydrateForDashboard(){
     return hydrated;
   }).finally(function(){
     window.__bhdBridgeDashboardKvHydrating=false;
-    /** لا تُعلّم اكتمال السحب إلا بعد محاولة فعلية — الفشل لا يمنع سحب Neon لاحقاً */
     window.__bhdBridgeStagedKvHydrated=true;
     _bhdKvBootPending=null;
   });
