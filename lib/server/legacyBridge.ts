@@ -1322,8 +1322,13 @@ function applyAccountingKvPayload(all){
 }
 function bhdRefreshDashboardAfterKv(){
   try{
-    if(typeof loadDashboardAux==='function')loadDashboardAux(true);
-    if(typeof refreshDashboardIfVisible==='function')refreshDashboardIfVisible();
+    if(typeof window.__bhdRequestDashboardRepaint==='function'){
+      window.__bhdRequestDashboardRepaint('bridge-kv',{force:false});
+    }else{
+      if(typeof loadDashboardAux==='function')loadDashboardAux(true);
+      if(typeof refreshDashboardIfVisible==='function')refreshDashboardIfVisible();
+    }
+    window.__bhdDashboardNeonSettled=true;
     window.dispatchEvent(new Event('bhd-kv-hydrated'));
   }catch(e){console.warn('[BHD] bhdRefreshDashboardAfterKv',e);}
 }

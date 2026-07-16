@@ -4173,8 +4173,18 @@
                     _bhdSiteBootHydrationDone = true;
                 }
                 try {
-                    loadDashboardAux(true);
                     bumpUnitsDataCache();
+                    /**
+                     * لا تستدعِ loadDashboardAux قبل requestDashboardRepaint —
+                     * وإلا تُحدَّث البصمة مسبقاً فيتخطى الرسم بعد سحب Neon.
+                     */
+                    if (typeof requestDashboardRepaint === 'function') {
+                        requestDashboardRepaint('neon-boot', { force: false });
+                    } else {
+                        loadDashboardAux(true, { skipAutoSync: true });
+                        refreshDashboardIfVisible();
+                    }
+                    window.__bhdDashboardNeonSettled = true;
                 } catch (_eAuxHydr) {}
                 return pulled;
             } catch (eHydr) {
@@ -4195,11 +4205,53 @@
             if (_bhdSiteBootHydrationDone) return;
             try {
                 await ensureBhdSiteKvHydratedFromNeon();
-                bhdRefreshActiveWorkspaceLight();
+                if (bhdIsDashboardOnlyMode() && typeof requestDashboardRepaint === 'function') {
+                    requestDashboardRepaint('boot-hydrate', { force: false });
+                } else {
+                    bhdRefreshActiveWorkspaceLight();
+                }
             } catch (eHydr) {
                 console.warn('site boot hydration', eHydr);
             }
         }, delayMs == null ? 0 : delayMs);
+    }
+
+    /** انتظار تحميل جسر KV للوحة قبل أول رسم — يقلل وميض بيانات محلية مؤقتة ثم سحابية */
+    function waitForBridgeDashboardKv(timeoutMs) {
+        const limit = timeoutMs == null ? 2200 : timeoutMs;
+        return new Promise((resolve) => {
+            if (window.__bhdBridgeStagedKvHydrated) {
+                resolve(true);
+                return;
+            }
+            let done = false;
+            const finish = (ok) => {
+                if (done) return;
+                done = true;
+                try {
+                    window.removeEventListener('bhd-kv-hydrated', onHydrated);
+                } catch (_eRm) {}
+                resolve(!!ok);
+            };
+            const onHydrated = () => finish(true);
+            try {
+                window.addEventListener('bhd-kv-hydrated', onHydrated);
+            } catch (_eAdd) {}
+            const t0 = Date.now();
+            const tick = () => {
+                if (done) return;
+                if (window.__bhdBridgeStagedKvHydrated) {
+                    finish(true);
+                    return;
+                }
+                if (Date.now() - t0 >= limit) {
+                    finish(false);
+                    return;
+                }
+                setTimeout(tick, 40);
+            };
+            tick();
+        });
     }
 
     let _bhdBridgeLightRefreshTimer = 0;
@@ -40404,9 +40456,82 @@ function getEmptyCompanySignatory() {
         }
     }
 
+    /** يمنع وميض اللوحة: لا إعادة رسم إلا إذا تغيّر بصمة بيانات KV أثناء الإقلاع */
+    let _dashboardLastDataFp = '';
+    let _dashboardRepaintTimer = 0;
+    let _dashboardBootSettleUntil = 0;
+
+    function bhdDashboardDataFingerprint() {
+        try {
+            const parts = [];
+            for (let i = 0; i < BHD_DASH_KV_KEYS.length; i++) {
+                const k = BHD_DASH_KV_KEYS[i];
+                const raw = localStorage.getItem(k);
+                if (!raw) {
+                    parts.push(k + ':0');
+                    continue;
+                }
+                parts.push(k + ':' + raw.length + ':' + raw.charCodeAt(0) + ':' + raw.charCodeAt(Math.min(raw.length - 1, 64)));
+            }
+            const st = window._bhdServerContractLifecycleAt || '';
+            parts.push('lc:' + st);
+            return parts.join('|');
+        } catch (_eFp) {
+            return String(Date.now());
+        }
+    }
+
+    function beginDashboardBootSettle(ms) {
+        _dashboardBootSettleUntil = Date.now() + (ms == null ? 7000 : ms);
+    }
+
+    function requestDashboardRepaint(reason, options) {
+        const opts = options || {};
+        const force = opts.force === true;
+        const fast = opts.fast === true;
+        const fp = bhdDashboardDataFingerprint();
+        const now = Date.now();
+        const inBoot = now < _dashboardBootSettleUntil;
+
+        if (!force && fp && fp === _dashboardLastDataFp) {
+            return false;
+        }
+
+        const apply = () => {
+            _dashboardRepaintTimer = 0;
+            const nextFp = bhdDashboardDataFingerprint();
+            if (!force && nextFp && nextFp === _dashboardLastDataFp) return;
+            _dashboardLastDataFp = nextFp;
+            try {
+                loadDashboardAux(true, { fast: fast || false, skipAutoSync: true });
+            } catch (_eAux) {}
+            try {
+                if (document.body.classList.contains('mode-dashboard')) {
+                    renderDashboardWorkspaceStaged();
+                }
+            } catch (_ePaint) {}
+            try {
+                window.__bhdDashboardLastRepaintReason = reason || '';
+                window.__bhdDashboardLastRepaintAt = Date.now();
+            } catch (_eMeta) {}
+        };
+
+        if (inBoot && !force && !fast) {
+            clearTimeout(_dashboardRepaintTimer);
+            _dashboardRepaintTimer = setTimeout(apply, 180);
+            return true;
+        }
+        apply();
+        return true;
+    }
+
+    window.__bhdRequestDashboardRepaint = requestDashboardRepaint;
+    window.__bhdDashboardDataFingerprint = bhdDashboardDataFingerprint;
+
     function loadDashboardAux(force, options) {
         const now = Date.now();
         const fast = (options && options.fast === true) || window.__bhdBootRefreshFast === true;
+        const skipAutoSync = options && options.skipAutoSync === true;
         if (!force && _loadDashboardAuxLastAt && now - _loadDashboardAuxLastAt < 2500) return;
         _loadDashboardAuxLastAt = now;
         try {
@@ -40503,12 +40628,11 @@ function getEmptyCompanySignatory() {
         }
         if (buildingProfiles && typeof buildingProfiles === 'object') {
             if (fast) {
-                setTimeout(() => {
-                    try {
-                        syncManagedUnitsFromProfiles();
-                        localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
-                    } catch (_eSyncMuDefer) {}
-                }, 800);
+                /** لا تؤجّل مزامنة الوحدات أثناء الإقلاع السريع — كانت تغيّر الأرقام بعد ~800ms فتومض اللوحة */
+                try {
+                    syncManagedUnitsFromProfiles();
+                    localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
+                } catch (_eSyncMuFast) {}
             } else {
                 try {
                     syncManagedUnitsFromProfiles();
@@ -40532,7 +40656,10 @@ function getEmptyCompanySignatory() {
             authSession = null;
         }
         validateAuthSession();
-        if (!fast) scheduleAutomaticDataSync(false);
+        if (!fast && !skipAutoSync) scheduleAutomaticDataSync(false);
+        try {
+            _dashboardLastDataFp = bhdDashboardDataFingerprint();
+        } catch (_eSetFp) {}
     }
 
     function scheduleAppBackgroundMaintenance() {
@@ -64095,18 +64222,13 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
 
         if (warmReload) {
             window.__bhdBootRefreshFast = true;
+            beginDashboardBootSettle(8000);
             bhdAuditMute();
             try {
                 syncAuthStateFromStorage();
                 tryAutoSignInDefaultAdminIfNeeded();
                 updateAuthHeaderBar();
             } catch (_eAuthWarm) {}
-            try {
-                loadDashboardAux(true, { fast: true });
-                initializeMode();
-            } catch (_eWarmUi) {
-                console.warn('warm reload UI', _eWarmUi);
-            }
             bhdAuditUnmute();
             try {
                 initContractEditRequestNotifications();
@@ -64114,12 +64236,69 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 wireRenewalMunicipalFieldHandlers();
                 wireRenewalCustomRentFieldHandlers();
             } catch (_eWarmPost) {}
+
+            const paintWarmUi = async () => {
+                try {
+                    if (bhdIsDashboardOnlyMode() && siteIntegratedWeb) {
+                        const dashHost = document.getElementById('operationsTable')
+                            || document.getElementById('dashboardWorkspace')
+                            || document.querySelector('.dashboard-workspace');
+                        if (dashHost && !document.getElementById('bhd-dash-boot-loading')) {
+                            try {
+                                const tip = document.createElement('div');
+                                tip.id = 'bhd-dash-boot-loading';
+                                tip.className = 'insight-nested';
+                                tip.style.cssText = 'padding:16px;margin:12px';
+                                tip.textContent = t('جاري مزامنة لوحة التحكم…', 'Syncing dashboard…');
+                                dashHost.prepend(tip);
+                            } catch (_eTipWarm) {}
+                        }
+                        await waitForBridgeDashboardKv(2200);
+                        if (!window.__bhdBridgeStagedKvHydrated) {
+                            await bhdHydrateSiteKvFromServerIfNeeded({
+                                deferIdbMirror: true,
+                                keys: BHD_DASH_KV_KEYS
+                            });
+                        }
+                        window.__bhdDashboardNeonSettled = true;
+                    }
+                    loadDashboardAux(true, { fast: true, skipAutoSync: true });
+                    initializeMode();
+                    window.__bhdDashboardFastPaintDone = true;
+                    _dashboardLastDataFp = bhdDashboardDataFingerprint();
+                    try {
+                        document.getElementById('bhd-dash-boot-loading')?.remove();
+                    } catch (_eRmWarmTip) {}
+                } catch (_eWarmUi) {
+                    console.warn('warm reload UI', _eWarmUi);
+                    try {
+                        loadDashboardAux(true, { fast: true, skipAutoSync: true });
+                        initializeMode();
+                        window.__bhdDashboardFastPaintDone = true;
+                    } catch (_eWarmFb) {}
+                }
+            };
+            paintWarmUi();
+
             setTimeout(async () => {
                 try {
                     await probeBhdApi();
-                    if (siteIntegratedWeb) scheduleBhdSiteBootHydrationOnce(0);
+                    if (siteIntegratedWeb) {
+                        if (!window.__bhdDashboardNeonSettled) {
+                            if (!window.__bhdBridgeStagedKvHydrated) {
+                                await bhdHydrateSiteKvFromServerIfNeeded({
+                                    deferIdbMirror: true,
+                                    keys: BHD_DASH_KV_KEYS
+                                });
+                            }
+                            window.__bhdDashboardNeonSettled = true;
+                            requestDashboardRepaint('warm-neon', { force: false });
+                        }
+                        scheduleBhdSiteBootHydrationOnce(400);
+                    }
                     probeBhdCloudApi().then(() => bhdCloudTryRestoreSession()).catch(() => {});
-                    scheduleAutomaticDataSync(false);
+                    /** تأجيل المزامنة التلقائية حتى لا تُعاد رسم اللوحة فوراً بعد الإقلاع */
+                    setTimeout(() => scheduleAutomaticDataSync(false), 10000);
                 } catch (_eWarmBg) {
                     console.warn('warm reload background', _eWarmBg);
                 }
@@ -64132,8 +64311,10 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     repairLinkedContractUnitsLifecycleConsistencyThrottled(60000);
                 } catch (_eWarmRepair) {}
                 try {
-                    loadDashboardAux(true);
-                    bhdRefreshActiveWorkspaceLight();
+                    /** لا تعِد تحميل اللوحة بالكامل إن استقرت بيانات Neon ولم تتغير البصمة */
+                    if (!window.__bhdDashboardNeonSettled) {
+                        requestDashboardRepaint('warm-idle', { force: false });
+                    }
                 } catch (_eWarmAux) {}
                 try {
                     delete window.__bhdBootRefreshFast;
@@ -64193,11 +64374,41 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     syncAuthStateFromStorage();
                     tryAutoSignInDefaultAdminIfNeeded();
                     updateAuthHeaderBar();
-                    loadDashboardAux(true, { fast: true });
+                    beginDashboardBootSettle(8000);
+                    /** لا ترسم لوحة فارغة ثم تستبدلها — حمّل مفاتيح اللوحة أولاً ثم ارسم مرة واحدة */
+                    const dashHost = document.getElementById('operationsTable')
+                        || document.getElementById('dashboardWorkspace')
+                        || document.querySelector('.dashboard-workspace');
+                    if (dashHost && !bhdLocalStorageHasSubstantiveData()) {
+                        try {
+                            const tip = document.createElement('div');
+                            tip.id = 'bhd-dash-boot-loading';
+                            tip.className = 'insight-nested';
+                            tip.style.cssText = 'padding:16px;margin:12px';
+                            tip.textContent = t('جاري تحميل لوحة التحكم من السحابة…', 'Loading dashboard from cloud…');
+                            dashHost.prepend(tip);
+                        } catch (_eTip) {}
+                    }
+                    await bhdHydrateSiteKvFromServerIfNeeded({
+                        deferIdbMirror: true,
+                        keys: BHD_DASH_KV_KEYS
+                    });
+                    window.__bhdBridgeStagedKvHydrated = true;
+                    window.__bhdDashboardNeonSettled = true;
+                    loadDashboardAux(true, { skipAutoSync: true });
                     initializeMode();
                     window.__bhdDashboardFastPaintDone = true;
+                    _dashboardLastDataFp = bhdDashboardDataFingerprint();
+                    try {
+                        document.getElementById('bhd-dash-boot-loading')?.remove();
+                    } catch (_eRmTip) {}
                 } catch (_eDashEarlyPaint) {
-                    console.warn('dashboard fast paint', _eDashEarlyPaint);
+                    console.warn('dashboard cold paint', _eDashEarlyPaint);
+                    try {
+                        loadDashboardAux(true, { fast: true, skipAutoSync: true });
+                        initializeMode();
+                        window.__bhdDashboardFastPaintDone = true;
+                    } catch (_eDashFallback) {}
                 }
             } else if (bhdIsAccountingOnlyMode() && bhdLocalAccountingKvIsWarm()) {
                 try {
@@ -64349,12 +64560,16 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             ) {
                 clearDemoContractFormFields();
             }
-            if (!refreshFastBoot) {
+            if (!refreshFastBoot && !window.__bhdDashboardFastPaintDone) {
                 loadDashboardAux(true);
             }
             const bootRefreshDashboard = () => {
                 try {
-                    refreshDashboardIfVisible();
+                    if (window.__bhdDashboardNeonSettled) {
+                        requestDashboardRepaint('boot-idle', { force: false });
+                    } else {
+                        refreshDashboardIfVisible();
+                    }
                 } catch (_eDashBoot) {
                     console.warn('refreshDashboardIfVisible startup', _eDashBoot);
                 }
@@ -64366,10 +64581,12 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             }
             if (refreshFastBoot) {
                 if (typeof requestIdleCallback === 'function') {
-                    requestIdleCallback(() => scheduleAutomaticDataSync(false), { timeout: 8000 });
+                    requestIdleCallback(() => scheduleAutomaticDataSync(false), { timeout: 12000 });
                 } else {
-                    setTimeout(() => scheduleAutomaticDataSync(false), 4000);
+                    setTimeout(() => scheduleAutomaticDataSync(false), 8000);
                 }
+            } else if (window.__bhdDashboardFastPaintDone || window.__bhdDashboardNeonSettled) {
+                setTimeout(() => scheduleAutomaticDataSync(false), 10000);
             } else {
                 scheduleAutomaticDataSync(true);
             }
