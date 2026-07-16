@@ -6,19 +6,53 @@ export const APP_SETTING_ADMIN_DATA_PIN_KEY = 'admin_data_reset_pin_hash';
 
 const MIN_LEN = 8;
 
+export class AdminDataPinConfigError extends Error {
+  readonly code = 'PIN_NOT_CONFIGURED' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'AdminDataPinConfigError';
+  }
+}
+
 function resolveInitialPin(): string {
   const envPin = process.env.ADMIN_DATA_RESET_PIN?.trim();
   if (envPin && envPin.length >= MIN_LEN) return envPin;
   if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'ADMIN_DATA_RESET_PIN must be set (8+ chars) before first use in production. Set it in Vercel Environment Variables.'
+    throw new AdminDataPinConfigError(
+      'ADMIN_DATA_RESET_PIN must be set (8+ chars) in Vercel before first use. After setting it, redeploy, then open /admin/data again.'
     );
   }
   const devPin = process.env.ADMIN_DATA_RESET_PIN_DEV?.trim();
   if (devPin && devPin.length >= MIN_LEN) return devPin;
-  throw new Error(
+  throw new AdminDataPinConfigError(
     'ADMIN_DATA_RESET_PIN or ADMIN_DATA_RESET_PIN_DEV (8+ chars) required for admin data operations'
   );
+}
+
+export function canSeedAdminDataPinFromEnv(): boolean {
+  const envPin = process.env.ADMIN_DATA_RESET_PIN?.trim();
+  if (envPin && envPin.length >= MIN_LEN) return true;
+  if (process.env.NODE_ENV === 'production') return false;
+  const devPin = process.env.ADMIN_DATA_RESET_PIN_DEV?.trim();
+  return Boolean(devPin && devPin.length >= MIN_LEN);
+}
+
+export async function getAdminDataPinStatus(): Promise<{
+  configured: boolean;
+  canSeedFromEnv: boolean;
+}> {
+  try {
+    const row = await prisma.appSetting.findUnique({
+      where: { key: APP_SETTING_ADMIN_DATA_PIN_KEY },
+      select: { value: true },
+    });
+    return {
+      configured: Boolean(row?.value),
+      canSeedFromEnv: canSeedAdminDataPinFromEnv(),
+    };
+  } catch {
+    return { configured: false, canSeedFromEnv: canSeedAdminDataPinFromEnv() };
+  }
 }
 
 /**
@@ -57,6 +91,8 @@ export async function seedDefaultAdminDataPinAbdul(): Promise<void> {
 }
 
 export async function isAdminDataPinConfigured(): Promise<boolean> {
+  const status = await getAdminDataPinStatus();
+  if (status.configured) return true;
   try {
     await ensureAdminDataPinReady();
     return true;
@@ -93,4 +129,19 @@ export async function changeAdminDataPin(args: {
     update: { value: h },
   });
   return { ok: true };
+}
+
+export function mapAdminDataPinError(e: unknown): { error: string; message: string; status: number } | null {
+  if (e instanceof AdminDataPinConfigError) {
+    return { error: e.code, message: e.message, status: 503 };
+  }
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes('ADMIN_DATA_RESET_PIN')) {
+    return {
+      error: 'PIN_NOT_CONFIGURED',
+      message: msg,
+      status: 503,
+    };
+  }
+  return null;
 }

@@ -24,6 +24,8 @@ async function deleteAccountingAccountsLeavesTx(tx: AppPrismaTransaction): Promi
 export type ResetKeepPropertiesResult = {
   adminEmail: string;
   serialNumber: string;
+  /** إن تعذّر زرع PIN من env بعد التصفير */
+  pinWarning?: 'PIN_NOT_SEEDED';
 };
 
 /**
@@ -117,9 +119,15 @@ export async function executeResetKeepProperties(
     },
   });
 
-  await seedDefaultAdminDataPinFromEnv();
+  let pinWarning: ResetKeepPropertiesResult['pinWarning'];
+  try {
+    await seedDefaultAdminDataPinFromEnv();
+  } catch (e) {
+    console.error('seedDefaultAdminDataPinFromEnv after reset:', e);
+    pinWarning = 'PIN_NOT_SEEDED';
+  }
 
-  return { adminEmail, serialNumber };
+  return { adminEmail, serialNumber, pinWarning };
 }
 
 export async function seedPlansOnly(db: Pick<AppPrismaClient, 'plan'>): Promise<void> {

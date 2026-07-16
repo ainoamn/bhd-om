@@ -58,6 +58,18 @@ export default function AdminDataPage() {
   const locale = (params?.locale as string) || 'ar';
   const ar = locale === 'ar';
   const userRole = (session?.user as { role?: string })?.role;
+  const roleHint =
+    typeof window !== 'undefined'
+      ? (() => {
+          try {
+            const v = sessionStorage.getItem('bhd_admin_role_hint');
+            return v === 'ADMIN' || v === 'CLIENT' || v === 'OWNER' ? v : null;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+  const isAdmin = userRole === 'ADMIN' || (status === 'loading' && roleHint === 'ADMIN');
   const [securityPin, setSecurityPin] = useState('');
   const [serverResetConfirm, setServerResetConfirm] = useState(false);
   const [localResetConfirm, setLocalResetConfirm] = useState(false);
@@ -83,6 +95,72 @@ export default function AdminDataPage() {
   const [overallReadiness, setOverallReadiness] = useState<ProductionOverall | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
+  const [pinStatus, setPinStatus] = useState<{
+    configured: boolean;
+    canSeedFromEnv: boolean;
+    envHint?: string;
+    message?: string;
+  } | null>(null);
+  const [pinStatusLoading, setPinStatusLoading] = useState(false);
+
+  const mapServerActionError = useCallback(
+    (data: { error?: string; message?: string; code?: string }, fallbackAr: string, fallbackEn: string) => {
+      if (data.error === 'INVALID_PIN') {
+        return ar
+          ? 'رمز الحماية غير صحيح (8 أحرف فأكثر). إن لم تغيّره من قبل، استخدم قيمة ADMIN_DATA_RESET_PIN في Vercel.'
+          : 'Invalid security PIN (min 8 chars). If never changed, use ADMIN_DATA_RESET_PIN from Vercel.';
+      }
+      if (data.error === 'PIN_NOT_CONFIGURED') {
+        return ar
+          ? 'رمز الحماية غير مُعدّ على الخادم. أضف ADMIN_DATA_RESET_PIN (8+ أحرف) في Vercel ثم أعد النشر.'
+          : 'Security PIN is not configured. Set ADMIN_DATA_RESET_PIN (8+ chars) in Vercel and redeploy.';
+      }
+      if (data.error === 'Unauthorized') {
+        return ar
+          ? 'انتهت الجلسة أو ليست صلاحية مسؤول. سجّل الدخول مجدداً كـ ADMIN.'
+          : 'Session expired or not an admin. Sign in again as ADMIN.';
+      }
+      if (data.message) return data.message;
+      return ar ? fallbackAr : fallbackEn;
+    },
+    [ar]
+  );
+
+  const loadPinStatus = useCallback(async () => {
+    setPinStatusLoading(true);
+    try {
+      const res = await fetch('/api/admin/data/pin-status', { cache: 'no-store', credentials: 'include' });
+      const data = (await res.json().catch(() => ({}))) as {
+        configured?: boolean;
+        canSeedFromEnv?: boolean;
+        envHint?: string;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setPinStatus({
+          configured: false,
+          canSeedFromEnv: false,
+          message: mapServerActionError(data, 'تعذّر قراءة حالة الرمز', 'Could not read PIN status'),
+        });
+        return;
+      }
+      setPinStatus({
+        configured: Boolean(data.configured),
+        canSeedFromEnv: Boolean(data.canSeedFromEnv),
+        envHint: data.envHint,
+        message: data.message,
+      });
+    } catch {
+      setPinStatus({
+        configured: false,
+        canSeedFromEnv: false,
+        message: ar ? 'خطأ شبكة عند فحص الرمز' : 'Network error checking PIN',
+      });
+    } finally {
+      setPinStatusLoading(false);
+    }
+  }, [ar, mapServerActionError]);
 
   const loadProductionReadiness = useCallback(async () => {
     setReadinessLoading(true);
@@ -107,10 +185,14 @@ export default function AdminDataPage() {
   }, []);
 
   useEffect(() => {
-    if (status !== 'authenticated') return;
-    if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') return;
+    if (status === 'loading' && roleHint === 'ADMIN') {
+      /* انتظر الجلسة لكن اسمح بعرض الهيكل */
+    }
+    if (status !== 'authenticated' && !(status === 'loading' && roleHint === 'ADMIN')) return;
+    if (status === 'authenticated' && userRole !== 'ADMIN') return;
     void loadProductionReadiness();
-  }, [status, userRole, loadProductionReadiness]);
+    void loadPinStatus();
+  }, [status, userRole, roleHint, loadProductionReadiness, loadPinStatus]);
 
   const handleLegacyBackfill = async () => {
     setLegacyBusy(true);
@@ -254,20 +336,23 @@ export default function AdminDataPage() {
         message?: string;
       };
       if (!res.ok) {
-        if (data.error === 'INVALID_PIN') {
-          setServerError(ar ? 'رمز الحماية غير صحيح' : 'Invalid security PIN');
-        } else {
-          setServerError(ar ? 'فشل التصفير على الخادم' : 'Server reset failed');
-        }
+        setServerError(mapServerActionError(data, 'فشل التصفير على الخادم', 'Server reset failed'));
         return;
       }
       /** حجوزات/عقود/مسودات محلية (`bhd_property_bookings` إلخ) + دفتر العناوين — بدونها يبقى البريد نفسه مرتبطاً بحجوزات قديمة في المتصفح */
       clearClientCachesAfterServerDbReset();
+      const pinWarn =
+        (data as { pinWarning?: string }).pinWarning === 'PIN_NOT_SEEDED'
+          ? ar
+            ? ' تحذير: لم يُزرع رمز الحماية — أضف ADMIN_DATA_RESET_PIN في Vercel.'
+            : ' Warning: PIN was not seeded — set ADMIN_DATA_RESET_PIN in Vercel.'
+          : '';
       setServerMessage(
         ar
-          ? `تم تصفير قاعدة البيانات (العقارات محفوظة) ومسح الحجوزات/العقود والدفتر المحلي في هذا المتصفح. تسجيل الدخول كـ: ${data.adminEmail ?? '—'} — سيتم تسجيل الخروج.`
-          : `Database reset (properties kept) and local bookings/contracts/address book cleared in this browser. Sign in as: ${data.adminEmail ?? '—'} — signing out...`
+          ? `تم تصفير قاعدة البيانات (العقارات محفوظة) ومسح الحجوزات/العقود والدفتر المحلي في هذا المتصفح. تسجيل الدخول كـ: ${data.adminEmail ?? '—'} — سيتم تسجيل الخروج.${pinWarn}`
+          : `Database reset (properties kept) and local bookings/contracts/address book cleared in this browser. Sign in as: ${data.adminEmail ?? '—'} — signing out...${pinWarn}`
       );
+      void loadPinStatus();
       setServerResetConfirm(false);
       setTimeout(() => {
         void signOut({ callbackUrl: `/${locale}/login` });
@@ -295,12 +380,8 @@ export default function AdminDataPage() {
         body: JSON.stringify({ pin: securityPin }),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        if (data.error === 'INVALID_PIN') {
-          setServerError(ar ? 'رمز الحماية غير صحيح' : 'Invalid security PIN');
-        } else {
-          setServerError(ar ? 'فشل النسخ الاحتياطي' : 'Backup failed');
-        }
+        const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        setServerError(mapServerActionError(data, 'فشل النسخ الاحتياطي', 'Backup failed'));
         return;
       }
       const blob = await res.blob();
@@ -340,11 +421,7 @@ export default function AdminDataPage() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!res.ok) {
-        if (data.error === 'INVALID_PIN') {
-          setServerError(ar ? 'رمز الحماية غير صحيح' : 'Invalid security PIN');
-        } else {
-          setServerError(data.message || (ar ? 'فشل الاستعادة' : 'Restore failed'));
-        }
+        setServerError(mapServerActionError(data, 'فشل الاستعادة', 'Restore failed'));
         return;
       }
       setServerMessage(ar ? 'تمت استعادة قاعدة البيانات. سيتم تسجيل الخروج…' : 'Database restored. Signing out…');
@@ -384,17 +461,22 @@ export default function AdminDataPage() {
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
       if (!res.ok) {
+        if (data.error === 'PIN_NOT_CONFIGURED') {
+          setPinChangeErr(mapServerActionError(data, 'فشل تغيير الرمز', 'Failed to change PIN'));
+          return;
+        }
         const code = data.code;
         if (code === 'INVALID_CURRENT') setPinChangeErr(ar ? 'الرمز الحالي غير صحيح' : 'Current PIN is wrong');
         else if (code === 'MISMATCH') setPinChangeErr(ar ? 'التكرار غير متطابق' : 'Mismatch');
         else if (code === 'SHORT') setPinChangeErr(ar ? 'الرمز الجديد يجب أن يكون 8 أحرف فأكثر' : 'New PIN must be at least 8 characters');
-        else setPinChangeErr(ar ? 'فشل تغيير الرمز' : 'Failed to change PIN');
+        else setPinChangeErr(mapServerActionError(data, 'فشل تغيير الرمز', 'Failed to change PIN'));
         return;
       }
       setPinChangeMsg(ar ? 'تم تغيير رمز الحماية بنجاح.' : 'Security PIN updated successfully.');
       setPinCurrent('');
       setPinNew('');
       setPinRepeat('');
+      void loadPinStatus();
     } catch {
       setPinChangeErr(ar ? 'خطأ شبكة' : 'Network error');
     } finally {
@@ -404,12 +486,23 @@ export default function AdminDataPage() {
 
   const showAccessDenied = status === 'unauthenticated' || (status === 'authenticated' && userRole !== 'ADMIN');
 
+  if (status === 'loading' && !isAdmin) {
+    return (
+      <div className="admin-page-content p-6">
+        <div className="admin-card p-12 flex flex-col items-center gap-3">
+          <div className="h-10 w-10 rounded-full border-2 admin-accent-border border-t-transparent animate-spin" aria-hidden />
+          <p className="text-sm text-gray-600">{ar ? 'جاري التحقق من صلاحية المسؤول…' : 'Verifying admin access…'}</p>
+        </div>
+      </div>
+    );
+  }
+
   if (showAccessDenied) {
     return (
       <div className="admin-page-content p-6">
         <div className="admin-card p-12 text-center">
           <h2 className="text-xl font-bold text-gray-900 mb-2">{ar ? 'غير مصرح بالوصول' : 'Access denied'}</h2>
-          <p className="text-gray-600">{ar ? 'هذه الصفحة متاحة فقط للمسؤولين' : 'This page is for administrators only.'}</p>
+          <p className="text-gray-600">{ar ? 'هذه الصفحة متاحة فقط للمسؤولين (ADMIN)' : 'This page is for administrators (ADMIN) only.'}</p>
         </div>
       </div>
     );
@@ -427,8 +520,48 @@ export default function AdminDataPage() {
           }
         />
 
-        {/* رمز الحماية الموحّد */}
-                {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+        <div
+          className={`admin-card p-4 sm:p-5 border-2 ${
+            pinStatus?.configured
+              ? 'border-emerald-200 bg-emerald-50/60'
+              : 'border-amber-300 bg-amber-50/80'
+          }`}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">
+                {ar ? 'حالة رمز الحماية' : 'Security PIN status'}
+              </h2>
+              <p className="text-sm text-gray-700 mt-1">
+                {pinStatusLoading
+                  ? ar
+                    ? 'جاري الفحص…'
+                    : 'Checking…'
+                  : pinStatus?.configured
+                    ? ar
+                      ? 'الرمز مُعدّ في قاعدة البيانات — أدخله أدناه لتصفير/نسخ/استعادة.'
+                      : 'PIN is configured in the database — enter it below for reset/backup/restore.'
+                    : ar
+                      ? 'الرمز غير مُعدّ. أضف ADMIN_DATA_RESET_PIN (8+ أحرف) في متغيرات Vercel ثم Redeploy، ثم اضغط تحديث.'
+                      : 'PIN is not configured. Set ADMIN_DATA_RESET_PIN (8+ chars) in Vercel env, redeploy, then refresh.'}
+              </p>
+              {pinStatus?.message && !pinStatus.configured && (
+                <p className="text-xs text-amber-900 mt-2">{pinStatus.message}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={pinStatusLoading || serverBusy}
+              onClick={() => void loadPinStatus()}
+              className="px-4 py-2 rounded-xl text-sm font-semibold admin-btn-primary text-white hover:bg-[#6B5435] disabled:opacity-50"
+            >
+              {pinStatusLoading ? (ar ? '…' : '…') : ar ? 'تحديث حالة الرمز' : 'Refresh PIN status'}
+            </button>
+          </div>
+        </div>
+
+        {/* جاهزية الإنتاج */}
+        {isAdmin && (
           <div className="admin-card p-6 sm:p-8 border-2 admin-accent-border/20 bg-gradient-to-br from-amber-50/80 to-white">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
               <div>
@@ -507,8 +640,8 @@ export default function AdminDataPage() {
           </h2>
           <p className="text-gray-600 text-sm mb-4">
             {ar
-              ? 'يُخزَّن الرمز في قاعدة البيانات (مشفّر). الافتراضي بعد أول تشغيل أو بعد تصفير قاعدة البيانات: Abdul100189@ — يُفضّل تغييره من القسم التالي. يُستخدم لتصفير الخادم والنسخ الاحتياطي والاستعادة. اختياري: يمكن تعيين ADMIN_DATA_RESET_PIN مرة واحدة لأول إنشاء للسجل إن لم يوجد.'
-              : 'PIN is stored hashed in the database. Default after first boot or after DB reset: Abdul100189@ — change it below. Used for server reset, backup, restore. Optional: ADMIN_DATA_RESET_PIN seeds the first record if none exists.'}
+              ? 'يُخزَّن الرمز مشفّراً في قاعدة البيانات. استخدم الرمز الذي عيّنته عبر ADMIN_DATA_RESET_PIN في Vercel (عند أول إعداد) أو الذي غيّرته من القسم التالي (8 أحرف فأكثر).'
+              : 'PIN is stored hashed in the database. Use the value from ADMIN_DATA_RESET_PIN in Vercel (first setup) or the PIN you changed below (min 8 characters).'}
           </p>
           <input
             type="password"
@@ -598,7 +731,7 @@ export default function AdminDataPage() {
             {!serverResetConfirm ? (
               <button
                 type="button"
-                disabled={serverBusy}
+                disabled={serverBusy || pinStatus?.configured === false}
                 onClick={() => {
                   setServerResetConfirm(true);
                   setServerError(null);
@@ -611,7 +744,7 @@ export default function AdminDataPage() {
               <>
                 <button
                   type="button"
-                  disabled={serverBusy}
+                  disabled={serverBusy || !securityPin.trim()}
                   onClick={() => void handleServerReset()}
                   className="px-5 py-2.5 rounded-xl font-semibold bg-red-700 text-white hover:bg-red-800 disabled:opacity-50 transition-colors"
                 >
@@ -672,7 +805,7 @@ export default function AdminDataPage() {
         </div>
 
         {/* قاعدة البيانات — هجرات الإنتاج */}
-        {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+        {(isAdmin) && (
           <div className="admin-card p-6 sm:p-8">
             <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
               <span className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-xl">🗄️</span>
@@ -800,7 +933,7 @@ export default function AdminDataPage() {
         )}
 
         {/* ترحيل legacy مستندات/شيكات الحجز */}
-        {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+        {isAdmin && (
           <div className="admin-card p-6 sm:p-8">
             <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
               <span className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-xl">📋</span>
