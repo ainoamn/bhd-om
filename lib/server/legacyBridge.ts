@@ -1270,12 +1270,8 @@ function bhdLocalKvNeedsDashboardHydrate(){
     if(window.bhdDesktop)return false;
     var mode=bhdEntryModeFromUrl();
     if(mode&&mode!=='dashboard')return false;
-    var probe=['bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list'];
-    for(var i=0;i<probe.length;i++){
-      var raw=localStorage.getItem(probe[i]);
-      if(!raw||raw==='[]'||raw==='{}'||raw==='null')return true;
-    }
-    return false;
+    /** دائماً اسحب من Neon في وضع اللوحة — الكاش المحلي ليس مصدر الحقيقة */
+    return true;
   }catch(e){return true;}
 }
 function bhdLocalKvNeedsAccountingHydrate(){
@@ -1323,12 +1319,13 @@ function applyAccountingKvPayload(all){
 function bhdRefreshDashboardAfterKv(){
   try{
     if(typeof window.__bhdRequestDashboardRepaint==='function'){
-      window.__bhdRequestDashboardRepaint('bridge-kv',{force:false});
+      window.__bhdRequestDashboardRepaint('bridge-kv',{force:true});
     }else{
       if(typeof loadDashboardAux==='function')loadDashboardAux(true);
       if(typeof refreshDashboardIfVisible==='function')refreshDashboardIfVisible();
     }
     window.__bhdDashboardNeonSettled=true;
+    window.__bhdBridgeStagedKvHydratedOk=true;
     window.dispatchEvent(new Event('bhd-kv-hydrated'));
   }catch(e){console.warn('[BHD] bhdRefreshDashboardAfterKv',e);}
 }
@@ -1357,6 +1354,7 @@ function stagedKvHydrateForDashboard(){
   if(!bhdLocalKvNeedsDashboardHydrate())return Promise.resolve(false);
   if(_bhdKvBootPending)return _bhdKvBootPending;
   window.__bhdBridgeDashboardKvHydrating=true;
+  window.__bhdBridgeStagedKvHydratedOk=false;
   _bhdKvBootPending=Promise.all([
     fetch('/api/kv?keys='+encodeURIComponent(BHD_DASH_KV_KEYS.join(',')),{credentials:'include',cache:'no-store'})
       .then(function(r){return r.ok?r.json():null;})
@@ -1365,15 +1363,20 @@ function stagedKvHydrateForDashboard(){
   ]).then(function(results){
     var hydrated=!!results[0];
     if(hydrated){
+      window.__bhdBridgeStagedKvHydratedOk=true;
       var tries=0;
       (function tick(){
         if(typeof loadDashboardAux==='function'){bhdRefreshDashboardAfterKv();return;}
-        if(++tries<50)setTimeout(tick,80);
+        if(++tries<80)setTimeout(tick,80);
+        else {
+          window.dispatchEvent(new Event('bhd-kv-hydrated'));
+        }
       })();
     }
     return hydrated;
   }).finally(function(){
     window.__bhdBridgeDashboardKvHydrating=false;
+    /** لا تُعلّم اكتمال السحب إلا بعد محاولة فعلية — الفشل لا يمنع سحب Neon لاحقاً */
     window.__bhdBridgeStagedKvHydrated=true;
     _bhdKvBootPending=null;
   });
