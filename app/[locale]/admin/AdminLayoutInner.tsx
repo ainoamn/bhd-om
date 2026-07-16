@@ -3,7 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- مزامنة جلسة NextAuth والتخزين المحلي مع حالة الواجهة (قائمة، تخطيط، تنقل) */
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname, useParams, useSearchParams, useRouter } from 'next/navigation';
+import { usePathname, useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { useSession, signOut, getSession } from 'next-auth/react';
@@ -21,12 +21,40 @@ import { useUserBar } from '@/components/UserBarContext';
 import { isPathAllowedForPortalUser } from '@/lib/config/userPortalRoutes';
 import './admin.css';
 
-/** قراءة tab و action من الرابط - useSearchParams يتفاعل مع تغيير query string */
-function useAccountingTab() {
-  const searchParams = useSearchParams();
-  const tab = searchParams?.get('tab') || 'dashboard';
-  const action = searchParams?.get('action') || null;
+const SESSION_ROLE_HINT_KEY = 'bhd_admin_role_hint';
+
+/**
+ * قراءة tab/action بدون useSearchParams — يتجنّب تعليق Suspense على كامل الـ layout
+ * (كان يظهر «جاري التحميل» ويمنع رسم القائمة الجانبية).
+ */
+function useAccountingTab(pathname: string | null) {
+  const [tab, setTab] = useState('dashboard');
+  const [action, setAction] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sync = () => {
+      const sp = new URLSearchParams(window.location.search);
+      setTab(sp.get('tab') || 'dashboard');
+      setAction(sp.get('action'));
+    };
+    sync();
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, [pathname]);
+
   return { tab, action };
+}
+
+function readRoleHint(): 'ADMIN' | 'CLIENT' | 'OWNER' | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const v = sessionStorage.getItem(SESSION_ROLE_HINT_KEY);
+    if (v === 'ADMIN' || v === 'CLIENT' || v === 'OWNER') return v;
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 type NavItem = {
@@ -136,8 +164,8 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
 
   useEffect(() => {
     let alive = true;
-    /** أقصى انتظار قبل عرض المحتوى — كان 5ث ويُحسَس كـ «الموقع بطيء» */
-    const maxWaitMs = 2000;
+    /** أقصى انتظار قصير — الجلسة الجذرية غالباً جاهزة؛ getSession احتياطي فقط */
+    const maxWaitMs = 800;
     const timeout = window.setTimeout(() => {
       if (alive) setSessionFetchSettled(true);
     }, maxWaitMs);
@@ -208,22 +236,43 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
   // الجلسة الفعالة: إن كنا في وضع "فتح حساب" نعتمد localStorage فقط؛ وإلا الجلسة العادية
   const currentSession = isImpersonating ? impersonationSession : fallbackSession;
 
-  const { tab: currentTab, action: currentAction } = useAccountingTab();
+  const { tab: currentTab, action: currentAction } = useAccountingTab(pathname);
   const locale = (params?.locale as string) || 'ar';
   const t = useTranslations('admin.nav');
   const { hasUserBar } = useUserBar();
   const userRole = (currentSession?.user as { role?: string })?.role as 'ADMIN' | 'CLIENT' | 'OWNER' | undefined;
   const hasResolvedRole = userRole === 'ADMIN' || userRole === 'CLIENT' || userRole === 'OWNER';
   const isNonAdmin = userRole === 'CLIENT' || userRole === 'OWNER';
+  const [roleHint, setRoleHint] = useState<'ADMIN' | 'CLIENT' | 'OWNER' | null>(() => readRoleHint());
+
+  useEffect(() => {
+    if (!hasResolvedRole || typeof window === 'undefined') return;
+    setRoleHint(userRole!);
+    try {
+      sessionStorage.setItem(SESSION_ROLE_HINT_KEY, userRole!);
+    } catch {
+      /* ignore */
+    }
+  }, [hasResolvedRole, userRole]);
+
   /**
-   * كان يُشترط status === 'authenticated' فقط؛ بينما getSession() يملأ peekSession أحياناً قبل أن يتحول useSession من loading.
-   * فيُعرض RoleBasedSidebar للأدمن لثوانٍ ثم القائمة الكاملة. نعتبر الأدمن مؤكداً إن كان الدور ADMIN والجلسة معروفة ولم نكن unauthenticated.
+   * تلميح الدور من زيارة سابقة يمنع عرض قائمة CLIENT الخاطئة أثناء loading (سبب بطء/وميض القائمة).
    */
   const isAdminConfirmed =
     !isImpersonating &&
-    userRole === 'ADMIN' &&
     status !== 'unauthenticated' &&
-    (status === 'authenticated' || (status === 'loading' && sessionFetchSettled && !!currentSession?.user));
+    (userRole === 'ADMIN' || (!hasResolvedRole && roleHint === 'ADMIN'));
+
+  const showPortalSidebar =
+    isImpersonating ||
+    userRole === 'CLIENT' ||
+    userRole === 'OWNER' ||
+    (!hasResolvedRole && (roleHint === 'CLIENT' || roleHint === 'OWNER'));
+
+  const showFullAdminSidebar = isAdminConfirmed;
+
+  /** هيكل خفيف أثناء أول تحميل بدون تلميح دور — أفضل من قائمة عميل خاطئة + طلبات API */
+  const showSidebarSkeleton = !showFullAdminSidebar && !showPortalSidebar && (status === 'loading' || !sessionFetchSettled);
   const userName = (currentSession?.user as { name?: string })?.name || (currentSession?.user as { serialNumber?: string })?.serialNumber || (currentSession?.user as { email?: string })?.email || (currentSession?.user as { phone?: string })?.phone || '—';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -402,7 +451,22 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       data-admin-theme={adminThemeResolved}
       dir={locale === 'ar' ? 'rtl' : 'ltr'}
     >
-      {!isAdminConfirmed ? (
+      {showSidebarSkeleton ? (
+        <aside className={`admin-sidebar ${!sidebarOpen ? 'admin-sidebar--closed' : ''}`} aria-busy="true" aria-label="Loading navigation">
+          <div className="admin-sidebar-brand">
+            <div className="admin-sidebar-logo h-7 w-7 rounded bg-neutral-200 animate-pulse" />
+            <div className="admin-sidebar-brand-text flex-1 space-y-2">
+              <div className="h-4 w-32 rounded bg-neutral-200 animate-pulse" />
+              <div className="h-3 w-20 rounded bg-neutral-100 animate-pulse" />
+            </div>
+          </div>
+          <nav className="admin-nav p-3 space-y-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="h-9 rounded-lg bg-neutral-100 animate-pulse" />
+            ))}
+          </nav>
+        </aside>
+      ) : showPortalSidebar || !showFullAdminSidebar ? (
         <RoleBasedSidebar
           role={effectiveRole}
           locale={locale}
@@ -535,6 +599,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                                   <li key={subItem.href}>
                                     <Link
                                       href={fullHref}
+                                      prefetch
                                       className={`admin-nav-sublink ${isActive ? 'admin-nav-sublink--active' : ''}`}
                                       aria-current={isActive ? 'page' : undefined}
                                       onClick={closeSidebar}
@@ -551,6 +616,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                                 <li key={subItem.href}>
                                   <Link
                                     href={`/${locale}${subItem.href}`}
+                                    prefetch
                                     className={`admin-nav-sublink ${isActive ? 'admin-nav-sublink--active' : ''} ${subItem.comingSoon ? 'opacity-75' : ''}`}
                                     aria-current={isActive ? 'page' : undefined}
                                     onClick={closeSidebar}
@@ -578,6 +644,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
                     <li key={navItem.href}>
                       <Link
                         href={`/${locale}${navItem.href}`}
+                        prefetch
                         className={`admin-nav-link ${isActive ? 'admin-nav-link--active' : ''}`}
                         aria-current={isActive ? 'page' : undefined}
                         onClick={closeSidebar}

@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-16 — تسريع لوحة التحكم والقائمة الجانبية
+
+- **السبب:** SessionProvider مزدوج (Providers + AuthProviderWrapper) يعيد جلب `/api/auth/session` (~1ث+)، و`useSearchParams` يعلّق Suspense على كامل الـ layout، وأثناء loading تُعرض قائمة CLIENT ثم تُستبدل بقائمة الأدمن.
+- **إصلاح:** SessionProvider ثانٍ فقط عند الانتحال؛ إزالة useSearchParams من AdminLayoutInner؛ تلميح دور في sessionStorage؛ هيكل قائمة فوري بدل شاشة ملء كاملة؛ prefetch روابط القائمة.
+- **قياس إنتاج:** `/api/auth/session` ~1.1s بدون كوكي؛ `/ar/admin` يعيد 307 لغير المسجّلين.
+
 ### جلسة 2026-07-14 (72) — Phase 20 محاسبة: إغلاق رسمي Phases 6–20
 
 - **إغلاق:** `docs/ACCOUNTING-HUB-REFACTOR-COMPLETE.md` — خريطة 15 phase، checklist، فهرس وثائق

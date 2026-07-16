@@ -1,6 +1,7 @@
 /**
  * Auth Provider Wrapper Component
- * عند "فتح حساب" نمرّر الجلسة الوهمية ونعطّل إعادة الجلب لئلا يعود العرض إلى لوحة الأدمن عند التحديث أو التنقل.
+ * عند "فتح حساب" فقط نلف SessionProvider داخلياً بالجلسة الوهمية.
+ * وإلا نعيد استخدام SessionProvider الجذري (Providers.tsx) — تجنّب جلب /api/auth/session مرتين.
  */
 
 'use client';
@@ -29,7 +30,7 @@ function getImpersonationSession(): Session | null | undefined {
       }
     }
   } catch {}
-  const mock = (window as any).mockNextAuthSession as Session | undefined;
+  const mock = (window as Window & { mockNextAuthSession?: Session }).mockNextAuthSession;
   if (mock && typeof mock === 'object' && mock.user && mock.expires) return mock;
   return undefined;
 }
@@ -50,11 +51,20 @@ export default function AuthProviderWrapper({ children }: AuthProviderWrapperPro
     return () => window.removeEventListener('storage', onStorage);
   }, [refreshSession]);
 
+  // المسار العادي: لا SessionProvider ثانٍ — الجلسة الجذرية جاهزة أسرع للقائمة الجانبية
+  if (!isImpersonating) {
+    return (
+      <>
+        <AuthSessionLocalIsolation />
+        {children}
+      </>
+    );
+  }
+
   return (
     <SessionProvider
-      session={mockSession ?? undefined}
-      /** متوافق مع `components/Providers.tsx`: لا إعادة جلب عند كل تركيز (كان يسبب 2–8ث مع jwt+DB) */
-      refetchInterval={isImpersonating ? 0 : 60 * 5}
+      session={mockSession}
+      refetchInterval={0}
       refetchOnWindowFocus={false}
     >
       <AuthSessionLocalIsolation />

@@ -34,7 +34,21 @@ export default function AdminDashboardPage() {
     (session?.user as { serialNumber?: string })?.serialNumber ||
     null;
 
-  if (status === 'loading' && !userRole) {
+  /** لا نُوقف الصفحة بأكملها أثناء الجلسة إن وُجد تلميح أدمن — اللوحة تعرض هيكلها الخاص أثناء fetch البيانات */
+  const roleHint =
+    typeof window !== 'undefined'
+      ? (() => {
+          try {
+            const v = sessionStorage.getItem('bhd_admin_role_hint');
+            return v === 'ADMIN' || v === 'CLIENT' || v === 'OWNER' ? v : null;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+  const effectiveForGate = userRole || roleHint;
+
+  if (status === 'loading' && !effectiveForGate) {
     return (
       <div className="admin-dash flex items-center justify-center min-h-[50vh]">
         <div className="flex flex-col items-center gap-3">
@@ -47,8 +61,8 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (userRole === 'OWNER') return <OwnerDashboard />;
-  if (userRole === 'CLIENT') return <ClientDashboard />;
+  if (effectiveForGate === 'OWNER') return <OwnerDashboard />;
+  if (effectiveForGate === 'CLIENT') return <ClientDashboard />;
 
   return <AdminHomeDashboard locale={locale} userName={userName} />;
 }
