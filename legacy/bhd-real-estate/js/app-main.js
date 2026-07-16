@@ -64229,6 +64229,15 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 tryAutoSignInDefaultAdminIfNeeded();
                 updateAuthHeaderBar();
             } catch (_eAuthWarm) {}
+            try {
+                /** رسم فوري دائماً — لا نعلّق الواجهة على شبكة Neon وإلا تبقى الصفحة فارغة */
+                loadDashboardAux(true, { fast: true, skipAutoSync: true });
+                initializeMode();
+                window.__bhdDashboardFastPaintDone = true;
+                _dashboardLastDataFp = bhdDashboardDataFingerprint();
+            } catch (_eWarmUi) {
+                console.warn('warm reload UI', _eWarmUi);
+            }
             bhdAuditUnmute();
             try {
                 initContractEditRequestNotifications();
@@ -64236,68 +64245,29 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 wireRenewalMunicipalFieldHandlers();
                 wireRenewalCustomRentFieldHandlers();
             } catch (_eWarmPost) {}
-
-            const paintWarmUi = async () => {
-                try {
-                    if (bhdIsDashboardOnlyMode() && siteIntegratedWeb) {
-                        const dashHost = document.getElementById('operationsTable')
-                            || document.getElementById('dashboardWorkspace')
-                            || document.querySelector('.dashboard-workspace');
-                        if (dashHost && !document.getElementById('bhd-dash-boot-loading')) {
-                            try {
-                                const tip = document.createElement('div');
-                                tip.id = 'bhd-dash-boot-loading';
-                                tip.className = 'insight-nested';
-                                tip.style.cssText = 'padding:16px;margin:12px';
-                                tip.textContent = t('جاري مزامنة لوحة التحكم…', 'Syncing dashboard…');
-                                dashHost.prepend(tip);
-                            } catch (_eTipWarm) {}
-                        }
-                        await waitForBridgeDashboardKv(2200);
-                        if (!window.__bhdBridgeStagedKvHydrated) {
-                            await bhdHydrateSiteKvFromServerIfNeeded({
-                                deferIdbMirror: true,
-                                keys: BHD_DASH_KV_KEYS
-                            });
-                        }
-                        window.__bhdDashboardNeonSettled = true;
-                    }
-                    loadDashboardAux(true, { fast: true, skipAutoSync: true });
-                    initializeMode();
-                    window.__bhdDashboardFastPaintDone = true;
-                    _dashboardLastDataFp = bhdDashboardDataFingerprint();
-                    try {
-                        document.getElementById('bhd-dash-boot-loading')?.remove();
-                    } catch (_eRmWarmTip) {}
-                } catch (_eWarmUi) {
-                    console.warn('warm reload UI', _eWarmUi);
-                    try {
-                        loadDashboardAux(true, { fast: true, skipAutoSync: true });
-                        initializeMode();
-                        window.__bhdDashboardFastPaintDone = true;
-                    } catch (_eWarmFb) {}
-                }
-            };
-            paintWarmUi();
-
             setTimeout(async () => {
                 try {
                     await probeBhdApi();
                     if (siteIntegratedWeb) {
-                        if (!window.__bhdDashboardNeonSettled) {
-                            if (!window.__bhdBridgeStagedKvHydrated) {
-                                await bhdHydrateSiteKvFromServerIfNeeded({
-                                    deferIdbMirror: true,
-                                    keys: BHD_DASH_KV_KEYS
-                                });
-                            }
-                            window.__bhdDashboardNeonSettled = true;
-                            requestDashboardRepaint('warm-neon', { force: false });
-                        }
+                        try {
+                            await Promise.race([
+                                (async () => {
+                                    await waitForBridgeDashboardKv(2500);
+                                    if (!window.__bhdBridgeStagedKvHydrated) {
+                                        await bhdHydrateSiteKvFromServerIfNeeded({
+                                            deferIdbMirror: true,
+                                            keys: BHD_DASH_KV_KEYS
+                                        });
+                                    }
+                                })(),
+                                new Promise((resolve) => setTimeout(resolve, 4000))
+                            ]);
+                        } catch (_eWarmHydr) {}
+                        window.__bhdDashboardNeonSettled = true;
+                        requestDashboardRepaint('warm-neon', { force: false });
                         scheduleBhdSiteBootHydrationOnce(400);
                     }
                     probeBhdCloudApi().then(() => bhdCloudTryRestoreSession()).catch(() => {});
-                    /** تأجيل المزامنة التلقائية حتى لا تُعاد رسم اللوحة فوراً بعد الإقلاع */
                     setTimeout(() => scheduleAutomaticDataSync(false), 10000);
                 } catch (_eWarmBg) {
                     console.warn('warm reload background', _eWarmBg);
@@ -64311,7 +64281,6 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     repairLinkedContractUnitsLifecycleConsistencyThrottled(60000);
                 } catch (_eWarmRepair) {}
                 try {
-                    /** لا تعِد تحميل اللوحة بالكامل إن استقرت بيانات Neon ولم تتغير البصمة */
                     if (!window.__bhdDashboardNeonSettled) {
                         requestDashboardRepaint('warm-idle', { force: false });
                     }
@@ -64375,33 +64344,28 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     tryAutoSignInDefaultAdminIfNeeded();
                     updateAuthHeaderBar();
                     beginDashboardBootSettle(8000);
-                    /** لا ترسم لوحة فارغة ثم تستبدلها — حمّل مفاتيح اللوحة أولاً ثم ارسم مرة واحدة */
-                    const dashHost = document.getElementById('operationsTable')
-                        || document.getElementById('dashboardWorkspace')
-                        || document.querySelector('.dashboard-workspace');
-                    if (dashHost && !bhdLocalStorageHasSubstantiveData()) {
-                        try {
-                            const tip = document.createElement('div');
-                            tip.id = 'bhd-dash-boot-loading';
-                            tip.className = 'insight-nested';
-                            tip.style.cssText = 'padding:16px;margin:12px';
-                            tip.textContent = t('جاري تحميل لوحة التحكم من السحابة…', 'Loading dashboard from cloud…');
-                            dashHost.prepend(tip);
-                        } catch (_eTip) {}
-                    }
-                    await bhdHydrateSiteKvFromServerIfNeeded({
-                        deferIdbMirror: true,
-                        keys: BHD_DASH_KV_KEYS
-                    });
-                    window.__bhdBridgeStagedKvHydrated = true;
-                    window.__bhdDashboardNeonSettled = true;
-                    loadDashboardAux(true, { skipAutoSync: true });
+                    /** رسم فوري أولاً — مزامنة Neon في الخلفية بمهلة حتى لا تُعلَّق الصفحة */
+                    loadDashboardAux(true, { fast: true, skipAutoSync: true });
                     initializeMode();
                     window.__bhdDashboardFastPaintDone = true;
                     _dashboardLastDataFp = bhdDashboardDataFingerprint();
-                    try {
-                        document.getElementById('bhd-dash-boot-loading')?.remove();
-                    } catch (_eRmTip) {}
+                    Promise.race([
+                        (async () => {
+                            await waitForBridgeDashboardKv(2500);
+                            if (!window.__bhdBridgeStagedKvHydrated) {
+                                await bhdHydrateSiteKvFromServerIfNeeded({
+                                    deferIdbMirror: true,
+                                    keys: BHD_DASH_KV_KEYS
+                                });
+                            }
+                            window.__bhdBridgeStagedKvHydrated = true;
+                            window.__bhdDashboardNeonSettled = true;
+                            requestDashboardRepaint('cold-neon', { force: false });
+                        })(),
+                        new Promise((resolve) => setTimeout(resolve, 5000))
+                    ]).catch((_eColdHydr) => {
+                        console.warn('dashboard cold hydrate', _eColdHydr);
+                    });
                 } catch (_eDashEarlyPaint) {
                     console.warn('dashboard cold paint', _eDashEarlyPaint);
                     try {
