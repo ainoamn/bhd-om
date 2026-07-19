@@ -109,29 +109,43 @@
     </script>
     <style>
     html.bhd-dash-booting #module-body{visibility:hidden!important;pointer-events:none!important}
-    #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#fff 0%,#f4f1ec 55%,#ebe6df 100%);font-family:"Segoe UI",Tahoma,Arial,sans-serif;transition:opacity .32s ease}
+    #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 28%,#fff 0%,#f6f1ec 55%,#ebe4dc 100%);font-family:"Segoe UI",Tahoma,Arial,sans-serif;transition:opacity .32s ease}
     #bhd-shell-loading.bhd-hidden{display:none;opacity:0}
-    .bhd-shell-brand{width:min(380px,90vw);text-align:center}
-    .bhd-shell-logo{width:min(200px,52vw);height:auto;display:block;margin:0 auto 32px;filter:drop-shadow(0 8px 22px rgba(0,0,0,.1))}
-    .bhd-shell-rail-wrap{position:relative;padding:18px 8px 8px}
-    .bhd-shell-rail{position:relative;height:10px;border-radius:999px;background:#e7e0d8;overflow:visible}
-    .bhd-shell-rail-fill{position:absolute;inset:0 auto 0 0;width:0%;border-radius:999px;background:linear-gradient(90deg,#7a0a0a,#a31616);transition:width .45s cubic-bezier(.22,.7,.25,1);box-shadow:0 0 12px rgba(139,0,0,.25)}
-    .bhd-shell-pusher{position:absolute;top:50%;left:0;width:36px;height:36px;margin-top:-18px;margin-left:-18px;border-radius:50%;background:#fff;border:2px solid #8B0000;box-shadow:0 4px 14px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;transition:left .45s cubic-bezier(.22,.7,.25,1);z-index:2}
-    .bhd-shell-pusher img{width:24px;height:24px;object-fit:contain;display:block}
-    .bhd-shell-pct{margin:18px 0 6px;font-size:22px;font-weight:700;color:#3a2f2a;font-variant-numeric:tabular-nums;letter-spacing:.03em}
+    .bhd-shell-brand{width:min(360px,92vw);text-align:center}
+    .bhd-shell-logo{width:min(180px,48vw);height:auto;display:block;margin:0 auto 18px;filter:drop-shadow(0 8px 22px rgba(0,0,0,.1))}
+    .bhd-shell-heart-wrap{position:relative;width:min(280px,78vw);margin:0 auto 8px;aspect-ratio:1.1 / 1}
+    .bhd-shell-heart-svg{width:100%;height:100%;display:block;overflow:visible}
+    .bhd-shell-heart-track{fill:none;stroke:#e6ddd4;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+    .bhd-shell-heart-fill{fill:none;stroke:#8B0000;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;transition:stroke-dashoffset .45s cubic-bezier(.22,.7,.25,1);filter:drop-shadow(0 0 8px rgba(139,0,0,.28))}
+    .bhd-shell-heart-pusher{position:absolute;width:52px;height:48px;margin-left:-26px;margin-top:-24px;left:50%;top:22%;z-index:3;transition:left .45s cubic-bezier(.22,.7,.25,1),top .45s cubic-bezier(.22,.7,.25,1);pointer-events:none;filter:drop-shadow(0 6px 14px rgba(0,0,0,.18))}
+    .bhd-shell-heart-pusher svg{width:52px;height:48px;display:block}
+    .bhd-shell-heart-pusher image,.bhd-shell-heart-pusher img{width:28px;height:28px;object-fit:contain}
+    .bhd-shell-pct{margin:10px 0 6px;font-size:22px;font-weight:700;color:#3a2f2a;font-variant-numeric:tabular-nums;letter-spacing:.03em}
     .bhd-shell-hint{margin:0;font-size:14px;color:#6b5e55;font-weight:500}
     </style>
 </head>
 <body>
     <div id="bhd-shell-loading" aria-live="polite" role="status" aria-label="جاري التحميل">
         <div class="bhd-shell-brand">
-            <img class="bhd-shell-logo" src="/logo-bhd.png" alt="بن حمود للتطوير — BHD" width="200" height="200" decoding="async">
-            <div class="bhd-shell-rail-wrap" aria-hidden="true">
-                <div class="bhd-shell-rail">
-                    <div id="bhd-shell-rail-fill" class="bhd-shell-rail-fill"></div>
-                    <div id="bhd-shell-pusher" class="bhd-shell-pusher">
-                        <img src="/logo-bhd.png" alt="" width="24" height="24" decoding="async">
-                    </div>
+            <img class="bhd-shell-logo" src="/logo-bhd.png" alt="بن حمود للتطوير — BHD" width="180" height="180" decoding="async">
+            <div class="bhd-shell-heart-wrap" aria-hidden="true">
+                <svg class="bhd-shell-heart-svg" viewBox="0 0 100 92" preserveAspectRatio="xMidYMid meet">
+                    <!-- مسار القلب: يبدأ من النقرة العلوية ويدور مع عقارب الساعة -->
+                    <path id="bhd-shell-heart-path" class="bhd-shell-heart-track" d="M50 22 C46 10 34 4 24 8 C10 14 6 30 12 44 C20 62 42 76 50 86 C58 76 80 62 88 44 C94 30 90 14 76 8 C66 4 54 10 50 22 Z"/>
+                    <path id="bhd-shell-heart-fill" class="bhd-shell-heart-fill" d="M50 22 C46 10 34 4 24 8 C10 14 6 30 12 44 C20 62 42 76 50 86 C58 76 80 62 88 44 C94 30 90 14 76 8 C66 4 54 10 50 22 Z" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+                </svg>
+                <div id="bhd-shell-pusher" class="bhd-shell-heart-pusher">
+                    <svg viewBox="0 0 52 48" aria-hidden="true">
+                        <defs>
+                            <clipPath id="bhdHeartLogoClip">
+                                <path d="M26 10 C24 4 17 1 12 3 C4 6 2 15 5 23 C10 33 22 40 26 45 C30 40 42 33 47 23 C50 15 48 6 40 3 C35 1 28 4 26 10 Z"/>
+                            </clipPath>
+                        </defs>
+                        <path d="M26 10 C24 4 17 1 12 3 C4 6 2 15 5 23 C10 33 22 40 26 45 C30 40 42 33 47 23 C50 15 48 6 40 3 C35 1 28 4 26 10 Z" fill="#fff" stroke="#8B0000" stroke-width="2.2"/>
+                        <g clip-path="url(#bhdHeartLogoClip)">
+                            <image href="/logo-bhd.png" xlink:href="/logo-bhd.png" x="12" y="10" width="28" height="28" preserveAspectRatio="xMidYMid meet"></image>
+                        </g>
+                    </svg>
                 </div>
             </div>
             <div id="bhd-shell-pct" class="bhd-shell-pct">0%</div>
@@ -141,22 +155,49 @@
     <div id="module-body"></div>
     <script>
     (function(){
-        var BOOT_REV='2026-07-19-kpi-auth-fix-v11';
+        var BOOT_REV='2026-07-19-heart-loader-v12';
         var BASE='/api/admin/legacy-real-estate/';
         var bodyUrl=BASE+'modules/body-raw.html?v='+encodeURIComponent(BOOT_REV);
         var mainJsUrl=BASE+'js/app-main.js?v='+encodeURIComponent(BOOT_REV);
         var loaderHidden=false;
         var progressPct=0;
+        var heartPathLen=0;
+
+        function measureHeartPath(){
+            try{
+                var p=document.getElementById('bhd-shell-heart-path');
+                if(p&&typeof p.getTotalLength==='function'){
+                    heartPathLen=p.getTotalLength();
+                }
+            }catch(e){heartPathLen=0;}
+        }
 
         function setLoaderProgress(pct){
             var n=Math.max(0,Math.min(100,Math.round(Number(pct)||0)));
             if(n<progressPct&&n<100)n=progressPct;
             progressPct=n;
-            var fill=document.getElementById('bhd-shell-rail-fill');
+            var fill=document.getElementById('bhd-shell-heart-fill');
             var pusher=document.getElementById('bhd-shell-pusher');
+            var path=document.getElementById('bhd-shell-heart-path');
             var pctEl=document.getElementById('bhd-shell-pct');
-            if(fill)fill.style.width=n+'%';
-            if(pusher)pusher.style.left=n+'%';
+            var wrap=document.querySelector('.bhd-shell-heart-wrap');
+            if(fill){
+                /** pathLength=100 → dashoffset من 100 إلى 0 */
+                fill.style.strokeDashoffset=String(100-n);
+            }
+            if(pusher&&path&&wrap&&typeof path.getPointAtLength==='function'){
+                if(!heartPathLen)measureHeartPath();
+                var len=heartPathLen||path.getTotalLength();
+                var pt=path.getPointAtLength(len*(n/100));
+                var box=path.ownerSVGElement.getBoundingClientRect();
+                var vb=path.ownerSVGElement.viewBox.baseVal;
+                var sx=box.width/(vb.width||100);
+                var sy=box.height/(vb.height||92);
+                var wrapBox=wrap.getBoundingClientRect();
+                var svgBox=path.ownerSVGElement.getBoundingClientRect();
+                pusher.style.left=((svgBox.left-wrapBox.left)+(pt.x*sx))+'px';
+                pusher.style.top=((svgBox.top-wrapBox.top)+(pt.y*sy))+'px';
+            }
             if(pctEl)pctEl.textContent=n+'%';
         }
         window.__bhdSetShellLoaderProgress=function(pct){setLoaderProgress(pct);};
@@ -192,7 +233,9 @@
             }catch(e){return true;}
         }
 
+        measureHeartPath();
         setLoaderProgress(8);
+        try{window.addEventListener('resize',function(){measureHeartPath();setLoaderProgress(progressPct);});}catch(eR){}
 
         var bodyPromise=fetch(bodyUrl,{credentials:'include',cache:'default'}).then(function(r){
             if(!r.ok)throw new Error('HTTP '+r.status);
