@@ -1274,12 +1274,8 @@ function bhdLocalKvNeedsDashboardHydrate(){
     if(window.bhdDesktop)return false;
     var mode=bhdEntryModeFromUrl();
     if(mode&&mode!=='dashboard')return false;
-    var probe=['bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list'];
-    for(var i=0;i<probe.length;i++){
-      var raw=localStorage.getItem(probe[i]);
-      if(!raw||raw==='[]'||raw==='{}'||raw==='null')return true;
-    }
-    return false;
+    /** دائماً اسحب المفاتيح الخفيفة مرة عند فتح اللوحة — يمنع عرض كاش قديم ثم استبداله */
+    return true;
   }catch(e){return true;}
 }
 function bhdLocalKvNeedsAccountingHydrate(){
@@ -1360,9 +1356,9 @@ function fetchContractLifecycleLight(){
 function stagedKvHydrateForDashboard(){
   if(window.bhdDesktop)return Promise.resolve(false);
   if(!bhdLocalKvNeedsDashboardHydrate()){
-    /** كاش دافئ — لا تسحب كل KV عند كل فتح؛ المزامنة الخفيفة من app-main */
     window.__bhdBridgeStagedKvHydrated=true;
     window.__bhdBridgeStagedKvHydratedOk=true;
+    try{window.dispatchEvent(new Event('bhd-kv-hydrated'));}catch(_e){}
     return Promise.resolve(false);
   }
   if(_bhdKvBootPending)return _bhdKvBootPending;
@@ -1377,14 +1373,21 @@ function stagedKvHydrateForDashboard(){
     var hydrated=!!results[0];
     if(hydrated){
       window.__bhdBridgeStagedKvHydratedOk=true;
+      try{window.dispatchEvent(new Event('bhd-kv-hydrated'));}catch(_eEv){}
       var tries=0;
       (function tick(){
+        /** إن رُسمت اللوحة من الشِل بعد Neon — لا تفرض إعادة رسم كاملة */
+        if(window.__bhdEarlyDashboardPaintDone||window.__bhdDashboardRevealDone){
+          if(typeof window.__bhdRequestDashboardRepaint==='function'){
+            window.__bhdRequestDashboardRepaint('bridge-kv',{force:false});
+          }
+          return;
+        }
         if(typeof loadDashboardAux==='function'){bhdRefreshDashboardAfterKv();return;}
         if(++tries<80)setTimeout(tick,80);
-        else {
-          window.dispatchEvent(new Event('bhd-kv-hydrated'));
-        }
       })();
+    } else {
+      try{window.dispatchEvent(new Event('bhd-kv-hydrated'));}catch(_eEv2){}
     }
     return hydrated;
   }).finally(function(){

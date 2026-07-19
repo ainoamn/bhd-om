@@ -61,7 +61,10 @@
         }
       }catch(e){}
     };
-    /** عرض فوري من الكاش قبل تحميل app-main.js (~3.4MB) — يقلّل انتظار ظهور البيانات */
+    /**
+     * رسم واحد للوحة من localStorage — يُستدعى فقط بعد انتظار جسر Neon
+     * حتى لا يرى المستخدم بيانات مؤقتة ثم تُستبدل.
+     */
     window.__bhdEarlyDashboardPaint=function(){
       try{
         var mode='';
@@ -104,7 +107,7 @@
         set('statReservedUnits',reserved);
         var tbody=document.getElementById('unitsTableBody');
         if(tbody&&units.length){
-          var page=units.slice(0,100);
+          var page=units.slice(0,50);
           var html='';
           for(var j=0;j<page.length;j++){
             var row=page[j]||{};
@@ -125,11 +128,42 @@
           tbody.innerHTML=html;
         }
         window.__bhdEarlyDashboardPaintDone=true;
+        window.__bhdDashboardRevealDone=true;
+        window.__bhdDashboardRevealAt=Date.now();
         return true;
       }catch(e){
         console.warn('[BHD shell] early dashboard paint',e);
         return false;
       }
+    };
+    /** انتظار انتهاء سحب الجسر (أو مهلة) قبل أول عرض — يمنع ومضة local ثم Neon */
+    window.__bhdWaitDashboardKvReady=function(timeoutMs){
+      var limit=timeoutMs==null?3500:timeoutMs;
+      return new Promise(function(resolve){
+        if(window.__bhdBridgeStagedKvHydratedOk||window.__bhdBridgeStagedKvHydrated){
+          resolve(!!window.__bhdBridgeStagedKvHydratedOk);
+          return;
+        }
+        var done=false;
+        function finish(ok){
+          if(done)return;
+          done=true;
+          try{window.removeEventListener('bhd-kv-hydrated',onHyd);}catch(e){}
+          resolve(!!ok);
+        }
+        function onHyd(){finish(true);}
+        try{window.addEventListener('bhd-kv-hydrated',onHyd);}catch(e2){}
+        var t0=Date.now();
+        (function tick(){
+          if(done)return;
+          if(window.__bhdBridgeStagedKvHydratedOk||window.__bhdBridgeStagedKvHydrated){
+            finish(!!window.__bhdBridgeStagedKvHydratedOk);
+            return;
+          }
+          if(Date.now()-t0>=limit){finish(false);return;}
+          setTimeout(tick,40);
+        })();
+      });
     };
     </script>
     <script id="bhd-early-page-shell">
@@ -143,8 +177,8 @@
     })();
     </script>
     <style>
-    #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:hsla(0,0%,96%,.92);font-family:system-ui,sans-serif}
-    #bhd-shell-loading.bhd-hidden{display:none}
+    #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:hsla(0,0%,96%,.96);font-family:system-ui,sans-serif;transition:opacity .25s ease}
+    #bhd-shell-loading.bhd-hidden{display:none;opacity:0}
     .bhd-shell-spinner{width:42px;height:42px;border:3px solid #e5e7eb;border-top-color:#8B0000;border-radius:50%;animation:bhd-spin .8s linear infinite}
     @keyframes bhd-spin{to{transform:rotate(360deg)}}
     </style>
@@ -153,7 +187,7 @@
     <div id="bhd-shell-loading" aria-live="polite">
         <div style="text-align:center">
             <div class="bhd-shell-spinner" aria-hidden="true"></div>
-            <p id="bhd-shell-loading-msg" style="margin:12px 0 0;font-weight:600;color:#313131" data-ar="جاري تحميل نظام العقارات…" data-en="Loading real estate system…">جاري تحميل نظام العقارات…</p>
+            <p id="bhd-shell-loading-msg" style="margin:12px 0 0;font-weight:600;color:#313131" data-ar="جاري تحميل البيانات…" data-en="Loading data…">جاري تحميل البيانات…</p>
         </div>
     </div>
     <div id="module-body"></div>
@@ -176,7 +210,10 @@
             if(loaderHidden)return;
             loaderHidden=true;
             var el=document.getElementById('bhd-shell-loading');
-            if(el)el.classList.add('bhd-hidden');
+            if(el){
+                el.style.opacity='0';
+                setTimeout(function(){el.classList.add('bhd-hidden');},280);
+            }
         }
         window.__bhdHideShellLoader=hideLoader;
 
@@ -191,6 +228,13 @@
             });
         }
 
+        function isDashboardMode(){
+            try{
+                var m=new URLSearchParams(location.search).get('mode');
+                return !m||m==='dashboard';
+            }catch(e){return true;}
+        }
+
         var bodyPromise=fetch(bodyUrl,{credentials:'include',cache:'default'}).then(function(r){
             if(!r.ok)throw new Error('HTTP '+r.status);
             return r.text();
@@ -202,48 +246,35 @@
                 if(c)c.innerHTML=html;
                 if(typeof window.__bhdApplyEntryModeFromUrl==='function')window.__bhdApplyEntryModeFromUrl();
 
-                function afterPaintAttempt(painted){
-                    if(painted){
-                        hideLoader();
-                        /** أفسح إطار رسم/نقر قبل تحميل app-main.js الثقيل */
-                        return new Promise(function(resolve){
-                            setTimeout(function(){
-                                resolve(loadScript(mainJsUrl).then(function(){
-                                    setTimeout(hideLoader,50);
-                                }));
-                            },40);
-                        });
-                    }
-                    setLoaderMsg('جاري جلب البيانات…','Loading data…');
-                    return loadScript(mainJsUrl).then(function(){
-                        setTimeout(hideLoader,50);
-                    });
-                }
-
-                function attemptPaint(){
+                function revealThenLoadMain(){
                     var painted=false;
                     try{
                         painted=!!(window.__bhdEarlyDashboardPaint&&window.__bhdEarlyDashboardPaint());
                     }catch(ePaint){}
-                    return afterPaintAttempt(painted);
+                    if(painted){
+                        hideLoader();
+                    }else{
+                        setLoaderMsg('جاري تجهيز الواجهة…','Preparing interface…');
+                    }
+                    return new Promise(function(resolve){
+                        setTimeout(function(){
+                            resolve(loadScript(mainJsUrl).then(function(){
+                                setTimeout(hideLoader,80);
+                            }));
+                        }, painted ? 30 : 0);
+                    });
                 }
 
-                /** إن كان الجسر يسحب Neon، انتظر قليلاً قبل الرسم المبكر */
-                if(window.__bhdBridgeDashboardKvHydrating&&!window.__bhdEarlyDashboardPaintDone){
-                    return new Promise(function(resolve){
-                        var done=false;
-                        function finish(){
-                            if(done)return;
-                            done=true;
-                            try{window.removeEventListener('bhd-kv-hydrated',onHyd);}catch(e){}
-                            resolve(attemptPaint());
-                        }
-                        function onHyd(){finish();}
-                        try{window.addEventListener('bhd-kv-hydrated',onHyd);}catch(e2){}
-                        setTimeout(finish,2800);
-                    }).then(function(p){return p;});
+                if(!isDashboardMode()){
+                    setLoaderMsg('جاري تحميل النظام…','Loading system…');
+                    return loadScript(mainJsUrl).then(function(){setTimeout(hideLoader,50);});
                 }
-                return attemptPaint();
+
+                setLoaderMsg('جاري جلب البيانات من السحابة…','Fetching data from cloud…');
+                var wait=window.__bhdWaitDashboardKvReady
+                    ? window.__bhdWaitDashboardKvReady(3500)
+                    : Promise.resolve(false);
+                return wait.then(function(){return revealThenLoadMain();});
             })
             .catch(function(err){
                 console.error('[BHD shell] boot failed',err);

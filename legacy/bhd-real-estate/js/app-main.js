@@ -40592,8 +40592,18 @@ function getEmptyCompanySignatory() {
         const fp = bhdDashboardDataFingerprint();
         const now = Date.now();
         const inBoot = now < _dashboardBootSettleUntil;
+        const revealAt = Number(window.__bhdDashboardRevealAt || 0);
+        const inQuietReveal =
+            !!window.__bhdDashboardRevealDone && revealAt > 0 && now - revealAt < 4500;
 
         if (!force && fp && fp === _dashboardLastDataFp) {
+            return false;
+        }
+        /** بعد الكشف الأول: لا تعِد الرسم الناعم خلال فترة الهدوء — يمنع ومضة البيانات */
+        if (!force && inQuietReveal) {
+            try {
+                window.__bhdDashboardSuppressedRepaint = reason || '';
+            } catch (_eSup) {}
             return false;
         }
 
@@ -40618,7 +40628,7 @@ function getEmptyCompanySignatory() {
 
         if (inBoot && !force && !fast) {
             clearTimeout(_dashboardRepaintTimer);
-            _dashboardRepaintTimer = setTimeout(apply, 180);
+            _dashboardRepaintTimer = setTimeout(apply, 220);
             return true;
         }
         apply();
@@ -63897,7 +63907,17 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             }
             if (activePageMode === 'dashboard') {
                 try {
-                    renderDashboardWorkspaceStaged();
+                    if (window.__bhdEarlyDashboardPaintDone || window.__bhdDashboardRevealDone) {
+                        /** الرسم المستقر تم من الشِل بعد Neon — لا تعِد بناء الجدول فوراً */
+                        try {
+                            _dashboardLastDataFp = bhdDashboardDataFingerprint();
+                        } catch (_eFpInit) {}
+                        try {
+                            window.__bhdHideShellLoader?.();
+                        } catch (_eHide) {}
+                    } else {
+                        renderDashboardWorkspaceStaged();
+                    }
                 } catch (e) {
                     console.error('renderDashboardWorkspaceStaged failed:', e);
                 }
