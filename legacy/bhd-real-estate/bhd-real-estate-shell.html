@@ -111,28 +111,30 @@
     html.bhd-dash-booting #module-body{visibility:hidden!important;pointer-events:none!important}
     #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#fff 0%,#f4f1ec 55%,#ebe6df 100%);font-family:"Segoe UI",Tahoma,Arial,sans-serif;transition:opacity .32s ease}
     #bhd-shell-loading.bhd-hidden{display:none;opacity:0}
-    .bhd-shell-brand{width:min(340px,88vw);text-align:center}
-    .bhd-shell-logo{width:min(120px,36vw);height:auto;display:block;margin:0 auto 22px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.08))}
-    .bhd-shell-counter{position:relative;width:88px;height:88px;margin:0 auto 14px}
-    .bhd-shell-counter svg{width:88px;height:88px;transform:rotate(-90deg)}
-    .bhd-shell-counter .track{fill:none;stroke:#e4ddd4;stroke-width:5}
-    .bhd-shell-counter .fill{fill:none;stroke:#8B0000;stroke-width:5;stroke-linecap:round;stroke-dasharray:251.2;stroke-dashoffset:251.2;transition:stroke-dashoffset .4s ease}
-    .bhd-shell-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#3a2f2a;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+    .bhd-shell-brand{width:min(380px,90vw);text-align:center}
+    .bhd-shell-logo{width:min(112px,34vw);height:auto;display:block;margin:0 auto 28px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.08))}
+    .bhd-shell-rail-wrap{position:relative;padding:18px 8px 8px}
+    .bhd-shell-rail{position:relative;height:10px;border-radius:999px;background:#e7e0d8;overflow:visible}
+    .bhd-shell-rail-fill{position:absolute;inset:0 auto 0 0;width:0%;border-radius:999px;background:linear-gradient(90deg,#7a0a0a,#a31616);transition:width .45s cubic-bezier(.22,.7,.25,1);box-shadow:0 0 12px rgba(139,0,0,.25)}
+    .bhd-shell-pusher{position:absolute;top:50%;left:0;width:36px;height:36px;margin-top:-18px;margin-left:-18px;border-radius:50%;background:#fff;border:2px solid #8B0000;box-shadow:0 4px 14px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;transition:left .45s cubic-bezier(.22,.7,.25,1);z-index:2}
+    .bhd-shell-pusher img{width:24px;height:24px;object-fit:contain;display:block}
+    .bhd-shell-pct{margin:18px 0 6px;font-size:22px;font-weight:700;color:#3a2f2a;font-variant-numeric:tabular-nums;letter-spacing:.03em}
     .bhd-shell-hint{margin:0;font-size:14px;color:#6b5e55;font-weight:500}
-    .bhd-shell-hint-en{display:none}
     </style>
 </head>
 <body>
     <div id="bhd-shell-loading" aria-live="polite" role="status" aria-label="جاري التحميل">
         <div class="bhd-shell-brand">
-            <img class="bhd-shell-logo" src="/logo-bhd.png" alt="بن حمود للتطوير — BHD" width="120" height="120" decoding="async">
-            <div class="bhd-shell-counter" aria-hidden="true">
-                <svg viewBox="0 0 88 88">
-                    <circle class="track" cx="44" cy="44" r="40"></circle>
-                    <circle id="bhd-shell-ring-fill" class="fill" cx="44" cy="44" r="40"></circle>
-                </svg>
-                <div id="bhd-shell-pct" class="bhd-shell-pct">0%</div>
+            <img class="bhd-shell-logo" src="/logo-bhd.png" alt="بن حمود للتطوير — BHD" width="112" height="112" decoding="async">
+            <div class="bhd-shell-rail-wrap" aria-hidden="true">
+                <div class="bhd-shell-rail">
+                    <div id="bhd-shell-rail-fill" class="bhd-shell-rail-fill"></div>
+                    <div id="bhd-shell-pusher" class="bhd-shell-pusher">
+                        <img src="/logo-bhd.png" alt="" width="24" height="24" decoding="async">
+                    </div>
+                </div>
             </div>
+            <div id="bhd-shell-pct" class="bhd-shell-pct">0%</div>
             <p id="bhd-shell-hint" class="bhd-shell-hint">جاري التحميل</p>
         </div>
     </div>
@@ -144,15 +146,16 @@
         var mainJsUrl=BASE+'js/app-main.js';
         var loaderHidden=false;
         var progressPct=0;
-        var RING=251.2;
 
         function setLoaderProgress(pct){
             var n=Math.max(0,Math.min(100,Math.round(Number(pct)||0)));
             if(n<progressPct&&n<100)n=progressPct;
             progressPct=n;
-            var ring=document.getElementById('bhd-shell-ring-fill');
+            var fill=document.getElementById('bhd-shell-rail-fill');
+            var pusher=document.getElementById('bhd-shell-pusher');
             var pctEl=document.getElementById('bhd-shell-pct');
-            if(ring)ring.style.strokeDashoffset=String(RING-(RING*(n/100)));
+            if(fill)fill.style.width=n+'%';
+            if(pusher)pusher.style.left=n+'%';
             if(pctEl)pctEl.textContent=n+'%';
         }
         window.__bhdSetShellLoaderProgress=function(pct){setLoaderProgress(pct);};
