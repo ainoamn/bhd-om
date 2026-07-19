@@ -109,30 +109,31 @@
     </script>
     <style>
     html.bhd-dash-booting #module-body{visibility:hidden!important;pointer-events:none!important}
-    #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:#f7f7f8;font-family:system-ui,sans-serif;transition:opacity .28s ease}
+    #bhd-shell-loading{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#fff 0%,#f4f1ec 55%,#ebe6df 100%);font-family:"Segoe UI",Tahoma,Arial,sans-serif;transition:opacity .32s ease}
     #bhd-shell-loading.bhd-hidden{display:none;opacity:0}
-    .bhd-shell-card{width:min(420px,92vw);text-align:center;padding:28px 22px;border-radius:14px;background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.08);border:1px solid #ececec}
-    .bhd-shell-spinner{width:44px;height:44px;border:3px solid #e5e7eb;border-top-color:#8B0000;border-radius:50%;animation:bhd-spin .8s linear infinite;margin:0 auto}
-    .bhd-shell-title{margin:14px 0 4px;font-weight:700;color:#222;font-size:16px}
-    .bhd-shell-org{margin:0 0 14px;font-size:13px;color:#666;line-height:1.4}
-    .bhd-shell-bar{height:8px;border-radius:999px;background:#eee;overflow:hidden;margin:0 0 8px}
-    .bhd-shell-bar>i{display:block;height:100%;width:8%;background:linear-gradient(90deg,#8B0000,#b91c1c);border-radius:999px;transition:width .35s ease}
-    .bhd-shell-pct{font-size:12px;color:#555;margin:0 0 6px;font-variant-numeric:tabular-nums}
-    .bhd-shell-stage{margin:0;font-size:13px;color:#444;min-height:1.4em}
-    .bhd-shell-wait{margin:10px 0 0;font-size:12px;color:#888}
-    @keyframes bhd-spin{to{transform:rotate(360deg)}}
+    .bhd-shell-brand{width:min(340px,88vw);text-align:center}
+    .bhd-shell-logo{width:min(220px,58vw);height:auto;display:block;margin:0 auto 22px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.08))}
+    .bhd-shell-counter{position:relative;width:88px;height:88px;margin:0 auto 14px}
+    .bhd-shell-counter svg{width:88px;height:88px;transform:rotate(-90deg)}
+    .bhd-shell-counter .track{fill:none;stroke:#e4ddd4;stroke-width:5}
+    .bhd-shell-counter .fill{fill:none;stroke:#8B0000;stroke-width:5;stroke-linecap:round;stroke-dasharray:251.2;stroke-dashoffset:251.2;transition:stroke-dashoffset .4s ease}
+    .bhd-shell-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#3a2f2a;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+    .bhd-shell-hint{margin:0;font-size:14px;color:#6b5e55;font-weight:500}
+    .bhd-shell-hint-en{display:none}
     </style>
 </head>
 <body>
-    <div id="bhd-shell-loading" aria-live="polite" role="status">
-        <div class="bhd-shell-card">
-            <div class="bhd-shell-spinner" aria-hidden="true"></div>
-            <p id="bhd-shell-loading-msg" class="bhd-shell-title" data-ar="جاري تحميل البيانات…" data-en="Loading data…">جاري تحميل البيانات…</p>
-            <p id="bhd-shell-org" class="bhd-shell-org">مجموعة سيد فياض العالمية ش.م.م</p>
-            <div class="bhd-shell-bar" aria-hidden="true"><i id="bhd-shell-bar-fill"></i></div>
-            <p id="bhd-shell-pct" class="bhd-shell-pct">0%</p>
-            <p id="bhd-shell-stage" class="bhd-shell-stage" data-ar="جاري الاتصال بالخادم…" data-en="Connecting to server…">جاري الاتصال بالخادم…</p>
-            <p class="bhd-shell-wait" data-ar="الرجاء الانتظار — تظهر البيانات مرة واحدة عند الجاهزية" data-en="Please wait — data appears once when ready">الرجاء الانتظار — تظهر البيانات مرة واحدة عند الجاهزية</p>
+    <div id="bhd-shell-loading" aria-live="polite" role="status" aria-label="جاري التحميل">
+        <div class="bhd-shell-brand">
+            <img class="bhd-shell-logo" src="/api/admin/legacy-real-estate/config/SFG_Logo_04.png" alt="مجموعة سيد فياض العالمية" width="220" height="138" decoding="async" onerror="this.onerror=null;this.src='/logo-bhd.png'">
+            <div class="bhd-shell-counter" aria-hidden="true">
+                <svg viewBox="0 0 88 88">
+                    <circle class="track" cx="44" cy="44" r="40"></circle>
+                    <circle id="bhd-shell-ring-fill" class="fill" cx="44" cy="44" r="40"></circle>
+                </svg>
+                <div id="bhd-shell-pct" class="bhd-shell-pct">0%</div>
+            </div>
+            <p id="bhd-shell-hint" class="bhd-shell-hint">جاري التحميل</p>
         </div>
     </div>
     <div id="module-body"></div>
@@ -143,42 +144,28 @@
         var mainJsUrl=BASE+'js/app-main.js';
         var loaderHidden=false;
         var progressPct=0;
+        var RING=251.2;
 
-        function setLoaderMsg(ar,en){
-            var el=document.getElementById('bhd-shell-loading-msg');
-            if(!el)return;
-            el.setAttribute('data-ar',ar);
-            el.setAttribute('data-en',en);
-            el.textContent=ar;
-        }
-
-        function setLoaderProgress(pct,ar,en){
+        function setLoaderProgress(pct){
             var n=Math.max(0,Math.min(100,Math.round(Number(pct)||0)));
             if(n<progressPct&&n<100)n=progressPct;
             progressPct=n;
-            var fill=document.getElementById('bhd-shell-bar-fill');
+            var ring=document.getElementById('bhd-shell-ring-fill');
             var pctEl=document.getElementById('bhd-shell-pct');
-            var stage=document.getElementById('bhd-shell-stage');
-            if(fill)fill.style.width=n+'%';
+            if(ring)ring.style.strokeDashoffset=String(RING-(RING*(n/100)));
             if(pctEl)pctEl.textContent=n+'%';
-            if(stage&&ar){
-                stage.setAttribute('data-ar',ar);
-                if(en)stage.setAttribute('data-en',en);
-                stage.textContent=ar;
-            }
-            if(ar)setLoaderMsg(ar,en||ar);
         }
-        window.__bhdSetShellLoaderProgress=setLoaderProgress;
+        window.__bhdSetShellLoaderProgress=function(pct){setLoaderProgress(pct);};
 
         function hideLoader(){
             if(loaderHidden)return;
             loaderHidden=true;
-            setLoaderProgress(100,'✅ جاهز!','Ready!');
+            setLoaderProgress(100);
             try{document.documentElement.classList.remove('bhd-dash-booting');}catch(e0){}
             var el=document.getElementById('bhd-shell-loading');
             if(el){
                 el.style.opacity='0';
-                setTimeout(function(){el.classList.add('bhd-hidden');},300);
+                setTimeout(function(){el.classList.add('bhd-hidden');},320);
             }
         }
         window.__bhdHideShellLoader=hideLoader;
@@ -201,7 +188,7 @@
             }catch(e){return true;}
         }
 
-        setLoaderProgress(12,'جاري الاتصال بالخادم…','Connecting to server…');
+        setLoaderProgress(8);
 
         var bodyPromise=fetch(bodyUrl,{credentials:'include',cache:'default'}).then(function(r){
             if(!r.ok)throw new Error('HTTP '+r.status);
@@ -215,9 +202,9 @@
                 if(typeof window.__bhdApplyEntryModeFromUrl==='function')window.__bhdApplyEntryModeFromUrl();
 
                 function revealThenLoadMain(){
-                    setLoaderProgress(55,'تجهيز لوحة المعلومات…','Preparing dashboard…');
+                    setLoaderProgress(52);
                     return loadScript(mainJsUrl).then(function(){
-                        setLoaderProgress(70,'رسم البيانات النهائية…','Rendering final data…');
+                        setLoaderProgress(72);
                         setTimeout(function(){
                             if(!window.__bhdDashboardAppPaintDone){
                                 hideLoader();
@@ -228,16 +215,16 @@
 
                 if(!isDashboardMode()){
                     try{document.documentElement.classList.remove('bhd-dash-booting');}catch(eNb){}
-                    setLoaderProgress(40,'جاري تحميل النظام…','Loading system…');
+                    setLoaderProgress(40);
                     return loadScript(mainJsUrl).then(function(){setTimeout(hideLoader,50);});
                 }
 
-                setLoaderProgress(28,'جلب بيانات العقارات والعقود…','Fetching properties & contracts…');
+                setLoaderProgress(24);
                 var wait=window.__bhdWaitDashboardKvReady
                     ? window.__bhdWaitDashboardKvReady(4500)
                     : Promise.resolve(false);
                 return wait.then(function(){
-                    setLoaderProgress(48,'جلب بيانات المحاسبة والمهام…','Fetching accounting & tasks…');
+                    setLoaderProgress(44);
                     return revealThenLoadMain();
                 });
             })

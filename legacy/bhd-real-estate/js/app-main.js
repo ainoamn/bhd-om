@@ -62823,7 +62823,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             _dashboardLastDataFp = bhdDashboardDataFingerprint();
         } catch (_eRevealMeta) {}
         try {
-            window.__bhdSetShellLoaderProgress?.(100, '✅ جاهز!', 'Ready!');
+            window.__bhdSetShellLoaderProgress?.(100);
         } catch (_eProg) {}
         try {
             window.__bhdHideShellLoader?.();
@@ -62859,77 +62859,77 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
     }
 
     async function ensureDashboardRevealKvReady() {
-        try {
-            window.__bhdSetShellLoaderProgress?.(78, 'جلب بيانات المحاسبة والمهام…', 'Fetching accounting & tasks…');
-        } catch (_eP1) {}
-        const need = BHD_KV_DASHBOARD_FAST_PULL_KEYS.some((k) => {
             try {
-                const raw = localStorage.getItem(k);
-                return !raw || raw === '{}' || raw === '[]' || raw === 'null';
-            } catch (_e) {
-                return true;
-            }
-        });
-        if (!need && window.__bhdBridgeStagedKvHydratedOk) return true;
-        try {
-            if (window.__bhdBridgeDashboardKvHydrating) {
-                await waitForBridgeDashboardKv(6000);
-            }
-            await bhdHydrateSiteKvFromServerIfNeeded({
-                deferIdbMirror: true,
-                keys: BHD_KV_DASHBOARD_FAST_PULL_KEYS,
-                force: false
+                window.__bhdSetShellLoaderProgress?.(78);
+            } catch (_eP1) {}
+            const need = BHD_KV_DASHBOARD_FAST_PULL_KEYS.some((k) => {
+                try {
+                    const raw = localStorage.getItem(k);
+                    return !raw || raw === '{}' || raw === '[]' || raw === 'null';
+                } catch (_e) {
+                    return true;
+                }
             });
-            window.__bhdBridgeStagedKvHydratedOk = true;
-            window.__bhdBridgeStagedKvHydrated = true;
+            if (!need && window.__bhdBridgeStagedKvHydratedOk) return true;
             try {
-                await fetchBhdServerContractStatuses(false);
-            } catch (_eSt) {}
-            return true;
-        } catch (_eHyd) {
-            return false;
+                if (window.__bhdBridgeDashboardKvHydrating) {
+                    await waitForBridgeDashboardKv(6000);
+                }
+                await bhdHydrateSiteKvFromServerIfNeeded({
+                    deferIdbMirror: true,
+                    keys: BHD_KV_DASHBOARD_FAST_PULL_KEYS,
+                    force: false
+                });
+                window.__bhdBridgeStagedKvHydratedOk = true;
+                window.__bhdBridgeStagedKvHydrated = true;
+                try {
+                    await fetchBhdServerContractStatuses(false);
+                } catch (_eSt) {}
+                return true;
+            } catch (_eHyd) {
+                return false;
+            }
         }
-    }
 
-    async function paintDashboardFirstReveal() {
-        if (window.__bhdDashboardAppPaintDone || window.__bhdDashboardPaintInFlight) {
-            return;
-        }
-        window.__bhdDashboardPaintInFlight = true;
-        try {
-            beginDashboardBootSettle(14000);
+        async function paintDashboardFirstReveal() {
+            if (window.__bhdDashboardAppPaintDone || window.__bhdDashboardPaintInFlight) {
+                return;
+            }
+            window.__bhdDashboardPaintInFlight = true;
             try {
-                window.__bhdSetShellLoaderProgress?.(80, 'تجهيز لوحة المعلومات…', 'Preparing dashboard…');
-            } catch (_eP2) {}
-            await ensureDashboardRevealKvReady();
-            try {
-                window.__bhdSetShellLoaderProgress?.(88, 'رسم الإحصائيات والجدول…', 'Rendering stats & table…');
-            } catch (_eP3) {}
-            loadDashboardAux(true, { fast: true, skipAutoSync: true });
-            try {
-                loadAccountingRegistry(true);
-            } catch (_eAc) {}
-            try {
-                loadTasksRegistry();
-            } catch (_eTk) {}
-            try {
-                loadMaintenanceRegistry();
-            } catch (_eMn) {}
-            bumpUnitsDataCache();
-            await renderOperationsTable();
-            try {
-                renderDashboardModuleHub();
-            } catch (_eHub) {}
-            try {
-                renderDashboardCalendar();
-            } catch (_eCal) {}
-            try {
-                updateNotificationsNavBadge();
-            } catch (_eBadge) {}
-            try {
-                window.__bhdSetShellLoaderProgress?.(96, 'اكتمال العرض…', 'Finalizing view…');
-            } catch (_eP4) {}
-            finishDashboardFirstReveal();
+                beginDashboardBootSettle(14000);
+                try {
+                    window.__bhdSetShellLoaderProgress?.(82);
+                } catch (_eP2) {}
+                await ensureDashboardRevealKvReady();
+                try {
+                    window.__bhdSetShellLoaderProgress?.(90);
+                } catch (_eP3) {}
+                loadDashboardAux(true, { fast: true, skipAutoSync: true });
+                try {
+                    loadAccountingRegistry(true);
+                } catch (_eAc) {}
+                try {
+                    loadTasksRegistry();
+                } catch (_eTk) {}
+                try {
+                    loadMaintenanceRegistry();
+                } catch (_eMn) {}
+                bumpUnitsDataCache();
+                await renderOperationsTable();
+                try {
+                    renderDashboardModuleHub();
+                } catch (_eHub) {}
+                try {
+                    renderDashboardCalendar();
+                } catch (_eCal) {}
+                try {
+                    updateNotificationsNavBadge();
+                } catch (_eBadge) {}
+                try {
+                    window.__bhdSetShellLoaderProgress?.(97);
+                } catch (_eP4) {}
+                finishDashboardFirstReveal();
             requestAnimationFrame(() => {
                 try {
                     renderRegistryTable();
