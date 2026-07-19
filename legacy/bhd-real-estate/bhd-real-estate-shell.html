@@ -61,6 +61,76 @@
         }
       }catch(e){}
     };
+    /** عرض فوري من الكاش قبل تحميل app-main.js (~3.4MB) — يقلّل انتظار ظهور البيانات */
+    window.__bhdEarlyDashboardPaint=function(){
+      try{
+        var mode='';
+        try{mode=new URLSearchParams(location.search).get('mode')||'';}catch(e0){}
+        if(mode&&mode!=='dashboard')return false;
+        function parseArr(key){
+          try{
+            var raw=localStorage.getItem(key);
+            if(!raw)return [];
+            var o=JSON.parse(raw);
+            return Array.isArray(o)?o:[];
+          }catch(e){return [];}
+        }
+        function esc(s){
+          return String(s==null?'':s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;');
+        }
+        function set(id,v){
+          var el=document.getElementById(id);
+          if(el)el.textContent=String(v);
+        }
+        var units=parseArr('bhd_managed_units');
+        var buildings=parseArr('bhd_buildings_list');
+        var owners=parseArr('bhd_owners_list');
+        if(!units.length&&!buildings.length)return false;
+        var rented=0,vacant=0,reserved=0;
+        for(var i=0;i<units.length;i++){
+          var u=units[i]||{};
+          var st=String(u.status||'');
+          if(st==='Rented')rented++;
+          else if(st==='Reserved'||u.reserved)reserved++;
+          else vacant++;
+        }
+        set('statBuildings',buildings.length||new Set(units.map(function(x){return String((x&&x.building)||'').trim();}).filter(Boolean)).size);
+        set('statOwnersCount',owners.length);
+        set('statTotalUnits',units.length);
+        set('statRentedUnits',rented);
+        set('statVacantUnits',vacant);
+        set('statReservedUnits',reserved);
+        var tbody=document.getElementById('unitsTableBody');
+        if(tbody&&units.length){
+          var page=units.slice(0,100);
+          var html='';
+          for(var j=0;j<page.length;j++){
+            var row=page[j]||{};
+            html+='<tr>'
+              +'<td>'+esc(row.building)+'</td>'
+              +'<td>'+esc(row.ownerNames||'—')+'</td>'
+              +'<td>'+esc(row.unit)+'</td>'
+              +'<td>'+esc(row.tenant||'-')+'</td>'
+              +'<td>'+esc(row.status||'')+'</td>'
+              +'<td>—</td>'
+              +'<td>'+esc(row.endDate||'-')+'</td>'
+              +'<td>—</td>'
+              +'<td>'+esc(row.electricity||'-')+'</td>'
+              +'<td>'+esc(row.water||'-')+'</td>'
+              +'<td></td>'
+              +'</tr>';
+          }
+          tbody.innerHTML=html;
+        }
+        window.__bhdEarlyDashboardPaintDone=true;
+        return true;
+      }catch(e){
+        console.warn('[BHD shell] early dashboard paint',e);
+        return false;
+      }
+    };
     </script>
     <script id="bhd-early-page-shell">
     (function(){
@@ -83,7 +153,7 @@
     <div id="bhd-shell-loading" aria-live="polite">
         <div style="text-align:center">
             <div class="bhd-shell-spinner" aria-hidden="true"></div>
-            <p style="margin:12px 0 0;font-weight:600;color:#313131" data-ar="جاري تحميل نظام العقارات…" data-en="Loading real estate system…">جاري تحميل نظام العقارات…</p>
+            <p id="bhd-shell-loading-msg" style="margin:12px 0 0;font-weight:600;color:#313131" data-ar="جاري تحميل نظام العقارات…" data-en="Loading real estate system…">جاري تحميل نظام العقارات…</p>
         </div>
     </div>
     <div id="module-body"></div>
@@ -92,11 +162,23 @@
         var BASE='/api/admin/legacy-real-estate/';
         var bodyUrl=BASE+'modules/body-raw.html';
         var mainJsUrl=BASE+'js/app-main.js';
+        var loaderHidden=false;
+
+        function setLoaderMsg(ar,en){
+            var el=document.getElementById('bhd-shell-loading-msg');
+            if(!el)return;
+            el.setAttribute('data-ar',ar);
+            el.setAttribute('data-en',en);
+            el.textContent=ar;
+        }
 
         function hideLoader(){
+            if(loaderHidden)return;
+            loaderHidden=true;
             var el=document.getElementById('bhd-shell-loading');
             if(el)el.classList.add('bhd-hidden');
         }
+        window.__bhdHideShellLoader=hideLoader;
 
         function loadScript(src){
             return new Promise(function(resolve,reject){
@@ -113,19 +195,48 @@
             if(!r.ok)throw new Error('HTTP '+r.status);
             return r.text();
         });
-        var scriptWarm=document.createElement('link');
-        scriptWarm.rel='preload';
-        scriptWarm.as='script';
-        scriptWarm.href=mainJsUrl;
-        document.head.appendChild(scriptWarm);
 
         bodyPromise
             .then(function(html){
                 var c=document.getElementById('module-body');
                 if(c)c.innerHTML=html;
                 if(typeof window.__bhdApplyEntryModeFromUrl==='function')window.__bhdApplyEntryModeFromUrl();
-                hideLoader();
-                return loadScript(mainJsUrl);
+
+                function afterPaintAttempt(painted){
+                    if(painted){
+                        hideLoader();
+                    }else{
+                        setLoaderMsg('جاري جلب البيانات…','Loading data…');
+                    }
+                    return loadScript(mainJsUrl).then(function(){
+                        setTimeout(hideLoader,50);
+                    });
+                }
+
+                function attemptPaint(){
+                    var painted=false;
+                    try{
+                        painted=!!(window.__bhdEarlyDashboardPaint&&window.__bhdEarlyDashboardPaint());
+                    }catch(ePaint){}
+                    return afterPaintAttempt(painted);
+                }
+
+                /** إن كان الجسر يسحب Neon، انتظر قليلاً قبل الرسم المبكر */
+                if(window.__bhdBridgeDashboardKvHydrating&&!window.__bhdEarlyDashboardPaintDone){
+                    return new Promise(function(resolve){
+                        var done=false;
+                        function finish(){
+                            if(done)return;
+                            done=true;
+                            try{window.removeEventListener('bhd-kv-hydrated',onHyd);}catch(e){}
+                            resolve(attemptPaint());
+                        }
+                        function onHyd(){finish();}
+                        try{window.addEventListener('bhd-kv-hydrated',onHyd);}catch(e2){}
+                        setTimeout(finish,2800);
+                    }).then(function(p){return p;});
+                }
+                return attemptPaint();
             })
             .catch(function(err){
                 console.error('[BHD shell] boot failed',err);

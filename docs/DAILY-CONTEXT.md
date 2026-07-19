@@ -9,6 +9,12 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-19 — رسم مبكر للوحة قبل app-main.js
+
+- **السبب الحقيقي للبطء:** تحميل وتحليل `app-main.js` (~3.4MB) قبل أي بيانات؛ الشريط يختفي مبكراً والشاشة تبدو فارغة.
+- **إصلاح:** في `bhd-real-estate-shell.html` رسم فوري للإحصائيات/الجدول من localStorage بعد حقن body؛ انتظار قصير لجسر Neon إن كان يسحب؛ إخفاء الشريط بعد ظهور البيانات؛ `__bhdHideShellLoader` من app-main.
+- **الملفات:** `legacy/.../bhd-real-estate-shell.html`, `legacy/.../js/app-main.js`
+
 ### جلسة 2026-07-16 — إصلاح تأخير عرض بيانات اللوحة (سبب جذري)
 
 - **السبب الجذري:** `renderOperationsTable` كان ينتظر `ensureBhdSiteKvHydratedFromNeon()` قبل رسم الجداول/الإحصائيات.

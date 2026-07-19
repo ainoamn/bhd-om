@@ -48334,6 +48334,9 @@ function getEmptyCompanySignatory() {
         updateOperationsStats(portalScoped ? allData.filter((u) => unitPassesPortalScope(u.building, u.unit)) : allData);
         updateBuildingsFilter(allData);
         updateBatchBuildingFilter(allData);
+        try {
+            window.__bhdHideShellLoader?.();
+        } catch (_eHideShellOps) {}
         const filters = getFiltersState();
 
         const rows = allData.filter((u) => {
@@ -64358,6 +64361,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 initializeMode();
                 window.__bhdDashboardFastPaintDone = true;
                 _dashboardLastDataFp = bhdDashboardDataFingerprint();
+                try {
+                    window.__bhdHideShellLoader?.();
+                } catch (_eHideShell) {}
                 bhdAuditUnmute();
                 const heavyEmpty = BHD_KV_DASHBOARD_HEAVY_PULL_KEYS.some((k) => {
                     try {
