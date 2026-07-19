@@ -90,6 +90,37 @@
         var units=parseArr('bhd_managed_units');
         var buildings=parseArr('bhd_buildings_list');
         var owners=parseArr('bhd_owners_list');
+        /** دمج العقود المحفوظة على الوحدات قبل العرض — نفس منطق اللوحة النهائي */
+        try{
+          var smap=JSON.parse(localStorage.getItem('bhd_saved_contracts_by_unit')||'{}');
+          if(smap&&typeof smap==='object'){
+            Object.keys(smap).forEach(function(sk){
+              var e=smap[sk];
+              var p=e&&e.payload;
+              if(!p)return;
+              var b=String(p.buildingNo||'').trim();
+              var u=String(p.flatNo||'').trim();
+              if(!b||!u)return;
+              var hit=-1;
+              for(var i=0;i<units.length;i++){
+                if(String((units[i]&&units[i].building)||'')===b&&String((units[i]&&units[i].unit)||'')===u){hit=i;break;}
+              }
+              var row={
+                building:b,
+                unit:u,
+                ownerNames:(hit>=0&&units[hit].ownerNames)||'',
+                tenant:p.tenantNameAr||'',
+                status:'Rented',
+                endDate:p.endDate||'',
+                monthlyRent:parseFloat(p.monthlyRent)||0,
+                electricity:p.electricityMeter||'',
+                water:p.waterMeter||''
+              };
+              if(hit>=0)units[hit]=Object.assign({},units[hit],row);
+              else units.unshift(row);
+            });
+          }
+        }catch(_eSc){}
         if(!units.length&&!buildings.length)return false;
         var rented=0,vacant=0,reserved=0;
         for(var i=0;i<units.length;i++){

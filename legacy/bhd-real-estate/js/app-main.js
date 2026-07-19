@@ -10118,6 +10118,33 @@
     let _unitsDataFullBuildDone = false;
     let _unitsDataFullRebuildTimer = 0;
 
+    function mergeSavedContractsIntoUnitsCombined(combined) {
+        if (!Array.isArray(combined)) return combined;
+        try {
+            const smap = loadSavedContractsByUnitMap();
+            Object.keys(smap).forEach((sk) => {
+                const e = smap[sk];
+                if (!e || !e.payload) return;
+                const dr0 = contractStoragePayloadToRentedTableRow(e.payload);
+                if (!dr0) return;
+                if (!isBuildingNameActive(dr0.building)) return;
+                dr0.status = 'Rented';
+                const j = combined.findIndex(
+                    (u) =>
+                        normalizeReservationBuildingKey(u.building) ===
+                            normalizeReservationBuildingKey(dr0.building) &&
+                        normalizeUnit(u.unit) === normalizeUnit(dr0.unit)
+                );
+                if (j >= 0) {
+                    combined[j] = { ...combined[j], ...dr0, status: 'Rented' };
+                } else {
+                    combined.unshift(dr0);
+                }
+            });
+        } catch (_eMergeSc) {}
+        return combined;
+    }
+
     function buildUnitsDataQuickFromMemory() {
         if (!Array.isArray(managedUnitsData) || !managedUnitsData.length) {
             loadDashboardAux(true, { fast: true });
@@ -10130,6 +10157,8 @@
                 ownerNames: u.ownerNames || formatOwnerNamesForBuilding(u.building)
             });
         });
+        /** دمج العقود فوراً — يمنع عرض كل الوحدات شاغرة ثم استبدالها بعد ثوانٍ */
+        mergeSavedContractsIntoUnitsCombined(combined);
         return filterUnitsToActiveBuildingsOnly(applyForcedVacancyPatchesToUnitsRows(combined));
     }
 
@@ -10140,14 +10169,20 @@
             getUnitsData({ forceFull: true });
             if (_activeWorkspaceMode === 'dashboard') {
                 try {
-                    renderOperationsTable();
+                    /** احترام فترة الهدوء بعد الكشف — لا ومضة */
+                    if (typeof requestDashboardRepaint === 'function') {
+                        requestDashboardRepaint('units-full-rebuild', { force: false });
+                    } else {
+                        renderOperationsTable();
+                    }
                 } catch (_eDashFull) {}
             }
         };
-        const deferMs = window.__bhdBootRefreshFast ? 4500 : 500;
-        if (window.__bhdBootRefreshFast && typeof requestIdleCallback === 'function') {
+        /** بعد الإقلاع السريع أجّل أكثر حتى لا يقطع الرسم المستقر */
+        const deferMs = window.__bhdBootRefreshFast || window.__bhdDashboardRevealDone ? 9000 : 500;
+        if (typeof requestIdleCallback === 'function') {
             _unitsDataFullRebuildTimer = setTimeout(() => {
-                requestIdleCallback(runFull, { timeout: 12000 });
+                requestIdleCallback(runFull, { timeout: 20000 });
             }, deferMs);
         } else {
             _unitsDataFullRebuildTimer = setTimeout(runFull, deferMs);
@@ -10169,8 +10204,23 @@
             migrateLegacySavedContractToRegistry();
         } catch (_eMigUnits) {}
         const useEmptyBaseUnits = localStorage.getItem('bhd_use_empty_base_units') === '1';
-        if (buildingProfiles && typeof buildingProfiles === 'object') {
-            try { syncManagedUnitsFromProfiles(); } catch (e) {}
+        /**
+         * لا تعِد بناء الوحدات من profiles أثناء إقلاع اللوحة —
+         * كان يمحو قائمة managed_units الكاملة (107) ويستبدلها بقائمة ناقصة (4).
+         */
+        const allowProfileSync =
+            buildingProfiles &&
+            typeof buildingProfiles === 'object' &&
+            Object.keys(buildingProfiles).length > 0 &&
+            !window.__bhdBootRefreshFast &&
+            !(
+                window.__bhdDashboardRevealDone &&
+                Date.now() - Number(window.__bhdDashboardRevealAt || 0) < 12000
+            );
+        if (allowProfileSync) {
+            try {
+                syncManagedUnitsFromProfiles({ skipCoa: true });
+            } catch (e) {}
         }
         const d = getFormDataForUnitsTableMerge();
         const hasContractUnit = toStr(d.buildingNo) && toStr(d.flatNo);
@@ -10236,25 +10286,7 @@
             }
         }
         {
-            const smap = loadSavedContractsByUnitMap();
-            Object.keys(smap).forEach((sk) => {
-                const e = smap[sk];
-                if (!e || !e.payload) return;
-                const dr0 = contractStoragePayloadToRentedTableRow(e.payload);
-                if (!dr0) return;
-                if (!isBuildingNameActive(dr0.building)) return;
-                dr0.status = 'Rented';
-                const j = combined.findIndex(
-                    (u) =>
-                        normalizeReservationBuildingKey(u.building) === normalizeReservationBuildingKey(dr0.building) &&
-                        normalizeUnit(u.unit) === normalizeUnit(dr0.unit)
-                );
-                if (j >= 0) {
-                    combined[j] = { ...combined[j], ...dr0, status: 'Rented' };
-                } else {
-                    combined.unshift(dr0);
-                }
-            });
+            mergeSavedContractsIntoUnitsCombined(combined);
         }
         {
             const dmap = loadTenancyContractDraftsMap();
@@ -40594,7 +40626,7 @@ function getEmptyCompanySignatory() {
         const inBoot = now < _dashboardBootSettleUntil;
         const revealAt = Number(window.__bhdDashboardRevealAt || 0);
         const inQuietReveal =
-            !!window.__bhdDashboardRevealDone && revealAt > 0 && now - revealAt < 4500;
+            !!window.__bhdDashboardRevealDone && revealAt > 0 && now - revealAt < 12000;
 
         if (!force && fp && fp === _dashboardLastDataFp) {
             return false;
@@ -43575,6 +43607,7 @@ function getEmptyCompanySignatory() {
 
     function syncManagedUnitsFromProfiles(opt) {
         const skipCoa = !!(opt && opt.skipCoa) || window.__bhdBootRefreshFast === true;
+        const prevManaged = Array.isArray(managedUnitsData) ? managedUnitsData.slice() : [];
         const grouped = {};
         Object.values(buildingProfiles || {}).forEach((raw) => {
             const profile = raw || {};
@@ -43592,6 +43625,14 @@ function getEmptyCompanySignatory() {
         managedUnitsData = Object.values(grouped)
             .filter((profile) => isBuildingProfileActive(profile))
             .flatMap((profile) => createUnitRowsFromProfile(profile));
+        /** حماية: لا تستبدل قائمة كاملة بقائمة ناقصة من profiles غير مكتملة */
+        if (
+            prevManaged.length > 20 &&
+            managedUnitsData.length < Math.max(8, Math.floor(prevManaged.length * 0.4))
+        ) {
+            managedUnitsData = prevManaged;
+            if (skipCoa) return;
+        }
         if (skipCoa) return;
         try {
             const reg = loadAccountingRegistry();
