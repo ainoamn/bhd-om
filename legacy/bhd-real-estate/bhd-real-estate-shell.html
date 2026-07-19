@@ -278,21 +278,14 @@
                 if(typeof window.__bhdApplyEntryModeFromUrl==='function')window.__bhdApplyEntryModeFromUrl();
 
                 function revealThenLoadMain(){
-                    var painted=false;
-                    try{
-                        painted=!!(window.__bhdEarlyDashboardPaint&&window.__bhdEarlyDashboardPaint());
-                    }catch(ePaint){}
-                    if(painted){
-                        hideLoader();
-                    }else{
-                        setLoaderMsg('جاري تجهيز الواجهة…','Preparing interface…');
-                    }
-                    return new Promise(function(resolve){
+                    /** لا تُظهر رسم الشِل الناقص — أبقِ الـ overlay حتى يرسم app-main الرسم الكامل مرة واحدة */
+                    setLoaderMsg('جاري تجهيز لوحة التحكم…','Preparing dashboard…');
+                    return loadScript(mainJsUrl).then(function(){
                         setTimeout(function(){
-                            resolve(loadScript(mainJsUrl).then(function(){
-                                setTimeout(hideLoader,80);
-                            }));
-                        }, painted ? 30 : 0);
+                            if(!window.__bhdDashboardAppPaintDone){
+                                hideLoader();
+                            }
+                        },10000);
                     });
                 }
 

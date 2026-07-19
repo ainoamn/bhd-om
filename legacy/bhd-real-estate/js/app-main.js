@@ -48482,7 +48482,13 @@ function getEmptyCompanySignatory() {
         updateBuildingsFilter(allData);
         updateBatchBuildingFilter(allData);
         try {
-            window.__bhdHideShellLoader?.();
+            /** أثناء أول كشف للوحة: لا تُخفِ الـ loader هنا — يُخفى بعد hub في finishDashboardFirstReveal */
+            if (
+                window.__bhdDashboardAppPaintDone ||
+                !document.body.classList.contains('mode-dashboard')
+            ) {
+                window.__bhdHideShellLoader?.();
+            }
         } catch (_eHideShellOps) {}
         const filters = getFiltersState();
 
@@ -62806,22 +62812,27 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         return true;
     }
 
+    function finishDashboardFirstReveal() {
+        try {
+            window.__bhdDashboardAppPaintDone = true;
+            window.__bhdDashboardRevealDone = true;
+            window.__bhdDashboardRevealAt = Date.now();
+            window.__bhdDashboardFastPaintDone = true;
+            window.__bhdEarlyDashboardPaintDone = true;
+            _dashboardLastDataFp = bhdDashboardDataFingerprint();
+        } catch (_eRevealMeta) {}
+        try {
+            window.__bhdHideShellLoader?.();
+        } catch (_eHideReveal) {}
+    }
+
     function renderDashboardWorkspaceStaged() {
-        const deferOps =
-            window.__bhdEarlyDashboardPaintDone === true || window.__bhdBootRefreshFast === true;
         const runOps = () => {
             try {
                 renderOperationsTable();
             } catch (_eDashOps) {}
         };
-        if (deferOps) {
-            /** أفسح للمتصفح معالجة النقرات بعد الرسم المبكر */
-            requestAnimationFrame(() => {
-                setTimeout(runOps, 0);
-            });
-        } else {
-            runOps();
-        }
+        runOps();
         requestAnimationFrame(() => {
             try {
                 renderRegistryTable();
@@ -62838,6 +62849,41 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 setTimeout(idle, 120);
             }
         });
+    }
+
+    async function paintDashboardFirstReveal() {
+        if (window.__bhdDashboardAppPaintDone || window.__bhdDashboardPaintInFlight) {
+            return;
+        }
+        window.__bhdDashboardPaintInFlight = true;
+        try {
+            beginDashboardBootSettle(12000);
+            loadDashboardAux(true, { fast: true, skipAutoSync: true });
+            bumpUnitsDataCache();
+            await renderOperationsTable();
+            try {
+                renderDashboardModuleHub();
+            } catch (_eHub) {}
+            finishDashboardFirstReveal();
+            requestAnimationFrame(() => {
+                try {
+                    renderDashboardCalendar();
+                } catch (_eCal) {}
+                try {
+                    renderRegistryTable();
+                } catch (_eReg) {}
+            });
+        } catch (ePaintDash) {
+            console.warn('paintDashboardFirstReveal', ePaintDash);
+            try {
+                renderDashboardWorkspaceStaged();
+            } catch (_eStaged) {}
+            finishDashboardFirstReveal();
+        } finally {
+            try {
+                window.__bhdDashboardPaintInFlight = false;
+            } catch (_eInFlight) {}
+        }
     }
 
     function renderWorkspaceModeContent(mode) {
@@ -63948,19 +63994,14 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             }
             if (activePageMode === 'dashboard') {
                 try {
-                    if (window.__bhdEarlyDashboardPaintDone || window.__bhdDashboardRevealDone) {
-                        /** الرسم المستقر تم من الشِل بعد Neon — لا تعِد بناء الجدول فوراً */
-                        try {
-                            _dashboardLastDataFp = bhdDashboardDataFingerprint();
-                        } catch (_eFpInit) {}
-                        try {
-                            window.__bhdHideShellLoader?.();
-                        } catch (_eHide) {}
-                    } else {
-                        renderDashboardWorkspaceStaged();
-                    }
+                    /** رسم كامل واحد ثم إخفاء الـ loader — يمنع ومضة الشِل الناقصة ثم التصحيح */
+                    void paintDashboardFirstReveal();
                 } catch (e) {
-                    console.error('renderDashboardWorkspaceStaged failed:', e);
+                    console.error('paintDashboardFirstReveal failed:', e);
+                    try {
+                        renderDashboardWorkspaceStaged();
+                        finishDashboardFirstReveal();
+                    } catch (_eFb) {}
                 }
             } else if (activePageMode === 'contracts') {
                 try {
@@ -64528,11 +64569,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 updateAuthHeaderBar();
                 loadDashboardAux(true, { fast: true, skipAutoSync: true });
                 initializeMode();
-                window.__bhdDashboardFastPaintDone = true;
-                _dashboardLastDataFp = bhdDashboardDataFingerprint();
-                try {
-                    window.__bhdHideShellLoader?.();
-                } catch (_eHideShell) {}
+                /** لا تُخفِ الـ loader هنا — paintDashboardFirstReveal يُكمِل الرسم ثم يُخفيه */
                 bhdAuditUnmute();
                 const heavyEmpty = BHD_KV_DASHBOARD_HEAVY_PULL_KEYS.some((k) => {
                     try {
@@ -64562,12 +64599,10 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 tryAutoSignInDefaultAdminIfNeeded();
                 updateAuthHeaderBar();
             } catch (_eAuthWarm) {}
-            if (!window.__bhdDashboardFastPaintDone) {
+            if (!window.__bhdDashboardFastPaintDone && !window.__bhdDashboardPaintInFlight) {
                 try {
                     loadDashboardAux(true, { fast: true, skipAutoSync: true });
                     initializeMode();
-                    window.__bhdDashboardFastPaintDone = true;
-                    _dashboardLastDataFp = bhdDashboardDataFingerprint();
                 } catch (_eWarmUi) {
                     console.warn('warm reload UI', _eWarmUi);
                 }
