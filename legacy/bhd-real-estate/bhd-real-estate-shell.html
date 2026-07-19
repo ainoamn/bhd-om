@@ -205,9 +205,16 @@
                 function afterPaintAttempt(painted){
                     if(painted){
                         hideLoader();
-                    }else{
-                        setLoaderMsg('جاري جلب البيانات…','Loading data…');
+                        /** أفسح إطار رسم/نقر قبل تحميل app-main.js الثقيل */
+                        return new Promise(function(resolve){
+                            setTimeout(function(){
+                                resolve(loadScript(mainJsUrl).then(function(){
+                                    setTimeout(hideLoader,50);
+                                }));
+                            },40);
+                        });
                     }
+                    setLoaderMsg('جاري جلب البيانات…','Loading data…');
                     return loadScript(mainJsUrl).then(function(){
                         setTimeout(hideLoader,50);
                     });

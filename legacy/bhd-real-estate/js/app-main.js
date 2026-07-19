@@ -20233,7 +20233,7 @@ function getEmptyCompanySignatory() {
     let _tasksSyncLastAt = 0;
     let _loadDashboardAuxLastAt = 0;
     let _unitsDataCache = null;
-    const OPERATIONS_PAGE_SIZE_DEFAULT = 100;
+    const OPERATIONS_PAGE_SIZE_DEFAULT = 50;
     let _operationsPageSize = OPERATIONS_PAGE_SIZE_DEFAULT;
     let _operationsPageIndex = 0;
     let _activeWorkspaceMode = '';
@@ -40681,45 +40681,60 @@ function getEmptyCompanySignatory() {
             ownerBuildingMap = {};
         }
         try {
-            buildingProfiles = JSON.parse(localStorage.getItem('bhd_building_profiles') || '{}');
-            if (!buildingProfiles || typeof buildingProfiles !== 'object') buildingProfiles = {};
-            Object.keys(buildingProfiles).forEach((k) => {
-                if (buildingProfiles[k] && typeof buildingProfiles[k] === 'object') {
-                    buildingProfiles[k].buildingStatus = normalizeBuildingStatus(buildingProfiles[k].buildingStatus);
-                }
-            });
-            buildingProfilesShadow = { ...buildingProfiles };
-            if (!fast) {
-                try {
-                    if (repairOversizedBuildingProfilesInMemory()) {
-                        localStorage.setItem('bhd_building_profiles', JSON.stringify(buildingProfiles));
+            if (fast && bhdIsDashboardOnlyMode()) {
+                /** تخطّي parse للـ profiles الضخمة أثناء الإقلاع — يُحمَّل لاحقاً بدون تجميد */
+                buildingProfiles = {};
+                buildingProfilesShadow = {};
+                scheduleBuildingProfilesIdleLoad();
+            } else {
+                buildingProfiles = JSON.parse(localStorage.getItem('bhd_building_profiles') || '{}');
+                if (!buildingProfiles || typeof buildingProfiles !== 'object') buildingProfiles = {};
+                Object.keys(buildingProfiles).forEach((k) => {
+                    if (buildingProfiles[k] && typeof buildingProfiles[k] === 'object') {
+                        buildingProfiles[k].buildingStatus = normalizeBuildingStatus(buildingProfiles[k].buildingStatus);
                     }
-                } catch (_eRepairBp) {}
+                });
+                buildingProfilesShadow = { ...buildingProfiles };
+                if (!fast) {
+                    try {
+                        if (repairOversizedBuildingProfilesInMemory()) {
+                            localStorage.setItem('bhd_building_profiles', JSON.stringify(buildingProfiles));
+                        }
+                    } catch (_eRepairBp) {}
+                }
             }
         } catch (e) {
             buildingProfiles = {};
         }
         try {
-            ownerProfiles = JSON.parse(localStorage.getItem('bhd_owner_profiles') || '{}');
-            if (!ownerProfiles || typeof ownerProfiles !== 'object') ownerProfiles = {};
+            if (fast && bhdIsDashboardOnlyMode()) {
+                ownerProfiles = {};
+            } else {
+                ownerProfiles = JSON.parse(localStorage.getItem('bhd_owner_profiles') || '{}');
+                if (!ownerProfiles || typeof ownerProfiles !== 'object') ownerProfiles = {};
+            }
         } catch (e) {
             ownerProfiles = {};
         }
         try {
             addressBookEntries = JSON.parse(localStorage.getItem('bhd_address_book') || '[]');
             if (!Array.isArray(addressBookEntries)) addressBookEntries = [];
-            addressBookEntries = dedupeAddressBookEntries(addressBookEntries).map((e) =>
-                normalizeAddressBookEntryIdentityFields(e)
-            );
-            if (addressBookEntries.length) {
-                localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+            if (!fast) {
+                addressBookEntries = dedupeAddressBookEntries(addressBookEntries).map((e) =>
+                    normalizeAddressBookEntryIdentityFields(e)
+                );
+                if (addressBookEntries.length) {
+                    localStorage.setItem('bhd_address_book', JSON.stringify(addressBookEntries));
+                }
             }
         } catch (e) {
             addressBookEntries = [];
         }
-        try {
-            seedLearnedNamePairsFromExistingData();
-        } catch (_eSeedNames) {}
+        if (!fast) {
+            try {
+                seedLearnedNamePairsFromExistingData();
+            } catch (_eSeedNames) {}
+        }
         try {
             managedUnitsData = JSON.parse(localStorage.getItem('bhd_managed_units') || '[]');
             if (!Array.isArray(managedUnitsData)) managedUnitsData = [];
@@ -40728,11 +40743,17 @@ function getEmptyCompanySignatory() {
         }
         if (buildingProfiles && typeof buildingProfiles === 'object') {
             if (fast) {
-                /** لا تؤجّل مزامنة الوحدات أثناء الإقلاع السريع — كانت تغيّر الأرقام بعد ~800ms فتومض اللوحة */
-                try {
-                    syncManagedUnitsFromProfiles();
-                    localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
-                } catch (_eSyncMuFast) {}
+                /**
+                 * المسار السريع: لا تعِد بناء الوحدات من profiles ولا تُشغّل COA —
+                 * هذا كان يجمد الصفحة لثوانٍ/دقائق بعد ظهور البيانات.
+                 */
+                if (!managedUnitsData.length) {
+                    try {
+                        syncManagedUnitsFromProfiles({ skipCoa: true });
+                    } catch (_eSyncMuFastEmpty) {}
+                } else {
+                    scheduleManagedUnitsProfileSyncIdle();
+                }
             } else {
                 try {
                     syncManagedUnitsFromProfiles();
@@ -43506,7 +43527,44 @@ function getEmptyCompanySignatory() {
         return rows;
     }
 
-    function syncManagedUnitsFromProfiles() {
+    let _buildingProfilesIdleLoadScheduled = false;
+    function scheduleBuildingProfilesIdleLoad() {
+        if (_buildingProfilesIdleLoadScheduled) return;
+        _buildingProfilesIdleLoadScheduled = true;
+        const run = () => {
+            try {
+                const raw = localStorage.getItem('bhd_building_profiles') || '{}';
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') return;
+                buildingProfiles = parsed;
+                Object.keys(buildingProfiles).forEach((k) => {
+                    if (buildingProfiles[k] && typeof buildingProfiles[k] === 'object') {
+                        buildingProfiles[k].buildingStatus = normalizeBuildingStatus(
+                            buildingProfiles[k].buildingStatus
+                        );
+                    }
+                });
+                buildingProfilesShadow = { ...buildingProfiles };
+                try {
+                    ownerProfiles = JSON.parse(localStorage.getItem('bhd_owner_profiles') || '{}');
+                    if (!ownerProfiles || typeof ownerProfiles !== 'object') ownerProfiles = {};
+                } catch (_eOp) {
+                    ownerProfiles = {};
+                }
+                scheduleManagedUnitsProfileSyncIdle();
+            } catch (_eBpIdle) {
+                console.warn('scheduleBuildingProfilesIdleLoad', _eBpIdle);
+            }
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(run, { timeout: 8000 });
+        } else {
+            setTimeout(run, 1500);
+        }
+    }
+
+    function syncManagedUnitsFromProfiles(opt) {
+        const skipCoa = !!(opt && opt.skipCoa) || window.__bhdBootRefreshFast === true;
         const grouped = {};
         Object.values(buildingProfiles || {}).forEach((raw) => {
             const profile = raw || {};
@@ -43524,6 +43582,7 @@ function getEmptyCompanySignatory() {
         managedUnitsData = Object.values(grouped)
             .filter((profile) => isBuildingProfileActive(profile))
             .flatMap((profile) => createUnitRowsFromProfile(profile));
+        if (skipCoa) return;
         try {
             const reg = loadAccountingRegistry();
             let coaChanged = false;
@@ -43532,6 +43591,43 @@ function getEmptyCompanySignatory() {
             });
             if (coaChanged) saveAccountingRegistry(reg);
         } catch (_eCoaMu) {}
+    }
+
+    let _managedUnitsProfileSyncIdleScheduled = false;
+    function scheduleManagedUnitsProfileSyncIdle() {
+        if (_managedUnitsProfileSyncIdleScheduled) return;
+        _managedUnitsProfileSyncIdleScheduled = true;
+        const run = () => {
+            _managedUnitsProfileSyncIdleScheduled = false;
+            try {
+                if (!(buildingProfiles && typeof buildingProfiles === 'object')) return;
+                syncManagedUnitsFromProfiles({ skipCoa: true });
+                localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
+                bumpUnitsDataCache();
+                if (document.body.classList.contains('mode-dashboard') && typeof requestDashboardRepaint === 'function') {
+                    requestDashboardRepaint('mu-idle-sync', { force: false });
+                }
+            } catch (_eMuIdle) {
+                console.warn('scheduleManagedUnitsProfileSyncIdle', _eMuIdle);
+            }
+            /** COA الثقيل لاحقاً أكثر */
+            const runCoa = () => {
+                try {
+                    syncManagedUnitsFromProfiles({ skipCoa: false });
+                    localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
+                } catch (_eCoaIdle) {}
+            };
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(runCoa, { timeout: 60000 });
+            } else {
+                setTimeout(runCoa, 15000);
+            }
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(run, { timeout: 12000 });
+        } else {
+            setTimeout(run, 2500);
+        }
     }
 
     function getAllKnownBuildings() {
@@ -62660,9 +62756,21 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
     }
 
     function renderDashboardWorkspaceStaged() {
-        try {
-            renderOperationsTable();
-        } catch (_eDashOps) {}
+        const deferOps =
+            window.__bhdEarlyDashboardPaintDone === true || window.__bhdBootRefreshFast === true;
+        const runOps = () => {
+            try {
+                renderOperationsTable();
+            } catch (_eDashOps) {}
+        };
+        if (deferOps) {
+            /** أفسح للمتصفح معالجة النقرات بعد الرسم المبكر */
+            requestAnimationFrame(() => {
+                setTimeout(runOps, 0);
+            });
+        } else {
+            runOps();
+        }
         requestAnimationFrame(() => {
             try {
                 renderRegistryTable();
@@ -62674,9 +62782,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 } catch (_eDashIdle) {}
             };
             if (typeof requestIdleCallback === 'function') {
-                requestIdleCallback(idle, { timeout: 2500 });
+                requestIdleCallback(idle, { timeout: 4000 });
             } else {
-                setTimeout(idle, 60);
+                setTimeout(idle, 120);
             }
         });
     }
