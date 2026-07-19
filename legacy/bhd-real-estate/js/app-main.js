@@ -4362,6 +4362,12 @@
         _bhdBridgeLightRefreshTimer = setTimeout(async () => {
             _bhdBridgeLightRefreshTimer = 0;
             try {
+                try {
+                    syncAuthStateFromStorage();
+                    ensureSiteBridgeUserInRegistry();
+                    updateAuthHeaderBar();
+                    applyPermissionNavUi();
+                } catch (_eAuthBr) {}
                 loadDashboardAux(true);
                 if (isBhdSiteIntegratedWebClient()) {
                     try {
@@ -4373,6 +4379,15 @@
                     renderAddressBookTenantSelect();
                 } catch (_eAbSel) {}
                 if (document.body.classList.contains('mode-addressbook')) renderAddressBookTable();
+                if (document.body.classList.contains('mode-dashboard')) {
+                    try {
+                        renderDashboardModuleHub();
+                        renderDashboardCalendar();
+                        if (typeof requestDashboardRepaint === 'function') {
+                            requestDashboardRepaint('bridge-auth', { force: false });
+                        }
+                    } catch (_eDashBr) {}
+                }
             } catch (_eBrLight) {}
         }, 100);
     }
@@ -16567,15 +16582,61 @@ function getEmptyCompanySignatory() {
         return usersRegistry.find((u) => u && u.id === id) || null;
     }
 
+    /** يضمن مستخدم الجسر في الذاكرة — يمنع مسح الجلسة وإخفاء بطاقات اللوحة */
+    function ensureSiteBridgeUserInRegistry() {
+        try {
+            if (localStorage.getItem('bhd_site_integrated') !== '1') return false;
+            const payload = window.__bhdSiteBridgePayload;
+            const cu = payload && payload.currentUser ? payload.currentUser : null;
+            if (cu && cu.id) {
+                const existing = getUserById(cu.id);
+                if (!existing) {
+                    usersRegistry.push(normalizeUserRecord(cu));
+                } else {
+                    const idx = usersRegistry.findIndex((u) => u && u.id === cu.id);
+                    if (idx >= 0) usersRegistry[idx] = normalizeUserRecord({ ...existing, ...cu });
+                }
+                try {
+                    localStorage.setItem('bhd_users_registry', JSON.stringify(usersRegistry));
+                } catch (_eUs) {}
+            }
+            if (payload && payload.authSession && payload.authSession.userId) {
+                authSession = payload.authSession;
+                try {
+                    localStorage.setItem('bhd_auth_session', JSON.stringify(authSession));
+                } catch (_eAs) {}
+            }
+            return !!(authSession && authSession.userId && getUserById(authSession.userId));
+        } catch (_eEns) {
+            return false;
+        }
+    }
+
     function validateAuthSession() {
         if (!authSession || !authSession.userId) {
             authSession = null;
             return;
         }
         if (!getUserById(authSession.userId)) {
+            try {
+                ensureSiteBridgeUserInRegistry();
+            } catch (_eBr) {}
+            if (getUserById(authSession.userId)) return;
+            /** في وضع الموقع: لا تمسح الجلسة فوراً — الجسر قد يكتمل بعد لحظة */
+            if (localStorage.getItem('bhd_site_integrated') === '1') {
+                return;
+            }
             authSession = null;
             localStorage.removeItem('bhd_auth_session');
         }
+    }
+
+    function canShowDashboardKpis() {
+        if (!usersRegistryHasRows()) return true;
+        if (effectivePermission('manage_dashboard')) return true;
+        /** الصفحة خلف مصادقة الموقع — لا تُفرغ اللوحة أثناء ربط الجلسة */
+        if (localStorage.getItem('bhd_site_integrated') === '1') return true;
+        return false;
     }
 
     function getLoggedInUser() {
@@ -18555,8 +18616,20 @@ function getEmptyCompanySignatory() {
             applyAppAdminMenuPermissions();
         } catch (_eAdminPerm) {}
         document.querySelectorAll('.stat-card.stat-card--click').forEach((card) => {
-            const ok = !usersRegistryHasRows() || effectivePermission('manage_dashboard');
-            setPermElVisible(card, ok);
+            const ok = canShowDashboardKpis();
+            /** لا تستخدم display:none — كانت تُفرغ «لوحة المعلومات التشغيلية» بصرياً */
+            if (!card) return;
+            card.classList.toggle('bhd-perm-denied', !ok);
+            card.style.display = '';
+            card.style.visibility = '';
+            card.setAttribute('aria-hidden', 'false');
+            if (!ok) {
+                card.style.opacity = '0.55';
+                card.style.pointerEvents = 'none';
+            } else {
+                card.style.opacity = '';
+                card.style.pointerEvents = '';
+            }
         });
     }
 
@@ -18874,6 +18947,9 @@ function getEmptyCompanySignatory() {
         } catch (e) {
             authSession = null;
         }
+        try {
+            ensureSiteBridgeUserInRegistry();
+        } catch (_eEnsAuth) {}
         validateAuthSession();
     }
 
@@ -23616,7 +23692,7 @@ function getEmptyCompanySignatory() {
     function renderDashboardModuleHub() {
         const host = document.getElementById('dashboardModuleHub');
         if (!host) return;
-        if (!effectivePermission('manage_dashboard')) {
+        if (!canShowDashboardKpis()) {
             host.innerHTML = '';
             return;
         }
@@ -23707,7 +23783,7 @@ function getEmptyCompanySignatory() {
 
     function renderDashboardCalendar() {
         const host = document.getElementById('dashboardCalendarHost');
-        if (!host || !effectivePermission('manage_dashboard')) {
+        if (!host || !canShowDashboardKpis()) {
             if (host) host.innerHTML = '';
             return;
         }
@@ -62903,6 +62979,16 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 } catch (_eP2) {}
                 await ensureDashboardRevealKvReady();
                 try {
+                    if (typeof window.__bhdReapplySiteBridge === 'function') {
+                        window.__bhdReapplySiteBridge();
+                    }
+                } catch (_eReBridge) {}
+                try {
+                    syncAuthStateFromStorage();
+                    ensureSiteBridgeUserInRegistry();
+                    updateAuthHeaderBar();
+                } catch (_eAuthPaint) {}
+                try {
                     window.__bhdSetShellLoaderProgress?.(90);
                 } catch (_eP3) {}
                 loadDashboardAux(true, { fast: true, skipAutoSync: true });
@@ -62918,6 +63004,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 bumpUnitsDataCache();
                 await renderOperationsTable();
                 try {
+                    applyPermissionNavUi();
+                } catch (_ePermPaint) {}
+                try {
                     renderDashboardModuleHub();
                 } catch (_eHub) {}
                 try {
@@ -62930,23 +63019,27 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     window.__bhdSetShellLoaderProgress?.(97);
                 } catch (_eP4) {}
                 finishDashboardFirstReveal();
-            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    try {
+                        renderRegistryTable();
+                    } catch (_eReg) {}
+                    try {
+                        applyPermissionNavUi();
+                        renderDashboardModuleHub();
+                    } catch (_eHub2) {}
+                });
+            } catch (ePaintDash) {
+                console.warn('paintDashboardFirstReveal', ePaintDash);
                 try {
-                    renderRegistryTable();
-                } catch (_eReg) {}
-            });
-        } catch (ePaintDash) {
-            console.warn('paintDashboardFirstReveal', ePaintDash);
-            try {
-                renderDashboardWorkspaceStaged();
-            } catch (_eStaged) {}
-            finishDashboardFirstReveal();
-        } finally {
-            try {
-                window.__bhdDashboardPaintInFlight = false;
-            } catch (_eInFlight) {}
+                    renderDashboardWorkspaceStaged();
+                } catch (_eStaged) {}
+                finishDashboardFirstReveal();
+            } finally {
+                try {
+                    window.__bhdDashboardPaintInFlight = false;
+                } catch (_eInFlight) {}
+            }
         }
-    }
 
     function renderWorkspaceModeContent(mode) {
         if (mode === 'contracts') {

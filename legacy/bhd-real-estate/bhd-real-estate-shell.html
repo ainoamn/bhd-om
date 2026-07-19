@@ -141,9 +141,10 @@
     <div id="module-body"></div>
     <script>
     (function(){
+        var BOOT_REV='2026-07-19-kpi-auth-fix-v11';
         var BASE='/api/admin/legacy-real-estate/';
-        var bodyUrl=BASE+'modules/body-raw.html';
-        var mainJsUrl=BASE+'js/app-main.js';
+        var bodyUrl=BASE+'modules/body-raw.html?v='+encodeURIComponent(BOOT_REV);
+        var mainJsUrl=BASE+'js/app-main.js?v='+encodeURIComponent(BOOT_REV);
         var loaderHidden=false;
         var progressPct=0;
 
