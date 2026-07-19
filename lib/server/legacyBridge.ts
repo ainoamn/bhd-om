@@ -1260,7 +1260,8 @@ var BHD_DASH_KV_KEYS=[
 ];
 /** مفاتيح خفيفة لأول سحب سريع — الملفات الثقيلة تُكمَّل لاحقاً */
 var BHD_DASH_KV_FAST_KEYS=[
-  'bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list','bhd_owners_list','bhd_unit_reservations'
+  'bhd_saved_contracts_by_unit','bhd_managed_units','bhd_buildings_list','bhd_owners_list','bhd_unit_reservations',
+  'bhd_accounting_registry','bhd_tasks_registry','bhd_maintenance_registry'
 ];
 var BHD_ACCOUNTING_KV_KEYS=[
   'bhd_accounting_registry','bhd_saved_contracts_by_unit','bhd_buildings_list','bhd_managed_units'
