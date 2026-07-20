@@ -9,6 +9,14 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-20 — دفع متعدد البوابات (Kimi 03)
+
+- **المصدر:** `Downloads/Kimi_Agent_موقع العقارات.03`
+- **إضافة:** Stripe + PayPal + Telr + مدير موحد `lib/payment/manager.ts` + `PaymentSelector` + `/api/payment` و `/api/payment/providers`
+- **واجهة المستأجر:** «اختر طريقة الدفع» بدل Thawani فقط
+- **تبعية:** `npm install stripe`
+- **لم يُمس:** `lib/server/paymentGateway.ts` (مسار الحجوزات)
+
 ### جلسة 2026-07-20 — دمج بوابة المستأجر/المالك من Kimi 02
 
 - **المصدر:** `Downloads/Kimi_Agent_موقع العقارات 02`

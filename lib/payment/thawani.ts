@@ -113,3 +113,8 @@ export async function verifyPayment(sessionId: string): Promise<{
 export function generatePaymentLink(sessionId: string): string {
   return `${THAWANI_BASE_URL}/pay/${sessionId}?key=${THAWANI_PUBLISHABLE_KEY}`;
 }
+
+/** التحقق من إعداد المفاتيح */
+export async function healthCheck(): Promise<boolean> {
+  return !!(THAWANI_SECRET_KEY.trim() && THAWANI_PUBLISHABLE_KEY.trim());
+}

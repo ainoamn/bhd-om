@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import SignatureModal from './SignatureModal';
+import PaymentSelector from './PaymentSelector';
 
 // أنواع البيانات
 interface Contract { id: string; data: string; status: string | null; createdAt: Date; updatedAt: Date; }
@@ -69,8 +70,11 @@ export default function TenantDashboardV2({ user, contracts: initialContracts, a
   const [alerts, setAlerts] = useState(initialAlerts);
   const [contracts] = useState(initialContracts);
 
-  // حالة الدفع
-  const [payLoading, setPayLoading] = useState<string | null>(null);
+  // حالة محدد بوابة الدفع
+  const [paySelectorOpen, setPaySelectorOpen] = useState(false);
+  const [payAmount, setPayAmount] = useState(0);
+  const [payDesc, setPayDesc] = useState('');
+  const [payDueId, setPayDueId] = useState<string | undefined>(undefined);
 
   // ملخص
   const totalDue = dueAmounts.reduce((s, d) => s + (d.amount - d.paidAmount), 0);
@@ -89,26 +93,12 @@ export default function TenantDashboardV2({ user, contracts: initialContracts, a
     setSigOpen(true);
   };
 
-  /** الدفع عبر Thawani */
-  const handlePay = async (dueId: string, amount: number, description: string) => {
-    setPayLoading(dueId);
-    try {
-      const res = await fetch('/api/payment/thawani', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, description, dueId }),
-      });
-      const data = await res.json();
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        alert('فشل إنشاء جلسة الدفع: ' + (data.error || 'خطأ غير معروف'));
-      }
-    } catch (e) {
-      alert('فشل الاتصال ببوابة الدفع');
-    } finally {
-      setPayLoading(null);
-    }
+  /** فتح محدد بوابة الدفع */
+  const openPaymentSelector = (dueId: string, amount: number, description: string) => {
+    setPayDueId(dueId);
+    setPayAmount(amount);
+    setPayDesc(description);
+    setPaySelectorOpen(true);
   };
 
   /** تبديل حالة المهمة */
@@ -189,7 +179,7 @@ export default function TenantDashboardV2({ user, contracts: initialContracts, a
       <div className="p-6">
         {activeTab === 'overview' && <OverviewTab contracts={contracts} alerts={alerts} tasks={tasks} dueAmounts={dueAmounts} totalDue={totalDue} overdueCount={overdueCount} unreadAlerts={unreadAlerts} pendingTasks={pendingTasks} overall={overall} />}
         {activeTab === 'contracts' && <ContractsTab contracts={contracts} onSign={openSignature} />}
-        {activeTab === 'payments' && <PaymentsTab dueAmounts={dueAmounts} totalDue={totalDue} onPay={handlePay} payLoading={payLoading} />}
+        {activeTab === 'payments' && <PaymentsTab dueAmounts={dueAmounts} totalDue={totalDue} onPay={openPaymentSelector} />}
         {activeTab === 'alerts' && <AlertsTab alerts={alerts} onDismiss={handleAlertDismiss} />}
         {activeTab === 'tasks' && <TasksTab tasks={tasks} onToggle={handleTaskToggle} />}
         {activeTab === 'calendar' && <CalendarTab dueAmounts={dueAmounts} contracts={contracts} />}
@@ -202,6 +192,14 @@ export default function TenantDashboardV2({ user, contracts: initialContracts, a
         onClose={() => setSigOpen(false)}
         contractId={sigContractId}
         contractName={sigContractName}
+      />
+
+      <PaymentSelector
+        isOpen={paySelectorOpen}
+        onClose={() => setPaySelectorOpen(false)}
+        amount={payAmount}
+        description={payDesc}
+        dueId={payDueId}
       />
     </div>
   );
@@ -286,7 +284,7 @@ function ContractsTab({ contracts, onSign }: { contracts: Contract[]; onSign: (i
 }
 
 // ========== المبالغ المستحقة ==========
-function PaymentsTab({ dueAmounts, totalDue, onPay, payLoading }: { dueAmounts: DueAmount[]; totalDue: number; onPay: (dueId: string, amount: number, desc: string) => void; payLoading: string | null }) {
+function PaymentsTab({ dueAmounts, totalDue, onPay }: { dueAmounts: DueAmount[]; totalDue: number; onPay: (dueId: string, amount: number, desc: string) => void }) {
   return (
     <div className="space-y-4">
       <div className="bg-gradient-to-l from-[#C8102E] to-[#a00d24] rounded-xl p-6 text-white">
@@ -294,11 +292,11 @@ function PaymentsTab({ dueAmounts, totalDue, onPay, payLoading }: { dueAmounts: 
         <p className="text-4xl font-bold mt-2">{totalDue.toLocaleString()} <span className="text-xl">ر.ع</span></p>
         {totalDue > 0 && (
           <button
+            type="button"
             onClick={() => onPay('ALL', totalDue, 'إجمالي المبالغ المستحقة')}
-            disabled={payLoading === 'ALL'}
-            className="mt-4 px-6 py-3 bg-white text-[#C8102E] font-bold rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="mt-4 px-6 py-3 bg-white text-[#C8102E] font-bold rounded-lg hover:bg-gray-100 transition-colors"
           >
-            {payLoading === 'ALL' ? '⏳ جاري...' : '💳 دفع الآن عبر Thawani'}
+            اختر طريقة الدفع
           </button>
         )}
       </div>
@@ -313,11 +311,11 @@ function PaymentsTab({ dueAmounts, totalDue, onPay, payLoading }: { dueAmounts: 
                 {d.status === 'OVERDUE' && <p className="text-sm text-red-600 font-semibold">⚠️ متأخر!</p>}
               </div>
               <button
+                type="button"
                 onClick={() => onPay(d.id, d.amount - d.paidAmount, d.description || `دفع ${d.type}`)}
-                disabled={payLoading === d.id}
-                className="px-4 py-2 bg-[#C8102E] text-white text-sm rounded-lg hover:bg-[#a00d24] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-[#C8102E] text-white text-sm rounded-lg hover:bg-[#a00d24] transition-colors"
               >
-                {payLoading === d.id ? '⏳' : 'دفع'}
+                دفع
               </button>
             </div>
           ))}
