@@ -18598,7 +18598,7 @@ function getEmptyCompanySignatory() {
                 } else {
                     ok = effectiveModuleAccess('read', 'module_contracts') || effectivePermissionAny(['manage_contracts', 'view_own_contract']);
                 }
-            } else if (target === 'accounting') {
+            } else if (target === 'accounting' || target === 'payment-gateways') {
                 ok = canAccessAccountingWorkspace();
             } else if (navPermByTarget[target]) {
                 ok = effectivePermission(navPermByTarget[target]);
@@ -62704,7 +62704,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
 
     function localizeBilingualUi(scopeRoot) {
         if (isViewerMode) return;
-        const allRoots = ['.dashboard', '.contracts-workspace', '.reservations-workspace', '.users-workspace', '.notifications-workspace', '.addressbook-workspace', '.accounting-workspace', '.maintenance-workspace', '#addressBookEntryModal', '#dashboardInsightModal', '#unitDetailsModal', '#unitDetailsCancelDraftModal', '#unitDetailsCancellationDocsModal', '#unitHistoryEventDetailModal', '#unitAccountingDetailModal', '#accountingChequeActionModal', '#accountingManualEntryModal', '#accountingApprovalModal', '#accountingContractReceiptModal', '#accountingContractChequeBulkReceiptModal', '#accountingPropertyReviewModal', '#accountingAuditCycleModal', '#appDialogModal', '#manualEntryReceivablePickerModal', '#accountingCoaEditorModal', '#accountingUnitAccountModal', '#accountingReportModal', '#maintenanceRequestModal', '#maintenanceDetailModal', '#maintenancePrintModal', '#maintenanceCatalogModal', '#maintenanceStatusActionModal', '#maintenanceUnitHistoryModal', '#authLoginModal', '#contractEditThreadModal', '#propertyPrintMenuModal', '#dataGapsModal', '#dataCleanupModal', '#storageManagementModal', '#contractRenewalGapsModal'];
+        const allRoots = ['.dashboard', '.contracts-workspace', '.reservations-workspace', '.users-workspace', '.notifications-workspace', '.addressbook-workspace', '.accounting-workspace', '.payment-gateways-workspace', '.maintenance-workspace', '#addressBookEntryModal', '#dashboardInsightModal', '#unitDetailsModal', '#unitDetailsCancelDraftModal', '#unitDetailsCancellationDocsModal', '#unitHistoryEventDetailModal', '#unitAccountingDetailModal', '#accountingChequeActionModal', '#accountingManualEntryModal', '#accountingApprovalModal', '#accountingContractReceiptModal', '#accountingContractChequeBulkReceiptModal', '#accountingPropertyReviewModal', '#accountingAuditCycleModal', '#appDialogModal', '#manualEntryReceivablePickerModal', '#accountingCoaEditorModal', '#accountingUnitAccountModal', '#accountingReportModal', '#maintenanceRequestModal', '#maintenanceDetailModal', '#maintenancePrintModal', '#maintenanceCatalogModal', '#maintenanceStatusActionModal', '#maintenanceUnitHistoryModal', '#authLoginModal', '#contractEditThreadModal', '#propertyPrintMenuModal', '#dataGapsModal', '#dataCleanupModal', '#storageManagementModal', '#contractRenewalGapsModal'];
         const roots = scopeRoot ? [scopeRoot] : allRoots;
         const selector = 'h1,h2,h3,h4,h5,h6,p,small,strong,span,label,button,th,td,option,input,textarea,select';
         roots.forEach((rootSel) => {
@@ -62883,6 +62883,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         if (mode === 'addressbook') return effectivePermissionAny(['manage_owners', 'manage_contracts', 'view_address_book']);
         if (mode === 'notifications') return canAccessNotificationsPage();
         if (mode === 'accounting') return effectivePermission('manage_accounting');
+        if (mode === 'payment-gateways') return effectivePermission('manage_accounting');
         if (mode === 'maintenance') return canAccessMaintenanceWorkspace();
         if (mode === 'organization') return canAccessOrganizationSettingsWorkspace();
         if (mode === 'doc_templates') return canAccessDocumentTemplatesWorkspace();
@@ -63095,6 +63096,9 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             renderAccountingWorkspace();
             updateAuthHeaderBar();
             scheduleCoaLinksSyncIfNeeded();
+        } else if (mode === 'payment-gateways') {
+            renderPaymentGatewaysWorkspace();
+            updateAuthHeaderBar();
         } else if (mode === 'maintenance') {
             renderMaintenanceWorkspace();
             updateAuthHeaderBar();
@@ -63109,7 +63113,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 window.__bhdReapplySiteBridge();
                 syncAuthStateFromStorage();
             }
-            const fallbacks = ['dashboard', 'contracts', 'accounting', 'maintenance', 'addressbook', 'notifications', 'users'];
+            const fallbacks = ['dashboard', 'contracts', 'accounting', 'payment-gateways', 'maintenance', 'addressbook', 'notifications', 'users'];
             const next = fallbacks.find((m) => canAccessWorkspaceMode(m));
             if (!next) {
                 alert(t('لا تملك صلاحية الوصول. سجّل الدخول بحساب مناسب.', 'No access permission. Sign in with a suitable account.'));
@@ -63122,7 +63126,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         }
         const sameMode = mode === _activeWorkspaceMode;
         _activeWorkspaceMode = mode;
-        document.body.classList.remove('mode-dashboard', 'mode-contracts', 'mode-reservations', 'mode-forms', 'mode-users', 'mode-addressbook', 'mode-notifications', 'mode-accounting', 'mode-maintenance', 'mode-organization', 'mode-doc_templates');
+        document.body.classList.remove('mode-dashboard', 'mode-contracts', 'mode-reservations', 'mode-forms', 'mode-users', 'mode-addressbook', 'mode-notifications', 'mode-accounting', 'mode-payment-gateways', 'mode-maintenance', 'mode-organization', 'mode-doc_templates');
         if (mode === 'contracts') document.body.classList.add('mode-contracts');
         else if (mode === 'reservations') document.body.classList.add('mode-reservations');
         else if (mode === 'forms') document.body.classList.add('mode-forms');
@@ -63132,6 +63136,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
         else if (mode === 'addressbook') document.body.classList.add('mode-addressbook');
         else if (mode === 'notifications') document.body.classList.add('mode-notifications');
         else if (mode === 'accounting') document.body.classList.add('mode-accounting');
+        else if (mode === 'payment-gateways') document.body.classList.add('mode-payment-gateways');
         else if (mode === 'maintenance') document.body.classList.add('mode-maintenance');
         else document.body.classList.add('mode-dashboard');
         if (mode === 'reservations') {
@@ -63148,6 +63153,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             if (mode === 'users') badge.textContent = t('إدارة المستخدمين', 'Users');
             else if (mode === 'notifications') badge.textContent = t('التنبيهات والمهام', 'Notifications & tasks');
             else if (mode === 'accounting') badge.textContent = t('المحاسبة', 'Accounting');
+            else if (mode === 'payment-gateways') badge.textContent = t('بوابات الدفع', 'Payment gateways');
             else if (mode === 'maintenance') badge.textContent = t('الصيانة', 'Maintenance');
             else if (mode === 'addressbook') badge.textContent = t('دفتر العناوين', 'Address book');
             else if (mode === 'reservations') badge.textContent = t('صفحة الحجوزات', 'Reservations');
@@ -63188,6 +63194,8 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                           ? 'notifications'
                           : mode === 'accounting'
                             ? 'accounting'
+                            : mode === 'payment-gateways'
+                              ? 'payment-gateways'
                             : mode === 'maintenance'
                               ? 'maintenance'
                               : mode === 'organization'
@@ -63246,6 +63254,52 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             return;
         }
         setWorkspaceMode('dashboard');
+    }
+
+    let _paymentGatewaysModuleLoaded = false;
+
+    function renderPaymentGatewaysWorkspace() {
+        const host = document.getElementById('paymentGatewaysPanelHost');
+        if (!host) return;
+        const loadModule = async () => {
+            if (_paymentGatewaysModuleLoaded) {
+                try {
+                    if (window.PG && typeof window.PG.init === 'function') window.PG.init();
+                } catch (_ePgInit) {}
+                updateAuthHeaderBar();
+                return;
+            }
+            try {
+                const base = '/api/admin/legacy-real-estate/';
+                const rev = '2026-07-20-payment-gateways-v1';
+                const res = await fetch(`${base}modules/10-payment-gateways.html?v=${encodeURIComponent(rev)}`, {
+                    credentials: 'include',
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                host.innerHTML = await res.text();
+                _paymentGatewaysModuleLoaded = true;
+                try {
+                    if (window.PG && typeof window.PG.init === 'function') window.PG.init();
+                } catch (_ePgInit2) {}
+                updateAuthHeaderBar();
+            } catch (_ePgLoad) {
+                host.innerHTML = `<p style="padding:20px;color:#b91c1c">${t('فشل تحميل وحدة بوابات الدفع.', 'Failed to load payment gateways module.')}</p>`;
+            }
+        };
+        loadModule();
+    }
+
+    function openPaymentGatewaysWorkspace() {
+        if (
+            !assertPermissionOrAlert(
+                'manage_accounting',
+                'لا تملك صلاحية إدارة بوابات الدفع.',
+                'No permission to access payment gateways.'
+            )
+        ) {
+            return;
+        }
+        setWorkspaceMode('payment-gateways');
     }
 
     let contractsWorkspaceSubview = 'list';

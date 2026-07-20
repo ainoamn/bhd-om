@@ -3054,6 +3054,49 @@
             display: none !important;
         }
 
+        /* بوابات الدفع / Payment Gateways workspace */
+        .payment-gateways-workspace {
+            display: none;
+            max-width: 1400px;
+            margin: var(--workspace-top-gap, 120px) auto 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+        .payment-gateways-control-header {
+            background: linear-gradient(135deg, #1A1A2E 0%, #2d2d44 100%);
+            color: #fff;
+            padding: 18px 20px 12px;
+        }
+        .payment-gateways-panel { padding: 18px 22px 28px; }
+        .mode-payment-gateways .dashboard,
+        .mode-payment-gateways .contracts-workspace,
+        .mode-payment-gateways .reservations-workspace,
+        .mode-payment-gateways .users-workspace,
+        .mode-payment-gateways #organizationWorkspace,
+        .mode-payment-gateways #docTemplatesWorkspace,
+        .mode-payment-gateways .addressbook-workspace,
+        .mode-payment-gateways .notifications-workspace,
+        .mode-payment-gateways .accounting-workspace,
+        .mode-payment-gateways .maintenance-workspace {
+            display: none !important;
+        }
+        .mode-payment-gateways .payment-gateways-workspace {
+            display: block !important;
+        }
+        .mode-dashboard .payment-gateways-workspace,
+        .mode-contracts .payment-gateways-workspace,
+        .mode-reservations .payment-gateways-workspace,
+        .mode-forms .payment-gateways-workspace,
+        .mode-users .payment-gateways-workspace,
+        .mode-addressbook .payment-gateways-workspace,
+        .mode-notifications .payment-gateways-workspace,
+        .mode-accounting .payment-gateways-workspace,
+        .mode-maintenance .payment-gateways-workspace {
+            display: none !important;
+        }
+
         .maintenance-workspace {
             display: none;
             max-width: 1400px;
@@ -3111,7 +3154,8 @@
         .mode-maintenance #docTemplatesWorkspace,
         .mode-maintenance .addressbook-workspace,
         .mode-maintenance .notifications-workspace,
-        .mode-maintenance .accounting-workspace {
+        .mode-maintenance .accounting-workspace,
+        .mode-maintenance .payment-gateways-workspace {
             display: none !important;
         }
         .mode-maintenance .maintenance-workspace { display: block !important; }

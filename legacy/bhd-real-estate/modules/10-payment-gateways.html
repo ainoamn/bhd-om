@@ -1,0 +1,405 @@
+<!-- ============================================ -->
+<!-- إدارة بوابات الدفع — Payment Gateways       -->
+<!-- ============================================ -->
+<div id="payment-gateways-section" class="bhd-section">
+
+  <!-- Header -->
+  <div class="bhd-page-header">
+    <h2 class="bhd-page-title">
+      <span class="bhd-icon">💳</span>
+      إدارة بوابات الدفع
+      <span class="bhd-badge bhd-badge-info" id="pg-enabled-count">0/11 مفعلة</span>
+    </h2>
+    <p class="bhd-page-subtitle">إدارة بوابات الدفع الإلكتروني والمعاملات والإعدادات</p>
+  </div>
+
+  <!-- بطاقات الإحصائيات -->
+  <div class="bhd-stats-row" id="pg-stats-row">
+    <div class="bhd-stat-card bhd-stat-blue">
+      <div class="bhd-stat-icon">💰</div>
+      <div class="bhd-stat-value" id="pg-stat-total">0</div>
+      <div class="bhd-stat-label">إجمالي المحصل (30 يوم)</div>
+    </div>
+    <div class="bhd-stat-card bhd-stat-green">
+      <div class="bhd-stat-icon">✅</div>
+      <div class="bhd-stat-value" id="pg-stat-count">0</div>
+      <div class="bhd-stat-label">عدد المعاملات</div>
+    </div>
+    <div class="bhd-stat-card bhd-stat-orange">
+      <div class="bhd-stat-icon">🏦</div>
+      <div class="bhd-stat-value" id="pg-stat-gateways">0</div>
+      <div class="bhd-stat-label">بوابات مفعلة</div>
+    </div>
+    <div class="bhd-stat-card bhd-stat-purple">
+      <div class="bhd-stat-icon">📊</div>
+      <div class="bhd-stat-value" id="pg-stat-net">0</div>
+      <div class="bhd-stat-label">الصافي بعد الاسترداد</div>
+    </div>
+  </div>
+
+  <!-- تبويبات -->
+  <div class="bhd-tabs" id="pg-tabs">
+    <button class="bhd-tab active" data-tab="gateways">
+      <span>🏦</span> البوابات
+    </button>
+    <button class="bhd-tab" data-tab="transactions">
+      <span>📋</span> المعاملات
+    </button>
+    <button class="bhd-tab" data-tab="settings">
+      <span>⚙️</span> الإعدادات
+    </button>
+  </div>
+
+  <!-- تبويب البوابات -->
+  <div class="bhd-tab-panel active" id="pg-panel-gateways">
+    <div class="bhd-card">
+      <div class="bhd-card-header">
+        <h3>بوابات الدفع المتاحة</h3>
+        <button class="bhd-btn bhd-btn-primary" onclick="PG.refreshGateways()">
+          <span>🔄</span> تحديث
+        </button>
+      </div>
+      <div class="bhd-table-responsive">
+        <table class="bhd-table" id="pg-gateways-table">
+          <thead>
+            <tr>
+              <th>البوابة</th>
+              <th>الدول</th>
+              <th>العملات</th>
+              <th>الحالة</th>
+              <th>الصحة</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- يُملأ JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- تبويب المعاملات -->
+  <div class="bhd-tab-panel" id="pg-panel-transactions">
+    <div class="bhd-card">
+      <div class="bhd-card-header">
+        <h3>المعاملات الأخيرة</h3>
+        <div class="bhd-filter-row">
+          <select id="pg-filter-provider" class="bhd-select" onchange="PG.filterTransactions()">
+            <option value="">الكل</option>
+            <option value="thawani">🇴🇲 ثواني</option>
+            <option value="stripe">💳 Stripe</option>
+            <option value="paypal">🅿️ PayPal</option>
+            <option value="telr">🔒 Telr</option>
+            <option value="cmi">🏦 CMI</option>
+            <option value="network-intl">🌐 Network International</option>
+            <option value="hyperpay">⚡ HyperPay</option>
+            <option value="payfort">📱 PayFort</option>
+            <option value="myfatoorah">🧾 MyFatoorah</option>
+            <option value="paytabs">💠 PayTabs</option>
+            <option value="tap">🔵 Tap</option>
+          </select>
+          <select id="pg-filter-days" class="bhd-select" onchange="PG.filterTransactions()">
+            <option value="7">آخر 7 أيام</option>
+            <option value="30" selected>آخر 30 يوم</option>
+            <option value="90">آخر 90 يوم</option>
+            <option value="365">آخر سنة</option>
+          </select>
+        </div>
+      </div>
+      <div class="bhd-table-responsive">
+        <table class="bhd-table" id="pg-transactions-table">
+          <thead>
+            <tr>
+              <th>الرقم</th>
+              <th>التاريخ</th>
+              <th>البوابة</th>
+              <th>المبلغ</th>
+              <th>المستأجر</th>
+              <th>الوصف</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- يُملأ JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div class="bhd-pagination" id="pg-transactions-pagination">
+        <!-- يُملأ JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <!-- تبويب الإعدادات -->
+  <div class="bhd-tab-panel" id="pg-panel-settings">
+    <div class="bhd-card">
+      <div class="bhd-card-header">
+        <h3>إعدادات بوابات الدفع</h3>
+      </div>
+      <div id="pg-settings-list">
+        <!-- يُملأ JavaScript -->
+      </div>
+    </div>
+
+    <!-- نصائح الأمان -->
+    <div class="bhd-alert bhd-alert-info">
+      <h4>🔒 نصائح الأمان</h4>
+      <ul>
+        <li>لا تعرض مفاتيح API السرية أبداً</li>
+        <li>استخدم وضع Sandbox للاختبار فقط</li>
+        <li>تأكد من تفعيل SSL/HTTPS في الإنتاج</li>
+        <li> webhook URL يجب أن يكون متاحاً من الإنترنت</li>
+        <li> webhook URL: <code id="pg-webhook-url">https://www.bhd-om.com/api/webhooks/payment?provider=PROVIDER_NAME</code></li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<style>
+/* أنماط صفحة إدارة الدفع */
+#payment-gateways-section .bhd-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+#payment-gateways-section .bhd-stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+#payment-gateways-section .bhd-stat-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+#payment-gateways-section .bhd-stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+#payment-gateways-section .bhd-stat-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 0.25rem;
+}
+#payment-gateways-section .bhd-stat-blue { border-top: 3px solid #3b82f6; }
+#payment-gateways-section .bhd-stat-green { border-top: 3px solid #22c55e; }
+#payment-gateways-section .bhd-stat-orange { border-top: 3px solid #f59e0b; }
+#payment-gateways-section .bhd-stat-purple { border-top: 3px solid #8b5cf6; }
+
+#payment-gateways-section .bhd-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 1.5rem;
+}
+#payment-gateways-section .bhd-tab {
+  padding: 0.75rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+#payment-gateways-section .bhd-tab.active {
+  color: #C8102E;
+  border-bottom-color: #C8102E;
+}
+#payment-gateways-section .bhd-tab:hover {
+  color: #C8102E;
+}
+
+#payment-gateways-section .bhd-tab-panel {
+  display: none;
+}
+#payment-gateways-section .bhd-tab-panel.active {
+  display: block;
+}
+
+#payment-gateways-section .bhd-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  margin-bottom: 1rem;
+}
+#payment-gateways-section .bhd-card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#payment-gateways-section .bhd-card-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #1a1a2e;
+}
+
+#payment-gateways-section .bhd-filter-row {
+  display: flex;
+  gap: 0.75rem;
+}
+#payment-gateways-section .bhd-select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  font-size: 0.875rem;
+}
+
+#payment-gateways-section .bhd-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+#payment-gateways-section .bhd-table th {
+  padding: 0.75rem 1rem;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  border-bottom: 2px solid #e5e7eb;
+  background: #f9fafb;
+}
+#payment-gateways-section .bhd-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+}
+#payment-gateways-section .bhd-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+#payment-gateways-section .bhd-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+#payment-gateways-section .bhd-status-active {
+  background: #dcfce7;
+  color: #166534;
+}
+#payment-gateways-section .bhd-status-inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+#payment-gateways-section .bhd-status-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+#payment-gateways-section .bhd-provider-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  margin-left: 0.75rem;
+}
+
+#payment-gateways-section .bhd-alert {
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  margin-top: 1rem;
+}
+#payment-gateways-section .bhd-alert-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+#payment-gateways-section .bhd-alert-info code {
+  background: rgba(0,0,0,0.05);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+#payment-gateways-section .bhd-alert ul {
+  margin: 0.5rem 0 0;
+  padding-right: 1.25rem;
+}
+#payment-gateways-section .bhd-alert li {
+  margin-bottom: 0.35rem;
+}
+
+#payment-gateways-section .bhd-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+#payment-gateways-section .bhd-page-btn {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+#payment-gateways-section .bhd-page-btn.active {
+  background: #C8102E;
+  color: white;
+  border-color: #C8102E;
+}
+
+#payment-gateways-section .bhd-setting-item {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+#payment-gateways-section .bhd-setting-item:last-child {
+  border-bottom: none;
+}
+#payment-gateways-section .bhd-setting-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+#payment-gateways-section .bhd-setting-name {
+  font-weight: 600;
+  color: #1a1a2e;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+#payment-gateways-section .bhd-setting-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.75rem;
+}
+#payment-gateways-section .bhd-setting-fields label {
+  display: block;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+#payment-gateways-section .bhd-setting-fields input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-family: monospace;
+}
+#payment-gateways-section .bhd-setting-fields input:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+</style>

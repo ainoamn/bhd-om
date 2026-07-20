@@ -5,6 +5,7 @@
     <button type="button" class="btn-outline nav-item" data-nav-target="addressbook" onclick="openAddressBookWorkspace()" data-ar="📒 دفتر العناوين" data-en="📒 Address book">📒 دفتر العناوين</button>
     <button type="button" class="btn-outline nav-item" data-nav-target="notifications" onclick="openNotificationsWorkspace()" data-ar="🔔 التنبيهات" data-en="🔔 Notifications" id="navNotificationsBtn">🔔 التنبيهات</button>
     <button type="button" class="btn-outline nav-item" data-nav-target="accounting" onclick="openAccountingWorkspace()" data-ar="💰 المحاسبة" data-en="💰 Accounting">💰 المحاسبة</button>
+    <button type="button" class="btn-outline nav-item" data-nav-target="payment-gateways" onclick="openPaymentGatewaysWorkspace()" data-ar="💳 بوابات الدفع" data-en="💳 Payment Gateways">💳 بوابات الدفع</button>
     <button type="button" class="btn-outline nav-item" data-nav-target="maintenance" onclick="openMaintenanceWorkspace()" data-ar="🔧 الصيانة" data-en="🔧 Maintenance">🔧 الصيانة</button>
     <div class="app-admin-menu-wrap" id="appTopNavAdminWrap">
         <button type="button" class="btn-outline nav-item" id="appTopNavAdminBtn" onclick="toggleAppAdminMenu(event, 'appTopNavAdminPanel')" data-ar="⚙️ الإعدادات والإدارة ▾" data-en="⚙️ Settings & admin ▾">⚙️ الإعدادات والإدارة ▾</button>
@@ -42,6 +43,7 @@
                 <button type="button" class="btn-outline" onclick="openAddressBookWorkspace()">📒 دفتر العناوين</button>
                 <button type="button" class="btn-outline" data-nav-target="notifications" onclick="openNotificationsWorkspace()">🔔 التنبيهات</button>
                 <button type="button" class="btn-outline" data-nav-target="accounting" onclick="openAccountingWorkspace()">💰 المحاسبة</button>
+                <button type="button" class="btn-outline" data-nav-target="payment-gateways" onclick="openPaymentGatewaysWorkspace()">💳 بوابات الدفع</button>
                 <button type="button" class="btn-outline" data-nav-target="maintenance" onclick="openMaintenanceWorkspace()">🔧 الصيانة</button>
                 <div class="app-admin-menu-wrap">
                     <button type="button" class="btn-outline" onclick="toggleAppAdminMenu(event, 'dashboardAdminPanel')">⚙️ الإعدادات والإدارة ▾</button>
@@ -68,6 +70,7 @@
                 <button type="button" class="btn-outline" onclick="openAddressBookWorkspace()">📒 Address book</button>
                 <button type="button" class="btn-outline" data-nav-target="notifications" onclick="openNotificationsWorkspace()">🔔 Notifications</button>
                 <button type="button" class="btn-outline" data-nav-target="accounting" onclick="openAccountingWorkspace()">💰 Accounting</button>
+                <button type="button" class="btn-outline" data-nav-target="payment-gateways" onclick="openPaymentGatewaysWorkspace()">💳 Payment Gateways</button>
                 <button type="button" class="btn-outline" data-nav-target="maintenance" onclick="openMaintenanceWorkspace()">🔧 Maintenance</button>
                 <div class="app-admin-menu-wrap">
                     <button type="button" class="btn-outline" onclick="toggleAppAdminMenu(event, 'dashboardAdminPanelEn')">⚙️ Settings & admin ▾</button>
@@ -329,6 +332,30 @@
         <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
     </div>
     <div class="accounting-panel" id="accountingPanelHost"></div>
+</div>
+
+<!-- بوابات الدفع — صفحة مستقلة / Payment Gateways workspace -->
+<div class="payment-gateways-workspace" id="paymentGatewaysWorkspace">
+    <div class="payment-gateways-control-header">
+        <div>
+            <h2 style="margin:0 0 4px;font-size:18px">💳 بوابات الدفع / Payment Gateways</h2>
+            <small style="opacity:0.95">إدارة بوابات الدفع الإلكتروني والمعاملات والإعدادات / Manage payment gateways, transactions, and settings</small>
+        </div>
+        <div class="bilingual-controls">
+            <div class="bilingual-controls-col ar">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 لوحة المعلومات</button>
+                <button type="button" class="btn-outline" onclick="openAccountingWorkspace()">💰 المحاسبة</button>
+                <button type="button" class="btn-primary" onclick="PG.refreshGateways()">🔄 تحديث</button>
+            </div>
+            <div class="bilingual-controls-col en">
+                <button type="button" class="btn-outline" onclick="openDashboardWorkspace()">🏠 Dashboard</button>
+                <button type="button" class="btn-outline" onclick="openAccountingWorkspace()">💰 Accounting</button>
+                <button type="button" class="btn-primary" onclick="PG.refreshGateways()">🔄 Refresh</button>
+            </div>
+        </div>
+        <div class="auth-header-bar" data-auth-bar style="width:100%;justify-content:space-between;margin-top:8px;background:rgba(255,255,255,0.12)"></div>
+    </div>
+    <div class="payment-gateways-panel" id="paymentGatewaysPanelHost"></div>
 </div>
 
 <!-- الصيانة — صفحة مستقلة / Maintenance workspace -->

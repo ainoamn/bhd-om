@@ -50,6 +50,11 @@ export async function POST(req: NextRequest) {
     const baseUrl = (process.env.NEXTAUTH_URL || '').replace(/\/$/, '');
     const token = auth.token as { email?: string; phone?: string; name?: string } | null;
 
+    const successQuery = new URLSearchParams({
+      provider: gateway,
+      userId,
+      ...(dueId ? { dueId: String(dueId) } : {}),
+    });
     const session = await createPayment(gateway, {
       amount: amountNum,
       description: String(description),
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
         type: 'rent',
         ...(metadata && typeof metadata === 'object' ? metadata : {}),
       },
-      successUrl: `${baseUrl}/${locale}/portal/tenant/payment/success`,
+      successUrl: `${baseUrl}/${locale}/portal/tenant/payment/success?${successQuery.toString()}`,
       cancelUrl: `${baseUrl}/${locale}/portal/tenant/payment/cancel`,
     });
 
