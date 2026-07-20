@@ -1,14 +1,13 @@
 /**
  * تكامل بوابة الدفع Thawani — سلطنة عمان
- * https://docs.thawani.om
  */
+import { getGatewayField } from './credentials';
 
-const THAWANI_BASE_URL = process.env.THAWANI_SANDBOX === 'true'
-  ? 'https://uatcheckout.thawani.om'
-  : 'https://checkout.thawani.om';
-
-const THAWANI_SECRET_KEY = process.env.THAWANI_SECRET_KEY || '';
-const THAWANI_PUBLISHABLE_KEY = process.env.THAWANI_PUBLISHABLE_KEY || '';
+function thawaniBaseUrl(): string {
+  return getGatewayField('thawani', 'sandbox') !== false
+    ? 'https://uatcheckout.thawani.om'
+    : 'https://checkout.thawani.om';
+}
 
 interface ThawaniSession {
   session_id: string;
@@ -46,11 +45,11 @@ export async function createPaymentSession(params: {
     unit_amount: amountInHalalas,
   }];
 
-  const response = await fetch(`${THAWANI_BASE_URL}/api/v1/checkout/session`, {
+  const response = await fetch(`${thawaniBaseUrl()}/api/v1/checkout/session`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'thawani-api-key': THAWANI_SECRET_KEY,
+      'thawani-api-key': String(getGatewayField('thawani', 'apiSecret')),
     },
     body: JSON.stringify({
       client_reference_id: `bhd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -77,7 +76,7 @@ export async function createPaymentSession(params: {
     client_reference_id: data.data.client_reference_id,
     invoice: data.data.invoice,
     amount: params.amount,
-    checkout_url: `${THAWANI_BASE_URL}/pay/${data.data.session_id}?key=${THAWANI_PUBLISHABLE_KEY}`,
+    checkout_url: `${thawaniBaseUrl()}/pay/${data.data.session_id}?key=${String(getGatewayField('thawani', 'publicKey'))}`,
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,
   };
@@ -90,8 +89,8 @@ export async function verifyPayment(sessionId: string): Promise<{
   reference: string;
   paymentMethod?: string;
 }> {
-  const response = await fetch(`${THAWANI_BASE_URL}/api/v1/checkout/session/${sessionId}`, {
-    headers: { 'thawani-api-key': THAWANI_SECRET_KEY },
+  const response = await fetch(`${thawaniBaseUrl()}/api/v1/checkout/session/${sessionId}`, {
+    headers: { 'thawani-api-key': String(getGatewayField('thawani', 'apiSecret')) },
   });
 
   if (!response.ok) {
@@ -111,10 +110,13 @@ export async function verifyPayment(sessionId: string): Promise<{
 
 /** إنشاء رابط دفع سريع */
 export function generatePaymentLink(sessionId: string): string {
-  return `${THAWANI_BASE_URL}/pay/${sessionId}?key=${THAWANI_PUBLISHABLE_KEY}`;
+  return `${thawaniBaseUrl()}/pay/${sessionId}?key=${String(getGatewayField('thawani', 'publicKey'))}`;
 }
 
 /** التحقق من إعداد المفاتيح */
 export async function healthCheck(): Promise<boolean> {
-  return !!(THAWANI_SECRET_KEY.trim() && THAWANI_PUBLISHABLE_KEY.trim());
+  return !!(
+    String(getGatewayField('thawani', 'apiSecret')).trim() &&
+    String(getGatewayField('thawani', 'publicKey')).trim()
+  );
 }

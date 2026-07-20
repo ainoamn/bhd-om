@@ -1213,3 +1213,37 @@ model AutoUserAccount {
   @@index([role])
 }
 
+// ==========================================
+// إعدادات بوابات الدفع (قابلة للتعديل من لوحة التحكم)
+// ==========================================
+
+model PaymentGatewayConfig {
+  id             String    @id @default(cuid())
+  provider       String    @unique
+  isEnabled      Boolean   @default(false)
+  displayNameAr  String    @default("")
+  displayNameEn  String    @default("")
+  apiKey         String?   @default("")
+  apiSecret      String?   @default("")
+  merchantId     String?   @default("")
+  storeKey       String?   @default("")
+  outletRef      String?   @default("")
+  profileId      String?   @default("")
+  entityId       String?   @default("")
+  accessToken    String?   @default("")
+  publicKey      String?   @default("")
+  sandbox        Boolean   @default(true)
+  webhookUrl     String?   @default("")
+  successUrl     String?   @default("")
+  cancelUrl      String?   @default("")
+  metadata       String?   @default("")
+  lastTestedAt   DateTime?
+  lastTestResult String?   @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  updatedBy      String?
+
+  @@index([provider])
+  @@index([isEnabled])
+}
+

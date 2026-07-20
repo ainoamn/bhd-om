@@ -1,5 +1,6 @@
 <!-- ============================================ -->
 <!-- إدارة بوابات الدفع — Payment Gateways       -->
+<!-- تفاعلي: تعديل، تفعيل، اختبار، حفظ        -->
 <!-- ============================================ -->
 <div id="payment-gateways-section" class="bhd-section">
 
@@ -10,7 +11,7 @@
       إدارة بوابات الدفع
       <span class="bhd-badge bhd-badge-info" id="pg-enabled-count">0/11 مفعلة</span>
     </h2>
-    <p class="bhd-page-subtitle">إدارة بوابات الدفع الإلكتروني والمعاملات والإعدادات</p>
+    <p class="bhd-page-subtitle">إدارة بوابات الدفع الإلكتروني — تعديل الإعدادات، تفعيل/إيقاف، اختبار الاتصال</p>
   </div>
 
   <!-- بطاقات الإحصائيات -->
@@ -39,39 +40,44 @@
 
   <!-- تبويبات -->
   <div class="bhd-tabs" id="pg-tabs">
-    <button class="bhd-tab active" data-tab="gateways">
+    <button class="bhd-tab active" data-tab="gateways" onclick="PG.switchTab('gateways')">
       <span>🏦</span> البوابات
     </button>
-    <button class="bhd-tab" data-tab="transactions">
+    <button class="bhd-tab" data-tab="transactions" onclick="PG.switchTab('transactions')">
       <span>📋</span> المعاملات
     </button>
-    <button class="bhd-tab" data-tab="settings">
-      <span>⚙️</span> الإعدادات
+    <button class="bhd-tab" data-tab="webhooks" onclick="PG.switchTab('webhooks')">
+      <span>🔔</span> Webhooks
     </button>
   </div>
 
-  <!-- تبويب البوابات -->
+  <!-- ======== تبويب البوابات (تفاعلي) ======== -->
   <div class="bhd-tab-panel active" id="pg-panel-gateways">
     <div class="bhd-card">
       <div class="bhd-card-header">
-        <h3>بوابات الدفع المتاحة</h3>
-        <button class="bhd-btn bhd-btn-primary" onclick="PG.refreshGateways()">
-          <span>🔄</span> تحديث
-        </button>
+        <h3>🏦 إعدادات بوابات الدفع</h3>
+        <div style="display:flex;gap:0.5rem">
+          <button class="bhd-btn bhd-btn-primary" onclick="PG.loadAll()">🔄 تحديث</button>
+          <button class="bhd-btn bhd-btn-success" onclick="PG.saveAll()" id="pg-save-all-btn" style="display:none">💾 حفظ الكل</button>
+        </div>
       </div>
+
+      <!-- رسالة الحالة -->
+      <div id="pg-status-msg" style="display:none;padding:0.75rem 1.25rem;border-radius:8px;margin:0.75rem 1.25rem;font-size:0.875rem"></div>
+
+      <!-- جدول البوابات -->
       <div class="bhd-table-responsive">
         <table class="bhd-table" id="pg-gateways-table">
           <thead>
             <tr>
+              <th style="width:40px">#</th>
               <th>البوابة</th>
-              <th>الدول</th>
-              <th>العملات</th>
-              <th>الحالة</th>
+              <th style="width:90px">التفعيل</th>
               <th>الصحة</th>
-              <th>إجراءات</th>
+              <th style="width:220px">إجراءات</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="pg-gateways-tbody">
             <!-- يُملأ JavaScript -->
           </tbody>
         </table>
@@ -79,327 +85,213 @@
     </div>
   </div>
 
-  <!-- تبويب المعاملات -->
+  <!-- ======== تبويب المعاملات ======== -->
   <div class="bhd-tab-panel" id="pg-panel-transactions">
     <div class="bhd-card">
       <div class="bhd-card-header">
-        <h3>المعاملات الأخيرة</h3>
+        <h3>📋 المعاملات المحاسبية</h3>
         <div class="bhd-filter-row">
-          <select id="pg-filter-provider" class="bhd-select" onchange="PG.filterTransactions()">
-            <option value="">الكل</option>
-            <option value="thawani">🇴🇲 ثواني</option>
-            <option value="stripe">💳 Stripe</option>
-            <option value="paypal">🅿️ PayPal</option>
-            <option value="telr">🔒 Telr</option>
-            <option value="cmi">🏦 CMI</option>
-            <option value="network-intl">🌐 Network International</option>
-            <option value="hyperpay">⚡ HyperPay</option>
-            <option value="payfort">📱 PayFort</option>
-            <option value="myfatoorah">🧾 MyFatoorah</option>
-            <option value="paytabs">💠 PayTabs</option>
-            <option value="tap">🔵 Tap</option>
-          </select>
-          <select id="pg-filter-days" class="bhd-select" onchange="PG.filterTransactions()">
+          <select id="pg-filter-days" class="bhd-select" onchange="PG.loadTransactions()">
             <option value="7">آخر 7 أيام</option>
             <option value="30" selected>آخر 30 يوم</option>
             <option value="90">آخر 90 يوم</option>
             <option value="365">آخر سنة</option>
           </select>
+          <button class="bhd-btn bhd-btn-primary" onclick="PG.loadTransactions()">🔄 تحديث</button>
         </div>
       </div>
+      <div id="pg-tx-status" style="display:none;padding:0.75rem 1.25rem"></div>
       <div class="bhd-table-responsive">
         <table class="bhd-table" id="pg-transactions-table">
           <thead>
             <tr>
-              <th>الرقم</th>
+              <th>رقم القيد</th>
               <th>التاريخ</th>
-              <th>البوابة</th>
-              <th>المبلغ</th>
-              <th>المستأجر</th>
               <th>الوصف</th>
+              <th>مدين</th>
+              <th>دائن</th>
               <th>الحالة</th>
             </tr>
           </thead>
-          <tbody>
-            <!-- يُملأ JavaScript -->
+          <tbody id="pg-transactions-tbody">
+            <tr><td colspan="6" style="text-align:center;color:#999;padding:2rem">اختر فترة واضغط تحديث</td></tr>
           </tbody>
         </table>
-      </div>
-      <div class="bhd-pagination" id="pg-transactions-pagination">
-        <!-- يُملأ JavaScript -->
       </div>
     </div>
   </div>
 
-  <!-- تبويب الإعدادات -->
-  <div class="bhd-tab-panel" id="pg-panel-settings">
+  <!-- ======== تبويب Webhooks ======== -->
+  <div class="bhd-tab-panel" id="pg-panel-webhooks">
     <div class="bhd-card">
       <div class="bhd-card-header">
-        <h3>إعدادات بوابات الدفع</h3>
+        <h3>🔔 Webhooks — نقاط استقبال الإشعارات</h3>
       </div>
-      <div id="pg-settings-list">
-        <!-- يُملأ JavaScript -->
+      <div style="padding:1.25rem">
+        <p style="margin-bottom:1rem;color:#666;font-size:0.875rem">عند نجاح الدفع، ترسل البوابة إشعاراً إلى هذه النقطة:</p>
+        <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:1rem;margin-bottom:1rem">
+          <code id="pg-webhook-url" style="font-size:0.9rem;color:#C8102E;word-break:break-all"></code>
+        </div>
+        <p style="margin-bottom:1rem;color:#666;font-size:0.875rem">أضف هذا الرابط في إعدادات Webhook لكل بوابة:</p>
+        <div class="bhd-table-responsive">
+          <table class="bhd-table" id="pg-webhook-table">
+            <thead><tr><th>البوابة</th><th>Webhook URL</th><th>نسخ</th></tr></thead>
+            <tbody id="pg-webhook-tbody"></tbody>
+          </table>
+        </div>
       </div>
-    </div>
-
-    <!-- نصائح الأمان -->
-    <div class="bhd-alert bhd-alert-info">
-      <h4>🔒 نصائح الأمان</h4>
-      <ul>
-        <li>لا تعرض مفاتيح API السرية أبداً</li>
-        <li>استخدم وضع Sandbox للاختبار فقط</li>
-        <li>تأكد من تفعيل SSL/HTTPS في الإنتاج</li>
-        <li> webhook URL يجب أن يكون متاحاً من الإنترنت</li>
-        <li> webhook URL: <code id="pg-webhook-url">https://www.bhd-om.com/api/webhooks/payment?provider=PROVIDER_NAME</code></li>
-      </ul>
     </div>
   </div>
 
 </div>
 
+<!-- نموذج تعديل البوابة (Modal) -->
+<div id="pg-edit-modal" class="pg-modal" style="display:none">
+  <div class="pg-modal-backdrop" onclick="PG.closeEdit()"></div>
+  <div class="pg-modal-content">
+    <div class="pg-modal-header">
+      <h3 id="pg-edit-title">⚙️ إعدادات البوابة</h3>
+      <button class="pg-modal-close" onclick="PG.closeEdit()">✕</button>
+    </div>
+    <div class="pg-modal-body" id="pg-edit-body">
+      <!-- يُملأ JavaScript -->
+    </div>
+    <div class="pg-modal-footer">
+      <button class="bhd-btn bhd-btn-primary" onclick="PG.saveEdit()">💾 حفظ الإعدادات</button>
+      <button class="bhd-btn bhd-btn-secondary" onclick="PG.closeEdit()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
 <style>
-/* أنماط صفحة إدارة الدفع */
-#payment-gateways-section .bhd-stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-#payment-gateways-section .bhd-stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-#payment-gateways-section .bhd-stat-icon {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-#payment-gateways-section .bhd-stat-value {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: #1a1a2e;
-}
-#payment-gateways-section .bhd-stat-label {
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin-top: 0.25rem;
-}
-#payment-gateways-section .bhd-stat-blue { border-top: 3px solid #3b82f6; }
-#payment-gateways-section .bhd-stat-green { border-top: 3px solid #22c55e; }
-#payment-gateways-section .bhd-stat-orange { border-top: 3px solid #f59e0b; }
-#payment-gateways-section .bhd-stat-purple { border-top: 3px solid #8b5cf6; }
+/* ====== أنماط عامة ====== */
+#payment-gateways-section { padding: 1rem; }
+#payment-gateways-section .bhd-page-header { margin-bottom: 1.25rem; }
+#payment-gateways-section .bhd-page-title { display:flex;align-items:center;gap:0.5rem;font-size:1.35rem;color:#1A1A2E;margin:0 }
+#payment-gateways-section .bhd-icon { font-size: 1.5rem; }
+#payment-gateways-section .bhd-badge { font-size:0.7rem;padding:0.2rem 0.6rem;border-radius:9999px }
+#payment-gateways-section .bhd-badge-info { background:#dbeafe;color:#1e40af }
+#payment-gateways-section .bhd-page-subtitle { color:#6b7280;font-size:0.85rem;margin:0.35rem 0 0 }
 
-#payment-gateways-section .bhd-tabs {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 2px solid #e5e7eb;
-  margin-bottom: 1.5rem;
-}
-#payment-gateways-section .bhd-tab {
-  padding: 0.75rem 1.25rem;
-  background: none;
-  border: none;
-  border-bottom: 3px solid transparent;
-  cursor: pointer;
-  font-weight: 600;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.2s;
-}
-#payment-gateways-section .bhd-tab.active {
-  color: #C8102E;
-  border-bottom-color: #C8102E;
-}
-#payment-gateways-section .bhd-tab:hover {
-  color: #C8102E;
-}
+/* ====== الإحصائيات ====== */
+#payment-gateways-section .bhd-stats-row { display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.875rem;margin-bottom:1.25rem }
+#payment-gateways-section .bhd-stat-card { background:#fff;border-radius:10px;padding:1.1rem;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06) }
+#payment-gateways-section .bhd-stat-icon { font-size:1.7rem;margin-bottom:0.3rem }
+#payment-gateways-section .bhd-stat-value { font-size:1.5rem;font-weight:700;color:#1A1A2E }
+#payment-gateways-section .bhd-stat-label { font-size:0.72rem;color:#6b7280;margin-top:0.2rem }
+#payment-gateways-section .bhd-stat-blue { border-top:3px solid #3b82f6 }
+#payment-gateways-section .bhd-stat-green { border-top:3px solid #22c55e }
+#payment-gateways-section .bhd-stat-orange { border-top:3px solid #f59e0b }
+#payment-gateways-section .bhd-stat-purple { border-top:3px solid #8b5cf6 }
 
-#payment-gateways-section .bhd-tab-panel {
-  display: none;
-}
-#payment-gateways-section .bhd-tab-panel.active {
-  display: block;
-}
+/* ====== التبويبات ====== */
+#payment-gateways-section .bhd-tabs { display:flex;gap:0.35rem;border-bottom:2px solid #e5e7eb;margin-bottom:1.25rem }
+#payment-gateways-section .bhd-tab { padding:0.65rem 1.1rem;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;color:#6b7280;display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;transition:all .2s }
+#payment-gateways-section .bhd-tab.active { color:#C8102E;border-bottom-color:#C8102E }
+#payment-gateways-section .bhd-tab:hover { color:#C8102E }
+#payment-gateways-section .bhd-tab-panel { display:none }
+#payment-gateways-section .bhd-tab-panel.active { display:block }
 
-#payment-gateways-section .bhd-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  margin-bottom: 1rem;
-}
-#payment-gateways-section .bhd-card-header {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-#payment-gateways-section .bhd-card-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: #1a1a2e;
-}
+/* ====== البطاقات ====== */
+#payment-gateways-section .bhd-card { background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.06);overflow:hidden;margin-bottom:1rem }
+#payment-gateways-section .bhd-card-header { padding:0.875rem 1.1rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center }
+#payment-gateways-section .bhd-card-header h3 { margin:0;font-size:1rem;color:#1A1A2E }
+#payment-gateways-section .bhd-filter-row { display:flex;gap:0.5rem;align-items:center }
+#payment-gateways-section .bhd-select { padding:0.4rem 0.6rem;border:1px solid #d1d5db;border-radius:6px;font-size:0.8rem;background:#fff }
 
-#payment-gateways-section .bhd-filter-row {
-  display: flex;
-  gap: 0.75rem;
-}
-#payment-gateways-section .bhd-select {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: white;
-  font-size: 0.875rem;
-}
+/* ====== الجدول ====== */
+#payment-gateways-section .bhd-table { width:100%;border-collapse:collapse }
+#payment-gateways-section .bhd-table th { padding:0.65rem 0.85rem;text-align:right;font-size:0.75rem;font-weight:600;color:#6b7280;border-bottom:2px solid #e5e7eb;background:#f9fafb;white-space:nowrap }
+#payment-gateways-section .bhd-table td { padding:0.6rem 0.85rem;border-bottom:1px solid #e5e7eb;font-size:0.82rem;vertical-align:middle }
+#payment-gateways-section .bhd-table tbody tr:hover { background:#f9fafb }
+#payment-gateways-section .bhd-table-responsive { overflow-x:auto }
 
-#payment-gateways-section .bhd-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-#payment-gateways-section .bhd-table th {
-  padding: 0.75rem 1rem;
-  text-align: right;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  border-bottom: 2px solid #e5e7eb;
-  background: #f9fafb;
-}
-#payment-gateways-section .bhd-table td {
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 0.875rem;
-}
-#payment-gateways-section .bhd-table tbody tr:hover {
-  background: #f9fafb;
-}
+/* ====== الأزرار ====== */
+#payment-gateways-section .bhd-btn { padding:0.4rem 0.75rem;border-radius:6px;border:1px solid transparent;cursor:pointer;font-size:0.78rem;font-weight:600;display:inline-flex;align-items:center;gap:0.3rem;transition:all .15s;white-space:nowrap }
+#payment-gateways-section .bhd-btn-primary { background:#C8102E;color:#fff;border-color:#C8102E }
+#payment-gateways-section .bhd-btn-primary:hover { background:#a00d24 }
+#payment-gateways-section .bhd-btn-success { background:#16a34a;color:#fff;border-color:#16a34a }
+#payment-gateways-section .bhd-btn-success:hover { background:#15803d }
+#payment-gateways-section .bhd-btn-secondary { background:#f3f4f6;color:#374151;border-color:#d1d5db }
+#payment-gateways-section .bhd-btn-secondary:hover { background:#e5e7eb }
+#payment-gateways-section .bhd-btn-warning { background:#f59e0b;color:#fff;border-color:#f59e0b }
+#payment-gateways-section .bhd-btn-warning:hover { background:#d97706 }
+#payment-gateways-section .bhd-btn-sm { padding:0.25rem 0.5rem;font-size:0.72rem }
+#payment-gateways-section .bhd-btn:disabled { opacity:0.5;cursor:not-allowed }
 
-#payment-gateways-section .bhd-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-#payment-gateways-section .bhd-status-active {
-  background: #dcfce7;
-  color: #166534;
-}
-#payment-gateways-section .bhd-status-inactive {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-#payment-gateways-section .bhd-status-error {
-  background: #fee2e2;
-  color: #991b1b;
-}
+/* ====== الحالة ====== */
+#payment-gateways-section .bhd-status { display:inline-flex;align-items:center;gap:0.25rem;padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.72rem;font-weight:600 }
+#payment-gateways-section .bhd-status-active { background:#dcfce7;color:#166534 }
+#payment-gateways-section .bhd-status-inactive { background:#f3f4f6;color:#6b7280 }
+#payment-gateways-section .bhd-status-error { background:#fee2e2;color:#991b1b }
+#payment-gateways-section .bhd-status-pending { background:#fef3c7;color:#92400e }
 
-#payment-gateways-section .bhd-provider-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  margin-left: 0.75rem;
-}
+/* ====== Toggle Switch ====== */
+#payment-gateways-section .pg-toggle { position:relative;width:48px;height:26px;cursor:pointer }
+#payment-gateways-section .pg-toggle input { opacity:0;width:0;height:0 }
+#payment-gateways-section .pg-toggle-slider { position:absolute;inset:0;background:#d1d5db;border-radius:9999px;transition:0.2s }
+#payment-gateways-section .pg-toggle-slider::before { content:'';position:absolute;height:20px;width:20px;right:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2) }
+#payment-gateways-section .pg-toggle input:checked + .pg-toggle-slider { background:#22c55e }
+#payment-gateways-section .pg-toggle input:checked + .pg-toggle-slider::before { transform:translateX(-22px) }
 
-#payment-gateways-section .bhd-alert {
-  padding: 1rem 1.25rem;
-  border-radius: 12px;
-  margin-top: 1rem;
-}
-#payment-gateways-section .bhd-alert-info {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
-}
-#payment-gateways-section .bhd-alert-info code {
-  background: rgba(0,0,0,0.05);
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-}
-#payment-gateways-section .bhd-alert ul {
-  margin: 0.5rem 0 0;
-  padding-right: 1.25rem;
-}
-#payment-gateways-section .bhd-alert li {
-  margin-bottom: 0.35rem;
-}
+/* ====== Modal ====== */
+#payment-gateways-section .pg-modal { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center }
+#payment-gateways-section .pg-modal-backdrop { position:absolute;inset:0;background:rgba(0,0,0,0.45);backdrop-filter:blur(3px) }
+#payment-gateways-section .pg-modal-content { position:relative;background:#fff;border-radius:12px;width:min(560px,96vw);max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.25) }
+#payment-gateways-section .pg-modal-header { display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid #e5e7eb;background:linear-gradient(135deg,#1A1A2E 0%,#2d2d44 100%);color:#fff }
+#payment-gateways-section .pg-modal-header h3 { margin:0;font-size:1.05rem }
+#payment-gateways-section .pg-modal-close { background:none;border:none;color:#fff;font-size:1.25rem;cursor:pointer }
+#payment-gateways-section .pg-modal-body { padding:1.25rem;overflow-y:auto;flex:1 }
+#payment-gateways-section .pg-modal-footer { display:flex;justify-content:flex-end;gap:0.5rem;padding:1rem 1.25rem;border-top:1px solid #e5e7eb;background:#f9fafb }
 
-#payment-gateways-section .bhd-pagination {
-  display: flex;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 1rem;
-}
-#payment-gateways-section .bhd-page-btn {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid #d1d5db;
-  background: white;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-#payment-gateways-section .bhd-page-btn.active {
-  background: #C8102E;
-  color: white;
-  border-color: #C8102E;
-}
+/* ====== حقول الإعدادات ====== */
+#payment-gateways-section .pg-field { margin-bottom:0.75rem }
+#payment-gateways-section .pg-field label { display:block;font-size:0.78rem;font-weight:600;color:#374151;margin-bottom:0.25rem }
+#payment-gateways-section .pg-field label .pg-opt { font-weight:400;color:#9ca3af }
+#payment-gateways-section .pg-field input[type="text"],#payment-gateways-section .pg-field input[type="password"],#payment-gateways-section .pg-field input[type="url"],#payment-gateways-section .pg-field select { width:100%;padding:0.5rem 0.65rem;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem;font-family:monospace;transition:border .15s }
+#payment-gateways-section .pg-field input:focus { outline:none;border-color:#C8102E;box-shadow:0 0 0 3px rgba(200,16,46,0.08) }
+#payment-gateways-section .pg-field-row { display:grid;grid-template-columns:1fr 1fr;gap:0.75rem }
+#payment-gateways-section .pg-field-hint { font-size:0.7rem;color:#9ca3af;margin-top:0.15rem }
+#payment-gateways-section .pg-sandbox-row { display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem }
+#payment-gateways-section .pg-sandbox-row label { font-size:0.82rem;font-weight:600 }
 
-#payment-gateways-section .bhd-setting-item {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-#payment-gateways-section .bhd-setting-item:last-child {
-  border-bottom: none;
-}
-#payment-gateways-section .bhd-setting-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-#payment-gateways-section .bhd-setting-name {
-  font-weight: 600;
-  color: #1a1a2e;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-#payment-gateways-section .bhd-setting-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 0.75rem;
-}
-#payment-gateways-section .bhd-setting-fields label {
-  display: block;
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin-bottom: 0.25rem;
-}
-#payment-gateways-section .bhd-setting-fields input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-family: monospace;
-}
-#payment-gateways-section .bhd-setting-fields input:disabled {
-  background: #f3f4f6;
-  color: #9ca3af;
-}
+/* ====== نتيجة الاختبار ====== */
+#payment-gateways-section .pg-test-result { padding:0.6rem 0.8rem;border-radius:6px;font-size:0.8rem;margin-top:0.5rem;display:none }
+#payment-gateways-section .pg-test-result.show { display:block }
+#payment-gateways-section .pg-test-ok { background:#dcfce7;color:#166534;border:1px solid #bbf7d0 }
+#payment-gateways-section .pg-test-fail { background:#fee2e2;color:#991b1b;border:1px solid #fecaca }
+#payment-gateways-section .pg-test-warn { background:#fef3c7;color:#92400e;border:1px solid #fde68a }
+
+/* ====== رسالة الحالة ====== */
+#payment-gateways-section #pg-status-msg.pg-msg-success { background:#dcfce7;color:#166534;border:1px solid #bbf7d0 }
+#payment-gateways-section #pg-status-msg.pg-msg-error { background:#fee2e2;color:#991b1b;border:1px solid #fecaca }
+
+/* ====== نسخ ====== */
+#payment-gateways-section .pg-copy-btn { padding:0.2rem 0.4rem;font-size:0.7rem;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer }
+#payment-gateways-section .pg-copy-btn:hover { background:#e5e7eb }
+
+/* Modal — خارج section لكن يُعرض فوق الصفحة */
+.pg-modal { position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center }
+.pg-modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.45); backdrop-filter:blur(3px) }
+.pg-modal-content { position:relative; background:#fff; border-radius:12px; width:min(560px,96vw); max-height:88vh; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,0.25) }
+.pg-modal-header { display:flex; justify-content:space-between; align-items:center; padding:1rem 1.25rem; border-bottom:1px solid #e5e7eb; background:linear-gradient(135deg,#1A1A2E 0%,#2d2d44 100%); color:#fff }
+.pg-modal-header h3 { margin:0; font-size:1.05rem }
+.pg-modal-close { background:none; border:none; color:#fff; font-size:1.25rem; cursor:pointer }
+.pg-modal-body { padding:1.25rem; overflow-y:auto; flex:1 }
+.pg-modal-footer { display:flex; justify-content:flex-end; gap:0.5rem; padding:1rem 1.25rem; border-top:1px solid #e5e7eb; background:#f9fafb }
+.pg-field { margin-bottom:0.75rem }
+.pg-field label { display:block; font-size:0.78rem; font-weight:600; color:#374151; margin-bottom:0.25rem }
+.pg-field label .pg-opt { font-weight:400; color:#9ca3af }
+.pg-field input[type="text"], .pg-field input[type="password"], .pg-field input[type="url"], .pg-field select { width:100%; padding:0.5rem 0.65rem; border:1px solid #d1d5db; border-radius:6px; font-size:0.82rem; font-family:monospace }
+.pg-field-hint { font-size:0.7rem; color:#9ca3af; margin-top:0.15rem }
+.pg-sandbox-row { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem }
+.pg-sandbox-row label { font-size:0.82rem; font-weight:600 }
+.pg-toggle { position:relative; width:48px; height:26px; cursor:pointer; display:inline-block }
+.pg-toggle input { opacity:0; width:0; height:0 }
+.pg-toggle-slider { position:absolute; inset:0; background:#d1d5db; border-radius:9999px; transition:0.2s }
+.pg-toggle-slider::before { content:''; position:absolute; height:20px; width:20px; right:3px; bottom:3px; background:#fff; border-radius:50%; transition:0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2) }
+.pg-toggle input:checked + .pg-toggle-slider { background:#22c55e }
+.pg-toggle input:checked + .pg-toggle-slider::before { transform:translateX(-22px) }
+.pg-msg-success { background:#dcfce7; color:#166534; border:1px solid #bbf7d0 }
+.pg-msg-error { background:#fee2e2; color:#991b1b; border:1px solid #fecaca }
 </style>

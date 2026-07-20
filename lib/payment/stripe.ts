@@ -4,14 +4,17 @@
  */
 
 import Stripe from 'stripe';
+import { getGatewayField } from './credentials';
 
 let stripeClient: Stripe | null = null;
+let stripeClientKey = '';
 
 function getStripe(): Stripe {
-  if (!stripeClient) {
-    const key = (process.env.STRIPE_SECRET_KEY || '').trim();
-    if (!key) throw new Error('STRIPE_SECRET_KEY غير مضبوط');
+  const key = String(getGatewayField('stripe', 'apiSecret')).trim();
+  if (!key) throw new Error('STRIPE_SECRET_KEY غير مضبوط');
+  if (!stripeClient || stripeClientKey !== key) {
     stripeClient = new Stripe(key);
+    stripeClientKey = key;
   }
   return stripeClient;
 }
@@ -122,7 +125,7 @@ export async function refundPayment(paymentIntentId: string, amount?: number) {
 
 export async function healthCheck(): Promise<boolean> {
   try {
-    if (!(process.env.STRIPE_SECRET_KEY || '').trim()) return false;
+    if (!String(getGatewayField('stripe', 'apiSecret')).trim()) return false;
     await getStripe().balance.retrieve();
     return true;
   } catch {

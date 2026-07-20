@@ -16,6 +16,12 @@ import * as payfort from './payfort';
 import * as myfatoorah from './myfatoorah';
 import * as paytabs from './paytabs';
 import * as tap from './tap';
+import {
+  clearRuntimeGatewayConfig,
+  hasGatewayCredentials,
+  resolveGatewayConfig,
+  setRuntimeGatewayConfig,
+} from './credentials';
 
 /** البوابات المتاحة */
 export type PaymentProvider =
@@ -264,12 +270,14 @@ export async function createPayment(
   provider: PaymentProvider,
   params: CreateSessionParams
 ): Promise<PaymentSession> {
-  if (!isProviderActive(provider)) {
+  const config = await resolveGatewayConfig(provider);
+  if (!config.isEnabled || !hasGatewayCredentials(config)) {
     throw new Error(
-      `بوابة ${PROVIDER_INFO[provider].nameAr} غير مفعلة. يرجى إضافة مفاتيح API في إعدادات النظام.`
+      `بوابة ${PROVIDER_INFO[provider].nameAr} غير مفعلة. فعّلها وأضف مفاتيح API من لوحة بوابات الدفع.`
     );
   }
 
+  setRuntimeGatewayConfig(provider, config);
   try {
     switch (provider) {
       case 'thawani': {
@@ -377,6 +385,8 @@ export async function createPayment(
   } catch (error) {
     console.error(`[PaymentManager] ${provider} error:`, error);
     throw error;
+  } finally {
+    clearRuntimeGatewayConfig(provider);
   }
 }
 
@@ -387,6 +397,10 @@ export async function verifyPayment(
   provider: PaymentProvider,
   sessionId: string
 ): Promise<PaymentVerification> {
+  const config = await resolveGatewayConfig(provider);
+  if (config.isEnabled && hasGatewayCredentials(config)) {
+    setRuntimeGatewayConfig(provider, config);
+  }
   try {
     switch (provider) {
       case 'thawani': {
@@ -440,6 +454,8 @@ export async function verifyPayment(
   } catch (error) {
     console.error(`[PaymentManager] verify ${provider} error:`, error);
     throw error;
+  } finally {
+    clearRuntimeGatewayConfig(provider);
   }
 }
 

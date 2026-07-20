@@ -8,10 +8,10 @@ import {
   createPayment,
   verifyPayment,
   isValidProvider,
-  isProviderActive,
   ALL_PROVIDERS,
   type GatewayProvider,
 } from '@/lib/payment/manager';
+import { isGatewayActive } from '@/lib/payment/credentials';
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const gateway = provider as GatewayProvider;
-    if (!isProviderActive(gateway)) {
+    if (!(await isGatewayActive(gateway))) {
       return NextResponse.json({ error: `بوابة ${provider} غير مفعلة` }, { status: 400 });
     }
 

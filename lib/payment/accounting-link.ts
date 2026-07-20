@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/prisma';
 import type { AccountingAccountType } from '@prisma/client';
 import { PaymentProvider } from './manager';
+import { syncPaymentToLegacyAccounting } from './legacy-accounting-sync';
 
 /** أنواع الدفع المحاسبية */
 export interface PaymentAccountingData {
@@ -207,6 +208,16 @@ export async function recordPayment(data: PaymentAccountingData): Promise<Accoun
         },
       });
     }
+
+    await syncPaymentToLegacyAccounting({
+      provider: data.provider,
+      reference: data.reference,
+      serialNumber,
+      amount: data.amount,
+      description: data.description,
+      customerName: data.customerName || data.customerEmail,
+      paidAt,
+    });
 
     return {
       success: true,

@@ -63271,7 +63271,7 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             }
             try {
                 const base = '/api/admin/legacy-real-estate/';
-                const rev = '2026-07-20-payment-gateways-v1';
+                const rev = '2026-07-20-payment-gateways-v2';
                 const res = await fetch(`${base}modules/10-payment-gateways.html?v=${encodeURIComponent(rev)}`, {
                     credentials: 'include',
                 });
