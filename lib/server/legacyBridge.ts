@@ -589,7 +589,9 @@ export async function syncLegacyAddressEntryToDatabase(
     contactId
   );
   if (!ident.ok) {
-    throw new Error(ident.message || 'identity_conflict');
+    const err = new Error(ident.message || 'identity_conflict') as Error & { code?: string };
+    err.code = ident.code;
+    throw err;
   }
 
   const linkedUserId =

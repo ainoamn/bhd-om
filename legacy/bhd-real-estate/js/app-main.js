@@ -11985,14 +11985,20 @@
             });
             if (!r.ok) {
                 let msg = '';
+                let errCode = '';
                 try {
                     const j = await r.json();
                     msg = toStr(j?.error);
+                    errCode = toStr(j?.code);
                 } catch (_eJson) {}
+                const duplicateHint =
+                    r.status === 409 || errCode === 'IDENTITY_CONFLICT'
+                        ? t('\n(رقم مدني أو جواز أو تسلسل مكرر في دفتر العناوين)', '\n(Duplicate civil ID, passport, or serial in address book)')
+                        : '';
                 alert(
                     t(
-                        `⚠️ لم يُحفظ السجل في قاعدة البيانات (${r.status}${msg ? ': ' + msg : ''}).`,
-                        `⚠️ Record was not saved to the database (${r.status}${msg ? ': ' + msg : ''}).`
+                        `⚠️ لم يُحفظ السجل في قاعدة البيانات (${r.status}${msg ? ': ' + msg : ''}).${duplicateHint}`,
+                        `⚠️ Record was not saved to the database (${r.status}${msg ? ': ' + msg : ''}).${duplicateHint}`
                     )
                 );
                 return null;
@@ -43812,7 +43818,8 @@ function getEmptyCompanySignatory() {
                 buildingProfilesShadow = {};
                 return false;
             }
-            buildingProfiles = parsed;
+            const mem = buildingProfiles && typeof buildingProfiles === 'object' ? buildingProfiles : {};
+            buildingProfiles = mergeBuildingProfilesObjects(parsed, mem);
             Object.keys(buildingProfiles).forEach((k) => {
                 if (buildingProfiles[k] && typeof buildingProfiles[k] === 'object') {
                     buildingProfiles[k].buildingStatus = normalizeBuildingStatus(buildingProfiles[k].buildingStatus);
@@ -43827,10 +43834,34 @@ function getEmptyCompanySignatory() {
         }
     }
 
+    function mergeOwnerProfilesObjects(stored, memory) {
+        const local = stored && typeof stored === 'object' ? stored : {};
+        const mem = memory && typeof memory === 'object' ? memory : {};
+        const merged = { ...local };
+        Object.keys(mem).forEach((key) => {
+            const mp = mem[key];
+            const lp = merged[key];
+            if (!mp || typeof mp !== 'object') return;
+            if (!lp || typeof lp !== 'object') {
+                merged[key] = { ...mp };
+                return;
+            }
+            const lt = Date.parse(toStr(lp.updatedAt) || toStr(lp.createdAt) || '') || 0;
+            const mt = Date.parse(toStr(mp.updatedAt) || toStr(mp.createdAt) || '') || 0;
+            merged[key] = mt >= lt ? { ...mp } : { ...lp };
+        });
+        return merged;
+    }
+
     function loadOwnerProfilesFromLocalStorageSync() {
         try {
-            ownerProfiles = JSON.parse(localStorage.getItem('bhd_owner_profiles') || '{}');
-            if (!ownerProfiles || typeof ownerProfiles !== 'object') ownerProfiles = {};
+            const parsed = JSON.parse(localStorage.getItem('bhd_owner_profiles') || '{}');
+            if (!parsed || typeof parsed !== 'object') {
+                ownerProfiles = {};
+                return false;
+            }
+            const mem = ownerProfiles && typeof ownerProfiles === 'object' ? ownerProfiles : {};
+            ownerProfiles = mergeOwnerProfilesObjects(parsed, mem);
             return Object.keys(ownerProfiles).length > 0;
         } catch (_eLoadOpSync) {
             ownerProfiles = {};
@@ -44442,7 +44473,7 @@ function getEmptyCompanySignatory() {
         renderInsightContent();
     }
 
-    function saveOwnerFromDashboard() {
+    async function saveOwnerFromDashboard() {
         if (!assertPermissionOrAlert('manage_owners', 'لا تملك صلاحية إدارة الملاك.', 'No permission to manage owners.')) return;
         const profile = collectOwnerProfileForm();
         const name = toStr(profile.fullName);
@@ -44465,16 +44496,34 @@ function getEmptyCompanySignatory() {
                 delete ownerBuildingMap[originalName];
             }
         }
+        profile.updatedAt = new Date().toISOString();
+        if (!profile.createdAt) profile.createdAt = profile.updatedAt;
         ownerProfiles[name] = profile;
         if (!ownersList.includes(name)) ownersList.push(name);
         if (!ownerBuildingMap[name]) ownerBuildingMap[name] = [];
         rememberLearnedNamePhrase(profile.fullName, profile.fullNameEn);
-        ownerEditorState = { open: false, originalName: '' };
-        loadOwnerProfilesFromLocalStorageSync();
-        persistReferenceData();
+        persistReferenceData(false);
+        let kvResult = { ok: true };
         if (isBhdSiteKvPersistenceActive()) {
-            flushBhdReferenceDataToServerNow().catch(() => {});
+            try {
+                kvResult = (await flushBhdReferenceDataToServerNow()) || { ok: false };
+            } catch (_eOwnerFlush) {
+                kvResult = { ok: false };
+            }
         }
+        window._pendingOwnerIdAttachment = null;
+        ownerEditorState = { open: false, originalName: '' };
+        if (isBhdSiteKvPersistenceActive() && kvResult && kvResult.ok === false) {
+            alert(
+                t(
+                    '⚠️ حُفظت بيانات المالك محلياً لكن لم تُرفع إلى قاعدة البيانات. أعد الحفظ بعد التحقق من تسجيل الدخول.',
+                    '⚠️ Owner saved locally but not uploaded to the database. Save again after verifying login.'
+                )
+            );
+        } else {
+            alert(t('✅ تم حفظ بيانات المالك بنجاح.', '✅ Owner data saved successfully.'));
+        }
+        renderInsightContent();
     }
 
     function renderOwnerProfileSummary(ownerName) {
@@ -45934,7 +45983,6 @@ function getEmptyCompanySignatory() {
             return;
         }
         buildingEditorState = { open: true, originalName: name };
-        loadBuildingProfilesFromLocalStorageSync();
         persistReferenceData(false);
         // Verify saved data can be read back immediately.
         try {

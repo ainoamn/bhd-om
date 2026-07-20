@@ -37,10 +37,16 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes('identity') || msg.includes('DUPLICATE')) {
-      return NextResponse.json({ error: msg, code: 'IDENTITY_CONFLICT' }, { status: 409 });
+    const code = (error as { code?: string })?.code;
+    if (
+      code?.startsWith('DUPLICATE') ||
+      msg.includes('identity') ||
+      msg.includes('DUPLICATE') ||
+      msg.includes('already registered')
+    ) {
+      return NextResponse.json({ error: msg, code: code || 'IDENTITY_CONFLICT' }, { status: 409 });
     }
     console.error('legacy address-book sync error', error);
-    return NextResponse.json({ error: 'Failed to sync address book entry' }, { status: 500 });
+    return NextResponse.json({ error: msg || 'Failed to sync address book entry' }, { status: 500 });
   }
 }
