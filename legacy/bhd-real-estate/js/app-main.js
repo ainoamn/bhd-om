@@ -4156,15 +4156,20 @@
     /** حالة العقد في قائمة العقود — من Neon عند التوفر، وإلا من البيانات المحلية */
     function getContractListRowLifecycleStateKey(row) {
         if (!row) return 'active_pending';
+        let base;
         if (isBhdSiteKvPersistenceActive()) {
             const byAg = getBhdServerContractLifecycleForAgreement(row.building, row.agreementNo);
-            if (byAg) return byAg;
-            const byUnit = getBhdServerContractLifecycleForUnit(row._unitRef);
-            if (byUnit) return byUnit;
-            if (row._unitRef) return getContractLifecycleStateKey(row._unitRef);
-            return 'active_pending';
+            if (byAg) base = byAg;
+            else {
+                const byUnit = getBhdServerContractLifecycleForUnit(row._unitRef);
+                if (byUnit) base = byUnit;
+                else if (row._unitRef) base = getContractLifecycleStateKey(row._unitRef);
+                else base = 'active_pending';
+            }
+        } else {
+            base = getContractLifecycleStateKey(row._unitRef);
         }
-        return getContractLifecycleStateKey(row._unitRef);
+        return applyContractCalendarExpiryToStateKey(base, resolveContractEndDateFromListRow(row));
     }
 
     function getBhdServerContractLifecycleForUnit(u) {
@@ -10130,11 +10135,50 @@
         return { building: primary.building, unit: primary.unit };
     }
 
+    function isContractCalendarExpired(endDate) {
+        const d = daysUntil(endDate);
+        return d !== null && d < 0;
+    }
+
+    function resolveContractEndDateForUnit(u) {
+        if (!u) return '';
+        const saved = getSavedContractEntryForUnit(u);
+        if (saved?.payload?.endDate) return toStr(saved.payload.endDate);
+        return toStr(u.endDate);
+    }
+
+    function resolveContractEndDateFromListRow(row) {
+        if (!row) return '';
+        if (row.endDate) return toStr(row.endDate);
+        return resolveContractEndDateForUnit(row._unitRef);
+    }
+
+    function applyContractCalendarExpiryToStateKey(baseKey, endDate) {
+        const k = toStr(baseKey);
+        if (!endDate || !isContractCalendarExpired(endDate)) return k;
+        if (
+            k === 'cancelled' ||
+            k === 'draft' ||
+            k === 'reservation_draft' ||
+            k === 'reservation_confirmed' ||
+            k === 'cancellation_pending' ||
+            k === 'renewal_pending'
+        ) {
+            return k;
+        }
+        return 'expired';
+    }
+
     function getContractLifecycleStateKey(u, depth) {
+        const base = _getContractLifecycleStateKeyRaw(u, depth);
+        return applyContractCalendarExpiryToStateKey(base, resolveContractEndDateForUnit(u));
+    }
+
+    function _getContractLifecycleStateKeyRaw(u, depth) {
         if (!u) return 'active';
         if (!depth) {
             const prim = getLinkedContractPrimaryLifecycleUnit(u);
-            if (prim) return getContractLifecycleStateKey(prim, 1);
+            if (prim) return _getContractLifecycleStateKeyRaw(prim, 1);
         }
         const renewalDraft = getContractRenewalDraftEntryForUnit(u);
         if (renewalDraft) return 'renewal_pending';
@@ -10168,10 +10212,12 @@
         if (k === 'active_docs_pending') return 9;
         if (k === 'active_accounting_pending') return 9;
         if (k === 'active') return 10;
+        if (k === 'expired') return 11;
         return 9;
     }
 
     function getContractLifecycleLabelForKey(k) {
+        if (k === 'expired') return t('منتهي', 'Expired');
         if (k === 'cancelled') return t('ملغي', 'Cancelled');
         if (k === 'draft') return t('مسودة عقد', 'Contract draft');
         if (k === 'reservation_draft') return t('مسودة حجز', 'Reservation draft');

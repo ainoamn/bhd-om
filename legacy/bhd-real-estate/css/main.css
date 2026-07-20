@@ -4791,6 +4791,7 @@
         .chip.contract-state-cancellation_pending { background: #ffebee; color: #b71c1c; cursor: pointer; }
         .chip.contract-state-cancellation_pending:hover { filter: brightness(0.97); }
         .chip.contract-state-cancelled { background: #f5f5f5; color: #616161; }
+        .chip.contract-state-expired { background: #f3e5f5; color: #6a1b9a; border: 1px solid #ce93d8; }
         .contract-renewal-card .bhd-ledger-block {
             margin-bottom: 14px;
         }
