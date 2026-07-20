@@ -1,24 +1,25 @@
-# نظام الدفع متعدد البوابات (Kimi 03)
+# نظام الدفع — 11 بوابة (Kimi 03+04)
 
 ## المصدر
-`C:\Users\ahami\Downloads\Kimi_Agent_موقع العقارات.03`
+`Kimi_Agent_موقع العقارات.03` + `.04`
 
 ## البوابات
-| بوابة | ملف | متغيرات البيئة |
-|-------|-----|----------------|
-| ثواني | `lib/payment/thawani.ts` | `THAWANI_SECRET_KEY`, `THAWANI_PUBLISHABLE_KEY`, `THAWANI_SANDBOX` |
-| Stripe | `lib/payment/stripe.ts` | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` |
-| PayPal | `lib/payment/paypal.ts` | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_SANDBOX` |
-| Telr | `lib/payment/telr.ts` | `TELR_STORE_ID`, `TELR_AUTH_KEY`, `TELR_SANDBOX` |
+| مفتاح | الاسم | متغيرات التفعيل |
+|-------|--------|------------------|
+| thawani | ثواني | `THAWANI_SECRET_KEY` |
+| cmi | بوابة وطنية / OmanNet | `CMI_MERCHANT_ID` (+ `CMI_API_KEY`, `CMI_STORE_KEY`) |
+| network-intl | Network International | `NI_API_KEY` (+ `NI_OUTLET_REF`) |
+| telr | Telr | `TELR_STORE_ID` |
+| hyperpay | HyperPay | `HYPERPAY_ACCESS_TOKEN` (+ `HYPERPAY_ENTITY_ID`) |
+| payfort | Amazon Payment Services | `PAYFORT_MERCHANT_IDENTIFIER` |
+| myfatoorah | MyFatoorah | `MF_API_KEY` |
+| paytabs | PayTabs | `PAYTABS_SERVER_KEY` (+ `PAYTABS_PROFILE_ID`) |
+| tap | Tap | `TAP_SECRET_KEY` |
+| stripe | Stripe | `STRIPE_SECRET_KEY` |
+| paypal | PayPal | `PAYPAL_CLIENT_ID` |
 
-## API
-- `POST/GET /api/payment` — موحد
-- `GET /api/payment/providers` — قائمة البوابات وحالتها
-- `POST/GET /api/payment/thawani` — توافقية خلفية
+## الواجهة
+`/ar/portal/tenant/v2` → «اختر طريقة الدفع» مع فلاتر: الكل / عمان / الخليج
 
-## واجهة
-- `components/portal/PaymentSelector.tsx`
-- بوابة المستأجر: زر «اختر طريقة الدفع»
-
-## ملاحظة
-مسار حجز العقار العام ما زال عبر `lib/server/paymentGateway.ts` (Thawani/mock) — منفصل عن مدير البوابة للبوابة.
+## ملاحظة رفع المستندات
+مسارات رفع المستندات الحالية في المشروع (`/api/upload/booking-documents`, legacy-bridge files) لم تُستبدل من حزمة 04 — لا تغييرات جديدة على رفع المستندات في هذه الدفعة.

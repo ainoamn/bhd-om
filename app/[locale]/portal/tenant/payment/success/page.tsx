@@ -17,6 +17,13 @@ const PROVIDER_LABELS: Record<string, string> = {
   stripe: 'سترايب',
   paypal: 'باي بال',
   telr: 'تلر',
+  cmi: 'بوابة الدفع الوطنية',
+  'network-intl': 'نتورك إنترناشيونال',
+  hyperpay: 'هايبر باي',
+  payfort: 'أمازون للمدفوعات',
+  myfatoorah: 'فاتورتي',
+  paytabs: 'بيتابس',
+  tap: 'تاب',
 };
 
 export default async function PaymentSuccessPage({ searchParams }: Props) {

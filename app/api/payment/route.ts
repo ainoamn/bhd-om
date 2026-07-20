@@ -1,5 +1,5 @@
 /**
- * API موحد للدفع — يدعم Thawani / Stripe / PayPal / Telr
+ * API موحد للدفع — 11 بوابة (عمان + الخليج + عالمي)
  * POST: إنشاء جلسة | GET: التحقق
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,6 +9,7 @@ import {
   verifyPayment,
   isValidProvider,
   isProviderActive,
+  ALL_PROVIDERS,
   type GatewayProvider,
 } from '@/lib/payment/manager';
 
@@ -30,10 +31,7 @@ export async function POST(req: NextRequest) {
 
     if (!isValidProvider(String(provider))) {
       return NextResponse.json(
-        {
-          error:
-            'بوابة غير مدعومة. البوابات المتاحة: thawani, stripe, paypal, telr',
-        },
+        { error: `بوابة غير مدعومة. المتاحة: ${ALL_PROVIDERS.join(', ')}` },
         { status: 400 }
       );
     }
@@ -50,13 +48,14 @@ export async function POST(req: NextRequest) {
 
     const locale = 'ar';
     const baseUrl = (process.env.NEXTAUTH_URL || '').replace(/\/$/, '');
-    const token = auth.token as { email?: string; phone?: string } | null;
+    const token = auth.token as { email?: string; phone?: string; name?: string } | null;
 
     const session = await createPayment(gateway, {
       amount: amountNum,
       description: String(description),
       customerEmail: String(token?.email || ''),
       customerPhone: token?.phone ? String(token.phone) : undefined,
+      customerName: token?.name ? String(token.name) : undefined,
       metadata: {
         userId,
         dueId: dueId ? String(dueId) : '',
