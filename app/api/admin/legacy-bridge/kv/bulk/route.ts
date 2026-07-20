@@ -16,12 +16,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = (await req.json().catch(() => ({}))) as LegacyKvBulkPayload & { replace?: boolean };
+    const body = (await req.json().catch(() => ({}))) as LegacyKvBulkPayload & {
+      replace?: boolean;
+      userInitiated?: boolean;
+    };
     const replace = body?.replace === true;
-    const payload = { ...body } as LegacyKvBulkPayload & { replace?: boolean };
+    const userInitiated = body?.userInitiated === true;
+    const payload = { ...body } as LegacyKvBulkPayload & { replace?: boolean; userInitiated?: boolean };
     delete payload.replace;
+    delete payload.userInitiated;
 
-    const result = await putLegacyKvBulk(payload, { replace });
+    const result = await putLegacyKvBulk(payload, { replace, userInitiated });
 
     return NextResponse.json(result, {
       headers: {

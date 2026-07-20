@@ -2155,7 +2155,8 @@
     /** بعد تصفية — يمنع أي تبويب من دفع بيانات قديمة إلى Neon */
     function bhdShouldBlockNeonKvPush() {
         if (bhdWipeInProgressActive()) return true;
-        return shouldSkipSiteKvPullAfterLocalWipe();
+        if (!shouldSkipSiteKvPullAfterLocalWipe()) return false;
+        return !bhdLocalStorageHasSubstantiveData();
     }
 
     function applyBhdCrossTabWipeQuarantine(scope) {
@@ -4836,7 +4837,10 @@
         Storage.prototype.setItem = function (key, value) {
             origSet.call(this, key, value);
             if (_bhdKvHydratingFromServer) return;
-            if (typeof key === 'string' && BHD_KV_KEYS.includes(key)) _bhdKvDirtyKeys.add(key);
+            if (typeof key === 'string' && BHD_KV_KEYS.includes(key)) {
+                _bhdKvDirtyKeys.add(key);
+                scheduleBhdKvToServer();
+            }
         };
         const origRemove = Storage.prototype.removeItem;
         Storage.prototype.removeItem = function (key) {
@@ -4880,45 +4884,90 @@
 
     ensureBhdKvDirtyTracking();
 
+    function bhdAlertKvSyncFailure(status, saved) {
+        const code = status ? `HTTP ${status}` : t('خطأ شبكة', 'network error');
+        const savedHint =
+            typeof saved === 'number' && saved === 0
+                ? t('\n(لم يُحفظ أي مفتاح — تحقق من حالة التصفية أو الجلسة)', '\n(No keys saved — check wipe state or session)')
+                : '';
+        alert(
+            t(
+                `⚠️ لم تُحفظ البيانات على الخادم (${code}). تحقق من تسجيل الدخول ثم أعد الحفظ.${savedHint}`,
+                `⚠️ Data was not saved to the server (${code}). Check login and save again.${savedHint}`
+            )
+        );
+    }
+
     async function syncBhdKvToServer(options = {}) {
         const forceAll = options.forceAll === true;
         const force = options.force === true;
         const replace = options.replace === true;
+        const userInitiated = options.userInitiated === true || force === true;
         const allowDuringWipeQuarantine = options.allowDuringWipeQuarantine === true;
-        if (!allowDuringWipeQuarantine && bhdShouldBlockNeonKvPush()) return;
+        const silent = options.silent === true;
+        if (!allowDuringWipeQuarantine && bhdShouldBlockNeonKvPush()) {
+            return { ok: false, skipped: true, reason: 'wipe_quarantine' };
+        }
         const onlyKeys = Array.isArray(options.keys) && options.keys.length ? options.keys.filter((k) => BHD_KV_KEYS.includes(k)) : null;
-        if (!forceAll && !force && isBhdKvAutoPushMuted()) return;
+        if (!forceAll && !force && isBhdKvAutoPushMuted()) {
+            return { ok: false, skipped: true, reason: 'muted' };
+        }
         if (!window.bhdDesktop) {
             await mirrorKvFromLocalStorageToIndexedDb();
         }
         const dirty = onlyKeys || (forceAll ? BHD_KV_KEYS : takeBhdKvDirtyKeys());
         const keysToSync = dirty;
-        if (!keysToSync.length) return;
+        if (!keysToSync.length) return { ok: true, skipped: true, reason: 'empty' };
         const payload = buildBhdKvPayload(keysToSync);
         if (onlyKeys) {
             onlyKeys.forEach((k) => _bhdKvDirtyKeys.delete(k));
         }
         if (window.bhdDesktop) {
-            if (!Object.keys(payload).length) return;
+            if (!Object.keys(payload).length) return { ok: true, skipped: true, reason: 'empty_payload' };
             try {
                 await window.bhdDesktop.kvPutBulk(payload);
             } catch (e) {
                 console.warn('syncBhdKvToDesktop failed', e);
+                if (!silent) bhdAlertKvSyncFailure('', 0);
+                return { ok: false, error: e };
             }
             scheduleDesktopIdbMirror();
-            return;
+            return { ok: true, saved: Object.keys(payload).length };
         }
-        if (!bhdRemoteKvSyncEnabled()) return;
+        if (!bhdRemoteKvSyncEnabled()) return { ok: false, skipped: true, reason: 'remote_disabled' };
         try {
-            const body = options.replace ? { ...payload, replace: true } : payload;
-            await fetch(`${bhdKvRemoteBase()}/bulk`, {
+            const body = options.replace
+                ? { ...payload, replace: true, userInitiated }
+                : { ...payload, userInitiated };
+            const r = await fetch(`${bhdKvRemoteBase()}/bulk`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
+            let saved = 0;
+            try {
+                const j = await r.json();
+                saved = typeof j?.saved === 'number' ? j.saved : 0;
+            } catch (_eJson) {}
+            if (!r.ok) {
+                console.warn('syncBhdKvToServer failed', r.status, saved);
+                if (!silent) bhdAlertKvSyncFailure(r.status, saved);
+                keysToSync.forEach((k) => markBhdKvDirty(k));
+                return { ok: false, status: r.status, saved };
+            }
+            if (userInitiated && saved === 0 && Object.keys(payload).length > 0) {
+                console.warn('syncBhdKvToServer saved=0', keysToSync);
+                if (!silent) bhdAlertKvSyncFailure(r.status, saved);
+                keysToSync.forEach((k) => markBhdKvDirty(k));
+                return { ok: false, status: r.status, saved };
+            }
+            return { ok: true, status: r.status, saved };
         } catch (e) {
             console.warn('syncBhdKvToServer failed', e);
+            if (!silent) bhdAlertKvSyncFailure('', 0);
+            keysToSync.forEach((k) => markBhdKvDirty(k));
+            return { ok: false, error: e };
         }
     }
 
@@ -4928,7 +4977,11 @@
         clearTimeout(_bhdKvSyncTimer);
         _bhdKvSyncTimer = setTimeout(() => {
             _bhdKvSyncTimer = 0;
-            syncBhdKvToServer().catch(() => {});
+            if (isBhdKvAutoPushMuted()) {
+                scheduleBhdKvToServer(1500);
+                return;
+            }
+            syncBhdKvToServer({ silent: true }).catch(() => {});
             scheduleBhdCloudDataPush(500);
         }, delayMs == null ? 2500 : delayMs);
     }
@@ -4937,7 +4990,26 @@
     async function flushBhdKvToServerNow(keys, options) {
         const list = Array.isArray(keys) && keys.length ? keys : ['bhd_accounting_registry'];
         list.forEach((k) => markBhdKvDirty(k));
-        await syncBhdKvToServer({ keys: list, force: true, replace: !!(options && options.replace) });
+        return syncBhdKvToServer({
+            keys: list,
+            force: true,
+            userInitiated: true,
+            replace: !!(options && options.replace)
+        });
+    }
+
+    const BHD_REFERENCE_DATA_KV_KEYS = [
+        'bhd_buildings_list',
+        'bhd_owners_list',
+        'bhd_owner_building_map',
+        'bhd_owner_profiles',
+        'bhd_building_profiles',
+        'bhd_managed_units'
+    ];
+
+    async function flushBhdReferenceDataToServerNow() {
+        BHD_REFERENCE_DATA_KV_KEYS.forEach((k) => markBhdKvDirty(k));
+        return syncBhdKvToServer({ keys: BHD_REFERENCE_DATA_KV_KEYS, force: true, userInitiated: true });
     }
 
     try {
@@ -11861,9 +11933,28 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ entry })
             });
-            if (!r.ok) return null;
+            if (!r.ok) {
+                let msg = '';
+                try {
+                    const j = await r.json();
+                    msg = toStr(j?.error);
+                } catch (_eJson) {}
+                alert(
+                    t(
+                        `⚠️ لم يُحفظ السجل في قاعدة البيانات (${r.status}${msg ? ': ' + msg : ''}).`,
+                        `⚠️ Record was not saved to the database (${r.status}${msg ? ': ' + msg : ''}).`
+                    )
+                );
+                return null;
+            }
             return await r.json();
         } catch (_ePush) {
+            alert(
+                t(
+                    '⚠️ تعذّر الاتصال بالخادم لحفظ دفتر العناوين. تحقق من الشبكة وحاول مرة أخرى.',
+                    '⚠️ Could not reach the server to save the address book. Check network and try again.'
+                )
+            );
             return null;
         }
     }
@@ -14475,7 +14566,7 @@ function getEmptyCompanySignatory() {
                 }
             } catch (_eSitePushCo2) {}
             try {
-                await syncBhdKvToServer();
+                await syncBhdKvToServer({ force: true, userInitiated: true, silent: true });
             } catch (_eAbCoSync) {}
             const syncedCo = syncContractTenantFromAddressBookIfPending(coIdx);
             closeAddressBookEntryModal();
@@ -14569,7 +14660,7 @@ function getEmptyCompanySignatory() {
             }
         } catch (_eSitePushPerson) {}
         try {
-            await syncBhdKvToServer();
+            await syncBhdKvToServer({ force: true, userInitiated: true, silent: true });
         } catch (_eAbSync) {}
         const synced = syncContractTenantFromAddressBookIfPending(savedIdx);
         closeAddressBookEntryModal();
@@ -40931,12 +41022,21 @@ function getEmptyCompanySignatory() {
         localStorage.setItem('bhd_owner_building_map', JSON.stringify(ownerBuildingMap));
         localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
         await mirrorKvFromLocalStorageToIndexedDb();
-        await syncBhdKvToServer();
+        const keys = [
+            'bhd_building_profiles',
+            'bhd_buildings_list',
+            'bhd_owner_building_map',
+            'bhd_managed_units',
+            'bhd_file_registry'
+        ];
+        keys.forEach((k) => markBhdKvDirty(k));
+        const kvResult = await syncBhdKvToServer({ keys, force: true, userInitiated: true });
         if (window.__bhdCloudApiActive) {
             try {
                 await bhdCloudPushPropertiesNow();
             } catch (_eCloudPush) {}
         }
+        return kvResult;
     }
 
     function clearTenantBuildingContractDataKeepOwnersAndAddressBook() {
@@ -43931,6 +44031,9 @@ function getEmptyCompanySignatory() {
             renderDocument(currentDoc);
         }
         if (refreshInsight && insightNavStack.length) renderInsightContent();
+        if (isBhdSiteKvPersistenceActive()) {
+            flushBhdReferenceDataToServerNow().catch(() => {});
+        }
     }
 
     function getEmptyOwnerProfile() {
@@ -45704,11 +45807,24 @@ function getEmptyCompanySignatory() {
             return;
         }
         syncBuildingOwnerLinks(name, selectedOwners);
+        let kvResult = { ok: true };
         try {
-            await flushBhdPropertyPersistenceNow();
+            kvResult = (await flushBhdPropertyPersistenceNow()) || { ok: false };
         } catch (e) {
             alert(t('❌ فشل حفظ بيانات المبنى محلياً. تحقق من مساحة التخزين في المتصفح.', '❌ Failed to save building data locally. Check browser storage space.'));
             console.error('Building force-persist failed:', e);
+            return;
+        }
+        if (isBhdSiteKvPersistenceActive() && kvResult && kvResult.ok === false) {
+            alert(
+                t(
+                    '⚠️ حُفظت البيانات محلياً لكن لم تُرفع إلى قاعدة البيانات. أعد الحفظ بعد التحقق من تسجيل الدخول.',
+                    '⚠️ Saved locally but not uploaded to the database. Save again after verifying login.'
+                )
+            );
+            buildingEditorState = { open: true, originalName: name };
+            persistReferenceData(false);
+            renderInsightContent();
             return;
         }
         buildingEditorState = { open: true, originalName: name };

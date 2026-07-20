@@ -115,6 +115,8 @@ export async function getLegacyKvBulk(prefix = 'bhd_', keys?: string[]): Promise
 export type PutLegacyKvBulkOptions = {
   /** استبدال كامل — يُستخدم بعد تصفية البيانات وليس الدمج */
   replace?: boolean;
+  /** حفظ صريح من المستخدم — يتجاوز حظر ما بعد التصفية */
+  userInitiated?: boolean;
 };
 
 /** حفظ دفعة مفاتيح — يُستخدم من النظام القديم بعد كل تعديل */
@@ -125,6 +127,7 @@ export async function putLegacyKvBulk(
   let saved = 0;
   const now = new Date();
   const replace = options?.replace === true;
+  const userInitiated = options?.userInitiated === true;
   const wipeGuardUntil = await readLegacyKvWipeGuardUntil();
   const wipeGuardActive = wipeGuardUntil > Date.now();
 
@@ -136,6 +139,7 @@ export async function putLegacyKvBulk(
 
     if (
       wipeGuardActive &&
+      !userInitiated &&
       key !== (LEGACY_KV_WIPE_GUARD_KEY as string) &&
       !isLegacyKvKeepOnFullWipe(key) &&
       key !== 'bhd_address_book' &&
