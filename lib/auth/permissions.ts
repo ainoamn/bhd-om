@@ -9,9 +9,9 @@ const ROUTE_PERMISSIONS: Record<SystemRole, string[]> = {
   ACCOUNTANT: ['/admin/accounting', '/api/accounting', '/api/bookings', '/api/user/linked-contact'],
   PROPERTY_MANAGER: ['/admin/properties', '/admin/bookings', '/api/admin/properties', '/api/bookings', '/api/user/linked-contact'],
   SALES_AGENT: ['/admin/bookings', '/api/bookings', '/api/user/linked-contact'],
-  CLIENT: ['/api/me/', '/api/user/linked-contact', '/api/bookings', '/api/address-book', '/api/contracts', '/api/signature-request'],
-  OWNER: ['/api/me/', '/api/user/linked-contact', '/api/bookings', '/api/admin/properties', '/api/address-book', '/api/contracts', '/api/signature-request'],
-  LANDLORD: ['/api/me/', '/api/user/linked-contact', '/api/bookings', '/api/admin/properties', '/api/address-book', '/api/contracts', '/api/signature-request'],
+  CLIENT: ['/portal', '/api/portal', '/api/payment', '/api/me/', '/api/user/linked-contact', '/api/bookings', '/api/address-book', '/api/contracts', '/api/signature-request'],
+  OWNER: ['/portal', '/api/portal', '/api/payment', '/api/me/', '/api/user/linked-contact', '/api/bookings', '/api/admin/properties', '/api/address-book', '/api/contracts', '/api/signature-request'],
+  LANDLORD: ['/portal', '/api/portal', '/api/payment', '/api/me/', '/api/user/linked-contact', '/api/bookings', '/api/admin/properties', '/api/address-book', '/api/contracts', '/api/signature-request'],
   SUBSCRIPTION_ADMIN: ['/admin/subscriptions', '/api/subscriptions', '/api/user/linked-contact'],
 };
 
@@ -23,7 +23,7 @@ export function canAccessRoute(rawRole: unknown, pathname: string): boolean {
   const cleanPath = stripLocale(pathname);
 
   if (PORTAL_ROLES.has(role)) {
-    if (cleanPath.startsWith('/admin')) {
+    if (cleanPath.startsWith('/admin') || cleanPath.startsWith('/portal')) {
       return isPathAllowedForPortalUser(pathname);
     }
     const allowed = ROUTE_PERMISSIONS[role] || [];
@@ -51,9 +51,9 @@ export function getDefaultRouteForRole(rawRole: unknown): string {
       return '/admin/bookings';
     case 'OWNER':
     case 'LANDLORD':
-      return '/admin/my-properties';
+      return '/portal/owner/v2';
     case 'CLIENT':
-      return '/admin/my-bookings';
+      return '/portal/tenant/v2';
     default:
       return '/admin';
   }

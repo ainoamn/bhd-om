@@ -36,14 +36,24 @@ export default async function proxy(req: NextRequest) {
     if (pathname.startsWith('/api/debug-auth') && process.env.NODE_ENV === 'production') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    const needsApiAuth = pathname.startsWith('/api/admin') || pathname.startsWith('/api/accounting');
+    const needsApiAuth =
+      pathname.startsWith('/api/admin') ||
+      pathname.startsWith('/api/accounting') ||
+      pathname.startsWith('/api/portal') ||
+      pathname.startsWith('/api/payment');
     if (!needsApiAuth) return NextResponse.next();
   }
   if (isPublicPath(pathname)) {
     return intlMiddleware(req);
   }
 
-  const needsAuth = pathname.includes('/admin') || pathname.startsWith('/api/admin') || pathname.startsWith('/api/accounting');
+  const needsAuth =
+    pathname.includes('/admin') ||
+    pathname.includes('/portal') ||
+    pathname.startsWith('/api/admin') ||
+    pathname.startsWith('/api/accounting') ||
+    pathname.startsWith('/api/portal') ||
+    pathname.startsWith('/api/payment');
   if (!needsAuth) {
     return intlMiddleware(req);
   }

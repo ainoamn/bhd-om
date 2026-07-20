@@ -9,6 +9,16 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-20 — دمج بوابة المستأجر/المالك من Kimi 02
+
+- **المصدر:** `Downloads/Kimi_Agent_موقع العقارات 02`
+- **دمج:** صفحات `/portal/*`، APIs، مكوّنات، نماذج Prisma للتقييم/التنبيهات/المهام/المستحقات/التوقيع/الحسابات التلقائية، Thawani للبوابة.
+- **تكييف:** `requireAuth` بدل getToken الخام؛ عقود عبر `emailNorm` (لا `linkedUserId`)؛ صلاحيات `/portal` لـ CLIENT/OWNER؛ توجيه افتراضي للبوابات.
+- **مطلوب على Neon:** تطبيق `prisma/migrations/20260720_portal_tenant_owner_v2` أو `npx prisma db push`.
+- **متغيرات:** `THAWANI_SECRET_KEY`, `THAWANI_PUBLISHABLE_KEY`, `THAWANI_SANDBOX=true` للاختبار.
+- **روابط:** `/ar/portal/tenant/v2` · `/ar/portal/owner/v2`
+- **لم يُستبدل:** `lib/encryption` / `lib/archive` / بوابة الدفع العامة `lib/server/paymentGateway.ts`.
+
 ### جلسة 2026-07-19 — بطاقات اللوحة التشغيلية فارغة
 
 - **السبب:** أثناء «جاري ربط الدخول بالموقع» كانت `applyPermissionNavUi` تخفي `.stat-card` بـ `display:none`، و`validateAuthSession` يمسح الجلسة إن لم يجد المستخدم بعد في الذاكرة.

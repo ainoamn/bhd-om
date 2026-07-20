@@ -4,6 +4,9 @@
  */
 
 export const PORTAL_PAGE_PATHS = [
+  '/portal',
+  '/portal/tenant',
+  '/portal/owner',
   '/admin/my-bookings',
   '/admin/my-contracts',
   '/admin/my-invoices',
@@ -27,5 +30,6 @@ export function stripLocale(pathname: string): string {
 export function isPathAllowedForPortalUser(pathname: string): boolean {
   const clean = stripLocale(pathname);
   if (clean === '/admin') return true;
+  if (clean === '/portal' || clean.startsWith('/portal/')) return true;
   return PORTAL_PAGE_PATHS.some((p) => clean === p || clean.startsWith(`${p}/`));
 }

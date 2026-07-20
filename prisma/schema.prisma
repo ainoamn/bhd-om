@@ -966,3 +966,250 @@ model AuditLog {
   @@index([createdAt])
   @@index([severity])
 }
+
+
+// نظام تقييم المستأجر الذكي (Smart Tenant Scoring)
+// ==========================================
+
+enum ScoreCategory {
+  RENT_PAYMENT      // تقييم دفع الإيجار
+  BILL_PAYMENT      // تقييم دفع الفواتير
+  MAINTENANCE       // تقييم طلبات الصيانة
+  OVERALL           // التقييم العام
+}
+
+enum ScoreLevel {
+  EXCELLENT   // ممتاز (90-100)
+  GOOD        // جيد (70-89)
+  AVERAGE     // متوسط (50-69)
+  POOR        // ضعيف (30-49)
+  CRITICAL    // حرج (0-29)
+}
+
+model TenantScore {
+  id            String        @id @default(cuid())
+  tenantUserId  String        // معرف المستأجر
+  category      ScoreCategory // نوع التقييم
+  score         Int           // 0-100
+  level         ScoreLevel    // مستوى التقييم
+  notes         String?       @db.Text // ملاحظات (سلبية/إيجابية)
+  evidenceJson  String?       @db.Text // أدلة التقييم (JSON)
+  evaluatedBy   String?       // من قام بالتقييم
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  @@unique([tenantUserId, category])
+  @@index([tenantUserId, category])
+  @@index([tenantUserId, createdAt])
+  @@index([score])
+  @@index([level])
+}
+
+// ==========================================
+// التنبيهات والمهام للمستأجر/المالك
+// ==========================================
+
+enum AlertType {
+  RENT_DUE        // استحقاق إيجار
+  RENT_OVERDUE    // إيجار متأخر
+  BILL_DUE        // استحقاق فاتورة
+  BILL_OVERDUE    // فاتورة متأخرة
+  CONTRACT_EXPIRE // انتهاء عقد
+  MAINTENANCE     // صيانة
+  TASK_ASSIGNED   // مهمة جديدة
+  SYSTEM          // تنبيه نظام
+}
+
+enum AlertPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  UNREAD
+  READ
+  DISMISSED
+}
+
+model TenantAlert {
+  id          String        @id @default(cuid())
+  userId      String        // المستهدف (مستأجر/مالك)
+  type        AlertType
+  title       String
+  message     String        @db.Text
+  priority    AlertPriority @default(MEDIUM)
+  status      AlertStatus   @default(UNREAD)
+  dueDate     DateTime?     // تاريخ الاستحقاق
+  relatedId   String?       // معرف العقد/الفاتورة المرتبطة
+  actionUrl   String?       // رابط الإجراء
+  createdAt   DateTime      @default(now())
+  readAt      DateTime?
+  
+  @@index([userId, status])
+  @@index([userId, type])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([createdAt])
+}
+
+// ==========================================
+// المهام (Tasks) — مرتبطة بالمستأجر/المالك
+// ==========================================
+
+enum TenantTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskType {
+  RENEWAL     // تجديد عقد
+  PAYMENT     // دفع
+  MAINTENANCE // صيانة
+  INSPECTION  // فحص
+  DOCUMENT    // مستند
+  OTHER       // أخرى
+}
+
+model TenantTask {
+  id          String           @id @default(cuid())
+  assignerId  String           // من أنشأ المهمة (المالك/المدير)
+  assigneeId  String           // المكلف (المستأجر/المالك)
+  type        TaskType
+  title       String
+  description String?          @db.Text
+  status      TenantTaskStatus @default(PENDING)
+  dueDate     DateTime?
+  completedAt DateTime?
+  relatedId   String?    // عقد/عقار مرتبط
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  @@index([assigneeId, status])
+  @@index([assigneeId, dueDate])
+  @@index([assignerId])
+  @@index([type])
+  @@index([dueDate])
+}
+
+// ==========================================
+// المبالغ المستحقة (Due Amounts)
+// ==========================================
+
+enum DueType {
+  RENT        // إيجار
+  BILL        // فاتورة
+  DEPOSIT     // تأمين
+  PENALTY     // غرامة تأخير
+  MAINTENANCE // تكلفة صيانة
+  OTHER       // أخرى
+}
+
+enum DueStatus {
+  PENDING     // مستحق
+  OVERDUE     // متأخر
+  PAID        // مدفوع
+  PARTIAL     // جزئي
+  WAIVED      // معفى
+}
+
+model DueAmount {
+  id          String    @id @default(cuid())
+  userId      String    // المستأجر المستحق عليه
+  propertyId  String?   // العقار المرتبط
+  contractId  String?   // العقد المرتبط
+  type        DueType
+  amount      Float     // المبلغ
+  currency    String    @default("OMR")
+  status      DueStatus @default(PENDING)
+  dueDate     DateTime  // تاريخ الاستحقاق
+  paidAmount  Float     @default(0)
+  paidAt      DateTime?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@index([contractId])
+  @@index([status, dueDate])
+  @@index([createdAt])
+}
+
+// ==========================================
+// التوقيع الذكي (Smart Contract Signature)
+// ==========================================
+
+enum SignatureMethod {
+  OTP_SMS       // OTP عبر SMS
+  OTP_EMAIL     // OTP عبر البريد
+  DRAW          // رسم التوقيع
+  QR_CODE       // QR code
+  BIOMETRIC     // بصمة/وجه
+}
+
+enum SignatureStatus {
+  PENDING     // بانتظار التوقيع
+  SENT        // أُرسل للتوقيع
+  SIGNED      // موقّع
+  REJECTED    // مرفوض
+  EXPIRED     // منتهي
+}
+
+model SmartSignature {
+  id          String           @id @default(cuid())
+  contractId  String           // العقد المرتبط
+  tenantId    String           // المستأجر
+  method      SignatureMethod  // طريقة التوقيع
+  status      SignatureStatus  @default(PENDING)
+  otpCode     String?          // كود OTP (مشفّر)
+  otpSentTo   String?          // رقم/بريد المرسل إليه
+  otpExpiry   DateTime?        // انتهاء صلاحية OTP
+  signatureData String?        @db.Text // بيانات التوقيع (base64)
+  ipAddress   String?          // IP الموقّع
+  deviceInfo  String?          // معلومات الجهاز
+  signedAt    DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  @@index([contractId, status])
+  @@index([tenantId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ==========================================
+// الحسابات المنشأة تلقائياً (Auto User Accounts)
+// ==========================================
+
+enum AutoAccountStatus {
+  PENDING     // بانتظار الإرسال
+  SENT        // أُرسلت بيانات الدخول
+  ACTIVATED   // مفعّل
+  DISABLED    // معطل
+}
+
+model AutoUserAccount {
+  id              String            @id @default(cuid())
+  contactId       String            // رابط بدفتر العناوين
+  userId          String?           // رابط بالمستخدم (بعد الإنشاء)
+  username        String            @unique // اسم المستخدم التلقائي
+  tempPassword    String            // كلمة المرور المؤقتة (مشفّرة)
+  role            String            // الدور: TENANT / OWNER / MANAGER
+  classification  String            // التصنيف من دفتر العناوين
+  status          AutoAccountStatus @default(PENDING)
+  sentVia         String?           // طريقة الإرسال: SMS / EMAIL / WHATSAPP
+  sentAt          DateTime?
+  activatedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  createdBy       String            // من أنشأ الحساب
+  
+  @@index([contactId])
+  @@index([userId])
+  @@index([status])
+  @@index([role])
+}
+
