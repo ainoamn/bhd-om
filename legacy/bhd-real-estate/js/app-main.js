@@ -1640,6 +1640,47 @@
             const merged = mergeBuildingProfilesKvJson(local, val);
             return merged !== local ? merged : null;
         }
+        if (k === 'bhd_owner_profiles') {
+            let localObj = {};
+            let extObj = {};
+            try {
+                localObj = JSON.parse(local || '{}');
+            } catch (_eLo) {}
+            try {
+                extObj = JSON.parse(val || '{}');
+            } catch (_eEo) {}
+            const merged = { ...(localObj && typeof localObj === 'object' ? localObj : {}) };
+            Object.keys(extObj || {}).forEach((key) => {
+                const ep = extObj[key];
+                const lp = merged[key];
+                if (!lp || typeof lp !== 'object') {
+                    if (ep && typeof ep === 'object') merged[key] = { ...ep };
+                    return;
+                }
+                if (!ep || typeof ep !== 'object') return;
+                const lt = Date.parse(toStr(lp.updatedAt) || toStr(lp.createdAt) || '') || 0;
+                const et = Date.parse(toStr(ep.updatedAt) || toStr(ep.createdAt) || '') || 0;
+                merged[key] = et >= lt ? { ...ep } : { ...lp };
+            });
+            const out = JSON.stringify(merged);
+            return out !== local ? out : null;
+        }
+        if (k === 'bhd_owners_list') {
+            const merged = mergeBuildingsListKvJson(local, val);
+            return merged !== local ? merged : null;
+        }
+        if (k === 'bhd_owner_building_map') {
+            let localObj = {};
+            let extObj = {};
+            try {
+                localObj = JSON.parse(local || '{}');
+            } catch (_eLm) {}
+            try {
+                extObj = JSON.parse(val || '{}');
+            } catch (_eEm) {}
+            const out = JSON.stringify({ ...localObj, ...extObj });
+            return out !== local ? out : null;
+        }
         if (k === 'bhd_buildings_list') {
             const merged = mergeBuildingsListKvJson(local, val);
             return merged !== local ? merged : null;
@@ -1770,7 +1811,13 @@
             if (typeof val !== 'string') return;
             const local = localStorage.getItem(k);
             if (siteAuth && BHD_KV_SITE_AUTHORITATIVE_KEYS.includes(k) && !bhdKvIsEmptyShell(val)) {
-                // Neon مصدر الحقيقة عند السحب — لا دمج مع نسخة المتصفح (يمنع اختلاف Chrome/Edge)
+                const propertyMerged = hydrateBhdKvPropertyKey(k, local, val);
+                if (propertyMerged !== null) {
+                    localStorage.setItem(k, propertyMerged);
+                    any = true;
+                    return;
+                }
+                // Neon مصدر الحقيقة — للمفاتيح غير القابلة للدمج فقط
                 localStorage.setItem(k, val);
                 any = true;
                 return;
@@ -3808,6 +3855,9 @@
                     _bhdKvDirtyKeys.clear();
                 } catch (_eClrHydrDirty) {}
             }
+            try {
+                reloadDashboardReferenceProfilesFromLocalStorageIfNeeded();
+            } catch (_eReloadProfHydr) {}
             invalidateBhdSiteKvRuntimeCaches();
             if (deferIdbMirror) {
                 const runMirror = () => {
@@ -40892,10 +40942,12 @@ function getEmptyCompanySignatory() {
         }
         try {
             if (fast && bhdIsDashboardOnlyMode()) {
-                /** تخطّي parse للـ profiles الضخمة أثناء الإقلاع — يُحمَّل لاحقاً بدون تجميد */
-                buildingProfiles = {};
-                buildingProfilesShadow = {};
-                scheduleBuildingProfilesIdleLoad();
+                /** المسار السريع: لا تُفرّغ profiles في الذاكرة — كان يُعيد نموذج العقار فارغاً بعد الحفظ */
+                if (!Object.keys(buildingProfiles || {}).length) {
+                    if (!loadBuildingProfilesFromLocalStorageSync()) {
+                        scheduleBuildingProfilesIdleLoad();
+                    }
+                }
             } else {
                 buildingProfiles = JSON.parse(localStorage.getItem('bhd_building_profiles') || '{}');
                 if (!buildingProfiles || typeof buildingProfiles !== 'object') buildingProfiles = {};
@@ -40918,7 +40970,9 @@ function getEmptyCompanySignatory() {
         }
         try {
             if (fast && bhdIsDashboardOnlyMode()) {
-                ownerProfiles = {};
+                if (!Object.keys(ownerProfiles || {}).length) {
+                    loadOwnerProfilesFromLocalStorageSync();
+                }
             } else {
                 ownerProfiles = JSON.parse(localStorage.getItem('bhd_owner_profiles') || '{}');
                 if (!ownerProfiles || typeof ownerProfiles !== 'object') ownerProfiles = {};
@@ -41011,7 +41065,11 @@ function getEmptyCompanySignatory() {
         localStorage.setItem('bhd_managed_units', JSON.stringify(managedUnitsData));
         localStorage.setItem('bhd_users_registry', JSON.stringify(usersRegistry));
         localStorage.setItem('bhd_auth_session', JSON.stringify(authSession));
-        syncBhdKvToServer();
+        if (isBhdSiteKvPersistenceActive()) {
+            syncBhdKvToServer({ force: true, userInitiated: true, silent: true }).catch(() => {});
+        } else {
+            syncBhdKvToServer();
+        }
         scheduleBhdCloudSyncAll(300);
     }
 
@@ -43746,6 +43804,50 @@ function getEmptyCompanySignatory() {
         return rows;
     }
 
+    function loadBuildingProfilesFromLocalStorageSync() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem('bhd_building_profiles') || '{}');
+            if (!parsed || typeof parsed !== 'object') {
+                buildingProfiles = {};
+                buildingProfilesShadow = {};
+                return false;
+            }
+            buildingProfiles = parsed;
+            Object.keys(buildingProfiles).forEach((k) => {
+                if (buildingProfiles[k] && typeof buildingProfiles[k] === 'object') {
+                    buildingProfiles[k].buildingStatus = normalizeBuildingStatus(buildingProfiles[k].buildingStatus);
+                }
+            });
+            buildingProfilesShadow = { ...buildingProfiles };
+            return Object.keys(buildingProfiles).length > 0;
+        } catch (_eLoadBpSync) {
+            buildingProfiles = {};
+            buildingProfilesShadow = {};
+            return false;
+        }
+    }
+
+    function loadOwnerProfilesFromLocalStorageSync() {
+        try {
+            ownerProfiles = JSON.parse(localStorage.getItem('bhd_owner_profiles') || '{}');
+            if (!ownerProfiles || typeof ownerProfiles !== 'object') ownerProfiles = {};
+            return Object.keys(ownerProfiles).length > 0;
+        } catch (_eLoadOpSync) {
+            ownerProfiles = {};
+            return false;
+        }
+    }
+
+    function reloadDashboardReferenceProfilesFromLocalStorageIfNeeded() {
+        if (buildingEditorState?.open || ownerEditorState?.open) {
+            loadBuildingProfilesFromLocalStorageSync();
+            loadOwnerProfilesFromLocalStorageSync();
+            return;
+        }
+        if (!Object.keys(buildingProfiles || {}).length) loadBuildingProfilesFromLocalStorageSync();
+        if (!Object.keys(ownerProfiles || {}).length) loadOwnerProfilesFromLocalStorageSync();
+    }
+
     let _buildingProfilesIdleLoadScheduled = false;
     function scheduleBuildingProfilesIdleLoad() {
         if (_buildingProfilesIdleLoadScheduled) return;
@@ -44368,7 +44470,11 @@ function getEmptyCompanySignatory() {
         if (!ownerBuildingMap[name]) ownerBuildingMap[name] = [];
         rememberLearnedNamePhrase(profile.fullName, profile.fullNameEn);
         ownerEditorState = { open: false, originalName: '' };
+        loadOwnerProfilesFromLocalStorageSync();
         persistReferenceData();
+        if (isBhdSiteKvPersistenceActive()) {
+            flushBhdReferenceDataToServerNow().catch(() => {});
+        }
     }
 
     function renderOwnerProfileSummary(ownerName) {
@@ -45828,7 +45934,8 @@ function getEmptyCompanySignatory() {
             return;
         }
         buildingEditorState = { open: true, originalName: name };
-        persistReferenceData();
+        loadBuildingProfilesFromLocalStorageSync();
+        persistReferenceData(false);
         // Verify saved data can be read back immediately.
         try {
             const verify = JSON.parse(localStorage.getItem('bhd_building_profiles') || '{}');
@@ -45836,6 +45943,8 @@ function getEmptyCompanySignatory() {
                 alert(t('⚠️ تم الحفظ لكن تعذّر التحقق من تخزين بيانات المبنى. حاول مرة أخرى.', '⚠️ Saved, but verification failed for building storage. Please try again.'));
             }
         } catch (e) {}
+        window._pendingBuildingTitleDeedAttachment = null;
+        window._pendingBuildingSurveySketchAttachment = null;
         if (!ve.ok) {
             alert(
                 t(
