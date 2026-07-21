@@ -7507,23 +7507,143 @@
         const map = loadContractHistoryByUnitMap();
         const k = _tenancyDraftStorageKey(b, u);
         const list = Array.isArray(map[k]) ? map[k] : [];
-        const dup = list.some(
-            (row) =>
-                toStr(row?.payload?.agreementNo) === ag &&
-                toStr(row?.reason) === toStr(meta.reason || 'renewal')
-        );
-        if (dup) return false;
         const actor = getCurrentActorLedgerRecord();
-        list.push({
+        const entry = {
             archivedAt: new Date().toISOString(),
             reason: toStr(meta.reason || 'renewal'),
             supersededBy: toStr(meta.supersededBy),
             archivedBy: actor.staffName,
             payload: snap
-        });
+        };
+        // عقد واحد في الأرشيف لكل رقم اتفاق — حدّث الصف بدل تكرار نفس الاتفاق
+        const existingIdx = ag
+            ? list.findIndex((row) => toStr(row?.payload?.agreementNo) === ag)
+            : -1;
+        if (existingIdx >= 0) {
+            const prev = list[existingIdx] || {};
+            const prevPayload = prev.payload && typeof prev.payload === 'object' ? prev.payload : {};
+            const preferIncoming =
+                contractPayloadFinancialRichnessScore(snap) >=
+                contractPayloadFinancialRichnessScore(prevPayload);
+            list[existingIdx] = {
+                ...prev,
+                ...entry,
+                payload: preferIncoming ? snap : { ...snap, ...prevPayload },
+                supersededBy: toStr(meta.supersededBy) || toStr(prev.supersededBy)
+            };
+        } else {
+            list.push(entry);
+        }
         map[k] = list;
         saveContractHistoryByUnitMap(map);
         return true;
+    }
+
+    /** ملخص عقد للسجل (شيكات / أشهر / طريقة دفع) */
+    function summarizeContractPayloadForLedger(payload) {
+        const p = payload && typeof payload === 'object' ? payload : {};
+        const schedule = parsePayloadJsonArrayField(p, 'paymentScheduleJson', 'paymentSchedule');
+        const vat = parsePayloadJsonArrayField(p, 'vatChequeScheduleJson', 'vatChequeSchedule');
+        const months =
+            toStr(p.contractMonths) ||
+            (toStr(p.startDate) && toStr(p.endDate)
+                ? String(Math.max(1, Math.round((ledgerEventTimeMs(p.endDate) - ledgerEventTimeMs(p.startDate)) / (30 * 86400000))))
+                : '');
+        return {
+            chequeCount: schedule.length,
+            vatChequeCount: vat.length,
+            months,
+            paymentMethod: toStr(p.paymentMethod),
+            deposit: toStr(p.depositAmount || p.securityDeposit || p.insuranceDeposit),
+            civilId: toStr(p.civilCard || p.tenantCivilId || p.idNo),
+            phone: toStr(p.contactNo || p.mobile || p.tenantMobile),
+            agreementRent: toStr(p.agreementRent),
+            previousAgreementNo: toStr(p.previousAgreementNo),
+            schedulePreview: schedule
+                .slice(0, 8)
+                .map((r, i) => {
+                    const no = toStr(r.chequeNo) || `#${i + 1}`;
+                    const due = toStr(r.dueDate || r.paymentDate) || '—';
+                    const amt = toStr(r.amount) ? formatOMR(r.amount) : '—';
+                    return `${no}: ${due} · ${amt}`;
+                })
+                .join(' | ')
+        };
+    }
+
+    /** إزالة تكرار أرشيف العقود بنفس رقم الاتفاق */
+    function dedupeContractHistoryArchiveRows(list) {
+        const arr = Array.isArray(list) ? list : [];
+        const byAg = new Map();
+        const noAg = [];
+        arr.forEach((row) => {
+            const ag = toStr(row?.payload?.agreementNo);
+            if (!ag) {
+                noAg.push(row);
+                return;
+            }
+            const prev = byAg.get(ag);
+            if (!prev) {
+                byAg.set(ag, row);
+                return;
+            }
+            const prevMs = ledgerEventTimeMs(prev.archivedAt);
+            const nextMs = ledgerEventTimeMs(row.archivedAt);
+            const richer =
+                contractPayloadFinancialRichnessScore(row?.payload) >=
+                contractPayloadFinancialRichnessScore(prev?.payload);
+            const keep = nextMs >= prevMs ? (richer || nextMs > prevMs ? row : prev) : richer ? row : prev;
+            byAg.set(ag, {
+                ...keep,
+                supersededBy: toStr(row.supersededBy) || toStr(prev.supersededBy) || toStr(keep.supersededBy)
+            });
+        });
+        return [...byAg.values(), ...noAg].sort(
+            (a, b) => ledgerEventTimeMs(a.archivedAt) - ledgerEventTimeMs(b.archivedAt)
+        );
+    }
+
+    /** استكمال نسخ العقود الناقصة من سجل التجديد عند غياب الأرشيف */
+    function synthesizeContractVersionsFromRenewalLog(building, unit, existingAgreementNos) {
+        const known = existingAgreementNos instanceof Set ? existingAgreementNos : new Set();
+        const out = [];
+        try {
+            loadContractRenewalLog().forEach((e) => {
+                if (
+                    normalizeReservationBuildingKey(e.building) !== normalizeReservationBuildingKey(building) ||
+                    normalizeUnit(String(e.unit)) !== normalizeUnit(unit)
+                ) {
+                    return;
+                }
+                if (toStr(e.eventType) !== 'completed') return;
+                const candidates = [
+                    {
+                        agreementNo: toStr(e.prevAgreementNo),
+                        startDate: toStr(e.prevFrom),
+                        endDate: toStr(e.prevTo),
+                        monthlyRent: toStr(e.rent),
+                        supersededBy: toStr(e.agreementNo),
+                        at: toStr(e.at),
+                        party: toStr(e.party)
+                    },
+                    {
+                        agreementNo: toStr(e.agreementNo),
+                        startDate: toStr(e.from),
+                        endDate: toStr(e.to),
+                        monthlyRent: toStr(e.rent),
+                        supersededBy: '',
+                        at: toStr(e.at),
+                        party: toStr(e.party)
+                    }
+                ];
+                candidates.forEach((c) => {
+                    if (!c.agreementNo || known.has(c.agreementNo)) return;
+                    known.add(c.agreementNo);
+                    out.push(c);
+                });
+            });
+        } catch (_eSyn) {}
+        return out;
     }
 
     function contractVersionOrdinalAr(n) {
@@ -8751,34 +8871,107 @@
         if (!unit) return rows;
         const hk = _tenancyDraftStorageKey(unit.building, unit.unit);
         const hmap = loadContractHistoryByUnitMap();
-        const archived = (Array.isArray(hmap[hk]) ? hmap[hk] : [])
-            .slice()
-            .sort((a, b) => ledgerEventTimeMs(a.archivedAt) - ledgerEventTimeMs(b.archivedAt));
-        archived.forEach((row, idx) => {
+        const archived = dedupeContractHistoryArchiveRows(
+            Array.isArray(hmap[hk]) ? hmap[hk] : []
+        );
+        const knownAgs = new Set();
+        archived.forEach((row) => {
             const p = row?.payload;
             if (!p || typeof p !== 'object') return;
-            const lbl = contractVersionOrdinalLabel(idx, false, archived.length);
-            rows.push({
-                key: `archive:${idx}`,
-                kind: 'archived',
-                labelBilingual: lbl.bilingual,
+            const ag = toStr(p.agreementNo);
+            if (ag) knownAgs.add(ag);
+        });
+        const currentPayload = getSavedContractPayloadForUnit(unit);
+        const currentAg = toStr(currentPayload?.agreementNo);
+        if (currentAg) knownAgs.add(currentAg);
+        const draft = getContractRenewalDraftEntryForUnit(unit);
+        const draftAg = toStr(draft?.renewal?.agreementNo || draft?.payload?.agreementNo);
+        if (draftAg) knownAgs.add(draftAg);
+
+        const synthesized = synthesizeContractVersionsFromRenewalLog(
+            unit.building,
+            unit.unit,
+            knownAgs
+        ).filter((c) => c.agreementNo && c.agreementNo !== currentAg && c.agreementNo !== draftAg);
+
+        const archivedRows = [];
+        archived.forEach((row) => {
+            const p = row?.payload;
+            if (!p || typeof p !== 'object') return;
+            const sum = summarizeContractPayloadForLedger(p);
+            archivedRows.push({
                 agreementNo: toStr(p.agreementNo),
                 startDate: toStr(p.startDate),
                 endDate: toStr(p.endDate),
                 monthlyRent: formatContractPayloadRentDisplay(p),
-                statusBilingual: t('مؤرشف / منتهي / Archived / ended', 'Archived / ended / مؤرشف / منتهي'),
                 archivedAt: toStr(row.archivedAt),
                 supersededBy: toStr(row.supersededBy),
-                payload: p
+                payload: p,
+                chequeCount: sum.chequeCount,
+                source: 'archive'
             });
         });
-        const currentPayload = getSavedContractPayloadForUnit(unit);
+        synthesized.forEach((c) => {
+            archivedRows.push({
+                agreementNo: c.agreementNo,
+                startDate: c.startDate,
+                endDate: c.endDate,
+                monthlyRent: c.monthlyRent ? formatOMR(c.monthlyRent) : '—',
+                archivedAt: c.at,
+                supersededBy: c.supersededBy,
+                payload: {
+                    agreementNo: c.agreementNo,
+                    startDate: c.startDate,
+                    endDate: c.endDate,
+                    monthlyRent: c.monthlyRent,
+                    tenantNameAr: c.party,
+                    previousAgreementNo: '',
+                    _syntheticFromRenewalLog: true
+                },
+                chequeCount: 0,
+                source: 'renewal_log'
+            });
+        });
+        archivedRows.sort((a, b) => {
+            const as = ledgerEventTimeMs(a.startDate) || ledgerEventTimeMs(a.archivedAt);
+            const bs = ledgerEventTimeMs(b.startDate) || ledgerEventTimeMs(b.archivedAt);
+            return as - bs;
+        });
+
+        archivedRows.forEach((row, idx) => {
+            const lbl = contractVersionOrdinalLabel(idx, false, archivedRows.length);
+            const chequeNote =
+                row.chequeCount > 0
+                    ? `<div style="font-size:10px;color:#666;margin-top:2px">${row.chequeCount} ${t('شيك', 'cheque(s)')}</div>`
+                    : row.source === 'renewal_log'
+                      ? `<div style="font-size:10px;color:#888;margin-top:2px">${t('مستنتج من سجل التجديد', 'Inferred from renewal log')}</div>`
+                      : '';
+            rows.push({
+                key: `archive:${row.agreementNo || idx}`,
+                kind: 'archived',
+                labelBilingual: lbl.bilingual + (chequeNote ? '' : ''),
+                labelExtraHtml: chequeNote,
+                agreementNo: row.agreementNo,
+                startDate: row.startDate,
+                endDate: row.endDate,
+                monthlyRent: row.monthlyRent,
+                statusBilingual: t('مؤرشف / منتهي / Archived / ended', 'Archived / ended / مؤرشف / منتهي'),
+                archivedAt: row.archivedAt,
+                supersededBy: row.supersededBy,
+                payload: row.payload
+            });
+        });
         if (currentPayload) {
-            const lbl = contractVersionOrdinalLabel(archived.length, true, archived.length);
+            const lbl = contractVersionOrdinalLabel(archivedRows.length, true, archivedRows.length);
+            const sum = summarizeContractPayloadForLedger(currentPayload);
             rows.push({
                 key: 'current',
                 kind: 'current',
                 labelBilingual: lbl.bilingual,
+                labelExtraHtml:
+                    sum.chequeCount > 0
+                        ? `<div style="font-size:10px;color:#666;margin-top:2px">${sum.chequeCount} ${t('شيك', 'cheque(s)')}</div>`
+                        : '',
                 agreementNo: toStr(currentPayload.agreementNo),
                 startDate: toStr(currentPayload.startDate),
                 endDate: toStr(currentPayload.endDate),
@@ -8789,13 +8982,17 @@
                 payload: currentPayload
             });
         }
-        const draft = getContractRenewalDraftEntryForUnit(unit);
         if (draft?.payload) {
             const p = draft.payload;
+            const sum = summarizeContractPayloadForLedger(p);
             rows.push({
                 key: 'draft',
                 kind: 'draft',
                 labelBilingual: t('مسودة تجديد / Renewal draft', 'Renewal draft / مسودة تجديد'),
+                labelExtraHtml:
+                    sum.chequeCount > 0
+                        ? `<div style="font-size:10px;color:#666;margin-top:2px">${sum.chequeCount} ${t('شيك', 'cheque(s)')}</div>`
+                        : '',
                 agreementNo: toStr(draft.renewal?.agreementNo || p.agreementNo),
                 startDate: toStr(draft.renewal?.newStart || p.startDate),
                 endDate: toStr(draft.renewal?.newEnd || p.endDate),
@@ -8914,7 +9111,7 @@
                         : '';
                 const actionCell = showDetailsBtn || showEditBtn ? `<td style="white-space:nowrap">${detailsBtn}</td>` : '';
                 return `<tr class="${rowClass}">
-                    <td><strong>${escHtml(v.labelBilingual)}</strong>${supersededNote}</td>
+                    <td><strong>${escHtml(v.labelBilingual)}</strong>${v.labelExtraHtml || ''}${supersededNote}</td>
                     <td>${escHtml(v.agreementNo || '—')}</td>
                     <td>${escHtml(v.startDate || '—')}</td>
                     <td>${escHtml(v.endDate || '—')}</td>
@@ -8943,17 +9140,17 @@
     function renderUnitContractVersionsSection(unit) {
         const versions = collectUnitContractVersionRows(unit);
         if (!versions.length) {
-            return `<div class="details-section">
-                <h5>${t('سجل العقود / Contract versions', 'Contract versions / سجل العقود')}</h5>
+            return `<div class="details-section ud-section-versions">
+                <h5>${t('3ب) سجل العقود / Contract versions', '3b) Contract versions / سجل العقود')}</h5>
                 <p style="font-size:12px;color:#666;margin:0">${t('لا يوجد عقد محفوظ لهذه الوحدة بعد.', 'No saved contract for this unit yet.')}</p>
             </div>`;
         }
         const tableHtml = buildContractVersionsTableHtml(unit, { showDetailsBtn: true });
-        return `<div class="details-section">
-            <h5>${t('سجل العقود / Contract versions', 'Contract versions / سجل العقود')}</h5>
+        return `<div class="details-section ud-section-versions">
+            <h5>${t('3ب) سجل العقود / Contract versions', '3b) Contract versions / سجل العقود')}</h5>
             <p style="margin:6px 0 10px;font-size:11px;color:#555;line-height:1.45">${t(
-                'العقد الأصلي والتجديدات السابقة والعقد الحالي. «تفاصيل» للعرض — «تعديل» حسب النسخة: العقد الحالي الساري (فترة وإيجار وشيكات) أو الضمان فقط للعقد الأصلي المؤرشف.',
-                'Original contract, past renewals, and current contract. Details = view. Edit per version: active current (period, rent, cheques) or deposit only on archived original.'
+                'العقد الأصلي والتجديدات السابقة والعقد الحالي مرتبة زمنياً. الصفوف المستنتجة تُكمّل الفجوات من سجل التجديد عند نقص الأرشيف.',
+                'Original contract, past renewals, and current contract in chronological order. Inferred rows fill gaps from the renewal log when archive payloads are missing.'
             )}</p>
             <div class="table-shell" style="overflow:auto">${tableHtml}</div>
         </div>`;
@@ -51737,8 +51934,8 @@ function getEmptyCompanySignatory() {
             title.textContent = `${t('تفاصيل الوحدة', 'Unit details')} ${unit.unit || '-'} | ${unit.building || '-'}`;
         }
 
-        const section = (titleText, fields) => `
-            <div class="details-section">
+        const section = (titleText, fields, className = '') => `
+            <div class="details-section${className ? ` ${className}` : ''}">
                 <h5>${titleText}</h5>
                 <div class="details-grid">
                     ${fields.map(([k, v]) => `
@@ -51750,6 +51947,24 @@ function getEmptyCompanySignatory() {
                 </div>
             </div>
         `;
+        const summaryStrip = (fields) => `
+            <div class="ud-summary-strip">
+                <div class="ud-summary-main">
+                    <div class="ud-summary-kicker">${t('ملخص سريع / Quick summary', 'Quick summary / ملخص سريع')}</div>
+                    <div class="ud-summary-title">${escHtml(toStr(unit.building))} · ${escHtml(toStr(unit.unit))}</div>
+                    <div class="ud-summary-tenant">${escHtml(toStr(unit.tenant) || '—')}</div>
+                </div>
+                <div class="ud-summary-chips">
+                    ${fields
+                        .filter(([, v]) => toStr(v))
+                        .map(
+                            ([k, v]) =>
+                                `<span class="ud-summary-chip"><small>${escHtml(k)}</small><strong>${escHtml(toStr(v))}</strong></span>`
+                        )
+                        .join('')}
+                </div>
+            </div>
+        `;
         const sectionsEl = document.getElementById('unitDetailsSections');
         if (sectionsEl) {
             const isLinkedSecondary = isLinkedContractSecondaryUnitForDisplay(unit);
@@ -51758,6 +51973,7 @@ function getEmptyCompanySignatory() {
                 const displayFloor = displayFields?.floor || unit.floor;
                 const displayUnitType = displayFields?.unitType || unit.unitType;
                 sectionsEl.innerHTML = `
+                    <div class="ud-details-layout">
                     ${buildLinkedContractSecondaryNoticeHtml(unit)}
                     ${section(t('بيانات الوحدة', 'Unit data'), [
                         [t('المبنى', 'Building'), unit.building],
@@ -51766,7 +51982,8 @@ function getEmptyCompanySignatory() {
                         [t('تفاصيل الطابق', 'Floor details'), displayFloor],
                         [t('نوع الوحدة', 'Unit type'), displayUnitType],
                         [t('الحالة', 'Status'), t('مؤجرة — عقد مزدوج', 'Rented — dual contract')]
-                    ])}
+                    ], 'ud-section-identity')}
+                    </div>
                 `;
             } else {
             const savedPayload = getSavedContractPayloadForUnit(unit);
@@ -51788,6 +52005,7 @@ function getEmptyCompanySignatory() {
             const displayElectricity = displayFields?.electricity || unit.electricity;
             const displayWater = displayFields?.water || unit.water;
             const displayDays = daysUntil(displayEnd);
+            const sumSaved = summarizeContractPayloadForLedger(savedPayload || {});
             const renewalNote = toStr(savedPayload?.previousAgreementNo)
                 ? t(
                       `تجديد — العقد السابق: ${toStr(savedPayload.previousAgreementNo)}`,
@@ -51816,20 +52034,31 @@ function getEmptyCompanySignatory() {
                       ? t('ملغي/شاغر', 'Cancelled/Vacant')
                       : t('ساري', 'Active');
             sectionsEl.innerHTML = `
-                ${section(t('بيانات الوحدة', 'Unit data'), [[t('المبنى', 'Building'), unit.building], [t('المالك', 'Owner'), unit.ownerNames || formatOwnerNamesForBuilding(unit.building)], [t('الوحدة', 'Unit'), unit.unit], [t('تفاصيل الطابق', 'Floor details'), displayFloor], [t('نوع الوحدة', 'Unit type'), displayUnitType], [t('الحالة', 'Status'), unit.status]])}
-                ${section(t('بيانات المستأجر', 'Tenant data'), [[t('اسم المستأجر', 'Tenant name'), unit.tenant], [t('اسم المستأجر (EN)', 'Tenant name (EN)'), unit.tenantEn], [t('الرقم المدني', 'Civil ID'), unit.civilCard], [t('رقم التواصل', 'Contact no.'), unit.contactNo || unit.mobile]])}
-                ${section(t('العقد والتواريخ', 'Contract and dates'), [[t('نوع العقد', 'Contract type'), (displayUnitType === 'Shop' || displayUnitType === 'Office') ? t('تجاري', 'Commercial') : t('سكني', 'Residential')], [t('حالة العقد', 'Contract status'), contractStatusLabel], [t('رقم العقد', 'Contract no.'), displayAgreement], [t('تاريخ البداية', 'Start date'), displayStart], [t('تاريخ النهاية', 'End date'), displayEnd], [t('متبقي يوم', 'Days left'), displayDays === null ? '-' : displayDays], [t('الأشهر المتبقية', 'Months left'), displayEnd && displayDays !== null ? (displayDays / 30).toFixed(2) : (unit.monthsLeft || '-')], [t('تاريخ الإخلاء', 'Evacuation date'), unit.evacuationDate], ...(cancelReq ? [[t('تاريخ الإلغاء المطلوب / Requested cancel date', 'Requested cancel date / تاريخ الإلغاء'), toStr(cancelReq.cancelDate)]] : []), ...(renewalNote ? [[t('ملاحظة التجديد / Renewal note', 'Renewal note / ملاحظة التجديد'), renewalNote]] : []), ...(cancellationNote ? [[t('ملاحظة الإلغاء / Cancellation note', 'Cancellation note / ملاحظة الإلغاء'), cancellationNote]] : [])])}
-                ${section(t('المبالغ والعدادات', 'Amounts and meters'), [[t('الإيجار الشهري', 'Monthly rent'), displayRent], [t('إيجار الاتفاقية', 'Agreement rent'), displayAgreementRent], [t('عداد الكهرباء', 'Electricity meter'), displayElectricity], [t('قراءة الكهرباء', 'Electricity reading'), unit.electricityReading], [t('عداد الماء', 'Water meter'), displayWater], [t('قراءة الماء', 'Water reading'), unit.waterReading]])}
+                <div class="ud-details-layout">
+                ${summaryStrip([
+                    [t('رقم العقد', 'Agreement'), displayAgreement],
+                    [t('حالة العقد', 'Contract status'), contractStatusLabel],
+                    [t('الفترة', 'Period'), displayStart && displayEnd ? `${displayStart} → ${displayEnd}` : ''],
+                    [t('متبقي', 'Left'), displayDays === null ? '' : `${displayDays} ${t('يوم', 'days')}`],
+                    [t('الإيجار', 'Rent'), displayRent],
+                    [t('الشيكات', 'Cheques'), sumSaved.chequeCount ? String(sumSaved.chequeCount) : '']
+                ])}
+                ${section(t('1) بيانات الوحدة', '1) Unit data'), [[t('المبنى', 'Building'), unit.building], [t('المالك', 'Owner'), unit.ownerNames || formatOwnerNamesForBuilding(unit.building)], [t('الوحدة', 'Unit'), unit.unit], [t('تفاصيل الطابق', 'Floor details'), displayFloor], [t('نوع الوحدة', 'Unit type'), displayUnitType], [t('الحالة', 'Status'), unit.status]], 'ud-section-identity')}
+                ${section(t('2) بيانات المستأجر', '2) Tenant data'), [[t('اسم المستأجر', 'Tenant name'), unit.tenant], [t('اسم المستأجر (EN)', 'Tenant name (EN)'), unit.tenantEn], [t('الرقم المدني', 'Civil ID'), unit.civilCard || sumSaved.civilId], [t('رقم التواصل', 'Contact no.'), unit.contactNo || unit.mobile || sumSaved.phone]], 'ud-section-tenant')}
+                ${section(t('3) العقد والتواريخ', '3) Contract and dates'), [[t('نوع العقد', 'Contract type'), (displayUnitType === 'Shop' || displayUnitType === 'Office') ? t('تجاري', 'Commercial') : t('سكني', 'Residential')], [t('حالة العقد', 'Contract status'), contractStatusLabel], [t('رقم العقد', 'Contract no.'), displayAgreement], [t('العقد السابق', 'Previous contract'), toStr(savedPayload?.previousAgreementNo) || '—'], [t('تاريخ البداية', 'Start date'), displayStart], [t('تاريخ النهاية', 'End date'), displayEnd], [t('أشهر العقد', 'Contract months'), sumSaved.months || '—'], [t('متبقي يوم', 'Days left'), displayDays === null ? '-' : displayDays], [t('الأشهر المتبقية', 'Months left'), displayEnd && displayDays !== null ? (displayDays / 30).toFixed(2) : (unit.monthsLeft || '-')], [t('تاريخ الإخلاء', 'Evacuation date'), unit.evacuationDate], ...(cancelReq ? [[t('تاريخ الإلغاء المطلوب / Requested cancel date', 'Requested cancel date / تاريخ الإلغاء'), toStr(cancelReq.cancelDate)]] : []), ...(renewalNote ? [[t('ملاحظة التجديد / Renewal note', 'Renewal note / ملاحظة التجديد'), renewalNote]] : []), ...(cancellationNote ? [[t('ملاحظة الإلغاء / Cancellation note', 'Cancellation note / ملاحظة الإلغاء'), cancellationNote]] : [])], 'ud-section-contract')}
+                ${renderUnitContractVersionsSection(unit)}
+                ${section(t('4) المبالغ والعدادات', '4) Amounts and meters'), [[t('الإيجار الشهري', 'Monthly rent'), displayRent], [t('إيجار الاتفاقية', 'Agreement rent'), displayAgreementRent], [t('طريقة الدفع', 'Payment method'), sumSaved.paymentMethod || '—'], [t('شيكات الإيجار', 'Rent cheques'), sumSaved.chequeCount || '0'], [t('شيكات الضريبة', 'VAT cheques'), sumSaved.vatChequeCount || '0'], [t('الضمان', 'Deposit'), sumSaved.deposit || '—'], [t('عداد الكهرباء', 'Electricity meter'), displayElectricity], [t('قراءة الكهرباء', 'Electricity reading'), unit.electricityReading], [t('عداد الماء', 'Water meter'), displayWater], [t('قراءة الماء', 'Water reading'), unit.waterReading]], 'ud-section-amounts')}
                 ${buildLinkedContractUnitsDetailsSectionHtml(unit)}
+                ${renderUnitPropertyDocumentsStatusSection(unit)}
                 ${renderUnitDetailsAccountingSection(unit)}
                 ${renderUnitDetailsMaintenanceSection(unit)}
                 ${renderUnitDetailsAllOperationsSection(unit)}
-                ${section(t('ملاحظات', 'Notes'), [[t('ملاحظات', 'Notes'), unit.remarks]])}
-                ${renderUnitPropertyDocumentsStatusSection(unit)}
-                ${renderUnitContractVersionsSection(unit)}
+                ${section(t('ملاحظات', 'Notes'), [[t('ملاحظات', 'Notes'), unit.remarks]], 'ud-section-notes')}
+                </div>
             `;
             }
         }
+        _unitHistoryFilter = 'all';
         renderUnitHistory(isLinkedContractSecondaryUnitForDisplay(unit) ? null : unit);
         closeUnitDetailsIeMenus();
         updateUnitDetailsToolbarForDraft();
@@ -52173,18 +52402,22 @@ function getEmptyCompanySignatory() {
         try {
             const hmap = loadContractHistoryByUnitMap();
             const hk = _tenancyDraftStorageKey(buRaw, nuRaw);
-            const hist = (Array.isArray(hmap[hk]) ? hmap[hk] : [])
-                .slice()
-                .sort((a, b) => ledgerEventTimeMs(a.archivedAt) - ledgerEventTimeMs(b.archivedAt));
+            const hist = dedupeContractHistoryArchiveRows(
+                Array.isArray(hmap[hk]) ? hmap[hk] : []
+            );
+            const archivedAgs = new Set();
             hist.forEach((row, idx) => {
                 const p = row?.payload;
                 if (!p || typeof p !== 'object') return;
+                const ag = toStr(p.agreementNo);
+                if (ag) archivedAgs.add(ag);
+                const sum = summarizeContractPayloadForLedger(p);
                 pushLedger(
-                    ledgerEventTimeMs(row.archivedAt),
+                    ledgerEventTimeMs(row.archivedAt) || ledgerEventTimeMs(p.endDate),
                     idx === 0 ? 'العقد الأصلي (أرشيف)' : `تجديد ${contractVersionOrdinalAr(idx)} (أرشيف)`,
                     idx === 0 ? 'Original contract (archive)' : `${contractVersionOrdinalEn(idx)} renewal (archive)`,
                     toStr(p.tenantNameAr || p.tenantNameEn),
-                    toStr(p.agreementNo),
+                    ag || '-',
                     toStr(p.startDate),
                     toStr(p.endDate),
                     'منتهي / مؤرشف',
@@ -52193,6 +52426,16 @@ function getEmptyCompanySignatory() {
                     [
                         row.supersededBy
                             ? `${t('استُبدل بعقد', 'Superseded by')} ${escHtml(toStr(row.supersededBy))}`
+                            : '',
+                        sum.chequeCount
+                            ? `${sum.chequeCount} ${t('شيك إيجار', 'rent cheque(s)')}`
+                            : '',
+                        sum.vatChequeCount
+                            ? `${sum.vatChequeCount} ${t('شيك ضريبة', 'VAT cheque(s)')}`
+                            : '',
+                        sum.months ? `${t('الأشهر', 'Months')}: ${escHtml(sum.months)}` : '',
+                        sum.paymentMethod
+                            ? `${t('طريقة الدفع', 'Payment method')}: ${escHtml(sum.paymentMethod)}`
                             : '',
                         toStr(p.municipalFormNo)
                             ? `${t('استمارة بلدية', 'Municipal form')} — ${escHtml(toStr(p.municipalFormNo))}`
@@ -52206,19 +52449,151 @@ function getEmptyCompanySignatory() {
                     toStr(row.archivedBy),
                     {
                         sourceKind: 'contract_archive',
-                        linkRef: toStr(p.agreementNo),
+                        linkRef: ag,
                         linkGroup: `archive:${hk}`,
                         extras: {
                             archivedAt: toStr(row.archivedAt),
                             supersededBy: toStr(row.supersededBy),
                             municipalFormNo: toStr(p.municipalFormNo),
                             municipalContractNo: toStr(p.municipalContractNo),
-                            versionIndex: String(idx)
+                            versionIndex: String(idx),
+                            chequeCount: String(sum.chequeCount || ''),
+                            vatChequeCount: String(sum.vatChequeCount || ''),
+                            months: sum.months,
+                            paymentMethod: sum.paymentMethod,
+                            deposit: sum.deposit,
+                            civilId: sum.civilId,
+                            phone: sum.phone,
+                            previousAgreementNo: sum.previousAgreementNo,
+                            schedulePreview: sum.schedulePreview,
+                            agreementNo: ag
+                        }
+                    }
+                );
+            });
+
+            const knownForSyn = new Set(archivedAgs);
+            const savedNow = getSavedContractPayloadForUnit({ building: buRaw, unit: nuRaw });
+            const savedAg = toStr(savedNow?.agreementNo);
+            if (savedAg) knownForSyn.add(savedAg);
+            synthesizeContractVersionsFromRenewalLog(buRaw, nuRaw, knownForSyn).forEach((c) => {
+                if (!c.agreementNo || c.agreementNo === savedAg) return;
+                pushLedger(
+                    ledgerEventTimeMs(c.at) || ledgerEventTimeMs(c.endDate),
+                    'عقد سابق (من سجل التجديد)',
+                    'Prior contract (from renewal log)',
+                    toStr(c.party),
+                    c.agreementNo,
+                    toStr(c.startDate),
+                    toStr(c.endDate),
+                    'منتهي / مستنتج',
+                    'Ended / inferred',
+                    c.monthlyRent ? formatOMR(c.monthlyRent) : '-',
+                    [
+                        c.supersededBy
+                            ? `${t('استُبدل بعقد', 'Superseded by')} ${escHtml(c.supersededBy)}`
+                            : '',
+                        t('تفاصيل مستنتجة من سجل التجديد لعدم توفر أرشيف كامل.', 'Inferred from renewal log — full archive payload unavailable.')
+                    ]
+                        .filter(Boolean)
+                        .join(' · '),
+                    '-',
+                    {
+                        sourceKind: 'contract_archive_inferred',
+                        linkRef: c.agreementNo,
+                        linkGroup: `archive:${hk}`,
+                        extras: {
+                            archivedAt: toStr(c.at),
+                            supersededBy: toStr(c.supersededBy),
+                            agreementNo: c.agreementNo,
+                            inferred: 'true'
                         }
                     }
                 );
             });
         } catch (_eHist) {}
+
+        try {
+            const savedEntry = (() => {
+                try {
+                    return getSavedContractMapEntry(
+                        loadSavedContractsByUnitMap(),
+                        buRaw,
+                        nuRaw
+                    );
+                } catch (_eSe) {
+                    return null;
+                }
+            })();
+            const p = savedEntry?.payload || getSavedContractPayloadForUnit({ building: buRaw, unit: nuRaw });
+            if (p && typeof p === 'object' && toStr(p.agreementNo)) {
+                const sum = summarizeContractPayloadForLedger(p);
+                const end = toStr(p.endDate);
+                const dDays = end ? daysUntil(end) : null;
+                let zAr = 'ساري (محفوظ)';
+                let zEn = 'Active (saved)';
+                if (end && dDays !== null && dDays < 0) {
+                    zAr = 'منتهي (محفوظ)';
+                    zEn = 'Expired (saved)';
+                } else if (toStr(savedEntry?.lifecycleStatus).includes('pending')) {
+                    zAr = 'نشط — مستندات معلّقة';
+                    zEn = 'Active — docs pending';
+                }
+                pushLedger(
+                    ledgerEventTimeMs(p.contractSavedAt) ||
+                        ledgerEventTimeMs(savedEntry?.updatedAt) ||
+                        ledgerEventTimeMs(end) ||
+                        ledgerEventTimeMs(p.startDate),
+                    'العقد الحالي (محفوظ)',
+                    'Current saved contract',
+                    toStr(p.tenantNameAr || p.tenantNameEn),
+                    toStr(p.agreementNo),
+                    toStr(p.startDate),
+                    end,
+                    zAr,
+                    zEn,
+                    formatOMR(p.monthlyRent),
+                    [
+                        sum.previousAgreementNo
+                            ? `${t('العقد السابق', 'Previous contract')}: ${escHtml(sum.previousAgreementNo)}`
+                            : '',
+                        sum.chequeCount
+                            ? `${sum.chequeCount} ${t('شيك إيجار', 'rent cheque(s)')}`
+                            : '',
+                        sum.months ? `${t('الأشهر', 'Months')}: ${escHtml(sum.months)}` : '',
+                        sum.paymentMethod
+                            ? `${t('طريقة الدفع', 'Payment method')}: ${escHtml(sum.paymentMethod)}`
+                            : '',
+                        toStr(savedEntry?.lifecycleStatus)
+                            ? `${t('دورة الحياة', 'Lifecycle')}: ${escHtml(toStr(savedEntry.lifecycleStatus))}`
+                            : ''
+                    ]
+                        .filter(Boolean)
+                        .join(' · '),
+                    toStr(savedEntry?.lastActorName),
+                    {
+                        sourceKind: 'saved_contract_current',
+                        linkRef: toStr(p.agreementNo),
+                        linkGroup: `saved:${_tenancyDraftStorageKey(buRaw, nuRaw)}`,
+                        extras: {
+                            contractSavedAt: toStr(p.contractSavedAt || savedEntry?.updatedAt),
+                            contractSavedStatus: toStr(p.contractSavedStatus || savedEntry?.lifecycleStatus),
+                            chequeCount: String(sum.chequeCount || ''),
+                            vatChequeCount: String(sum.vatChequeCount || ''),
+                            months: sum.months,
+                            paymentMethod: sum.paymentMethod,
+                            deposit: sum.deposit,
+                            civilId: sum.civilId,
+                            phone: sum.phone,
+                            previousAgreementNo: sum.previousAgreementNo,
+                            schedulePreview: sum.schedulePreview,
+                            agreementNo: toStr(p.agreementNo),
+                            lifecycleStatus: toStr(savedEntry?.lifecycleStatus)
+                        }
+                    }
+                );
+            }
+        } catch (_eSavedLed) {}
 
         try {
             const fr = localStorage.getItem('bhd_contract_full');
@@ -52230,40 +52605,46 @@ function getEmptyCompanySignatory() {
                     normalizeReservationBuildingKey(cf.buildingNo) === bk &&
                     normalizeUnit(String(cf.flatNo || '')) === uk
                 ) {
-                    const st = cf.endDate ? daysUntil(cf.endDate) : null;
-                    let zAr = 'غير محدد';
-                    let zEn = 'Not set';
-                    if (cf.endDate) {
-                        if (st !== null && st < 0) {
-                            zAr = 'منتهي';
-                            zEn = 'Expired';
-                        } else {
-                            zAr = 'ساري (محفوظ)';
-                            zEn = 'Active (saved)';
-                        }
-                    }
-                    pushLedger(
-                        ledgerEventTimeMs(new Date()),
-                        'بيان عقد محفوظ',
-                        'Saved contract blob',
-                        toStr(cf.tenantNameAr),
-                        toStr(cf.agreementNo),
-                        toStr(cf.startDate),
-                        toStr(cf.endDate),
-                        zAr,
-                        zEn,
-                        formatOMR(cf.monthlyRent),
-                        t('نسخة الملف المحفوظ المحلياً.', 'Stored local contract blob snapshot.'),
-                        '-',
-                        {
-                            sourceKind: 'saved_contract_blob',
-                            linkRef: toStr(cf.agreementNo),
-                            extras: {
-                                contractSavedAt: toStr(cf.contractSavedAt),
-                                contractSavedStatus: toStr(cf.contractSavedStatus)
+                    const savedAgNow = toStr(
+                        getSavedContractPayloadForUnit({ building: buRaw, unit: nuRaw })?.agreementNo
+                    );
+                    // تجنب تكرار نفس العقد الحالي كـ blob منفصل
+                    if (toStr(cf.agreementNo) && toStr(cf.agreementNo) !== savedAgNow) {
+                        const st = cf.endDate ? daysUntil(cf.endDate) : null;
+                        let zAr = 'غير محدد';
+                        let zEn = 'Not set';
+                        if (cf.endDate) {
+                            if (st !== null && st < 0) {
+                                zAr = 'منتهي';
+                                zEn = 'Expired';
+                            } else {
+                                zAr = 'ساري (محفوظ محلياً)';
+                                zEn = 'Active (local blob)';
                             }
                         }
-                    );
+                        pushLedger(
+                            ledgerEventTimeMs(cf.contractSavedAt) || ledgerEventTimeMs(cf.endDate),
+                            'بيان عقد محفوظ (ملف محلي)',
+                            'Saved contract blob',
+                            toStr(cf.tenantNameAr),
+                            toStr(cf.agreementNo),
+                            toStr(cf.startDate),
+                            toStr(cf.endDate),
+                            zAr,
+                            zEn,
+                            formatOMR(cf.monthlyRent),
+                            t('نسخة الملف المحفوظ المحلياً.', 'Stored local contract blob snapshot.'),
+                            '-',
+                            {
+                                sourceKind: 'saved_contract_blob',
+                                linkRef: toStr(cf.agreementNo),
+                                extras: {
+                                    contractSavedAt: toStr(cf.contractSavedAt),
+                                    contractSavedStatus: toStr(cf.contractSavedStatus)
+                                }
+                            }
+                        );
+                    }
                 }
             }
         } catch (_eCf) {}
@@ -52345,6 +52726,9 @@ function getEmptyCompanySignatory() {
                         toStr(e.prevFrom) && toStr(e.prevTo)
                             ? `${t('الفترة السابقة', 'Previous period')}: ${escHtml(toStr(e.prevFrom))} — ${escHtml(toStr(e.prevTo))}`
                             : '',
+                        toStr(e.prevAgreementNo) && toStr(e.agreementNo) && e.prevAgreementNo !== e.agreementNo
+                            ? `${t('الانتقال', 'Transition')}: ${escHtml(toStr(e.prevAgreementNo))} → ${escHtml(toStr(e.agreementNo))}`
+                            : '',
                         toStr(e.note)
                     ]
                         .filter(Boolean)
@@ -52358,9 +52742,14 @@ function getEmptyCompanySignatory() {
                         linkGroup: `renewal:${bk}|${uk}`,
                         extras: {
                             eventType: ev,
+                            eventTypeRenewal: ev,
                             prevAgreementNo: toStr(e.prevAgreementNo),
+                            agreementNo: toStr(e.agreementNo),
                             prevFrom: toStr(e.prevFrom),
                             prevTo: toStr(e.prevTo),
+                            from: toStr(e.from),
+                            to: toStr(e.to),
+                            rent: toStr(e.rent),
                             staffUserId: toStr(e.staffUserId)
                         }
                     }
@@ -52522,6 +52911,11 @@ function getEmptyCompanySignatory() {
                     normalizeUnit(String(rw.unit)) === uk
             );
             rows.forEach((u) => {
+                const savedAg = toStr(
+                    getSavedContractPayloadForUnit({ building: buRaw, unit: nuRaw })?.agreementNo
+                );
+                // لا تكرار صف الجدول التشغيلي إذا طابق العقد المحفوظ الحالي
+                if (savedAg && toStr(u.agreementNo) === savedAg) return;
                 const dh =
                     ledgerEventTimeMs(u.endDate) ||
                     ledgerEventTimeMs(u.startDate) ||
@@ -52648,6 +53042,70 @@ function getEmptyCompanySignatory() {
     }
 
     let _unitHistoryEventsCache = {};
+    let _unitHistoryFilter = 'all';
+    let _unitHistoryLastUnit = null;
+
+    function unitHistoryEventMatchesFilter(ev, filter) {
+        const f = toStr(filter) || 'all';
+        if (f === 'all') return true;
+        const sk = toStr(ev?.sourceKind);
+        if (f === 'contracts') {
+            return (
+                sk === 'contract_archive' ||
+                sk === 'contract_archive_inferred' ||
+                sk === 'saved_contract_current' ||
+                sk === 'saved_contract_blob' ||
+                sk === 'tenancy_draft' ||
+                sk === 'tenancy_draft_cancelled' ||
+                sk === 'ops_row'
+            );
+        }
+        if (f === 'renewals') {
+            return sk === 'renewal_log' || sk === 'renewal_draft' || sk === 'renewal_request';
+        }
+        if (f === 'reservations') {
+            return sk === 'reservation' || sk === 'reservation_cancelled';
+        }
+        if (f === 'ops') {
+            return sk === 'maintenance' || sk === 'system_activity';
+        }
+        if (f === 'other') {
+            return !(
+                unitHistoryEventMatchesFilter(ev, 'contracts') ||
+                unitHistoryEventMatchesFilter(ev, 'renewals') ||
+                unitHistoryEventMatchesFilter(ev, 'reservations') ||
+                unitHistoryEventMatchesFilter(ev, 'ops')
+            );
+        }
+        return true;
+    }
+
+    function setUnitHistoryFilter(filter) {
+        _unitHistoryFilter = toStr(filter) || 'all';
+        if (_unitHistoryLastUnit) renderUnitHistory(_unitHistoryLastUnit);
+    }
+    try {
+        window.setUnitHistoryFilter = setUnitHistoryFilter;
+    } catch (_eSetUhFilter) {}
+
+    function buildUnitHistoryFilterChipsHtml(active) {
+        const chips = [
+            ['all', t('الكل', 'All')],
+            ['contracts', t('عقود', 'Contracts')],
+            ['renewals', t('تجديد', 'Renewals')],
+            ['reservations', t('حجوزات', 'Reservations')],
+            ['ops', t('صيانة', 'Maintenance')],
+            ['other', t('أخرى', 'Other')]
+        ];
+        return `<div class="ud-history-filters" role="tablist">
+            ${chips
+                .map(([id, label]) => {
+                    const on = id === active ? ' is-active' : '';
+                    return `<button type="button" class="ud-history-filter-chip${on}" onclick="setUnitHistoryFilter('${id}')">${escHtml(label)}</button>`;
+                })
+                .join('')}
+        </div>`;
+    }
 
     function prepareUnitHistoryEventsForDisplay(evs) {
         const list = (Array.isArray(evs) ? evs : []).map((row, idx) => ({
@@ -52758,10 +53216,22 @@ function getEmptyCompanySignatory() {
             prevAgreementNo: t('العقد السابق / Previous agreement', 'Previous agreement / العقد السابق'),
             prevFrom: t('بداية سابقة / Previous start', 'Previous start / بداية سابقة'),
             prevTo: t('نهاية سابقة / Previous end', 'Previous end / نهاية سابقة'),
-            lifecycleStatus: t('حالة المسودة / Draft lifecycle', 'Draft lifecycle / حالة المسودة'),
+            lifecycleStatus: t('دورة الحياة / Lifecycle', 'Lifecycle / دورة الحياة'),
             updatedAt: t('آخر تحديث / Last updated', 'Last updated / آخر تحديث'),
             rejectionNote: t('سبب الرفض / Rejection reason', 'Rejection reason / سبب الرفض'),
             contractEndDate: t('نهاية العقد / Contract end', 'Contract end / نهاية العقد'),
+            schedulePreview: t('جدول الشيكات / Cheque schedule', 'Cheque schedule / جدول الشيكات'),
+            chequeCount: t('عدد شيكات الإيجار / Rent cheques', 'Rent cheques / عدد شيكات الإيجار'),
+            vatChequeCount: t('عدد شيكات الضريبة / VAT cheques', 'VAT cheques / عدد شيكات الضريبة'),
+            months: t('أشهر العقد / Contract months', 'Contract months / أشهر العقد'),
+            paymentMethod: t('طريقة الدفع / Payment method', 'Payment method / طريقة الدفع'),
+            deposit: t('الضمان / Deposit', 'Deposit / الضمان'),
+            civilId: t('الرقم المدني / Civil ID', 'Civil ID / الرقم المدني'),
+            agreementNo: t('رقم العقد / Agreement no.', 'Agreement no. / رقم العقد'),
+            from: t('بداية الفترة / Period start', 'Period start / بداية الفترة'),
+            to: t('نهاية الفترة / Period end', 'Period end / نهاية الفترة'),
+            rent: t('الإيجار / Rent', 'Rent / الإيجار'),
+            inferred: t('مصدر البيانات / Data source', 'Data source / مصدر البيانات'),
             messageCount: t('عدد الرسائل / Messages', 'Messages / عدد الرسائل'),
             unitStatus: t('حالة الوحدة / Unit status', 'Unit status / حالة الوحدة'),
             daysUntilEnd: t('أيام حتى النهاية / Days to end', 'Days to end / أيام حتى النهاية'),
@@ -52775,8 +53245,35 @@ function getEmptyCompanySignatory() {
             if (k === 'eventType' && toStr(val) && ev.sourceKind === 'cancellation_request_event') {
                 val = cancellationEventTypeLabel(val);
             }
+            if (k === 'inferred' && toStr(val) === 'true') {
+                val = t('مستنتج من سجل التجديد', 'Inferred from renewal log');
+            }
             add(label, val);
         });
+
+        if (
+            (ev.sourceKind === 'contract_archive' ||
+                ev.sourceKind === 'saved_contract_current' ||
+                ev.sourceKind === 'renewal_draft') &&
+            unit
+        ) {
+            let payload = null;
+            if (ev.sourceKind === 'saved_contract_current') {
+                payload = getSavedContractPayloadForUnit(unit);
+            } else if (ev.sourceKind === 'renewal_draft') {
+                payload = getContractRenewalDraftEntryForUnit(unit)?.payload;
+            } else if (toStr(extras.agreementNo)) {
+                const versions = collectUnitContractVersionRows(unit);
+                payload = versions.find((v) => toStr(v.agreementNo) === toStr(extras.agreementNo))?.payload;
+            }
+            if (payload && typeof payload === 'object') {
+                const sum = summarizeContractPayloadForLedger(payload);
+                add(t('عدد شيكات الإيجار / Rent cheques', 'Rent cheques / عدد شيكات الإيجار'), sum.chequeCount || '');
+                add(t('جدول الشيكات / Cheque schedule', 'Cheque schedule / جدول الشيكات'), sum.schedulePreview);
+                add(t('الرقم المدني / Civil ID', 'Civil ID / الرقم المدني'), sum.civilId);
+                add(t('جوال المستأجر / Tenant phone', 'Tenant phone / جوال المستأجر'), sum.phone);
+            }
+        }
 
         if (ev.sourceKind === 'cancellation_request_event' || ev.actionType === 'contract_cancellation_request') {
             const req = getContractCancellationRequestForUnit(unit);
@@ -52978,7 +53475,9 @@ function getEmptyCompanySignatory() {
 
     function renderUnitHistory(unit) {
         const body = document.getElementById('unitHistoryTableBody');
+        const filtersHost = document.getElementById('unitHistoryFilters');
         if (!body || !unit) return;
+        _unitHistoryLastUnit = unit;
         try {
             loadDashboardAux();
         } catch (_eL) {}
@@ -52990,15 +53489,23 @@ function getEmptyCompanySignatory() {
             evs = [];
         }
 
-        if (!evs.length) {
+        if (filtersHost) {
+            filtersHost.innerHTML = buildUnitHistoryFilterChipsHtml(_unitHistoryFilter || 'all');
+        }
+
+        const filtered = evs.filter((e) => unitHistoryEventMatchesFilter(e, _unitHistoryFilter));
+
+        if (!filtered.length) {
             body.innerHTML = `<tr><td colspan="9" style="text-align:center">${escHtml(
-                t('لا توجد أحداث مسجَّلة لهذه الوحدة في السجل المحلي.', 'No recorded events for this unit in local history.')
+                evs.length
+                    ? t('لا توجد أحداث ضمن هذا التصفية.', 'No events in this filter.')
+                    : t('لا توجد أحداث مسجَّلة لهذه الوحدة في السجل المحلي.', 'No recorded events for this unit in local history.')
             )}</td></tr>`;
             _unitHistoryEventsCache = {};
             return;
         }
 
-        const prepared = prepareUnitHistoryEventsForDisplay(evs);
+        const prepared = prepareUnitHistoryEventsForDisplay(filtered);
         _unitHistoryEventsCache = prepared.byKey;
         const lg = appUiLanguage === 'en' ? 'en' : 'ar';
         body.innerHTML = prepared.list

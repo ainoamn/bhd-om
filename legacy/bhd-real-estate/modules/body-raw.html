@@ -1562,12 +1562,13 @@
                 <button type="button" class="btn-primary" id="unitDetailsOpenPrimaryContractBtn" onclick="openPrimaryLinkedContractFromUnitDetails()" data-ar="📋 متابعة إلى العقد الأساسي" data-en="📋 Open primary contract">📋 متابعة إلى العقد الأساسي / Open primary contract</button>
             </div>
             <div id="unitDetailsSections"></div>
-            <div class="details-section">
+            <div class="details-section ud-history-panel">
                 <div class="ud-history-section-head">
                     <h5 data-ar="سجل العقار / الوحدة" data-en="Unit history">سجل العقار / الوحدة</h5>
                     <button type="button" class="btn-outline mini-btn" onclick="printUnitHistoryFromDetails()" data-ar="🖨️ طباعة السجل" data-en="🖨️ Print history">🖨️ طباعة السجل / Print history</button>
                 </div>
-                <p style="margin:6px 0 10px;font-size:11px;color:#555;line-height:1.45" data-ar="خط زمني للحجوزات وإلغائها، ومسودات العقود وإنهائها، وتجديد العقود (بدء / مسودة / إلغاء / إكمال) وطلبات التجديد المبكر، وطلبات الإخلاء، وطلبات تعديل العقود ومحادثاتها، والبيان المحفوظ للعقد، حسب المتاح محلياً. اضغط على الحالة لعرض تفاصيل العملية والعمليات المرتبطة." data-en="Timeline of reservations, cancellations, tenancy drafts, contract renewals (started / draft / cancelled / completed), early renewal requests, eviction requests, contract edit requests, and saved contract data (local snapshot). Click status to view full operation details and related operations.">خط زمني للحجوزات وإلغائها، ومسودات العقود وإنهائها، وتجديد العقود (بدء / مسودة / إلغاء / إكمال) وطلبات التجديد المبكر، وطلبات الإخلاء، وطلبات تعديل العقود ومحادثاتها، والبيان المحفوظ للعقد، حسب المتاح محلياً. اضغط على الحالة لعرض تفاصيل العملية والعمليات المرتبطة. / Timeline of reservations, cancellations, tenancy drafts, contract renewals (started / draft / cancelled / completed), early renewal requests, eviction requests, contract edit requests, and saved contract data (local snapshot). Click status to view full operation details and related operations.</p>
+                <p class="ud-history-intro" data-ar="خط زمني للعقود والتجديدات والحجوزات والإخلاء والعمليات. اضغط الحالة لعرض التفاصيل الكاملة والشيكات المرتبطة." data-en="Timeline of contracts, renewals, reservations, eviction and operations. Click status for full details and linked cheques.">خط زمني للعقود والتجديدات والحجوزات والإخلاء والعمليات. اضغط الحالة لعرض التفاصيل الكاملة والشيكات المرتبطة. / Timeline of contracts, renewals, reservations, eviction and operations. Click status for full details and linked cheques.</p>
+                <div id="unitHistoryFilters" class="ud-history-filters-host"></div>
                 <div class="table-shell" style="overflow:auto">
                     <table class="ops-table">
                         <thead>
