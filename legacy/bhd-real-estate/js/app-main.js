@@ -1693,7 +1693,59 @@
             const merged = mergeAccountingRegistryKvJson(local, val);
             return merged !== local ? merged : null;
         }
+        if (k === 'bhd_contract_renewal_drafts') {
+            const merged = mergeContractRenewalDraftsKvJson(local, val);
+            return merged !== local ? merged : null;
+        }
         return null;
+    }
+
+    function renewalDraftEntryTimestamp(entry) {
+        const t = Date.parse(toStr(entry?.updatedAt) || toStr(entry?.payload?.contractSavedAt) || '');
+        return Number.isFinite(t) ? t : 0;
+    }
+
+    function renewalDraftPayloadChequeScore(payload) {
+        if (!payload || typeof payload !== 'object') return 0;
+        const byChq = isPaymentMethodCheque(payload.paymentMethod);
+        const schedule = parsePayloadJsonArrayField(payload, 'paymentScheduleJson', 'paymentSchedule');
+        let score = schedule.length * 2;
+        schedule.forEach((r) => {
+            if (!paymentScheduleRowHasGap(r, byChq)) score += 5;
+            else if (toStr(r.checkNo || r.chequeNo).trim()) score += 1;
+        });
+        const custom = parsePayloadJsonArrayField(payload, 'customRentItemsJson', 'customRentItems');
+        score += custom.length;
+        return score;
+    }
+
+    function preferRicherRenewalDraftEntry(localEntry, externalEntry) {
+        if (!localEntry) return externalEntry;
+        if (!externalEntry) return localEntry;
+        const ls = renewalDraftPayloadChequeScore(localEntry.payload);
+        const es = renewalDraftPayloadChequeScore(externalEntry.payload);
+        if (ls !== es) return ls > es ? localEntry : externalEntry;
+        return renewalDraftEntryTimestamp(localEntry) >= renewalDraftEntryTimestamp(externalEntry)
+            ? localEntry
+            : externalEntry;
+    }
+
+    function mergeContractRenewalDraftsKvJson(localRaw, externalRaw) {
+        let local = {};
+        let external = {};
+        try {
+            local = JSON.parse(localRaw || '{}');
+        } catch (_eLocalRd) {}
+        try {
+            external = JSON.parse(externalRaw || '{}');
+        } catch (_eExtRd) {}
+        if (!local || typeof local !== 'object' || Array.isArray(local)) local = {};
+        if (!external || typeof external !== 'object' || Array.isArray(external)) external = {};
+        const merged = { ...local };
+        Object.keys(external).forEach((key) => {
+            merged[key] = preferRicherRenewalDraftEntry(merged[key], external[key]);
+        });
+        return JSON.stringify(merged);
     }
 
     function acctRecordMergeTime(r) {
@@ -9625,6 +9677,9 @@
     function resolveAccountingChequeStatusOnContractSync(existing, incoming) {
         const inc = toStr(incoming?.status) || 'awaiting_contract_data';
         if (!existing) return inc;
+        const inAg = toStr(incoming?.agreementNo).trim();
+        const exAg = toStr(existing?.agreementNo).trim();
+        if (inAg && exAg && inAg !== exAg) return inc;
         const ex = toStr(existing.status);
         if (isAccountingChequeReceiptApprovedRecord(existing)) return ex || 'pending';
         if (inc === 'awaiting_contract_data') {
@@ -21851,7 +21906,7 @@ function getEmptyCompanySignatory() {
                     if (!chequeNo && !dueDate && !amount) return;
                     rows.push({
                         id: `contract_rent_${idx}`,
-                        linkedKey: accountingChequeLinkedKey(b, u, 'rent', idx, chequeNo),
+                        linkedKey: accountingChequeLinkedKey(b, u, 'rent', idx, chequeNo, agreementNo),
                         building: b,
                         unit: u,
                         sourceType: 'rent',
@@ -21870,7 +21925,7 @@ function getEmptyCompanySignatory() {
                     if (!chequeNo && !dueDate && !amount) return;
                     rows.push({
                         id: `contract_vat_${idx}`,
-                        linkedKey: accountingChequeLinkedKey(b, u, 'vat', idx, chequeNo),
+                        linkedKey: accountingChequeLinkedKey(b, u, 'vat', idx, chequeNo, agreementNo),
                         building: b,
                         unit: u,
                         sourceType: 'vat',
@@ -30858,9 +30913,11 @@ function getEmptyCompanySignatory() {
         return `acct_${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    function accountingChequeLinkedKey(building, unit, sourceType, index, chequeNo) {
+    function accountingChequeLinkedKey(building, unit, sourceType, index, chequeNo, agreementNo) {
         void chequeNo;
-        return `${accountingUnitKey(building, unit)}|${toStr(sourceType)}|${parseInt(index, 10) || 0}`;
+        const base = `${accountingUnitKey(building, unit)}|${toStr(sourceType)}|${parseInt(index, 10) || 0}`;
+        const ag = toStr(agreementNo).trim();
+        return ag ? `${base}|${ag}` : base;
     }
 
     function accountingEntryLinkedKey(building, unit, sourceKey) {
@@ -32728,6 +32785,15 @@ function getEmptyCompanySignatory() {
                 actions: []
             });
         }
+        const inAg = toStr(incoming?.agreementNo).trim();
+        const exAg = toStr(existing?.agreementNo).trim();
+        if (inAg && exAg && inAg !== exAg) {
+            return normalizeAccountingCheque({
+                ...incoming,
+                originalDueDate: incoming.dueDate,
+                actions: []
+            });
+        }
         const keepDue =
             existing.deferred ||
             toStr(existing.status) === 'deferred' ||
@@ -32742,8 +32808,8 @@ function getEmptyCompanySignatory() {
             dueDate: keepDue ? existing.dueDate : incoming.dueDate,
             originalDueDate: existing.originalDueDate || incoming.dueDate,
             deferred: existing.deferred || toStr(existing.status) === 'deferred',
-            tenant: existing.tenant || incoming.tenant,
-            agreementNo: existing.agreementNo || incoming.agreementNo,
+            tenant: incoming.tenant || existing.tenant,
+            agreementNo: incoming.agreementNo || existing.agreementNo,
             actions: Array.isArray(existing.actions) ? existing.actions : [],
             lastActionAt: existing.lastActionAt,
             lastActionDate: existing.lastActionDate,
@@ -32808,7 +32874,7 @@ function getEmptyCompanySignatory() {
             paymentSchedule.forEach((row) => {
                 const idx = parseInt(row.monthIndex, 10) || 0;
                 const chequeNo = toStr(row.checkNo || row.chequeNo).trim();
-                const linkedKey = accountingChequeLinkedKey(b, u, 'rent', idx, chequeNo);
+                const linkedKey = accountingChequeLinkedKey(b, u, 'rent', idx, chequeNo, agreementNo);
                 const ready = contractRentChequeRowReadyForAccounting(row, payload);
                 const existing = existingChequeMap.get(linkedKey);
                 if (!ready) {
@@ -32856,7 +32922,7 @@ function getEmptyCompanySignatory() {
             vatSchedule.forEach((row) => {
                 const idx = parseInt(row.chequeIndex || row.monthIndex, 10) || 0;
                 const chequeNo = toStr(row.checkNo || row.chequeNo).trim();
-                const linkedKey = accountingChequeLinkedKey(b, u, 'vat', idx, chequeNo);
+                const linkedKey = accountingChequeLinkedKey(b, u, 'vat', idx, chequeNo, agreementNo);
                 const ready = contractVatChequeRowReadyForAccounting(row, payload);
                 const existing = existingChequeMap.get(linkedKey);
                 if (!ready) {
@@ -49333,9 +49399,24 @@ function getEmptyCompanySignatory() {
         const u = toStr(unit);
         if (!b || !u || !entry || typeof entry !== 'object') return;
         const map = loadContractRenewalDraftsMap();
+        const key = _tenancyDraftStorageKey(b, u);
+        const prev = map[key];
+        let nextEntry = entry;
+        if (prev?.payload && entry?.payload) {
+            const prevScore = renewalDraftPayloadChequeScore(prev.payload);
+            const nextScore = renewalDraftPayloadChequeScore(entry.payload);
+            if (prevScore > 0 && nextScore < prevScore) {
+                nextEntry = {
+                    ...entry,
+                    payload: mergeContractPayloadPreferRich(prev.payload, entry.payload),
+                    renewal: entry.renewal || prev.renewal,
+                    previousSnapshot: entry.previousSnapshot || prev.previousSnapshot
+                };
+            }
+        }
         const actor = getCurrentActorLedgerRecord();
-        map[_tenancyDraftStorageKey(b, u)] = {
-            ...entry,
+        map[key] = {
+            ...nextEntry,
             updatedAt: new Date().toISOString(),
             lastActorUserId: actor.staffUserId,
             lastActorName: actor.staffName
@@ -49803,37 +49884,48 @@ function getEmptyCompanySignatory() {
         const mode = forceDraft ? 'draft' : 'finalize';
         const msgs = collectRenewalFinancialGapMessages(payload, unit, mode);
         if (msgs.length) {
-            openContractRenewalGapsModal(msgs, () => saveContractRenewalFromModal({ forceDraft }), {
-                continueLabel: forceDraft
-                    ? t('حفظ مسودة على أي حال / Save draft anyway', 'Save draft anyway / حفظ مسودة على أي حال')
-                    : t(
-                          'حفظ على أي حال (مسودة إن لزم) / Save anyway (draft if needed)',
-                          'Save anyway (draft if needed) / حفظ على أي حال'
-                      ),
+            // عند وجود نواقص (دفتر عناوين / مستندات / شيكات): الحفظ دائماً كمسودة
+            // حتى لا يفشل الحفظ النهائي بعد الأرشفة أو يُفقد ما أدخله المستخدم.
+            openContractRenewalGapsModal(msgs, () => saveContractRenewalFromModal({ forceDraft: true }), {
+                continueLabel: t(
+                    'حفظ مسودة على أي حال / Save draft anyway',
+                    'Save draft anyway / حفظ مسودة على أي حال'
+                ),
                 completeLabel: t('إكمال النواقص / Complete gaps', 'Complete gaps / إكمال النواقص'),
-                intro: forceDraft
-                    ? t(
-                          'توجد نواقص. يمكن إكمالها أو حفظ مسودة التجديد على أي حال.',
-                          'Gaps found. Complete them or save the renewal draft anyway.'
-                      )
-                    : t(
-                          'توجد نواقص. يمكن إكمالها أو المتابعة (يُحفظ كمسودة إن لم تكتمل البيانات).',
-                          'Gaps found. Complete them or continue (saved as draft if data is incomplete).'
-                      )
+                intro: t(
+                    'توجد نواقص. يمكن إكمالها الآن أو حفظ مسودة التجديد (الشيكات والمبالغ تُحفظ ولن تُمسح).',
+                    'Gaps found. Complete them now, or save the renewal draft (cheques & amounts are kept and will not be wiped).'
+                )
             });
             return;
         }
         saveContractRenewalFromModal({ forceDraft });
     }
 
+    function syncAddressBookEntriesFromLocalStorage() {
+        try {
+            const raw = localStorage.getItem('bhd_address_book');
+            const arr = raw ? JSON.parse(raw) : [];
+            if (Array.isArray(arr) && arr.length) {
+                addressBookEntries = arr;
+                return true;
+            }
+        } catch (_eAbSyncLs) {}
+        return false;
+    }
+
     function findAddressBookEntryForRenewalPayload(payload, unit) {
+        syncAddressBookEntriesFromLocalStorage();
         refreshAddressBookFromSystem(false);
         const u = {
             building: toStr(payload?.buildingNo) || toStr(unit?.building),
             unit: toStr(payload?.flatNo) || toStr(unit?.unit),
-            tenant: toStr(payload?.tenantNameAr),
-            mobile: toStr(payload?.tenantMobile),
-            civilCard: toStr(payload?.tenantId) || toStr(payload?.tenantCommercialRegNo)
+            tenant: toStr(payload?.tenantNameAr) || toStr(payload?.tenantName) || toStr(unit?.tenant),
+            mobile: toStr(payload?.tenantMobile) || toStr(unit?.mobile) || toStr(unit?.contactNo),
+            civilCard:
+                toStr(payload?.tenantId) ||
+                toStr(payload?.tenantCommercialRegNo) ||
+                toStr(unit?.civilCard)
         };
         const byUnit = findAddressBookEntryForUnit(u);
         if (byUnit) return byUnit;
@@ -55035,6 +55127,15 @@ function getEmptyCompanySignatory() {
                     previousSnapshot: prevSnap,
                     lifecycleStatus: 'renewal_pending'
                 });
+                try {
+                    const syncPayload = {
+                        ...merged,
+                        agreementNo: toStr(merged.agreementNo || ctx.renewal?.agreementNo),
+                        previousAgreementNo: toStr(prevSnap?.agreementNo),
+                        isRenewalContract: !ctx.isCurrentContractEdit
+                    };
+                    syncAccountingFromContractPayload(bKey, uKey, syncPayload);
+                } catch (_eAcctRenDraftSync) {}
             });
             try {
                 syncBhdKvToServer();
@@ -55049,7 +55150,52 @@ function getEmptyCompanySignatory() {
                         postSavePrintWin.close();
                     } catch (_eCloseVal) {}
                 }
-                return false;
+                // لا نُضيع الشيكات/المبالغ: نحفظ مسودة ثم نُبلغ المستخدم
+                mirrorRenewalPayloadToLinkedUnits(payload, (unitPayload, bKey, uKey) => {
+                    if (!bKey || !uKey) return;
+                    const linked = getLinkedContractUnitsFromPayload(payload);
+                    const merged =
+                        linked.length > 1
+                            ? {
+                                  ...payload,
+                                  ...unitPayload,
+                                  flatNo: toStr(uKey),
+                                  linkedContractUnits: linked,
+                                  linkedContractUnitsJson: JSON.stringify(linked)
+                              }
+                            : payload;
+                    const prevSnap =
+                        normalizeUnit(uKey) === normalizeUnit(ctx.unit.unit)
+                            ? ctx.previousSnapshot
+                            : cloneContractPayloadForArchive(getSavedContractPayloadForUnit({ building: bKey, unit: uKey })) ||
+                              ctx.previousSnapshot;
+                    upsertContractRenewalDraft(bKey, uKey, {
+                        payload: merged,
+                        renewal: ctx.renewal,
+                        previousSnapshot: prevSnap,
+                        lifecycleStatus: 'renewal_pending'
+                    });
+                    try {
+                        syncAccountingFromContractPayload(bKey, uKey, {
+                            ...merged,
+                            agreementNo: toStr(merged.agreementNo || ctx.renewal?.agreementNo),
+                            previousAgreementNo: toStr(prevSnap?.agreementNo),
+                            isRenewalContract: !ctx.isCurrentContractEdit
+                        });
+                    } catch (_eAcctValDraft) {}
+                });
+                try {
+                    syncBhdKvToServer();
+                } catch (_eKvValDraft) {}
+                if (!silent) {
+                    alert(
+                        t(
+                            '⚠️ لا يمكن إتمام التجديد قبل مطابقة المستأجر في دفتر العناوين وإكمال بطاقته.\n\n✅ تم حفظ الشيكات والمبالغ كمسودة تجديد — لن تُمسح. أكمل الدفتر ثم احفظ التجديد مرة أخرى.',
+                            '⚠️ Cannot complete renewal until the tenant is matched in the address book and their ID is complete.\n\n✅ Cheques & amounts were saved as a renewal draft — they will not be wiped. Complete the address book, then save renewal again.'
+                        )
+                    );
+                }
+                return true;
             }
             if (!validateRenewalMandatoryDocumentsOrAlert(payload)) {
                 if (postSavePrintWin) {
@@ -55057,7 +55203,43 @@ function getEmptyCompanySignatory() {
                         postSavePrintWin.close();
                     } catch (_eCloseMand) {}
                 }
-                return false;
+                mirrorRenewalPayloadToLinkedUnits(payload, (unitPayload, bKey, uKey) => {
+                    if (!bKey || !uKey) return;
+                    const linked = getLinkedContractUnitsFromPayload(payload);
+                    const merged =
+                        linked.length > 1
+                            ? {
+                                  ...payload,
+                                  ...unitPayload,
+                                  flatNo: toStr(uKey),
+                                  linkedContractUnits: linked,
+                                  linkedContractUnitsJson: JSON.stringify(linked)
+                              }
+                            : payload;
+                    const prevSnap =
+                        normalizeUnit(uKey) === normalizeUnit(ctx.unit.unit)
+                            ? ctx.previousSnapshot
+                            : cloneContractPayloadForArchive(getSavedContractPayloadForUnit({ building: bKey, unit: uKey })) ||
+                              ctx.previousSnapshot;
+                    upsertContractRenewalDraft(bKey, uKey, {
+                        payload: merged,
+                        renewal: ctx.renewal,
+                        previousSnapshot: prevSnap,
+                        lifecycleStatus: 'renewal_pending'
+                    });
+                });
+                try {
+                    syncBhdKvToServer();
+                } catch (_eKvMandDraft) {}
+                if (!silent) {
+                    alert(
+                        t(
+                            '⚠️ مستندات التجديد الإلزامية ناقصة.\n\n✅ تم حفظ الشيكات والمبالغ كمسودة — لن تُمسح. أكمل المستندات ثم أعد الحفظ.',
+                            '⚠️ Mandatory renewal documents are incomplete.\n\n✅ Cheques & amounts were saved as a draft — they will not be wiped. Complete the documents, then save again.'
+                        )
+                    );
+                }
+                return true;
             }
             const prev = ctx.previousSnapshot || getSavedContractPayloadForUnit(ctx.unit) || {};
             const prevAg = toStr(prev.agreementNo);
@@ -55132,6 +55314,27 @@ function getEmptyCompanySignatory() {
             try {
                 repairLinkedContractUnitsLifecycleConsistency();
             } catch (_eRenLinkedSync) {}
+            try {
+                mirrorRenewalPayloadToLinkedUnits(payload, (unitPayload, bKey, uKey) => {
+                    if (!bKey || !uKey) return;
+                    const linked = getLinkedContractUnitsFromPayload(payload);
+                    const merged =
+                        linked.length > 1
+                            ? {
+                                  ...payload,
+                                  ...unitPayload,
+                                  flatNo: toStr(uKey),
+                                  linkedContractUnits: linked,
+                                  linkedContractUnitsJson: JSON.stringify(linked),
+                                  isRenewalContract: payload.isRenewalContract,
+                                  isRenewalDraft: false,
+                                  contractSavedStatus: lifecycleStatus,
+                                  contractSavedAt: payload.contractSavedAt
+                              }
+                            : { ...payload, flatNo: toStr(uKey) };
+                    syncAccountingFromContractPayload(bKey, uKey, merged);
+                });
+            } catch (_eAcctRenFinalSync) {}
             logContractRenewalEvent('completed', ctx.unit, {
                 ...renewalLogDetailsFromCtx(ctx, payload),
                 note: ctx.isCurrentContractEdit
