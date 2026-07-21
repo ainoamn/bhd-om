@@ -688,13 +688,8 @@ export async function buildLegacyBridgeMinimalPayload(
   authUserId: string,
   locale: 'ar' | 'en' = 'ar'
 ): Promise<LegacyBridgePayload | null> {
-  // Check in-memory cache first (bypasses Prisma user lookup + contract lifecycle)
-  const cacheKey = _bridgeCacheKey(authUserId, locale);
-  const cached = _bridgeCacheGet(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
+  // Minimal payload must NOT share the full-bridge cache — it has addressBook: []
+  // and would poison subsequent lookups if cached under the same key.
   const currentDbUser = await prisma.user.findUnique({
     where: { id: authUserId },
     select: {
@@ -740,8 +735,6 @@ export async function buildLegacyBridgeMinimalPayload(
     },
     currentUser,
   };
-  // Store in shared memory cache for subsequent requests (TTL: 60s)
-  _bridgeCacheSet(cacheKey, payload);
 
   return payload;
 }
@@ -750,6 +743,12 @@ export async function buildLegacyBridgePayload(
   authUserId: string,
   locale: 'ar' | 'en' = 'ar'
 ): Promise<LegacyBridgePayload | null> {
+  const cacheKey = _bridgeCacheKey(authUserId, locale);
+  const cached = _bridgeCacheGet(cacheKey);
+  if (cached && Array.isArray(cached.addressBook) && cached.addressBook.length > 0) {
+    return cached;
+  }
+
   const currentDbUser = await prisma.user.findUnique({
     where: { id: authUserId },
     select: {
@@ -852,7 +851,7 @@ export async function buildLegacyBridgePayload(
     console.warn('buildLegacyBridgePayload contractLifecycle', eCanon);
   }
 
-  return {
+  const payload: LegacyBridgePayload = {
     siteIntegrated: true,
     version: 1,
     syncedAt: new Date().toISOString(),
@@ -878,6 +877,8 @@ export async function buildLegacyBridgePayload(
     contractLifecycle,
     currentUser,
   };
+  _bridgeCacheSet(_bridgeCacheKey(authUserId, locale), payload);
+  return payload;
 }
 
 export function resolveLegacyBridgeLocale(req: { nextUrl: URL; headers: Headers }): 'ar' | 'en' {
@@ -1072,7 +1073,14 @@ function applyBridge(data){
     if(data.usersRegistry)localStorage.setItem('bhd_users_registry',JSON.stringify(data.usersRegistry));
     if(data.authSession)localStorage.setItem('bhd_auth_session',JSON.stringify(data.authSession));
     if(Array.isArray(data.addressBook)&&data.addressBook.length){
-      var skipAb=legacyAddressBookRecentlyWiped()&&!window.__bhdForceAddressBookBridgeMerge;
+      /* عند الدمج القسري أو الدفتر المحلي فارغ: اقبل بيانات Neon دائماً */
+      var localEmpty=false;
+      try{
+        var rawAb=localStorage.getItem('bhd_address_book');
+        var arrAb=rawAb?JSON.parse(rawAb):[];
+        localEmpty=!Array.isArray(arrAb)||!arrAb.length;
+      }catch(_eAbEmpty){localEmpty=true;}
+      var skipAb=legacyAddressBookRecentlyWiped()&&!window.__bhdForceAddressBookBridgeMerge&&!localEmpty;
       if(!skipAb){
       var existing=[];
       try{existing=JSON.parse(localStorage.getItem('bhd_address_book')||'[]');}catch(e){existing=[];}
@@ -1102,7 +1110,7 @@ function refreshLegacyAuthUiFromBridge(){
   return false;
 }
 window.__bhdRefreshAddressBookFromSite=function(){
-  if(legacyKvRecentlyWipedQuarantine())return Promise.resolve(window.__bhdSiteBridgePayload||null);
+  /* تحديث صريح من المستخدم/النظام — لا يحجبه حجر التصفية المحلي */
   return fetchFullBridge();
 };
 function fetchFullBridge(){
@@ -1113,6 +1121,18 @@ function fetchFullBridge(){
         window.__bhdForceAddressBookBridgeMerge=true;
         applyBridge(d);
         window.__bhdForceAddressBookBridgeMerge=false;
+        try{
+          /* إن عاد الدفتر من Neon بنجاح، أزل علامة التصفية المحلية التي تمنع الاستعادة */
+          if(Array.isArray(d.addressBook)&&d.addressBook.length){
+            var raw=localStorage.getItem('bhd_address_book');
+            var arr=[];
+            try{arr=JSON.parse(raw||'[]');}catch(_eAbRaw){arr=[];}
+            if(Array.isArray(arr)&&arr.length){
+              localStorage.removeItem('bhd_last_data_wipe');
+              localStorage.removeItem('bhd_last_data_wipe_scope');
+            }
+          }
+        }catch(_eClrWipe){}
       }
       return d;
     })
@@ -1198,11 +1218,12 @@ function isDashboardOnlyMode(){
   }catch(e){return false;}
 }
 function shouldSkipFullBridgeFetch(){
+  /* لوحة المعلومات فقط: لا تجلب دفتر العناوين الكامل عند الإقلاع */
   if(isDashboardOnlyMode())return true;
-  if(legacyKvRecentlyWipedQuarantine())return true;
-  if(legacyAddressBookRecentlyWiped())return true;
-  if(!window.__bhdSiteBridgePayload)return!localAddressBookLooksWarm();
-  if(bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload))return!localAddressBookLooksWarm();
+  /* إن كان الدفتر المحلي فارغاً أو الـ payload المضمّن فارغاً → يجب الجلب من Neon */
+  if(!localAddressBookLooksWarm())return false;
+  if(bridgeNeedsAddressBookFetch(window.__bhdSiteBridgePayload))return false;
+  /* الدفتر دافئ والـ payload مكتمل — تخطّى الجلب */
   return true;
 }
 var _bhdFullBridgePending=null;

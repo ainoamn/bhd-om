@@ -41402,31 +41402,53 @@ function getEmptyCompanySignatory() {
 
         const siteWipeScopes = ['all', 'addressbook', 'tenants', 'owners'];
         if (siteWipeScopes.includes(scope) && localStorage.getItem('bhd_site_integrated') === '1') {
-            try {
-                const wipeRes = await fetch('/api/admin/legacy-bridge/address-book/wipe', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ scope })
-                });
-                if (!wipeRes.ok) {
-                    const failMsg = await wipeRes.text().catch(() => '');
-                    console.warn('site address book wipe failed', wipeRes.status, failMsg);
+            // افتراضياً: لا نحذف دفتر العناوين من Neon (مصدر الحقيقة) أثناء التصفية المحلية.
+            // الحذف السحابي يحتاج تأكيداً إضافياً صريحاً لتجنّب فقدان البيانات.
+            const neonWipeDlg = await showAppConfirmDialog(
+                t(
+                    'هل تريد أيضاً حذف دفتر العناوين نهائياً من قاعدة السحابة (Neon)؟\n\nاختر «إلغاء» للإبقاء على البيانات في السحابة (موصى به).\nاختر «موافق» فقط إذا كنت متأكداً من الحذف النهائي.',
+                    'Also permanently delete the address book from the cloud database (Neon)?\n\nChoose Cancel to keep cloud data (recommended).\nChoose OK only if you are sure about permanent deletion.'
+                ),
+                t('حذف سحابي؟ / Cloud wipe?', 'Cloud wipe? / حذف سحابي؟')
+            );
+            if (neonWipeDlg.confirmed) {
+                try {
+                    const wipeRes = await fetch('/api/admin/legacy-bridge/address-book/wipe', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            scope,
+                            confirmNeonWipe: true,
+                            confirmPhrase: 'DELETE ADDRESS BOOK'
+                        })
+                    });
+                    if (!wipeRes.ok) {
+                        const failMsg = await wipeRes.text().catch(() => '');
+                        console.warn('site address book wipe failed', wipeRes.status, failMsg);
+                        cleanupWarnings.push(
+                            t(
+                                'تعذّر حذف دفتر العناوين من السحابة — قد تحتاج حذفه يدوياً من إدارة الموقع.',
+                                'Address book cloud wipe failed — you may need to clear it from site admin.'
+                            )
+                        );
+                    } else if (window.__bhdSiteBridgePayload) {
+                        window.__bhdSiteBridgePayload.addressBook = [];
+                    }
+                } catch (_eSiteWipe) {
+                    console.warn('site address book wipe', _eSiteWipe);
                     cleanupWarnings.push(
                         t(
-                            'تعذّر حذف دفتر العناوين من السحابة — قد تحتاج حذفه يدوياً من إدارة الموقع.',
-                            'Address book cloud wipe failed — you may need to clear it from site admin.'
+                            'تعذّر الاتصال لحذف دفتر العناوين من السحابة.',
+                            'Could not reach the server to wipe the address book in the cloud.'
                         )
                     );
-                } else if (window.__bhdSiteBridgePayload) {
-                    window.__bhdSiteBridgePayload.addressBook = [];
                 }
-            } catch (_eSiteWipe) {
-                console.warn('site address book wipe', _eSiteWipe);
+            } else {
                 cleanupWarnings.push(
                     t(
-                        'تعذّر الاتصال لحذف دفتر العناوين من السحابة.',
-                        'Could not reach the server to wipe the address book in the cloud.'
+                        'تم الإبقاء على دفتر العناوين في السحابة — سيُعاد تحميله بعد التصفية المحلية.',
+                        'Address book kept in the cloud — it will reload after local cleanup.'
                     )
                 );
             }
@@ -65662,15 +65684,17 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                     setTimeout(repairAbAtt, 5000);
                 }
             }
-            const skipAbRebuild = dataWasWiped || localStorage.getItem('bhd_address_book') === '[]';
-                const siteIntegrated = localStorage.getItem('bhd_site_integrated') === '1';
-                const needsSiteAbFetch = siteIntegrated && !addressBookEntriesIncludeSiteContacts(addressBookEntries);
-                if (!refreshFastBoot && !skipAbRebuild && (needsSiteAbFetch || !Array.isArray(addressBookEntries) || !addressBookEntries.length)) {
-                    refreshAddressBookFromSystem(false);
-                } else {
-                    renderAddressBookTable();
-                    try { renderAddressBookTenantSelect(); } catch (_eAbBootSel) {}
-                }
+            const siteIntegrated = localStorage.getItem('bhd_site_integrated') === '1';
+            const localAbEmpty = !Array.isArray(addressBookEntries) || !addressBookEntries.length || localStorage.getItem('bhd_address_book') === '[]';
+            const needsSiteAbFetch =
+                siteIntegrated && (localAbEmpty || !addressBookEntriesIncludeSiteContacts(addressBookEntries));
+            // دفتر فارغ أو بدون جهات من الموقع → اجلب من Neon (لا تتخطّ بسبب علامة التصفية)
+            if (!refreshFastBoot && (needsSiteAbFetch || localAbEmpty)) {
+                refreshAddressBookFromSystem(false);
+            } else {
+                renderAddressBookTable();
+                try { renderAddressBookTenantSelect(); } catch (_eAbBootSel) {}
+            }
         } catch (abErr) {
             console.error('Address book init failed:', abErr);
         }

@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const ALLOWED_SCOPES = new Set<LegacyAddressBookWipeScope>(['all', 'addressbook', 'tenants', 'owners']);
 
-/** حذف دفتر العناوين من PostgreSQL عند التصفية من النظام القديم */
+/** حذف دفتر العناوين من PostgreSQL عند التصفية من النظام القديم — يتطلب تأكيداً صريحاً */
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth(req);
@@ -22,6 +22,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
+    const confirmNeonWipe = body?.confirmNeonWipe === true;
+    const confirmPhrase = typeof body?.confirmPhrase === 'string' ? body.confirmPhrase.trim() : '';
+    if (!confirmNeonWipe || confirmPhrase !== 'DELETE ADDRESS BOOK') {
+      return NextResponse.json(
+        {
+          error: 'Neon wipe blocked',
+          details:
+            'Pass confirmNeonWipe:true and confirmPhrase:"DELETE ADDRESS BOOK" to permanently delete AddressBookContact rows.',
+        },
+        { status: 400 }
+      );
+    }
+
     const scopeRaw = typeof body?.scope === 'string' ? body.scope.trim() : 'all';
     const scope: LegacyAddressBookWipeScope = ALLOWED_SCOPES.has(scopeRaw as LegacyAddressBookWipeScope)
       ? (scopeRaw as LegacyAddressBookWipeScope)
