@@ -4208,12 +4208,17 @@
     /** حالة العقد في قائمة العقود — من Neon عند التوفر، وإلا من البيانات المحلية */
     function getContractListRowLifecycleStateKey(row) {
         if (!row) return 'active_pending';
+        // مسودة تجديد محلية لها الأولوية على حالة السيرفر للعقد السابق
+        const unitRef = row._unitRef || { building: row.building, unit: row.unit };
+        if (getContractRenewalDraftEntryForUnit(unitRef) || row._renewalDraft) {
+            return 'renewal_pending';
+        }
         let base;
         if (isBhdSiteKvPersistenceActive()) {
             const byAg = getBhdServerContractLifecycleForAgreement(row.building, row.agreementNo);
             if (byAg) base = byAg;
             else {
-                const byUnit = getBhdServerContractLifecycleForUnit(row._unitRef);
+                const byUnit = getBhdServerContractLifecycleForUnit(unitRef);
                 if (byUnit) base = byUnit;
                 else if (row._unitRef) base = getContractLifecycleStateKey(row._unitRef);
                 else base = 'active_pending';
@@ -7376,9 +7381,18 @@
         if (!b || !u || !payload || typeof payload !== 'object') return;
         const map = loadSavedContractsByUnitMap();
         const prevEntry = getSavedContractMapEntry(map, b, u);
-        const mergedPayload = prevEntry?.payload
-            ? mergeContractPayloadPreferRich(prevEntry.payload, payload)
-            : payload;
+        const prevAg = toStr(prevEntry?.payload?.agreementNo);
+        const nextAg = toStr(payload.agreementNo);
+        const renewalReplace =
+            !!(payload.isRenewalContract || payload.isRenewalDraft) &&
+            ((nextAg && prevAg && nextAg !== prevAg) ||
+                toStr(payload.startDate) !== toStr(prevEntry?.payload?.startDate) ||
+                toStr(payload.endDate) !== toStr(prevEntry?.payload?.endDate));
+        const mergedPayload = !prevEntry?.payload
+            ? payload
+            : renewalReplace
+              ? mergeContractPayloadPreferIncomingRenewal(prevEntry.payload, payload)
+              : mergeContractPayloadPreferRich(prevEntry.payload, payload);
         const actor = getCurrentActorLedgerRecord();
         const status =
             lifecycleStatus === 'active_pending' ||
@@ -7391,7 +7405,7 @@
                   : resolveContractLifecycleStatus(mergedPayload);
         const enriched = {
             ...mergedPayload,
-            contractSavedAt: toStr(mergedPayload.contractSavedAt) || new Date().toISOString(),
+            contractSavedAt: toStr(payload.contractSavedAt) || new Date().toISOString(),
             contractSavedStatus: status
         };
         map[_tenancyDraftStorageKey(b, u)] = {
@@ -7416,6 +7430,45 @@
                 }
             } catch (_eAcctSync) {}
         }
+    }
+
+    /** عند التجديد: العقد الجديد (تواريخ/رقم/شيكات) يتقدّم على العقد السابق حتى لو كان السابق «أغنى» بالمرفقات */
+    function mergeContractPayloadPreferIncomingRenewal(existing, incoming) {
+        if (!incoming) return existing;
+        if (!existing) return incoming;
+        const out = { ...existing, ...incoming };
+        [
+            'startDate',
+            'endDate',
+            'agreementNo',
+            'previousAgreementNo',
+            'contractMonths',
+            'monthlyRent',
+            'agreementRent',
+            'paymentMethod',
+            'municipalFormNo',
+            'municipalContractNo',
+            'graceDays',
+            'graceAmount',
+            'isRenewalContract',
+            'isRenewalDraft',
+            'contractSavedStatus',
+            'contractSavedAt'
+        ].forEach((f) => {
+            if (incoming[f] != null && toStr(incoming[f]) !== '') out[f] = incoming[f];
+        });
+        [
+            ['paymentScheduleJson', 'paymentSchedule'],
+            ['vatChequeScheduleJson', 'vatChequeSchedule'],
+            ['customRentItemsJson', 'customRentItems']
+        ].forEach(([jsonKey, arrayKey]) => {
+            const inc = parsePayloadJsonArrayField(incoming, jsonKey, arrayKey);
+            if (inc.length) {
+                out[arrayKey] = inc;
+                out[jsonKey] = JSON.stringify(inc);
+            }
+        });
+        return out;
     }
 
     function loadContractHistoryByUnitMap() {
@@ -10277,7 +10330,7 @@
         if (k === 'draft') return t('مسودة عقد', 'Contract draft');
         if (k === 'reservation_draft') return t('مسودة حجز', 'Reservation draft');
         if (k === 'reservation_confirmed') return t('حجز مؤكّد', 'Confirmed reservation');
-        if (k === 'renewal_pending') return t('تجديد — مطلوب بيانات إضافية', 'Renewal — additional data required');
+        if (k === 'renewal_pending') return t('تجديد — مسودة / بانتظار الإتمام', 'Renewal — draft / pending completion');
         if (k === 'cancellation_pending') return t('في انتظار إلغاء العقد', 'Awaiting contract cancellation');
         if (k === 'active_pending') return t('نشط — مطلوب بيانات إضافية', 'Active — additional data required');
         if (k === 'active_docs_pending') {
@@ -49904,21 +49957,42 @@ function getEmptyCompanySignatory() {
         const payload = collectContractRenewalFinancialFromModal();
         const unit = _contractRenewalCtx?.unit;
         const mode = forceDraft ? 'draft' : 'finalize';
+        const financialIncomplete = renewalPayloadNeedsDraftSave(payload);
         const msgs = collectRenewalFinancialGapMessages(payload, unit, mode);
         if (msgs.length) {
-            // عند وجود نواقص (دفتر عناوين / مستندات / شيكات): الحفظ دائماً كمسودة
-            // حتى لا يفشل الحفظ النهائي بعد الأرشفة أو يُفقد ما أدخله المستخدم.
-            openContractRenewalGapsModal(msgs, () => saveContractRenewalFromModal({ forceDraft: true }), {
-                continueLabel: t(
-                    'حفظ مسودة على أي حال / Save draft anyway',
-                    'Save draft anyway / حفظ مسودة على أي حال'
-                ),
-                completeLabel: t('إكمال النواقص / Complete gaps', 'Complete gaps / إكمال النواقص'),
-                intro: t(
-                    'توجد نواقص. يمكن إكمالها الآن أو حفظ مسودة التجديد (الشيكات والمبالغ تُحفظ ولن تُمسح).',
-                    'Gaps found. Complete them now, or save the renewal draft (cheques & amounts are kept and will not be wiped).'
-                )
-            });
+            // إن اكتملت الشيكات/المبالغ: اسمح بحفظ التجديد على العقد الحالي (تحديث التواريخ والشيكات)
+            // حتى لو بقيت نواقص مستندات/دفتر عناوين — تُستكمل لاحقاً.
+            const canCommitFinancial = !forceDraft && !financialIncomplete;
+            openContractRenewalGapsModal(
+                msgs,
+                () =>
+                    saveContractRenewalFromModal({
+                        forceDraft: !canCommitFinancial,
+                        skipTenantDocGate: canCommitFinancial,
+                        skipMandatoryDocGate: canCommitFinancial
+                    }),
+                {
+                    continueLabel: canCommitFinancial
+                        ? t(
+                              'حفظ التجديد وتحديث العقد (المستندات لاحقاً) / Save renewal & update contract (docs later)',
+                              'Save renewal & update contract (docs later) / حفظ التجديد وتحديث العقد'
+                          )
+                        : t(
+                              'حفظ مسودة على أي حال / Save draft anyway',
+                              'Save draft anyway / حفظ مسودة على أي حال'
+                          ),
+                    completeLabel: t('إكمال النواقص / Complete gaps', 'Complete gaps / إكمال النواقص'),
+                    intro: canCommitFinancial
+                        ? t(
+                              'توجد نواقص مستندات. يمكنك إكمالها الآن، أو حفظ التجديد الآن لتحديث رقم العقد والتواريخ والشيكات (المستندات لاحقاً).',
+                              'Document gaps remain. Complete them now, or save the renewal now to update agreement no., dates and cheques (documents later).'
+                          )
+                        : t(
+                              'توجد نواقص مالية. يمكن إكمالها الآن أو حفظ مسودة التجديد (الشيكات والمبالغ تُحفظ ولن تُمسح).',
+                              'Financial gaps found. Complete them now, or save the renewal draft (cheques & amounts are kept).'
+                          )
+                }
+            );
             return;
         }
         saveContractRenewalFromModal({ forceDraft });
@@ -55090,6 +55164,8 @@ function getEmptyCompanySignatory() {
     async function saveContractRenewalFromModal(opt = {}) {
         const forceDraft = opt.forceDraft === true;
         const silent = opt.silent === true;
+        const skipTenantDocGate = opt.skipTenantDocGate === true;
+        const skipMandatoryDocGate = opt.skipMandatoryDocGate === true;
         if (!silent && !assertPermissionOrAlert('manage_contracts', 'لا تملك صلاحية العقود.', 'No permission for contracts.')) {
             return false;
         }
@@ -55165,8 +55241,11 @@ function getEmptyCompanySignatory() {
             try {
                 renderOperationsTable();
             } catch (_eTblRen) {}
+            try {
+                if (typeof renderContractsListPanel === 'function') renderContractsListPanel();
+            } catch (_eListRenDraft) {}
         } else {
-            if (!validateRenewalTenantDocumentsOrAlert(payload, ctx.unit)) {
+            if (!skipTenantDocGate && !validateRenewalTenantDocumentsOrAlert(payload, ctx.unit)) {
                 if (postSavePrintWin) {
                     try {
                         postSavePrintWin.close();
@@ -55219,7 +55298,7 @@ function getEmptyCompanySignatory() {
                 }
                 return true;
             }
-            if (!validateRenewalMandatoryDocumentsOrAlert(payload)) {
+            if (!skipMandatoryDocGate && !validateRenewalMandatoryDocumentsOrAlert(payload)) {
                 if (postSavePrintWin) {
                     try {
                         postSavePrintWin.close();
@@ -63968,6 +64047,16 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
                 _isMultiUnit: true,
                 _groupKey: groupKey
             });
+            const renDraft = getContractRenewalDraftEntryForUnit({ building: pb, unit: pu });
+            if (renDraft) {
+                const last = rows[rows.length - 1];
+                last.agreementNo = toStr(
+                    renDraft.renewal?.agreementNo || renDraft.payload?.agreementNo || last.agreementNo
+                );
+                last.endDate = toStr(renDraft.renewal?.newEnd || renDraft.payload?.endDate || last.endDate);
+                last.tenant = toStr(renDraft.payload?.tenantNameAr || last.tenant);
+                last._renewalDraft = true;
+            }
             return true;
         };
         Object.values(map).forEach((entry) => {
@@ -64001,15 +64090,21 @@ In the event the Landlord agrees, as an exception and without prejudice to the a
             if (secPrim && normalizeUnit(secPrim.unit) !== u) return;
             seen.add(key);
             const unitRef = base.building ? base : { building: b, unit: u, status: hasSaved ? 'Rented' : '' };
+            const renewalDraft = getContractRenewalDraftEntryForUnit({ building: b, unit: u });
+            const renewalPayload = renewalDraft?.payload;
+            const renewalMeta = renewalDraft?.renewal;
             rows.push({
                 building: b,
                 unit: u,
                 ownerNames: toStr(base.ownerNames) || formatOwnerNamesForBuilding(b),
-                tenant: toStr(p?.tenantNameAr || base.tenant),
-                agreementNo: toStr(p?.agreementNo || base.agreementNo),
-                endDate: toStr(p?.endDate || base.endDate),
+                tenant: toStr(renewalPayload?.tenantNameAr || p?.tenantNameAr || base.tenant),
+                agreementNo: toStr(
+                    renewalMeta?.agreementNo || renewalPayload?.agreementNo || p?.agreementNo || base.agreementNo
+                ),
+                endDate: toStr(renewalMeta?.newEnd || renewalPayload?.endDate || p?.endDate || base.endDate),
                 status: base.status || '',
-                _unitRef: unitRef
+                _unitRef: unitRef,
+                _renewalDraft: !!renewalDraft
             });
         };
         getUnitsData().forEach((u) => pushRow(u.building, u.unit, u));

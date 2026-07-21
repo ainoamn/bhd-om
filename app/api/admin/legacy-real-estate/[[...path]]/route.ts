@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 const MONOLITH_HTML = 'bhd-real-estate.html';
 const SHELL_HTML = 'bhd-real-estate-shell.html';
 /** ارفع عند تغيير shell boot الحرج حتى لا تُخدم نسخة HTML مخزّنة قديمة */
-const LEGACY_SHELL_BOOT_REV = '2026-07-21-addressbook-restore';
+const LEGACY_SHELL_BOOT_REV = '2026-07-21-renewal-commit-update';
 
 type HtmlCacheEntry = { body: Buffer; timestamp: number; etag: string };
 const HTML_CACHE_TTL_MS = 300_000;

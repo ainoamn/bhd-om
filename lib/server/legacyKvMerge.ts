@@ -86,6 +86,52 @@ export function mergeContractPayloads(
 ): Record<string, unknown> {
   if (!existing) return incoming && typeof incoming === 'object' ? { ...incoming } : {};
   if (!incoming) return { ...existing };
+
+  const prevAg = str(existing.agreementNo);
+  const nextAg = str(incoming.agreementNo);
+  const renewalReplace =
+    (nextAg && prevAg && nextAg !== prevAg) ||
+    (!!incoming.isRenewalContract &&
+      (str(incoming.startDate) !== str(existing.startDate) || str(incoming.endDate) !== str(existing.endDate)));
+
+  if (renewalReplace) {
+    const out: Record<string, unknown> = { ...existing, ...incoming };
+    [
+      'startDate',
+      'endDate',
+      'agreementNo',
+      'previousAgreementNo',
+      'contractMonths',
+      'monthlyRent',
+      'agreementRent',
+      'paymentMethod',
+      'municipalFormNo',
+      'municipalContractNo',
+      'graceDays',
+      'graceAmount',
+      'isRenewalContract',
+      'isRenewalDraft',
+      'contractSavedStatus',
+      'contractSavedAt',
+    ].forEach((f) => {
+      if (incoming[f] != null && str(incoming[f]) !== '') out[f] = incoming[f];
+    });
+    (
+      [
+        ['paymentScheduleJson', 'paymentSchedule'],
+        ['vatChequeScheduleJson', 'vatChequeSchedule'],
+        ['customRentItemsJson', 'customRentItems'],
+      ] as const
+    ).forEach(([jsonKey, arrayKey]) => {
+      const inc = parsePayloadJsonArray(incoming, jsonKey, arrayKey);
+      if (inc.length) {
+        out[arrayKey] = inc;
+        out[jsonKey] = JSON.stringify(inc);
+      }
+    });
+    return out;
+  }
+
   const scoreA = contractFinancialRichnessScore(existing);
   const scoreB = contractFinancialRichnessScore(incoming);
   const rich = scoreA >= scoreB ? existing : incoming;
@@ -186,12 +232,12 @@ function mergeSavedContractsByUnitMaps(
     const payload = mergeContractPayloads(loc.payload, ext.payload);
     const extTime = str(ext.updatedAt || ext.savedAt);
     const locTime = str(loc.updatedAt || loc.savedAt);
+    const preferIncomingMeta = extTime >= locTime;
     const lifecycleStatus = pickMergedLifecycleStatus(
       payload,
-      str(loc.lifecycleStatus),
-      str(ext.lifecycleStatus),
-      str(loc.payload?.contractSavedStatus),
-      str(ext.payload?.contractSavedStatus)
+      preferIncomingMeta ? str(ext.lifecycleStatus) : str(loc.lifecycleStatus),
+      preferIncomingMeta ? str(loc.lifecycleStatus) : str(ext.lifecycleStatus),
+      str(payload.contractSavedStatus)
     );
     merged[key] = {
       ...loc,
@@ -201,7 +247,7 @@ function mergeSavedContractsByUnitMaps(
         contractSavedStatus: lifecycleStatus,
       },
       lifecycleStatus,
-      updatedAt: extTime > locTime ? extTime : locTime,
+      updatedAt: extTime >= locTime ? extTime || locTime : locTime || extTime,
     };
   });
   return merged;
