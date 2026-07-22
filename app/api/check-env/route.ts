@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   if (!hasSecret) hints.push('أضف NEXTAUTH_SECRET في Vercel ثم Redeploy');
   if (!hasDb) hints.push('أضف DATABASE_URL (PostgreSQL) ثم Redeploy');
   if (!hasEncKey) hints.push('أضف ENCRYPTION_MASTER_KEY (32+ chars)');
-  if (!hasCron) hints.push('أضف CRON_SECRET لـ /api/cron/auto-archive');
+  if (!hasCron) hints.push('أضف CRON_SECRET لـ /api/cron/auto-archive و /api/cron/legacy-operational-repair');
   if (!hasWebhook) hints.push('أضف THAWANI_WEBHOOK_SECRET');
   if (!hasAdminPin) hints.push('أضف ADMIN_DATA_RESET_PIN (8+ chars)');
 

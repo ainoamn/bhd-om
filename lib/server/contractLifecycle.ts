@@ -171,7 +171,7 @@ function getSecurityDeposit(
   return (reg.deposits || []).find((d) => str(d.unitKey) === uk && str(d.type) === 'security') || null;
 }
 
-function enrichPayloadDepositFromAccounting(
+export function enrichPayloadDepositFromAccounting(
   payload: Record<string, unknown>,
   reg: AccountingRegistry
 ): Record<string, unknown> {
@@ -182,6 +182,10 @@ function enrichPayloadDepositFromAccounting(
   const out: Record<string, unknown> = { ...payload, buildingNo: b, flatNo: u };
   const dep = getSecurityDeposit(reg, b, u);
   if (dep) {
+    const depAmt = parseFloat(str(dep.amount)) || 0;
+    if (depAmt > 0 && !(parseFloat(str(out.depositAmount)) > 0)) {
+      out.depositAmount = String(depAmt);
+    }
     if (str(dep.reference) && !str(out.depositReceiptRef).trim()) {
       out.depositReceiptRef = str(dep.reference);
     }
@@ -411,8 +415,8 @@ export type ReconcileContractsResult = ContractStatusMaps & {
 };
 
 // ── In-memory contract lifecycle cache ──────────────────────────────
-// Shared across all requests | TTL: 60s
-const CONTRACT_LIFECYCLE_CACHE_TTL_MS = 300_000;
+// Shared across all requests | TTL: 5 minutes
+const CONTRACT_LIFECYCLE_CACHE_TTL_MS = 600_000;
 let _contractLifecycleCache: {
   statuses: Record<string, ContractLifecycleStatus>;
   byUnit: Record<string, ContractLifecycleStatus>;
@@ -440,6 +444,11 @@ function _contractLifecycleCacheSet(
   groupsProcessed: number
 ): void {
   _contractLifecycleCache = { statuses, byUnit, groupsProcessed, timestamp: Date.now() };
+}
+
+/** يُستدعى بعد كتابة KV لعقود أو محاسبة — يمنع حالات lifecycle قديمة */
+export function invalidateContractLifecycleCache(): void {
+  _contractLifecycleCache = null;
 }
 // ────────────────────────────────────────────────────────────────────
 

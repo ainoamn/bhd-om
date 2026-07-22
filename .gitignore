@@ -25,6 +25,9 @@
 # misc
 .DS_Store
 *.pem
+build-log.txt
+New Text Document.txt
+.cursor/settings.json
 
 # debug
 npm-debug.log*

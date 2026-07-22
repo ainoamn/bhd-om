@@ -52,6 +52,24 @@ type PaymentGatewayStatus = {
   checks: Array<{ id: string; ok: boolean; labelAr: string; labelEn: string }>;
 };
 
+type OperationalRepairReport = {
+  dryRun?: boolean;
+  contractsLifecycle?: { changed?: boolean; groupsProcessed?: number };
+  depositsEnriched?: number;
+  renewalDraftsRemoved?: string[];
+  managedUnitsUpdated?: number;
+  managedUnitsAdded?: number;
+  persisted?: boolean;
+  keysWritten?: string[];
+  sample?: Record<string, unknown>;
+};
+
+type OperationalRepairResponse = {
+  needsChanges?: boolean;
+  report?: OperationalRepairReport;
+  error?: string;
+};
+
 export default function AdminDataPage() {
   const params = useParams();
   const { data: session, status } = useSession();
@@ -102,6 +120,12 @@ export default function AdminDataPage() {
     message?: string;
   } | null>(null);
   const [pinStatusLoading, setPinStatusLoading] = useState(false);
+  const [operationalRepairBusy, setOperationalRepairBusy] = useState(false);
+  const [operationalRepairReport, setOperationalRepairReport] = useState<OperationalRepairReport | null>(null);
+  const [operationalRepairNeedsChanges, setOperationalRepairNeedsChanges] = useState<boolean | null>(null);
+  const [operationalRepairMsg, setOperationalRepairMsg] = useState<string | null>(null);
+  const [operationalRepairErr, setOperationalRepairErr] = useState<string | null>(null);
+  const [operationalRepairConfirm, setOperationalRepairConfirm] = useState(false);
 
   const mapServerActionError = useCallback(
     (data: { error?: string; message?: string; code?: string }, fallbackAr: string, fallbackEn: string) => {
@@ -184,6 +208,74 @@ export default function AdminDataPage() {
     }
   }, []);
 
+  const loadOperationalRepairScan = useCallback(async () => {
+    setOperationalRepairBusy(true);
+    setOperationalRepairErr(null);
+    setOperationalRepairMsg(null);
+    try {
+      const res = await fetch('/api/admin/legacy-bridge/operational-repair', {
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      const data = (await res.json().catch(() => ({}))) as OperationalRepairResponse;
+      if (!res.ok) {
+        setOperationalRepairErr(data.error || (ar ? 'فشل فحص المصالحة' : 'Repair scan failed'));
+        return;
+      }
+      setOperationalRepairReport(data.report || null);
+      setOperationalRepairNeedsChanges(Boolean(data.needsChanges));
+      setOperationalRepairMsg(
+        data.needsChanges
+          ? ar
+            ? 'توجد فجوات تشغيلية — راجع التفاصيل ثم طبّق المصالحة.'
+            : 'Operational gaps found — review details then apply repair.'
+          : ar
+            ? 'البيانات التشغيلية متسقة — لا حاجة لمصالحة.'
+            : 'Operational data is consistent — no repair needed.'
+      );
+    } catch {
+      setOperationalRepairErr(ar ? 'خطأ شبكة' : 'Network error');
+    } finally {
+      setOperationalRepairBusy(false);
+    }
+  }, [ar]);
+
+  const applyOperationalRepair = useCallback(async () => {
+    setOperationalRepairBusy(true);
+    setOperationalRepairErr(null);
+    setOperationalRepairMsg(null);
+    try {
+      const res = await fetch('/api/admin/legacy-bridge/operational-repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+      const data = (await res.json().catch(() => ({}))) as OperationalRepairResponse;
+      if (!res.ok) {
+        setOperationalRepairErr(data.error || (ar ? 'فشل تطبيق المصالحة' : 'Repair apply failed'));
+        return;
+      }
+      setOperationalRepairReport(data.report || null);
+      setOperationalRepairNeedsChanges(Boolean(data.needsChanges));
+      setOperationalRepairConfirm(false);
+      const keys = data.report?.keysWritten?.join(', ') || '—';
+      setOperationalRepairMsg(
+        data.report?.persisted
+          ? ar
+            ? `تمت المصالحة على Neon: ${keys}`
+            : `Repair applied on Neon: ${keys}`
+          : ar
+            ? 'لا توجد تغييرات مطلوبة.'
+            : 'No changes were required.'
+      );
+    } catch {
+      setOperationalRepairErr(ar ? 'خطأ شبكة' : 'Network error');
+    } finally {
+      setOperationalRepairBusy(false);
+    }
+  }, [ar]);
+
   useEffect(() => {
     if (status === 'loading' && roleHint === 'ADMIN') {
       /* انتظر الجلسة لكن اسمح بعرض الهيكل */
@@ -192,7 +284,8 @@ export default function AdminDataPage() {
     if (status === 'authenticated' && userRole !== 'ADMIN') return;
     void loadProductionReadiness();
     void loadPinStatus();
-  }, [status, userRole, roleHint, loadProductionReadiness, loadPinStatus]);
+    void loadOperationalRepairScan();
+  }, [status, userRole, roleHint, loadProductionReadiness, loadPinStatus, loadOperationalRepairScan]);
 
   const handleLegacyBackfill = async () => {
     setLegacyBusy(true);
@@ -634,7 +727,115 @@ export default function AdminDataPage() {
           </div>
         )}
 
-<div className="admin-card p-6 sm:p-8 border-2 border-slate-200">
+        {isAdmin && (
+          <div className="admin-card p-6 sm:p-8 border-2 border-sky-200 bg-gradient-to-br from-sky-50/70 to-white">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <span className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-xl">🔧</span>
+                  {ar ? 'مصالحة البيانات التشغيلية (Neon)' : 'Operational data repair (Neon)'}
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  {ar
+                    ? 'توحيد العقود، حقن الضمان من المحاسبة، تنظيف مسودات التجديد العالقة، ومزامنة managed_units من saved_contracts.'
+                    : 'Reconcile contracts, inject deposits from accounting, remove stale renewal drafts, sync managed_units from saved_contracts.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={operationalRepairBusy}
+                onClick={() => void loadOperationalRepairScan()}
+                className="px-4 py-2 rounded-xl text-sm font-semibold admin-btn-primary text-white hover:bg-[#6B5435] disabled:opacity-50 transition-colors"
+              >
+                {operationalRepairBusy ? (ar ? 'جاري الفحص…' : 'Scanning…') : ar ? 'فحص' : 'Scan'}
+              </button>
+            </div>
+
+            {operationalRepairMsg && (
+              <div className="mb-4 p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-sm">{operationalRepairMsg}</div>
+            )}
+            {operationalRepairErr && (
+              <div className="mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm">{operationalRepairErr}</div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4 text-sm">
+              <div className={`rounded-lg p-3 border ${operationalRepairNeedsChanges ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                <p className="text-gray-500">{ar ? 'الحالة' : 'Status'}</p>
+                <p className={`font-bold ${operationalRepairNeedsChanges ? 'text-amber-800' : 'text-emerald-800'}`}>
+                  {operationalRepairNeedsChanges == null
+                    ? '—'
+                    : operationalRepairNeedsChanges
+                      ? ar ? 'تحتاج مصالحة' : 'Needs repair'
+                      : ar ? 'متسقة' : 'Consistent'}
+                </p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                <p className="text-gray-500">{ar ? 'عقود lifecycle' : 'Lifecycle groups'}</p>
+                <p className="font-semibold text-gray-900">{operationalRepairReport?.contractsLifecycle?.groupsProcessed ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                <p className="text-gray-500">{ar ? 'ضمانات مُحقنة' : 'Deposits enriched'}</p>
+                <p className="font-semibold text-gray-900">{operationalRepairReport?.depositsEnriched ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                <p className="text-gray-500">{ar ? 'مسودات محذوفة' : 'Drafts removed'}</p>
+                <p className="font-semibold text-gray-900">{operationalRepairReport?.renewalDraftsRemoved?.length ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                <p className="text-gray-500">{ar ? 'وحدات محدّثة' : 'Units updated'}</p>
+                <p className="font-semibold text-gray-900">
+                  {operationalRepairReport
+                    ? `${operationalRepairReport.managedUnitsUpdated ?? 0}+${operationalRepairReport.managedUnitsAdded ?? 0}`
+                    : '—'}
+                </p>
+              </div>
+            </div>
+
+            {!!operationalRepairReport?.renewalDraftsRemoved?.length && (
+              <p className="text-xs text-gray-600 mb-4 break-all">
+                {ar ? 'مسودات أُزيلت:' : 'Removed drafts:'}{' '}
+                {operationalRepairReport.renewalDraftsRemoved.join(', ')}
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              {!operationalRepairConfirm ? (
+                <button
+                  type="button"
+                  disabled={operationalRepairBusy || operationalRepairNeedsChanges !== true}
+                  onClick={() => {
+                    setOperationalRepairConfirm(true);
+                    setOperationalRepairErr(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl font-semibold bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 transition-colors"
+                >
+                  {ar ? 'تطبيق المصالحة على Neon' : 'Apply repair on Neon'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={operationalRepairBusy}
+                    onClick={() => void applyOperationalRepair()}
+                    className="px-5 py-2.5 rounded-xl font-semibold bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition-colors"
+                  >
+                    {operationalRepairBusy ? (ar ? 'جاري التطبيق…' : 'Applying…') : ar ? 'تأكيد المصالحة' : 'Confirm repair'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={operationalRepairBusy}
+                    onClick={() => setOperationalRepairConfirm(false)}
+                    className="px-5 py-2.5 rounded-xl font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+                  >
+                    {ar ? 'إلغاء' : 'Cancel'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="admin-card p-6 sm:p-8 border-2 border-slate-200">
           <h2 className="text-lg font-bold text-gray-900 mb-2">
             {ar ? 'رمز الحماية (الخادم)' : 'Security PIN (server)'}
           </h2>

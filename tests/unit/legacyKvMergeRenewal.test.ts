@@ -69,4 +69,39 @@ describe('mergeContractPayloads renewal replace', () => {
     const schedule = Array.isArray(merged.paymentSchedule) ? merged.paymentSchedule : [];
     assert.equal(schedule.length, 1);
   });
+
+  it('preserves depositAmount from either side when merging', () => {
+    const existing = {
+      agreementNo: 'TC-07-2026-5019',
+      depositAmount: '500',
+      paymentSchedule: [{ chequeNo: '1', amount: 400 }],
+    };
+    const incoming = {
+      agreementNo: 'TC-07-2026-5019',
+      depositAmount: '',
+      paymentSchedule: [],
+    };
+
+    const merged = mergeContractPayloads(existing, incoming);
+    assert.equal(merged.depositAmount, '500');
+  });
+
+  it('keeps larger deposit on renewal when incoming omits it', () => {
+    const existing = {
+      agreementNo: 'TC-07-2026-5019',
+      depositAmount: '500',
+      endDate: '2025-11-19',
+    };
+    const incoming = {
+      agreementNo: 'TC-07-2026-5028',
+      isRenewalContract: true,
+      startDate: '2025-11-20',
+      endDate: '2026-02-19',
+      depositAmount: '',
+    };
+
+    const merged = mergeContractPayloads(existing, incoming);
+    assert.equal(merged.depositAmount, '500');
+    assert.equal(merged.agreementNo, 'TC-07-2026-5028');
+  });
 });

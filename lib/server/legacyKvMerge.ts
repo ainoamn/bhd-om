@@ -36,6 +36,15 @@ function str(v: unknown): string {
   return v == null ? '' : String(v);
 }
 
+function pickMergedDepositAmount(a: unknown, b: unknown): string {
+  const na = parseFloat(str(a)) || 0;
+  const nb = parseFloat(str(b)) || 0;
+  if (na > 0 && nb > 0) return String(Math.max(na, nb));
+  if (na > 0) return String(na);
+  if (nb > 0) return String(nb);
+  return str(a) || str(b) || '';
+}
+
 function parsePayloadJsonArray(payload: Record<string, unknown>, jsonKey: string, arrayKey: string): unknown[] {
   const direct = payload[arrayKey];
   if (Array.isArray(direct) && direct.length) return direct;
@@ -77,6 +86,7 @@ function contractFinancialRichnessScore(payload: Record<string, unknown>): numbe
   if (str(payload.municipalFormNo)) n += 1;
   if (str(payload.municipalContractNo)) n += 1;
   if (str(payload.depositAttachmentRelativePath) || str(payload.depositAttachmentFileId)) n += 3;
+  if (parseFloat(str(payload.depositAmount)) > 0) n += 2;
   return n;
 }
 
@@ -113,6 +123,8 @@ export function mergeContractPayloads(
       'isRenewalDraft',
       'contractSavedStatus',
       'contractSavedAt',
+      'depositAmount',
+      'depositReceiptRef',
     ].forEach((f) => {
       if (incoming[f] != null && str(incoming[f]) !== '') out[f] = incoming[f];
     });
@@ -121,14 +133,18 @@ export function mergeContractPayloads(
         ['paymentScheduleJson', 'paymentSchedule'],
         ['vatChequeScheduleJson', 'vatChequeSchedule'],
         ['customRentItemsJson', 'customRentItems'],
+        ['insuranceDepositItemsJson', 'insuranceDepositItems'],
       ] as const
     ).forEach(([jsonKey, arrayKey]) => {
       const inc = parsePayloadJsonArray(incoming, jsonKey, arrayKey);
-      if (inc.length) {
-        out[arrayKey] = inc;
-        out[jsonKey] = JSON.stringify(inc);
+      const ex = parsePayloadJsonArray(existing, jsonKey, arrayKey);
+      const chosen = inc.length ? inc : ex;
+      if (chosen.length) {
+        out[arrayKey] = chosen;
+        out[jsonKey] = JSON.stringify(chosen);
       }
     });
+    out.depositAmount = pickMergedDepositAmount(existing.depositAmount, incoming.depositAmount);
     return out;
   }
 
@@ -165,9 +181,14 @@ export function mergeContractPayloads(
     'municipalContractNo',
     'paymentMethod',
     'depositAmount',
+    'depositReceiptRef',
     'agreementNo',
     'contractSavedStatus',
   ].forEach((f) => {
+    if (f === 'depositAmount') {
+      out[f] = pickMergedDepositAmount(rich[f], poor[f]);
+      return;
+    }
     out[f] = str(rich[f]) || str(poor[f]) || '';
   });
   return out;
@@ -407,6 +428,39 @@ export function mergeLegacyKvOnPut(key: string, existingRaw: string | null | und
 
   if (key === 'bhd_accounting_registry') {
     return mergeAccountingRegistryJson(existingRaw, incomingRaw);
+  }
+
+  if (key === 'bhd_managed_units' || key === 'bhd_buildings_list' || key === 'bhd_owners_list') {
+    const a = safeParseArray(existingRaw);
+    const b = safeParseArray(incomingRaw);
+    if (!a.length) return incomingRaw;
+    if (!b.length) return existingRaw;
+    const byKey = new Map<string, Record<string, unknown>>();
+    const rowKey = (row: unknown, idx: number) => {
+      const r = row as Record<string, unknown>;
+      const bld = str(r.building);
+      const unit = str(r.unit);
+      if (bld && unit) return `${bld}\t${unit}`;
+      const name = str(r.name);
+      if (name) return `name:${name}`;
+      return `idx:${idx}`;
+    };
+    a.forEach((row, idx) => {
+      if (row && typeof row === 'object') byKey.set(rowKey(row, idx), row as Record<string, unknown>);
+    });
+    b.forEach((row, idx) => {
+      if (!row || typeof row !== 'object') return;
+      const k = rowKey(row, idx);
+      const prev = byKey.get(k);
+      if (!prev) {
+        byKey.set(k, row as Record<string, unknown>);
+        return;
+      }
+      const pt = Date.parse(str((row as Record<string, unknown>).updatedAt)) || 0;
+      const ot = Date.parse(str(prev.updatedAt)) || 0;
+      byKey.set(k, pt >= ot ? (row as Record<string, unknown>) : prev);
+    });
+    return JSON.stringify([...byKey.values()]);
   }
 
   if (key === 'bhd_file_registry') {

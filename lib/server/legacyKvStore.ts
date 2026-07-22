@@ -8,7 +8,15 @@ import {
 } from '@/lib/server/legacyKvKeys';
 import { extractLegacyKvInlineBlobs, deleteLegacyStoredFilesForContexts } from '@/lib/server/legacyStoredFiles';
 import { mergeLegacyKvOnPut } from '@/lib/server/legacyKvMerge';
+import { invalidateContractLifecycleCache } from '@/lib/server/contractLifecycle';
 import { legacyKvHasSubstantiveUserData } from '@/lib/server/legacyKvSubstantive';
+
+const KV_KEYS_INVALIDATE_LIFECYCLE = new Set([
+  'bhd_saved_contracts_by_unit',
+  'bhd_accounting_registry',
+  'bhd_contract_renewal_drafts',
+  'bhd_tenancy_contract_drafts',
+]);
 
 const WIPE_GUARD_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -51,7 +59,7 @@ export type LegacyKvPullResult = LegacyKvBulkPayload & {
 };
 
 // ── KV bulk read cache (shared across requests) ─────────────────────
-const KV_BULK_CACHE_TTL_MS = 45_000;
+const KV_BULK_CACHE_TTL_MS = 120_000;
 const _kvBulkCache = new Map<string, { data: LegacyKvPullResult; expires: number }>();
 
 function kvBulkCacheKey(prefix: string, keys?: string[]): string {
@@ -137,6 +145,11 @@ export async function putLegacyKvBulk(
     const data = typeof raw === 'string' ? raw : JSON.stringify(raw);
     if (!data.length) continue;
 
+    /** لا تُبطِل lifecycle cache عند كل auto-sync — يمنع reconcile ثقيلاً على كل طلب */
+    if (userInitiated && KV_KEYS_INVALIDATE_LIFECYCLE.has(key)) {
+      invalidateContractLifecycleCache();
+    }
+
     if (
       wipeGuardActive &&
       !userInitiated &&
@@ -194,6 +207,9 @@ export async function clearLegacyKvKeys(keys: string[]): Promise<{ removed: numb
   const result = await prisma.legacyAppKvStore.deleteMany({
     where: { kvKey: { in: valid } },
   });
+  if (valid.some((k) => KV_KEYS_INVALIDATE_LIFECYCLE.has(k))) {
+    invalidateContractLifecycleCache();
+  }
   invalidateLegacyKvBulkCache();
   return { removed: result.count };
 }
@@ -219,6 +235,7 @@ export async function wipeLegacyKvExcept(keepKeys: string[] = []): Promise<{ rem
   try {
     await writeLegacyKvWipeGuard();
   } catch (_eWipeGuard) {}
+  invalidateContractLifecycleCache();
   invalidateLegacyKvBulkCache();
   return { removed: result.count };
 }

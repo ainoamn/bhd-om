@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/auto-archive",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/legacy-operational-repair",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

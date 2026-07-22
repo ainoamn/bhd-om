@@ -24,7 +24,12 @@ import { loadCanonicalContractStatusesFromNeon } from '@/lib/server/contractLife
 // Caches the full LegacyBridgePayload per user to avoid repeated
 // Prisma queries + contract lifecycle computation.
 const BRIDGE_PAYLOAD_CACHE_TTL_MS = 120_000;
+const BRIDGE_MINIMAL_PAYLOAD_CACHE_TTL_MS = 60_000;
 const _bridgePayloadCache = new Map<
+  string,
+  { payload: LegacyBridgePayload; timestamp: number }
+>();
+const _bridgeMinimalPayloadCache = new Map<
   string,
   { payload: LegacyBridgePayload; timestamp: number }
 >();
@@ -688,6 +693,15 @@ export async function buildLegacyBridgeMinimalPayload(
   authUserId: string,
   locale: 'ar' | 'en' = 'ar'
 ): Promise<LegacyBridgePayload | null> {
+  const minimalKey = `minimal:${authUserId}:${locale}`;
+  const cachedMinimal = _bridgeMinimalPayloadCache.get(minimalKey);
+  if (
+    cachedMinimal &&
+    Date.now() - cachedMinimal.timestamp < BRIDGE_MINIMAL_PAYLOAD_CACHE_TTL_MS
+  ) {
+    return cachedMinimal.payload;
+  }
+
   // Minimal payload must NOT share the full-bridge cache — it has addressBook: []
   // and would poison subsequent lookups if cached under the same key.
   const currentDbUser = await prisma.user.findUnique({
@@ -736,6 +750,7 @@ export async function buildLegacyBridgeMinimalPayload(
     currentUser,
   };
 
+  _bridgeMinimalPayloadCache.set(minimalKey, { payload, timestamp: Date.now() });
   return payload;
 }
 
@@ -1458,8 +1473,15 @@ try{
     stagedKvHydrateEarly();
   }
 }catch(_eKvBoot){}
-document.addEventListener('DOMContentLoaded',function(){stagedKvHydrateEarly();},{once:true});
-window.addEventListener('bhd-site-bridge-applied',function(){stagedKvHydrateEarly();});
+document.addEventListener('DOMContentLoaded',function(){
+  if(!window.__bhdBridgeStagedKvHydrated&&!window.__bhdBridgeStagedKvHydratedOk){
+    stagedKvHydrateEarly();
+  }
+},{once:true});
+window.addEventListener('bhd-site-bridge-applied',function(){
+  if(window.__bhdBridgeStagedKvHydratedOk)return;
+  stagedKvHydrateEarly();
+});
 if(isDashboardOnlyMode()){
   var preloadXlsx=function(){try{if(window.__bhdEnsureXlsxLoaded)window.__bhdEnsureXlsxLoaded();}catch(e){}};
   if(typeof requestIdleCallback==='function')requestIdleCallback(preloadXlsx,{timeout:20000});

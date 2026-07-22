@@ -27,6 +27,8 @@
     "db:backfill-user-phone-encryption": "npx tsx scripts/backfill-user-phone-encryption.ts",
     "db:backfill-legacy-kv-encryption": "npx tsx scripts/backfill-legacy-kv-encryption.ts",
     "db:backfill-all-encryption": "node scripts/run-all-encryption-backfills.mjs",
+    "db:inspect-legacy-contract-unit": "npx tsx scripts/inspect-legacy-contract-unit.ts",
+    "db:repair-legacy-operational-kv": "npx tsx scripts/repair-legacy-operational-kv.ts",
     "start": "next start",
     "lint": "eslint .",
     "test:e2e": "playwright test",

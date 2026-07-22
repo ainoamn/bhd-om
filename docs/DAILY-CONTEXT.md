@@ -9,6 +9,18 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-07-22 — إعادة بناء صحيحة لميزات أمس (بدون كسر الإقلاع)
+
+- **السياق:** تم الرجوع إلى `5aaae5c` (أمس 09:53) بعد أن تسببت طبقة cloud-only + تعديلات boot في تجميد اللوحة.
+- **إعادة البناء الآمنة فقط (خادم):**
+  - مصالحة تشغيلية Neon: `lib/server/legacyOperationalRepair.ts` + API `/api/admin/legacy-bridge/operational-repair` + cron يومي `0 4 * * *` + واجهة في `/admin/data` + CLI `npm run db:repair-legacy-operational-kv`.
+  - دمج عقود/ودائع أفضل في `legacyKvMerge` + إثراء الوديعة من المحاسبة في `contractLifecycle`.
+  - كاش قراءة KV 120s، lifecycle 10 دقائق، كاش bridge minimal، Cache-Control أطول على `/api/kv` وcontract-statuses.
+  - إبطال lifecycle cache عند الكتابة **المبادرة من المستخدم فقط** (لا عاصفة reconcile عند auto-sync).
+- **ما لم يُعد:** cloud-only memory، purge localStorage، تحميل app-main async/lite، أي تعديل على shell/boot أو `app-main.js`.
+- **اختبار:** `npm run test:unit` — 51 ناجح (بما فيها `legacyOperationalRepair` و`legacyKvMergeRenewal`).
+- **مطلوب بعد النشر:** Deploy على Vercel؛ المصالحة تُشغَّل من `/admin/data` أو cron — **ليست** عند كل فتح لوحة.
+
 ### جلسة 2026-07-21 — تفاصيل الوحدة 88: ترتيب الصفحة + اكتمال السجل
 
 - **المشكلة:** سجل العقار/الوحدة ناقص أو غير دقيق (أرشيف مكرر/فجوات بعد التجديدات)، وصفحة التفاصيل غير مرتبة.

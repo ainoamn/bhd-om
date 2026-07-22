@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         headers: {
           'Cache-Control': reconcile
             ? 'private, no-store, must-revalidate'
-            : 'private, max-age=30, stale-while-revalidate=120',
+            : 'private, max-age=60, stale-while-revalidate=180',
         },
       }
     );
