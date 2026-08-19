@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import BhdAccountChrome from '@/components/bhd/BhdAccountChrome';
 import { getPagesVisibility, PAGES_VISIBILITY_EVENT, type PageId } from '@/lib/data/siteSettings';
 
