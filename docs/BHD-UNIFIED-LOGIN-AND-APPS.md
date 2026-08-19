@@ -550,8 +550,8 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 |---|---|
 | تاريخ التثبيت | 19 أغسطس 2026 — OIDC + مشغّل على `master` |
 | `client_id` | `bhd-office` |
-| الأصل | `https://www.bhd-om.com` (حتى يُخصَّص نطاق إنتاج منفصل للمكتب) |
-| `redirect_uri` | يُشتق من أصل الطلب (`{origin}/api/auth/bhd/callback`). لا يُرسل نطاق منتج آخر حتى لو وُجد في `BHD_OAUTH_REDIRECT_URI`. يجب تسجيل نفس القيمة في هوية `id.bhd-om.com` للعميل `bhd-office`. |
+| الأصل | `https://baitak.bhd-om.com` (نطاق إنتاج المكتب الحالي) |
+| `redirect_uri` | يُشتق من أصل الطلب. الإنتاج: `https://baitak.bhd-om.com/api/auth/bhd/callback` — مسجّل في هوية `bhd-office` |
 | الحالة في المشغّل | الكتالوج المجمد ما زال `enabled: false` و`origin` فارغ حتى يُحدَّث في ONE-BHD بعد التحقق من أن `GET /api/auth/bhd/start` يعيد 302 إلى الهوية |
 | كيف ثُبّت | القسم 4: عمود `User.bhdSub` · `/api/auth/bhd/start`+`callback`+`logout` · غلاف `/login` و`/register` → الهوية إلا `?local=1` · مشغّل بعد الجلسة · فوتر برامجنا · خمول 48 ساعة |
 | كيف يعمل الدخول | `start` → `https://id.bhd-om.com/oauth/authorize` (ليس أصل المنتج) → `callback` يستبدل `code` على الخادم → upsert على `bhdSub` → كوكي NextAuth Host-only |

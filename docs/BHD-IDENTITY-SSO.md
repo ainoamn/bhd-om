@@ -95,7 +95,7 @@ sequenceDiagram
 | حسابي | `bhd-hisaby` | `https://hisaby.bhd-om.com` (و`hisaby.pro`) | `https://hisaby.bhd-om.com/api/auth/bhd/callback` |
 | نَسَب | `bhd-nasab` | `https://nasab.bhd-om.com` | `https://nasab.bhd-om.com/api/auth/bhd/callback` |
 | متجر BHD | `bhd-store` | `https://bhdstor.bhd-om.com` | `https://bhdstor.bhd-om.com/api/auth/bhd/callback` |
-| مكتب BHD | `bhd-office` | داخلي | `{origin}/api/auth/bhd/callback` |
+| مكتب BHD | `bhd-office` | `https://baitak.bhd-om.com` | `https://baitak.bhd-om.com/api/auth/bhd/callback` |
 | بيتك | `bhd-baitak` | `https://baitak.bhd-om.com` | `https://baitak.bhd-om.com/api/auth/bhd/callback` |
 
 محلياً لكل منتج:
