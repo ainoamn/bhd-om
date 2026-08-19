@@ -1,8 +1,8 @@
 'use client';
 
 import { useLocale } from 'next-intl';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useForm } from 'react-hook-form';
@@ -27,12 +27,29 @@ const registerSchema = z
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
-export default function RegisterPage() {
+function RegisterFormInner() {
   const locale = useLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const t = useTranslations('register');
   const [formError, setFormError] = useState<string | null>(null);
   const [phoneCountryCode, setPhoneCountryCode] = useState(DEFAULT_DIAL_CODE);
+  const forceLocal = searchParams.get('local') === '1';
+
+  useEffect(() => {
+    if (forceLocal) return;
+    window.location.replace(`/api/auth/bhd/start?returnTo=${encodeURIComponent(`/${locale}/admin`)}`);
+  }, [forceLocal, locale]);
+
+  if (!forceLocal) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#fbfaf7' }}>
+        <p className="text-[#075c45] font-semibold">
+          {locale === 'ar' ? 'جاري التحويل إلى حساب BHD الموحّد…' : 'Redirecting to BHD identity…'}
+        </p>
+      </div>
+    );
+  }
 
   const {
     register,
@@ -249,5 +266,19 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center" style={{ background: '#fbfaf7' }}>
+          <p className="text-neutral-500">جاري التحميل...</p>
+        </div>
+      }
+    >
+      <RegisterFormInner />
+    </Suspense>
   );
 }

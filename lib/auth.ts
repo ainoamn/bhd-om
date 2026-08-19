@@ -11,6 +11,7 @@ import { requiresAdminTotp, verifyUserTotp } from '@/lib/server/adminTotp';
   // OAuth - يُفعّل عند إضافة GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET في .env
 import { prisma } from '@/lib/prisma';
 import { getAuthSecret } from '@/lib/server/authSecret';
+import { SESSION_IDLE_MAX_AGE_SEC } from '@/lib/bhd/session';
 
 /** إعادة التحقق من وجود المستخدم في DB — أطول = أقل استعلامات وتأخير أقل على /api/auth/session */
 const TOKEN_DB_REVALIDATE_SECONDS = 180;
@@ -166,7 +167,7 @@ export const authOptions: NextAuthOptions = {
   providers,
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 ساعة
+    maxAge: SESSION_IDLE_MAX_AGE_SEC,
   },
   pages: {
     signIn: '/ar/login',
@@ -186,8 +187,16 @@ export const authOptions: NextAuthOptions = {
         mutable.adminPermissions = (user as { adminPermissions?: string }).adminPermissions;
         mutable.organizationId = (user as { organizationId?: string }).organizationId;
         mutable.userCheckedAt = Math.floor(Date.now() / 1000);
+        mutable.lastActivity = Math.floor(Date.now() / 1000);
         return mutable;
       }
+
+      const nowSecIdle = Math.floor(Date.now() / 1000);
+      const lastActivity = Number(mutable.lastActivity || mutable.iat || 0);
+      if (Number.isFinite(lastActivity) && lastActivity > 0 && nowSecIdle - lastActivity > SESSION_IDLE_MAX_AGE_SEC) {
+        return markTokenExpired(mutable);
+      }
+      mutable.lastActivity = nowSecIdle;
 
       // تحقق دوري: إن كان المستخدم قد حُذف من DB (مثل بعد التصفير) نُبطل الجلسة فوراً.
       const tokenUserId = String(mutable.id || mutable.sub || '').trim();
@@ -243,6 +252,8 @@ export const authOptions: NextAuthOptions = {
         (session.user as { isSuperAdmin?: boolean }).isSuperAdmin = token.isSuperAdmin as boolean | undefined;
         (session.user as { adminPermissions?: string }).adminPermissions = token.adminPermissions as string | undefined;
         (session.user as { organizationId?: string }).organizationId = token.organizationId as string | undefined;
+        (session.user as { image?: string | null }).image =
+          (typeof token.picture === 'string' ? token.picture : null) ?? session.user.image;
       }
       return session;
     },

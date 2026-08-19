@@ -45,6 +45,8 @@ model User {
   serialNumber      String    @unique  // USR-A-2025-0001 حسب الدور والسنة
   email             String    @unique
   password          String
+  /** معرّف هوية BHD الموحّد (sub من id.bhd-om.com) */
+  bhdSub            String?   @unique
   name              String
   phone             String?
   phoneHash         String?   @unique // HMAC للبحث — الهاتف الفعلي مشفّر في phone
@@ -71,6 +73,7 @@ model User {
   @@index([email])
   @@index([phoneHash])
   @@index([organizationId])
+  @@index([bhdSub])
 }
 
 model Project {

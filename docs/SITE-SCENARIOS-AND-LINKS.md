@@ -100,8 +100,12 @@ flowchart LR
 | `/[locale]/contact` | التواصل | — |
 | `/[locale]/about` | عن الشركة | — |
 | `/[locale]/subscriptions` | الباقات والاشتراكات (عامة) | اختيار باقة، قد يوجّه للدفع أو للتسجيل |
-| `/[locale]/login` | تسجيل الدخول | بعد النجاح → `/admin` |
-| `/[locale]/register` | التسجيل | — |
+| `/[locale]/login` | تسجيل الدخول | الافتراضي: تحويل إلى هوية BHD `GET /api/auth/bhd/start`. الموظفون: `?local=1` (بيانات + TOTP). بعد SSO → `/admin` |
+| `/[locale]/register` | التسجيل | الافتراضي: نفس تحويل الهوية. الإنشاء المحلي: `?local=1` |
+| `/api/auth/bhd/start` | بدء OIDC (PKCE) | 302 إلى `https://id.bhd-om.com/oauth/authorize` (`client_id=bhd-office`) |
+| `/api/auth/bhd/callback` | رجوع الهوية | upsert `User.bhdSub` + كوكي NextAuth Host-only |
+| `/api/auth/bhd/logout` | خروج المنتج + الهوية | `end-session` ثم الصفحة الرئيسية |
+| `/api/auth/me` | إبقاء الجلسة حية | يجدد خمول 48 ساعة؛ 401 إن انتهت |
 | `/[locale]/forgot-password` | استعادة كلمة المرور | — |
 | `/[locale]/properties/[id]/receipt` | إيصال/عرض بعد دفع | حسب تدفق الحجز |
 | `/[locale]/properties/[id]/upload-documents` | رفع مستندات | مرتبط بالحجز/العقد |

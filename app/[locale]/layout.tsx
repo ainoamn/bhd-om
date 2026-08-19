@@ -10,7 +10,8 @@ import { PageViewTracker } from '@/components/PageViewTracker';
 import { OrganizationJsonLd } from '@/components/JsonLd';
 import PropertyStorageMigration from '@/components/PropertyStorageMigration';
 import SiteContentHydrator from '@/components/SiteContentHydrator';
-import { Cairo, Inter } from 'next/font/google';
+import NavigationWarmup from '@/components/bhd/NavigationWarmup';
+import { IBM_Plex_Sans_Arabic, Inter } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
@@ -20,10 +21,10 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
-const cairo = Cairo({
+const cairo = IBM_Plex_Sans_Arabic({
   variable: '--font-cairo',
   subsets: ['arabic', 'latin'],
-  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
 });
 
@@ -66,6 +67,7 @@ export default async function RootLayout({
       <OrganizationJsonLd />
       <PropertyStorageMigration />
       <SiteContentHydrator />
+      <NavigationWarmup locale={locale} />
       <Analytics />
       <WebVitals />
       <PageViewTracker />

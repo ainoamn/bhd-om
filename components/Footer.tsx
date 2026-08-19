@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
+import BhdProgramsFooter from '@/components/bhd/BhdProgramsFooter';
 
 interface FooterProps {
   locale: string;
@@ -190,6 +191,8 @@ export default function Footer({ locale }: FooterProps) {
             </ul>
           </div>
         </div>
+
+        <BhdProgramsFooter locale={locale} />
 
         {/* Bottom Bar */}
         <div className="border-t border-gray-800 mt-12 pt-8">

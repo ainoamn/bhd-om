@@ -9,6 +9,15 @@
 
 ## آخر الأحداث (الأحدث في الأعلى)
 
+### جلسة 2026-08-19 — 13:50–14:50 (+0400) — دخول BHD الموحّد ومشغّل التطبيقات (`bhd-office`)
+
+- **ما تم:** سحب Git ثم تطبيق دليل الدخول الموحّد على المكتب؛ رفع إلى `origin/master` ونشر Vercel من `master`.
+- **الملفات الرئيسية:** `app/api/auth/bhd/*` · `lib/bhd/*` · `lib/server/bhdOidcUser.ts` · `prisma/migrations/20260819_user_bhd_sub` · مشغّل/فوتر في `components/bhd` · `docs/BHD-UNIFIED-LOGIN-AND-APPS.md` (قسم 12.7) · `docs/SITE-SCENARIOS-AND-LINKS.md`.
+- **أحداث جديدة:** OIDC PKCE إلى `https://id.bhd-om.com` · `User.bhdSub` · غلاف `/login` و`/register` إلا `?local=1` · خمول 48 ساعة · IBM Plex Sans Arabic.
+- **ما لم يُمس:** إقلاع النظام القديم و`app-main.js`، ولا كوكي `Domain=.bhd-om.com`. ملفات الانتحال أُعيدت كما في Git ولم تُرفع وهي فارغة.
+- **ملاحظات للجلسة القادمة:** أسرار Vercel (`BHD_OAUTH_CLIENT_SECRET` وغيرها) · نشر تحديث `clients.ts` على الهوية · بعد نجاح 302 من `/api/auth/bhd/start` قلب `office.mode` إلى `sso` في ONE-BHD. الدخول المحلي: `/{locale}/login?local=1`.
+- **هجرة DB:** تطبيق `prisma/migrations/20260819_user_bhd_sub` على Neon إن لم تُطبَّق تلقائياً.
+
 ### جلسة 2026-07-22 — إعادة بناء صحيحة لميزات أمس (بدون كسر الإقلاع)
 
 - **السياق:** تم الرجوع إلى `5aaae5c` (أمس 09:53) بعد أن تسببت طبقة cloud-only + تعديلات boot في تجميد اللوحة.

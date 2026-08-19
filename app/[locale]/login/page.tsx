@@ -50,11 +50,21 @@ function LoginFormInner() {
   const [needsTotp, setNeedsTotp] = useState(false);
   const [totpCode, setTotpCode] = useState('');
 
-  // Check for loginAsUser parameter
+  const forceLocal = searchParams.get('local') === '1';
+  const ssoError = searchParams.get('error') === 'sso';
   const loginAsUser = searchParams.get('loginAsUser');
   const adminId = searchParams.get('adminId');
   const autoLogin = searchParams.get('autoLogin');
   const returnToAdmin = searchParams.get('returnToAdmin');
+
+  useEffect(() => {
+    if (forceLocal || ssoError) return;
+    if (loginAsUser || returnToAdmin) return;
+    const next = searchParams.get('callbackUrl') || `/${locale}/admin`;
+    const returnTo =
+      next.startsWith('/') && !next.startsWith('//') && !next.includes('://') ? next : `/${locale}/admin`;
+    window.location.replace(`/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`);
+  }, [forceLocal, ssoError, loginAsUser, returnToAdmin, locale, searchParams]);
 
   // عرض خطأ من الرابط (بعد تحويل NextAuth عند redirect: true)
   useEffect(() => {
@@ -277,6 +287,16 @@ function LoginFormInner() {
     return key;
   };
 
+  if (!forceLocal && !ssoError && !loginAsUser && !returnToAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#fbfaf7' }}>
+        <p className="text-[#075c45] font-semibold">
+          {locale === 'ar' ? 'جاري التحويل إلى حساب BHD الموحّد…' : 'Redirecting to BHD identity…'}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-screen w-full flex flex-col lg:flex-row"
@@ -358,8 +378,15 @@ function LoginFormInner() {
             </p>
           </div>
 
-          {/* أزرار التسجيل عبر Google و Microsoft */}
           <div className="space-y-3 mb-6">
+            <a
+              href={`/api/auth/bhd/start?returnTo=${encodeURIComponent(`/${locale}/admin`)}`}
+              className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-xl border-2 border-[#075c45] bg-[#075c45] text-white font-bold text-base transition-all duration-200 shadow-md hover:shadow-lg"
+            >
+              {locale === 'ar' ? 'الدخول بحساب BHD الموحّد' : 'Sign in with BHD account'}
+            </a>
+            {forceLocal ? (
+              <>
             <button
               type="button"
               onClick={() => handleOAuthSignIn('google')}
@@ -376,6 +403,8 @@ function LoginFormInner() {
               <MicrosoftIcon className="w-6 h-6 shrink-0" />
               {t('continueWithMicrosoft')}
             </button>
+              </>
+            ) : null}
           </div>
 
           {/* فاصل */}

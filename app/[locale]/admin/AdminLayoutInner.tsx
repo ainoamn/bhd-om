@@ -15,7 +15,7 @@ import { getAdminNavGroupsConfig } from '@/lib/config/adminNav';
 import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import DraftBanner from '@/components/admin/DraftBanner';
-import AdminThemeToggle from '@/components/admin/AdminThemeToggle';
+import BhdAccountChrome from '@/components/bhd/BhdAccountChrome';
 import { initAdminTheme, getAdminTheme, resolveAdminTheme, ADMIN_THEME_EVENT } from '@/lib/client/adminTheme';
 import { useUserBar } from '@/components/UserBarContext';
 import { isPathAllowedForPortalUser } from '@/lib/config/userPortalRoutes';
@@ -399,7 +399,9 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
       window.clearTimeout(clearStaleSessionTimeoutRef.current);
       clearStaleSessionTimeoutRef.current = null;
     }
-    void signOut({ callbackUrl: `/${locale}/login` });
+    void signOut({ redirect: false }).then(() => {
+      window.location.assign('/api/auth/bhd/logout');
+    });
   };
 
   // أثناء جلب الجلسة: لا نعرض شاشة الدخول حتى يستقر useSession أو يكتمل getSession() (يُصلح التأخير الطويل على الإنتاج).
@@ -749,6 +751,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
             )}
           </div>
           <AdminThemeToggle locale={locale} variant="pill" compact />
+          <BhdAccountChrome />
         </header>
         <div className="admin-main-inner admin-subpages">{children}</div>
       </main>

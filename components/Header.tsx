@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { useSession, signOut } from 'next-auth/react';
-import LanguageSwitcher from './LanguageSwitcher';
+import { useSession } from 'next-auth/react';
+import BhdAccountChrome from '@/components/bhd/BhdAccountChrome';
 import { getPagesVisibility, PAGES_VISIBILITY_EVENT, type PageId } from '@/lib/data/siteSettings';
 
 interface HeaderProps {
@@ -108,26 +108,7 @@ export default function Header({ locale, hasUserBar }: HeaderProps) {
               <div className="h-8 w-px bg-gray-300"></div>
               <LanguageSwitcher currentLocale={locale} />
               {status === 'authenticated' && session?.user ? (
-                <div className="flex items-center gap-3">
-                  <Link
-                    href={`/${locale}/admin`}
-                    className="text-gray-700 hover:text-primary font-semibold text-sm transition-colors"
-                    title={locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}
-                  >
-                    {(session.user as { name?: string }).name?.trim() ||
-                      (session.user as { serialNumber?: string }).serialNumber ||
-                      (session.user as { email?: string }).email ||
-                      (session.user as { phone?: string }).phone ||
-                      '—'}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => signOut({ callbackUrl: `/${locale}` })}
-                    className="text-gray-500 hover:text-red-600 text-xs font-medium transition-colors"
-                  >
-                    {locale === 'ar' ? 'تسجيل الخروج' : 'Log out'}
-                  </button>
-                </div>
+                <BhdAccountChrome />
               ) : (
                 <Link 
                   href={`/${locale}/login`} 
@@ -176,29 +157,16 @@ export default function Header({ locale, hasUserBar }: HeaderProps) {
               </div>
               <div className="px-4 pt-2 space-y-2">
                 {status === 'authenticated' && session?.user ? (
-                  <>
+                  <div className="px-4 py-2">
+                    <BhdAccountChrome />
                     <Link
                       href={`/${locale}/admin`}
-                      className="block px-4 py-3.5 min-h-[44px] flex items-center justify-between rounded-lg bg-gray-50 font-semibold text-gray-900 touch-manipulation"
+                      className="mt-2 block px-4 py-3.5 min-h-[44px] flex items-center justify-center rounded-lg bg-gray-50 font-semibold text-gray-900 touch-manipulation"
                       onClick={() => setIsMenuOpen(false)}
                     >
-                      <span>
-                        {(session.user as { name?: string }).name?.trim() ||
-                          (session.user as { serialNumber?: string }).serialNumber ||
-                          (session.user as { email?: string }).email ||
-                          (session.user as { phone?: string }).phone ||
-                          '—'}
-                      </span>
-                      <span className="text-xs text-primary">{locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+                      {locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: `/${locale}` }); }}
-                      className="block w-full py-3.5 min-h-[44px] text-red-600 hover:bg-red-50 rounded-lg font-semibold touch-manipulation"
-                    >
-                      {locale === 'ar' ? 'تسجيل الخروج' : 'Log out'}
-                    </button>
-                  </>
+                  </div>
                 ) : (
                   <Link 
                     href={`/${locale}/login`} 
