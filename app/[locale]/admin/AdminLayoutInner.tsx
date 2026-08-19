@@ -15,6 +15,7 @@ import { getAdminNavGroupsConfig } from '@/lib/config/adminNav';
 import { siteConfig } from '@/config/site';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import DraftBanner from '@/components/admin/DraftBanner';
+import AdminThemeToggle from '@/components/admin/AdminThemeToggle';
 import BhdAccountChrome from '@/components/bhd/BhdAccountChrome';
 import { initAdminTheme, getAdminTheme, resolveAdminTheme, ADMIN_THEME_EVENT } from '@/lib/client/adminTheme';
 import { useUserBar } from '@/components/UserBarContext';
