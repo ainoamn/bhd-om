@@ -31,9 +31,19 @@ export function oauthClientSecret(): string {
 }
 
 export function oauthRedirectUri(origin: string): string {
+  const requestOrigin = origin.replace(/\/$/, '');
+  const fromRequest = `${requestOrigin}/api/auth/bhd/callback`;
   const configured = process.env.BHD_OAUTH_REDIRECT_URI?.trim();
-  if (configured) return configured;
-  return `${origin.replace(/\/$/, '')}/api/auth/bhd/callback`;
+  if (!configured) return fromRequest;
+  try {
+    const configuredUrl = new URL(configured);
+    if (configuredUrl.origin.replace(/\/$/, '') === requestOrigin) {
+      return configured;
+    }
+  } catch {
+    /* قيمة بيئة غير صالحة — نستخدم أصل الطلب */
+  }
+  return fromRequest;
 }
 
 export function randomUrlToken(bytes = 32): string {

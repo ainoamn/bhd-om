@@ -14,7 +14,12 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  const origin = url.origin;
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const origin =
+    forwardedHost
+      ? `${forwardedProto || 'https'}://${forwardedHost}`
+      : url.origin;
   const issuer = identityIssuer();
   const clientId = oauthClientId();
   const redirectUri = oauthRedirectUri(origin);
