@@ -197,9 +197,18 @@ export default function Footer({ locale }: FooterProps) {
         {/* Bottom Bar */}
         <div className="border-t border-gray-800 mt-12 pt-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-gray-400 text-sm text-center sm:text-right">
-              © {new Date().getFullYear()} {locale === 'ar' ? 'بن حمود للتطوير ش ش و. جميع الحقوق محفوظة.' : 'Bin Hamood Development SPC. All rights reserved.'}
-            </p>
+            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+              <p className="text-gray-400 text-sm text-center sm:text-right">
+                © {new Date().getFullYear()} {locale === 'ar' ? 'بن حمود للتطوير ش ش و. جميع الحقوق محفوظة.' : 'Bin Hamood Development SPC. All rights reserved.'}
+              </p>
+              <Link
+                href={`/${locale}/login?local=1&callbackUrl=${encodeURIComponent(`/${locale}/admin`)}`}
+                prefetch
+                className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors duration-200 min-h-[44px] inline-flex items-center px-1"
+              >
+                {t('staffAdminLogin')}
+              </Link>
+            </div>
             <div className="flex items-center gap-4">
               <a href="#" className="text-gray-400 hover:text-primary transition-colors duration-200">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

@@ -100,7 +100,7 @@ flowchart LR
 | `/[locale]/contact` | التواصل | — |
 | `/[locale]/about` | عن الشركة | — |
 | `/[locale]/subscriptions` | الباقات والاشتراكات (عامة) | اختيار باقة، قد يوجّه للدفع أو للتسجيل |
-| `/[locale]/login` | تسجيل الدخول | الافتراضي: تحويل إلى هوية BHD `GET /api/auth/bhd/start`. الموظفون: `?local=1` (بيانات + TOTP). بعد SSO → `/admin` |
+| `/[locale]/login?local=1` | دخول الإدارة القديم (بريد/كلمة مرور + TOTP) | رابط صغير في الفوتر: «دخول الإدارة». بعد النجاح → `/admin`. مؤقت حتى توحيد أدمن الهوية |
 | `/[locale]/register` | التسجيل | الافتراضي: نفس تحويل الهوية. الإنشاء المحلي: `?local=1` |
 | `/api/auth/bhd/start` | بدء OIDC (PKCE) | 302 إلى `https://id.bhd-om.com/oauth/authorize` (`client_id=bhd-office`) |
 | `/api/auth/bhd/callback` | رجوع الهوية | upsert `User.bhdSub` + كوكي NextAuth Host-only |
