@@ -22,9 +22,15 @@ function isCurrentApp(app: BhdApp, pageOrigin: string) {
   const here = stripSlash(pageOrigin);
   if (app.id === "account") return here === "https://id.bhd-om.com";
   if (app.id === "office") {
-    return here !== "https://id.bhd-om.com";
+    if (app.origin && here === stripSlash(app.origin)) return true;
+    return (
+      here.endsWith(".vercel.app") ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(here)
+    );
   }
-  if (app.id === "portal") return false;
+  if (app.id === "portal") {
+    return here === "https://www.bhd-om.com" || here === "https://bhd-om.com";
+  }
   return Boolean(app.origin) && here === stripSlash(app.origin);
 }
 

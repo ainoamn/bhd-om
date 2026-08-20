@@ -17,6 +17,8 @@ export type BhdApp = {
 export const BHD_APP_SWITCHER_SPEC = "bhd-appswitcher.v1";
 
 export const BHD_APPS: BhdApp[] = [
+  // mode "sso" فقط بعد التحقق أن GET {origin}/api/auth/bhd/start يعيد 302 إلى id.bhd-om.com
+  // mode "browse" = فتح الأصل مباشرة (لا تنقّل صامت) حتى يكتمل تثبيت المنتج — انظر docs/BHD-PRODUCT-SSO-ADMIN.md
   {
     id: "account",
     clientId: null,
@@ -113,10 +115,10 @@ export const BHD_APPS: BhdApp[] = [
     clientId: "bhd-office",
     nameAr: "المكتب",
     nameEn: "BHD Office",
-    origin: "",
-    startUrl: null,
-    mode: "browse",
-    enabled: false,
+    origin: "https://baitak.bhd-om.com",
+    startUrl: "https://baitak.bhd-om.com/api/auth/bhd/start?returnTo=/",
+    mode: "sso",
+    enabled: true,
     mark: "B",
     accent: "#283b4d",
     soft: "#e9edf0",

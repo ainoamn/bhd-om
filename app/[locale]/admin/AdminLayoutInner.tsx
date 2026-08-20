@@ -423,7 +423,7 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
    * فيتأخر جلب البيانات من API حتى 2–8 ث (تسلسل انتظار). نُظهر شريطاً خفيفاً ونُصيّر المحتوى فوراً.
    */
   if (showLoginRequired) {
-    const loginUrl = `/${locale}/login?callbackUrl=${encodeURIComponent(pathname || `/${locale}/admin`)}`;
+    const adminEntryUrl = `/api/auth/admin-entry?next=${encodeURIComponent(pathname || `/${locale}/admin`)}`;
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8f5f0]" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <div className="text-center max-w-md px-6">
@@ -436,13 +436,13 @@ export default function AdminLayoutInner({ children }: { children: React.ReactNo
           <p className="text-neutral-600 mb-6">
             {locale === 'ar' ? 'يجب تسجيل الدخول للوصول إلى لوحة التحكم.' : 'You need to sign in to access the admin panel.'}
           </p>
-          <Link
-            href={loginUrl}
+          <a
+            href={adminEntryUrl}
             className="inline-block px-8 py-3 rounded-xl font-semibold text-white transition-colors"
             style={{ background: 'linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-hover) 100%)' }}
           >
             {locale === 'ar' ? 'تسجيل الدخول' : 'Sign in'}
-          </Link>
+          </a>
         </div>
       </div>
     );

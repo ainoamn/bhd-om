@@ -58,11 +58,23 @@ function LoginFormInner() {
   const returnToAdmin = searchParams.get('returnToAdmin');
 
   useEffect(() => {
-    if (forceLocal || ssoError) return;
     if (loginAsUser || returnToAdmin) return;
-    const next = searchParams.get('callbackUrl') || `/${locale}/admin`;
+    const nextRaw = searchParams.get('callbackUrl') || searchParams.get('next') || `/${locale}/admin`;
     const returnTo =
-      next.startsWith('/') && !next.startsWith('//') && !next.includes('://') ? next : `/${locale}/admin`;
+      nextRaw.startsWith('/') && !nextRaw.startsWith('//') && !nextRaw.includes('://')
+        ? nextRaw
+        : `/${locale}/admin`;
+    // §4.9: لا ترسل المشرف إلى كلمة مرور محلية — admin-entry → SSO
+    const wantsAdmin =
+      returnTo === '/admin' ||
+      returnTo.startsWith('/admin/') ||
+      returnTo === `/${locale}/admin` ||
+      returnTo.startsWith(`/${locale}/admin`);
+    if (forceLocal && wantsAdmin) {
+      window.location.replace(`/api/auth/admin-entry?next=${encodeURIComponent(returnTo)}`);
+      return;
+    }
+    if (forceLocal || ssoError) return;
     window.location.replace(`/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`);
   }, [forceLocal, ssoError, loginAsUser, returnToAdmin, locale, searchParams]);
 
@@ -292,6 +304,20 @@ function LoginFormInner() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#fbfaf7' }}>
         <p className="text-[#075c45] font-semibold">
           {locale === 'ar' ? 'جاري التحويل إلى حساب BHD الموحّد…' : 'Redirecting to BHD identity…'}
+        </p>
+      </div>
+    );
+  }
+
+  const nextHint = searchParams.get('callbackUrl') || searchParams.get('next') || '';
+  const redirectingAdminLocal =
+    forceLocal &&
+    (nextHint.includes('/admin') || nextHint === '/admin' || !nextHint);
+  if (redirectingAdminLocal && !loginAsUser && !returnToAdmin && !ssoError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#fbfaf7' }}>
+        <p className="text-[#075c45] font-semibold">
+          {locale === 'ar' ? 'جاري التحويل إلى دخول الإدارة الموحّد…' : 'Redirecting to unified admin sign-in…'}
         </p>
       </div>
     );

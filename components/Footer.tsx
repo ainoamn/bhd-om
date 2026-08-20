@@ -201,13 +201,12 @@ export default function Footer({ locale }: FooterProps) {
               <p className="text-gray-400 text-sm text-center sm:text-right">
                 © {new Date().getFullYear()} {locale === 'ar' ? 'بن حمود للتطوير ش ش و. جميع الحقوق محفوظة.' : 'Bin Hamood Development SPC. All rights reserved.'}
               </p>
-              <Link
-                href={`/${locale}/login?local=1&callbackUrl=${encodeURIComponent(`/${locale}/admin`)}`}
-                prefetch
+              <a
+                href={`/api/auth/admin-entry?next=${encodeURIComponent(`/${locale}/admin`)}`}
                 className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors duration-200 min-h-[44px] inline-flex items-center px-1"
               >
                 {t('staffAdminLogin')}
-              </Link>
+              </a>
             </div>
             <div className="flex items-center gap-4">
               <a href="#" className="text-gray-400 hover:text-primary transition-colors duration-200">

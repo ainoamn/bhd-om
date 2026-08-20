@@ -2,6 +2,11 @@ import { prisma } from '@/lib/prisma';
 import { generateBhdSerial } from '@/lib/server/serialNumbers';
 import type { IdentityProfile } from '@/lib/bhd/identity';
 
+/**
+ * ربط هوية BHD بمستخدم المنتج — القسم 0.7:
+ * bhd_sub → بريد موثّق (يحتفظ بالدور/الأدمن) → إنشاء CLIENT جديد بلا كلمة مرور.
+ * لا يمنح أدمن تلقائياً من الهوية.
+ */
 export async function upsertOfficeUserFromIdentity(profile: IdentityProfile) {
   const bySub = await prisma.user.findUnique({ where: { bhdSub: profile.sub } });
   if (bySub) {
@@ -23,6 +28,7 @@ export async function upsertOfficeUserFromIdentity(profile: IdentityProfile) {
         bhdSub: profile.sub,
         name: profile.name || byEmail.name,
         ...(profile.phone && !byEmail.phone ? { phone: profile.phone } : {}),
+        // ربط الأدمن/الموظف القديم: احتفظ بـ role و isSuperAdmin و adminPermissions كما هي
       },
     });
   }

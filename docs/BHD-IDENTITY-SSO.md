@@ -117,6 +117,8 @@ sequenceDiagram
 | `BHD_IDENTITY_ISSUER` | `https://id.bhd-om.com` |
 | `GOOGLE_CLIENT_ID` | نفس عميل One BHD |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | نفس القيمة |
+| `FACEBOOK_APP_ID` | تطبيق Meta `bhd-om.com` (`2020952291888711`) |
+| `FACEBOOK_APP_SECRET` | سر التطبيق في Vercel فقط |
 | `BHD_OAUTH_CLIENTS` | JSON للعملاء (انظر 2.3) أو جدول `bhd_oauth_clients` |
 | `BHD_PLATFORM_ADMIN_EMAILS` | بريد مديري المنصة، مفصول بفاصلة. يفتح `/admin` |
 
@@ -181,12 +183,14 @@ sequenceDiagram
 | GET | `/oauth/userinfo` | Bearer access token |
 | POST | `/oauth/revoke` | إلغاء refresh |
 | GET | `/oauth/end-session` | خروج موحّد (RP-initiated logout) |
-| GET | `/login` | واجهة الدخول (بريد/اسم مستخدم + Google) |
+| GET | `/login` | واجهة الدخول (بريد/اسم مستخدم + Google + فيسبوك) |
 | GET | `/account` | صفحة ملف الحساب: البيانات، المواقع المرتبطة، الاشتراكات |
 | GET / PATCH | `/api/account` | قراءة/تعديل الملف الشخصي (جلسة هوية مطلوبة) |
 | POST | `/api/auth/login` | دخول محلي للهوية |
 | POST | `/api/auth/register` | إنشاء حساب هوية |
 | POST | `/api/auth/google` | تحقق ID Token من Google على خادم الهوية |
+| GET | `/api/auth/facebook/start` | بدء دخول فيسبوك (تحويل OAuth) |
+| GET | `/api/auth/facebook/callback` | استبدال رمز فيسبوك على خادم الهوية |
 | POST | `/api/auth/logout` | مسح `bhd_id` ثم إن وُجد `post_logout_redirect_uri` يُحوَّل إليه |
 
 تعديل الاسم/الهاتف/العنوان على `/account` يكتب في `bhd_users` و`bhd_contacts` (SELF). `/oauth/userinfo` وID Token التالي يقرآن القيم الجديدة. المنتج يحدّث نسخته المحلية عند الدخول التالي (قسم 6.4). الاشتراكات تظهر في `/account` عندما يبلّغ المنتج عنها؛ حتى ذلك الحين القائمة فارغة عمدًا.
@@ -299,6 +303,8 @@ grant_type=refresh_token
 | جلسة المنتج الحالية | المنتج | Host-only | نعم | نعم في الإنتاج | Lax | تبقى أسماء حسابي `bhd_access` ووازن كما هي وبوابة `bhd_portal` |
 
 ممنوع ضبط `Domain=.bhd-om.com` على `bhd_id`. SSO يعمل بإعادة توجيه المنتج إلى الهوية التي ترى كوكيزها على `id.bhd-om.com`.
+
+**حساب واحد في الجلسة.** مضيف الهوية القانوني هو `https://id.bhd-om.com` فقط. دخول ثانٍ بينما `bhd_id` لحساب مختلف يُرفض (`SWITCH_REQUIRES_LOGOUT`) حتى يتم `end-session`. المنتج عند `callback` يستبدل جلسته المحلية بالكامل بـ `sub` القادم؛ لا يجوز بقاء `/admin` على مستخدم قديم. `www` و`one-bhd.vercel.app` يحوّلان مسارات الدخول والحساب إلى `id`.
 
 حسابي على `hisaby.bhd-om.com` (و`hisaby.pro`) يعمل بنفس التحويل. لا حاجة لكوكي مشترك عبر النطاقات.
 
@@ -424,6 +430,10 @@ CREATE INDEX IF NOT EXISTS users_bhd_sub_idx ON <users>(bhd_sub);
 أزل أصول المنتجات من جوجل عندما يتوقف زرها المحلي.
 
 **Authorized redirect URIs:** لا تُستخدم لمسار GIS (ID Token). إن بقي مسار PKCE قديماً في وازن حتى النقل، أبقِ `https://wazen.bhd-om.com/api/auth/google/callback` إلى يوم القطع ثم احذفه.
+
+## 8.1 Facebook Login (Meta)
+
+انظر `docs/BHD-FACEBOOK-LOGIN.md`. Redirect URIs تُسجَّل حرفياً على `…/api/auth/facebook/callback` لنطاقات الهوية فقط. المنتجات لا تسجّل فيسبوك.
 
 ---
 
@@ -560,7 +570,7 @@ bhd_oauth_consents
 
 - تحقق التوكن على الخادم فقط.
 - PKCE إلزامي حتى للعملاء السرّية.
-- معدل طلبات: authorize/login/google ≤ 10/دقيقة/IP.
+- معدل طلبات: authorize/login/google/facebook ≤ 10/دقيقة/IP.
 - أسرار العملاء bcrypt.
 - الكود والـ refresh يُخزَّنان هاش فقط.
 - صفحات `/login` و`/oauth/*`: `noindex`, `no-store`.

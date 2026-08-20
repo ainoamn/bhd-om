@@ -18,7 +18,7 @@ export const runtime = 'nodejs';
 
 function loginError(origin: string, reason: string) {
   const response = NextResponse.redirect(
-    new URL(`/ar/login?local=1&error=sso&reason=${encodeURIComponent(reason)}`, origin)
+    new URL(`/ar/login?error=sso&reason=${encodeURIComponent(reason)}`, origin)
   );
   response.cookies.set(BHD_OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(), maxAge: 0 });
   return response;
@@ -78,6 +78,10 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.redirect(new URL(dest, origin));
   response.cookies.set(BHD_OAUTH_STATE_COOKIE, '', { ...oauthStateCookieOptions(), maxAge: 0 });
+  // امسح أي جلسة منتج سابقة قبل ضبط الكوكي الجديدة (§0.2 / §0.7)
+  const wipe = { httpOnly: true, path: '/', maxAge: 0, sameSite: 'lax' as const };
+  response.cookies.set('next-auth.session-token', '', wipe);
+  response.cookies.set('__Secure-next-auth.session-token', '', { ...wipe, secure: true });
   response.cookies.set(nextAuthCookieName(), jwt, nextAuthCookieOptions());
   return response;
 }
