@@ -9,7 +9,10 @@
 - CSP: `script-src` / `connect-src` / `img-src` لـ `id.bhd-om.com`
 - `POST/GET /api/auth/bhd/rebind`
 - كتالوج حي في `BhdAppSwitcher` (`useBhdCatalog`)
-- `BhdSilentSso` في `SessionAwareLayout`
+- `BhdSilentSso` + `BhdPrivacyGateSession` في `SessionAwareLayout`
+- `lib/identity/client.ts` — silent JSON rebind، `?au=`، `paintPrivacyVeil`
+- `lib/identity/window-session.ts` — `ACCOUNT_TOKENS_KEY` / `ACTIVE_AU_KEY`
+- `app/api/auth/bhd/rebind/route.ts` — JSON + redirect مع `au=` (issuer: https://id.bhd-om.com)
 - `maxAge` كوكي الجلسة من `/api/bhd/runtime`
 
 ## مراجع

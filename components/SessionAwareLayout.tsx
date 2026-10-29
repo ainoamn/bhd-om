@@ -5,6 +5,7 @@ import Footer from '@/components/Footer';
 import LayoutWrapper from '@/components/LayoutWrapper';
 import { UserBarContext } from '@/components/UserBarContext';
 import { BhdSilentSso } from '@/components/bhd/BhdSilentSso';
+import { BhdPrivacyGateSession } from '@/components/bhd/BhdPrivacyGateSession';
 
 /**
  * لا يُعرض شريط المستخدم الذهبي العلوي — كان يُزيح التخطيط ويُخفي الشريط عند التمرير.
@@ -20,6 +21,7 @@ export default function SessionAwareLayout({
   return (
     <UserBarContext.Provider value={{ hasUserBar: false, barVisible: false, setBarVisible: () => {} }}>
       <BhdSilentSso />
+      <BhdPrivacyGateSession />
       <LayoutWrapper header={<Header locale={locale} hasUserBar={false} />} footer={<Footer locale={locale} />}>
         {children}
       </LayoutWrapper>

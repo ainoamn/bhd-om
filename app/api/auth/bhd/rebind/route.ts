@@ -14,6 +14,36 @@ import { upsertOfficeUserFromIdentity } from '@/lib/server/bhdOidcUser';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function bindReturnPath(returnTo: string, sub: string) {
+  const safe = isSafeNextPath(returnTo) ? returnTo : '/ar/admin';
+  try {
+    const url = new URL(safe, 'https://bhd.local');
+    url.searchParams.set('au', sub);
+    url.searchParams.set('_bhd', String(Date.now()));
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return safe;
+  }
+}
+
+function wantsJson(request: NextRequest) {
+  const accept = request.headers.get('accept') || '';
+  return accept.includes('application/json');
+}
+
+function jsonOk(
+  payload: { ok: true; unchanged?: boolean; user: { id: string; email: string; name: string } },
+  cookie?: { name: string; value: string; opts: ReturnType<typeof nextAuthCookieOptions> },
+) {
+  const response = NextResponse.json(payload, {
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, private', Pragma: 'no-cache' },
+  });
+  if (cookie) {
+    response.cookies.set(cookie.name, cookie.value, cookie.opts);
+  }
+  return response;
+}
+
 async function profileFromWindowToken(token: string): Promise<IdentityProfile> {
   const issuer = identityIssuer();
   const response = await fetch(`${issuer}/api/auth/me`, {
@@ -39,6 +69,7 @@ async function profileFromWindowToken(token: string): Promise<IdentityProfile> {
 
 async function rebind(request: NextRequest) {
   const origin = new URL(request.url).origin;
+  const json = wantsJson(request);
   let token = '';
   let returnTo = '/ar/admin';
 
@@ -60,6 +91,7 @@ async function rebind(request: NextRequest) {
   const header = request.headers.get('authorization');
   if (!token && header?.toLowerCase().startsWith('bearer ')) token = header.slice(7).trim();
   if (!token || token.length < 20) {
+    if (json) return NextResponse.json({ ok: false, error: 'token' }, { status: 401 });
     return NextResponse.redirect(new URL(`/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`, origin), 303);
   }
 
@@ -80,6 +112,13 @@ async function rebind(request: NextRequest) {
     if (currentBhdSub && currentBhdSub === profile.sub && session) {
       const user = await prisma.user.findUnique({ where: { bhdSub: profile.sub } });
       if (user) {
+        if (json) {
+          return jsonOk({
+            ok: true,
+            unchanged: true,
+            user: { id: profile.sub, email: user.email, name: user.name },
+          });
+        }
         const jwt = await encodeProductSessionToken({
           id: user.id,
           email: user.email,
@@ -93,7 +132,7 @@ async function rebind(request: NextRequest) {
           picture: profile.picture,
           bhdSub: profile.sub,
         });
-        const response = NextResponse.redirect(new URL(returnTo, origin), 303);
+        const response = NextResponse.redirect(new URL(bindReturnPath(returnTo, profile.sub), origin), 303);
         response.cookies.set(nextAuthCookieName(), jwt, cookieOpts);
         response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
         return response;
@@ -115,11 +154,25 @@ async function rebind(request: NextRequest) {
       bhdSub: profile.sub,
     });
 
-    const response = NextResponse.redirect(new URL(returnTo, origin), 303);
+    if (json) {
+      return jsonOk(
+        {
+          ok: true,
+          user: { id: user.bhdSub || profile.sub, email: user.email, name: user.name },
+        },
+        { name: nextAuthCookieName(), value: jwt, opts: cookieOpts },
+      );
+    }
+    const response = NextResponse.redirect(new URL(bindReturnPath(returnTo, profile.sub), origin), 303);
     response.cookies.set(nextAuthCookieName(), jwt, cookieOpts);
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     return response;
   } catch {
+    if (json) {
+      const response = NextResponse.json({ ok: false, error: 'rebind' }, { status: 401 });
+      response.cookies.set(nextAuthCookieName(), '', { ...cookieOpts, maxAge: 0 });
+      return response;
+    }
     const response = NextResponse.redirect(
       new URL(`/api/auth/bhd/logout?continue=${encodeURIComponent(`/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`)}`, origin),
       303,
