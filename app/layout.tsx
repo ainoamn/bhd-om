@@ -14,6 +14,8 @@ export default function RootLayout({ children }: Props) {
       <head>
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
         <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://id.bhd-om.com" crossOrigin="anonymous" />
+        <script src="https://id.bhd-om.com/bhd-identity.js" defer />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>

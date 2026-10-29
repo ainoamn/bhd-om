@@ -38,10 +38,15 @@ export async function GET(req: NextRequest) {
     picture: typeof token.picture === 'string' ? token.picture : undefined,
   });
 
+  const identityId =
+    (typeof token.bhdSub === 'string' && token.bhdSub) ||
+    (typeof token.sub === 'string' && token.sub) ||
+    String(token.id || '');
+
   const res = NextResponse.json({
     ok: true,
     user: {
-      id: token.id || token.sub,
+      id: identityId,
       email: token.email,
       name: token.name,
     },

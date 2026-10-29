@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
       { key: 'Cross-Origin-Resource-Policy', value: 'same-site' },
       ...(isProd ? [
         { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-        { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self' https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'" },
+        { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://id.bhd-om.com https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https://id.bhd-om.com https:; font-src 'self' data: https:; connect-src 'self' https://id.bhd-om.com https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'" },
       ] : []),
     ];
     return [

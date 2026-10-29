@@ -6,17 +6,22 @@ export type BhdApp = {
   nameAr: string;
   nameEn: string;
   origin: string;
+  workspacePath?: string;
   startUrl: string | null;
   mode: BhdAppMode;
   enabled: boolean;
   mark: string;
   accent: string;
   soft: string;
+  logoUrl?: string | null;
+  homeUrl?: string;
+  workspaceUrl?: string;
+  sortOrder?: number;
 };
 
 export const BHD_APP_SWITCHER_SPEC = "bhd-appswitcher.v1";
 
-export const BHD_APPS: BhdApp[] = [
+export const BHD_APPS_FALLBACK: BhdApp[] = [
   // mode "sso" فقط بعد التحقق أن GET {origin}/api/auth/bhd/start يعيد 302 إلى id.bhd-om.com
   // mode "browse" = فتح الأصل مباشرة (لا تنقّل صامت) حتى يكتمل تثبيت المنتج — انظر docs/BHD-PRODUCT-SSO-ADMIN.md
   {
@@ -124,3 +129,5 @@ export const BHD_APPS: BhdApp[] = [
     soft: "#e9edf0",
   },
 ];
+
+export const BHD_APPS = BHD_APPS_FALLBACK;

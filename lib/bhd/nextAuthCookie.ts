@@ -1,5 +1,6 @@
 import { encode } from 'next-auth/jwt';
 import { getAuthSecret } from '@/lib/server/authSecret';
+import { identitySessionMaxAgeSecCached } from '@/lib/bhd/runtime';
 import { SESSION_IDLE_MAX_AGE_SEC } from '@/lib/bhd/session';
 
 export type ProductSessionUser = {
@@ -13,6 +14,7 @@ export type ProductSessionUser = {
   adminPermissions?: string | null;
   organizationId?: string | null;
   picture?: string | null;
+  bhdSub?: string | null;
 };
 
 export function nextAuthCookieName(): string {
@@ -21,7 +23,7 @@ export function nextAuthCookieName(): string {
   return useSecure ? '__Secure-next-auth.session-token' : 'next-auth.session-token';
 }
 
-export function nextAuthCookieOptions(maxAge = SESSION_IDLE_MAX_AGE_SEC) {
+export function nextAuthCookieOptions(maxAge = identitySessionMaxAgeSecCached()) {
   const url = process.env.NEXTAUTH_URL || '';
   const useSecure = url.startsWith('https://') || process.env.NODE_ENV === 'production';
   return {
@@ -48,10 +50,11 @@ export async function encodeProductSessionToken(user: ProductSessionUser): Promi
       adminPermissions: user.adminPermissions ?? undefined,
       organizationId: user.organizationId ?? undefined,
       picture: user.picture ?? undefined,
+      bhdSub: user.bhdSub ?? undefined,
       lastActivity: now,
       userCheckedAt: now,
     },
     secret: getAuthSecret(),
-    maxAge: SESSION_IDLE_MAX_AGE_SEC,
+    maxAge: identitySessionMaxAgeSecCached(),
   });
 }

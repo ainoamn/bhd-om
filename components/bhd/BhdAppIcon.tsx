@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 
 type IconId = "account" | "portal" | "wazen" | "hisaby" | "nasab" | "baitak" | "store" | "office";
 
@@ -121,16 +122,38 @@ export function BhdAppIcon({
   id,
   title,
   className = "",
+  logoUrl,
+  soft,
+  accent,
 }: {
   id: string;
   title?: string;
   className?: string;
+  logoUrl?: string | null;
+  soft?: string;
+  accent?: string;
 }) {
   const icon = ICONS[appIconId(id)];
+  const [broken, setBroken] = useState(false);
+  const showLogo = Boolean(logoUrl) && !broken;
+
+  if (showLogo) {
+    return (
+      <span
+        className={`bhd-app-icon ${className}`.trim()}
+        style={{ background: soft || icon.soft, color: accent || icon.accent }}
+        title={title || icon.label}
+        aria-hidden="true"
+      >
+        <img src={logoUrl || undefined} alt="" onError={() => setBroken(true)} />
+      </span>
+    );
+  }
+
   return (
     <span
       className={`bhd-app-icon ${className}`.trim()}
-      style={{ background: icon.soft, color: icon.accent }}
+      style={{ background: soft || icon.soft, color: accent || icon.accent }}
       title={title || icon.label}
       aria-hidden="true"
     >

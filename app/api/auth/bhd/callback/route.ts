@@ -7,6 +7,7 @@ import {
   parseOAuthState,
   readVerifiedIdentityProfile,
 } from '@/lib/bhd/identity';
+import { identitySessionMaxAgeSecCached } from '@/lib/bhd/runtime';
 import {
   encodeProductSessionToken,
   nextAuthCookieName,
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
     adminPermissions: user.adminPermissions,
     organizationId: user.organizationId,
     picture: profile.picture,
+    bhdSub: profile.sub,
   });
 
   const response = NextResponse.redirect(new URL(dest, origin));
@@ -82,6 +84,6 @@ export async function GET(request: NextRequest) {
   const wipe = { httpOnly: true, path: '/', maxAge: 0, sameSite: 'lax' as const };
   response.cookies.set('next-auth.session-token', '', wipe);
   response.cookies.set('__Secure-next-auth.session-token', '', { ...wipe, secure: true });
-  response.cookies.set(nextAuthCookieName(), jwt, nextAuthCookieOptions());
+  response.cookies.set(nextAuthCookieName(), jwt, nextAuthCookieOptions(identitySessionMaxAgeSecCached()));
   return response;
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { BHD_APPS, type BhdApp } from "@/lib/bhd/apps";
+import { type BhdApp } from "@/lib/bhd/apps";
+import { useBhdCatalog } from "@/lib/identity/use-bhd-catalog";
 import { DEFAULT_IDENTITY_ISSUER } from "@/lib/identity/issuer";
 import { BhdAppIcon } from "./BhdAppIcon";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -62,6 +63,7 @@ export function BhdAppSwitcher({
   platformAdmin?: boolean;
 }) {
   const locale = useLocale();
+  const catalogApps = useBhdCatalog();
   const [panel, setPanel] = useState<Panel>(null);
   const [origin, setOrigin] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -141,7 +143,7 @@ export function BhdAppSwitcher({
             <p>تطبيقات BHD</p>
           </div>
           <div className="bhd-switcher-grid-apps">
-            {BHD_APPS.map((app) => {
+            {catalogApps.map((app) => {
               const current = origin ? isCurrentApp(app, origin) : false;
               return (
                 <button
@@ -156,6 +158,9 @@ export function BhdAppSwitcher({
                   <BhdAppIcon
                     id={app.id}
                     title={app.nameAr}
+                    logoUrl={app.logoUrl}
+                    soft={app.soft}
+                    accent={app.accent}
                     className={current ? "bhd-switcher-mark is-current" : "bhd-switcher-mark"}
                   />
                   <span>{app.nameAr}</span>
