@@ -53,6 +53,18 @@ function openApp(app: BhdApp, pageOrigin: string) {
   }
 }
 
+/** صورة جوجل دائرية مضغوطة — نفس أسلوب خمسات/حسوب. */
+function googleAvatarSrc(picture: string | null | undefined) {
+  if (!picture) return undefined;
+  try {
+    if (!picture.includes("googleusercontent.com")) return picture;
+    if (/=s\d+/.test(picture)) return picture.replace(/=s\d+(-c)?/, "=s96-c");
+    return `${picture}${picture.includes("?") ? "&" : "?"}sz=96`;
+  } catch {
+    return picture;
+  }
+}
+
 export function BhdAppSwitcher({
   user,
   onSignOut,
@@ -66,6 +78,7 @@ export function BhdAppSwitcher({
   const catalogApps = useBhdCatalog();
   const [panel, setPanel] = useState<Panel>(null);
   const [origin, setOrigin] = useState("");
+  const [pictureBroken, setPictureBroken] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const appsId = useId();
   const accountId = useId();
@@ -73,6 +86,10 @@ export function BhdAppSwitcher({
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
+
+  useEffect(() => {
+    setPictureBroken(false);
+  }, [user.picture]);
 
   const close = useCallback(() => setPanel(null), []);
 
@@ -106,9 +123,36 @@ export function BhdAppSwitcher({
   }
 
   const initial = user.name.trim().slice(0, 1) || "B";
+  const avatarSrc = googleAvatarSrc(user.picture);
+  const showPicture = Boolean(avatarSrc) && !pictureBroken;
+  const launcherApps = catalogApps.filter((app) => app.enabled && app.id !== "account");
 
   return (
     <div className="bhd-switcher-slot" ref={rootRef}>
+      {/* ترتيب خمسات/حسوب: الصورة ثم شبكة التطبيقات */}
+      <button
+        type="button"
+        className="bhd-switcher-avatar"
+        aria-label="الحساب"
+        aria-haspopup="dialog"
+        aria-expanded={panel === "account"}
+        aria-controls={panel === "account" ? accountId : undefined}
+        onClick={() => setPanel((current) => (current === "account" ? null : "account"))}
+      >
+        {showPicture ? (
+          <img
+            src={avatarSrc}
+            alt=""
+            width={32}
+            height={32}
+            referrerPolicy="no-referrer"
+            onError={() => setPictureBroken(true)}
+          />
+        ) : (
+          <span>{initial}</span>
+        )}
+      </button>
+
       <button
         type="button"
         className="bhd-switcher-grid"
@@ -125,25 +169,13 @@ export function BhdAppSwitcher({
         </span>
       </button>
 
-      <button
-        type="button"
-        className="bhd-switcher-avatar"
-        aria-label="الحساب"
-        aria-haspopup="dialog"
-        aria-expanded={panel === "account"}
-        aria-controls={panel === "account" ? accountId : undefined}
-        onClick={() => setPanel((current) => (current === "account" ? null : "account"))}
-      >
-        {user.picture ? <img src={user.picture} alt="" width={32} height={32} /> : <span>{initial}</span>}
-      </button>
-
       {panel === "apps" ? (
         <div className="bhd-switcher-card" id={appsId} role="dialog" aria-label="تطبيقات BHD">
           <div className="bhd-switcher-card-head">
             <p>تطبيقات BHD</p>
           </div>
           <div className="bhd-switcher-grid-apps">
-            {catalogApps.map((app) => {
+            {launcherApps.map((app) => {
               const current = origin ? isCurrentApp(app, origin) : false;
               return (
                 <button
@@ -174,7 +206,11 @@ export function BhdAppSwitcher({
       {panel === "account" ? (
         <div className="bhd-switcher-card bhd-switcher-account" id={accountId} role="dialog" aria-label="الحساب">
           <div className="bhd-switcher-account-row">
-            {user.picture ? <img src={user.picture} alt="" width={44} height={44} /> : <span className="bhd-switcher-account-initial">{initial}</span>}
+            {showPicture ? (
+              <img src={avatarSrc} alt="" width={44} height={44} referrerPolicy="no-referrer" onError={() => setPictureBroken(true)} />
+            ) : (
+              <span className="bhd-switcher-account-initial">{initial}</span>
+            )}
             <div>
               <strong>{user.name}</strong>
               <small>{user.email}</small>
